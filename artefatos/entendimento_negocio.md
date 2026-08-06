@@ -15,7 +15,7 @@
 <div align="center">
 <img src="/artefatos/assets/matriz_risco.png" width="1000">
 
-**Figura 01 - Matriz de classificação de riscos e oportunidades**
+**Figura 01 - Matriz de classificação de riscos**
 Fonte: autoria própria (2026).
 </div>
 
@@ -43,6 +43,15 @@ Fonte: autoria própria (2026).
 
 
 ### 2.2. Matriz de Oportunidades
+
+<div align="center">
+<img src="/artefatos/assets/matriz_oportunidades.png" width="1000">
+
+**Figura 01 - Matriz de classificação de oportunidades**
+Fonte: autoria própria (2026).
+</div>
+
+
 
 | Descrição (Oportunidade)                      | Classificação na matriz                                           | Explicação                                                                                                                                                            | Plano de Ação                                                                                                                              |
 | --------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
