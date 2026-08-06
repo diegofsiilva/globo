@@ -1,3 +1,17 @@
+# Entendimento do Negócio
+
+## 1. Matriz de Avaliação de Valor (Oceano Azul)
+
+---
+
+## 2. Matriz de Risco
+
+---
+
+## 3. Canvas da Proposta de Valor
+
+---
+
 ## 4. Análise Financeira do Projeto
 
 ### 4.1. Introdução
@@ -27,7 +41,6 @@
 | # | Premissa | Valor | Confiança | Fonte |
 |---|---|---|---|---|
 | A1 | Usuários ativos mensais do Globoplay | ~30 milhões | Média | EXAME (2026). Base paga não divulgada |
-| A2 | Receita líquida consolidada do Grupo Globo (2025) | R$ 16,87 bi | Alta | TELETIME (2026) |
 
 &emsp; **Modelo de benefício.** O projeto é infraestrutura interna e não gera receita direta; o benefício é modelado como custo evitado com ferramentas de observabilidade de mercado, conforme o documento de escopo do parceiro.
 
@@ -67,7 +80,7 @@
 
 ### 4.3. Investimento inicial
 
-&emsp; Estimativa do custo que o Grupo Globo incorreria para levar a solução a produção, não do custo do projeto acadêmico. A Fase 1 corresponde ao escopo do módulo (D2); as Fases 2 a 4 cobrem o que separa o MVP de um sistema em produção sob carga real.
+&emsp; Estimativa do custo que o Globoplay incorreria para levar a solução a produção, não do custo do projeto acadêmico. A Fase 1 corresponde ao escopo do módulo (D2); as Fases 2 a 4 cobrem o que separa o MVP de um sistema em produção sob carga real.
 
 | Fase | Escopo | Duração | Custo (R$) |
 |---|---|---|---|
@@ -260,7 +273,11 @@ R$ 2.032.000 × B4 = R$ 218.000 + R$ 750.000 × B4  →  B4 ≈ 17%
 
 ---
 
-### Referências bibliográficas
+## 5. Análise de impacto do projeto na perspectivas dos ODS
+
+---
+
+## Referências
 
 AMAZON WEB SERVICES. Pricing de serviços de computação e armazenamento. Seattle: AWS, 2026. Disponível em: https://aws.amazon.com/pricing/. Acesso em: 4 ago. 2026.
 
@@ -279,7 +296,5 @@ TELETIME. Lucro da Globo cai para R$ 1,45 bilhão em 2025, apesar de crescimento
 UPTRACE. Observability Tools Pricing Comparison [2026]. 7 fev. 2026. Por Vladimir Mihailenco. Disponível em: https://uptrace.dev/comparisons/observability-tools-pricing. Acesso em: 4 ago. 2026.
 
 VENDORBENCHMARK. Observability Platform Pricing Benchmarks 2026: The Complete Enterprise Guide. 2 abr. 2026, atualizado em 26 abr. 2026. Por Fredrik Filipsson. Disponível em: https://vendorbenchmark.com/blog/observability-platform-pricing-benchmark-comparison. Acesso em: 4 ago. 2026.
-
----
 
 *Nota: as URLs de AWS, Investing.com e Robert Half apontam para páginas genéricas — não há permalink para a cotação de fechamento nem para a faixa salarial específica citadas em B2, D3 e D4.*
