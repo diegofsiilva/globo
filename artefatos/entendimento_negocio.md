@@ -14,9 +14,9 @@
 
 O Canvas da Proposta de Valor é uma ferramenta utilizada para compreender as necessidades do cliente e relacioná-las ao valor oferecido por uma solução. Ele é dividido entre o perfil do cliente, que reúne suas tarefas, dores e ganhos esperados, e o mapa de valor, que apresenta os produtos e serviços, os aliviadores de dores e os criadores de ganhos. Neste projeto, o Canvas permite visualizar como a solução proposta se conecta aos desafios enfrentados pelas equipes responsáveis pela operação, pelo monitoramento e pela resolução de incidentes do Globoplay.
 
-> **Figura X – Canvas de Proposta de Valor**
+> **Figura 3 – Canvas de Proposta de Valor**
 
-![Canvas da Proposta de Valor](../assets/Value%20proposition%20canvas.png)
+![Canvas da Proposta de Valor](../assets/value-proposition-canvas.png)
 
 ### 3.2. Perfil do Cliente
 
