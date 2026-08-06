@@ -135,7 +135,7 @@ apoiar o cumprimento dos níveis de serviço;
 - oferecer uma API unificada para diferentes padrões de comunicação;
 - melhorar o aproveitamento dos dados já coletados.
 
-&emsp; A meta 9.5, relacionada ao fortalecimento da pesquisa, da inovação e das capacidades tecnológicas (ORGANIZAÇÃO DAS NAÇÕES UNIDAS, [s. d.]a)., também é aplicável. O projeto envolve investigação e desenvolvimento em áreas como:
+&emsp; A meta 9.5, relacionada ao fortalecimento da pesquisa, da inovação e das capacidades tecnológicas (ORGANIZAÇÃO DAS NAÇÕES UNIDAS, [s. d.]a), também é aplicável. O projeto envolve investigação e desenvolvimento em áreas como:
 
 - arquitetura de sistemas distribuídos;
 - observabilidade;
@@ -306,7 +306,7 @@ Apesar das contribuições potenciais, a plataforma também poderá aumentar o c
 - acompanhar custos e consumo de infraestrutura;
 - limitar atualizações de dashboards quando o tempo real não for necessário.
 
-#### 5.3. Conclusão
+### 5.3. Conclusão
 
 | ODS | Nível de relação | Principal contribuição | Limitação |
 |---|---|---|---|
