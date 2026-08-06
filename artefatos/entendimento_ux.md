@@ -94,7 +94,7 @@
 
 ---
 
-## 4. Relação entre as personas e a solução
+### 3.3. Relação entre as personas e a solução
 
 &emsp; As duas personas representam níveis diferentes de interação com o projeto. Rafael é o usuário direto da plataforma e necessita de recursos de consulta, filtragem, correlação e visualização dos eventos. Luísa é uma usuária indireta, cuja experiência depende da capacidade das equipes técnicas de identificar e corrigir falhas que afetam seu dispositivo.
 
@@ -108,7 +108,7 @@
 
 ## 4. User Stories
 
-&emsp; As User Stories conseguem traduzir ações específicas que precisam cumprir na solução, dada alguma necessidade/dor. Elas se tornam essenciais no Entendimento da Experiência do Usuário ao permitir uma validação de dores e necessidades que fazem sentido em relação à solução do problema, seguindo as boas práticas no formato INVEST que amplia a qualidade destas histórias. O acrônimo I.N.V.E.S.T. (Independente, Negociável, Valiosa, Estimável, Pequena e Testável) resumi-se à um framework que auxilia na estruturação das User Stories (Bonilha, Diego; 2020).
+&emsp; As User Stories conseguem traduzir ações específicas que precisam cumprir na solução, dada alguma necessidade/dor. Elas se tornam essenciais no Entendimento da Experiência do Usuário ao permitir uma validação de dores e necessidades que fazem sentido em relação à solução do problema, seguindo as boas práticas no formato INVEST que amplia a qualidade destas histórias. O acrônimo I.N.V.E.S.T. (Independente, Negociável, Valiosa, Estimável, Pequena e Testável) resume-se à um framework que auxilia na estruturação das User Stories (Bonilha, Diego; 2020).
 
 | # | User Story | Persona | Dor atendida | Critérios de aceite |
 |---|------------|---------|--------------|---------------------|
@@ -137,23 +137,9 @@ Neste projeto, foram mapeadas duas jornadas complementares para José Lopez, Dir
 
 &emsp; A jornada anterior à solução revela uma rotina marcada por retrabalho e falta de embasamento formal. Sem uma referência comparativa ao algoritmo vigente, José não consegue responder com segurança se os limites concedidos pelo modelo atual são ótimos, toda análise parte do zero. Solicitações do time de Políticas de Crédito interrompem seu fluxo de trabalho, e apresentações à liderança carecem de sustentação matemática. A curva emocional oscila entre frustração, incerteza e bloqueio, refletindo um processo que depende mais de esforço individual do que de estrutura técnica.
 
-### 5.2. Jornada do Usuário Luísa
-
-<div align='center'>
-
-<sub>Figura 5 - Jornada do usuário depois da futura</sub>
-
-![Jornada do Usuário pós solução](./assets/jornada_usuario_futura.png)
-
-<sup>Fonte: Material produzido pelos autores (2026)</sup>
-
-</div>
-
-&emsp; Com o modelo de otimização em operação, a jornada de José se torna estruturada e orientada por dados. Ele passa a receber outputs comparáveis ao algoritmo atual, identificar divergências com embasamento técnico e apresentar resultados auditáveis à liderança sem depender de análises pontuais sob demanda. Quando Mariana, do time de Políticas de Crédito, aciona José com dúvidas sobre o modelo, ele consegue explicar a decisão com base nas restrições aplicadas, sem precisar alterar o código. A curva emocional evolui de confiança para satisfação e alívio, indicando que a solução não apenas resolve os pontos de dor anteriores, mas também amplia a autonomia técnica do time.
-
 ### 5.3 Conclusão
 
-&emsp; A comparação entre as duas jornadas deixa evidente o papel central que o modelo de otimização exerce na rotina de José Lopez. A solução não substitui o algoritmo já em produção, mas fornece a ele algo que antes não existia: uma referência objetiva, matematicamente documentada, para questionar e aprimorar continuamente as decisões de concessão de crédito. Ao eliminar análises manuais, reduzir o gargalo técnico entre Data Science e Políticas de Crédito e tornar as decisões de limite rastreáveis e defensáveis, a solução transforma uma prática empírica em um processo científico, sistemático e escalável, alinhado às metas estratégicas do Banco Pan.
+&emsp; 
 
 ---
 
