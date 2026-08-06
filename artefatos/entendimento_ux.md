@@ -1,70 +1,110 @@
 ## 1. Contexto e escopo do projeto
 
-&emsp; A solução proposta é utilizada por profissionais internos do Banco Pan inseridos na estrutura de crédito da instituição. O usuário direto é o analista do time de Políticas de Crédito, que opera a solução para definir, de forma sistemática, quais limites pré-aprovados de cartão de crédito serão ofertados a cada cliente correntista elegível. Esse profissional precisa que o sistema apoie decisões que equilibrem rentabilidade esperada e controle de inadimplência, física e financeira, sem violar regras de negócio como limite mínimo de R$200 e discretização em múltiplos de R$50. Em paralelo, o time de Data Science interage com o software para validar tecnicamente os resultados, comparar os limites sugeridos com os previamente concedidos e garantir a integrabilidade do código Python ao motor de crédito do banco. Ambos os perfis estão diretamente vinculados ao problema central do projeto: substituir uma prática empírica de concessão de limites por um modelo de otimização linear que maximize o retorno ajustado ao risco.
+&emsp; O projeto consiste no desenvolvimento de uma plataforma distribuída de backend para coleta, normalização, processamento e consulta de eventos de telemetria provenientes das aplicações frontend do Globoplay. A solução busca atender a diferentes tipos de dispositivos, sistemas operacionais, versões de aplicativos e condições de conectividade, incluindo equipamentos legados que não oferecem suporte completo aos padrões modernos de observabilidade.
+
+&emsp; Atualmente, os componentes relacionados ao login, ao player de vídeo e à distribuição de conteúdo por CDN possuem padrões de monitoração distintos. Essa fragmentação dificulta a comparação das informações, exige correlação manual entre diferentes fontes e reduz a visibilidade sobre falhas que afetam plataformas ou dispositivos específicos.
+
+&emsp; A solução proposta deverá oferecer uma API unificada de ingestão, suporte a formatos modernos e legados, normalização dos eventos recebidos e disponibilização de consultas e visualizações operacionais. Entre os eventos previstos estão `request`, `vitals`, `screen_view`, `video_view`, `session` e `error`.
+
+&emsp; O principal usuário da plataforma será a equipe técnica responsável pela observabilidade e investigação de incidentes. Entretanto, os benefícios da solução também alcançam indiretamente os assinantes do Globoplay, especialmente aqueles que utilizam dispositivos antigos ou enfrentam condições de conectividade menos favoráveis.
 
 ---
 
 ## 2. Metodologia
 
-&emsp; A metodologia adotada orienta-se pelos princípios do Human-Centered Design (HCD) e do Design Thinking. As fontes primárias englobam entrevistas e sessões de alinhamento com os stakeholders do Banco Pan (Eduardo, Mateus e Felipe), que foram fundamentais para mapear e validar as dores das áreas de Data Science e Políticas de Crédito. Como fontes secundárias, utilizou-se a análise do documento TAPI e a exploração da base de dados de três safras fornecida pelo parceiro. Essa abordagem foi selecionada porque garante que a complexidade e o rigor do modelo de otimização matemático sejam traduzidos em uma interface e um fluxo de valor úteis e amigáveis para quem realmente opera o sistema no dia a dia.
+&emsp; A metodologia adotada orienta-se pelos princípios do Human-Centered Design (HCD) e do Design Thinking, buscando compreender tanto as necessidades dos usuários diretos da plataforma quanto os efeitos da solução sobre os usuários finais do Globoplay.
+
+&emsp; Como fontes primárias, foram consideradas as entrevistas, reuniões e sessões de alinhamento realizadas com os stakeholders da Globo. Essas interações contribuíram para o entendimento do contexto operacional, das limitações das ferramentas atuais, das características dos dispositivos legados e das necessidades das equipes de engenharia e observabilidade.
+
+&emsp; Como fontes secundárias, foram utilizados o documento TAPI, o anexo técnico sobre as fontes de dados e os exemplos de eventos de telemetria disponibilizados pelo parceiro. Esses materiais permitiram compreender os tipos de mensagens recebidas, os campos associados a dispositivos e sessões, as fontes de QoS e QoE e os desafios relacionados à normalização e correlação das informações.
+
+&emsp; A construção das personas ocorreu a partir da identificação de padrões de comportamento, objetivos, necessidades, dores e cenários de interação relacionados ao problema. Inicialmente, foram levantadas hipóteses pelo grupo de desenvolvimento e, posteriormente, essas hipóteses foram refinadas com base nas informações fornecidas pelo parceiro.
+
+&emsp; Foram definidos dois perfis principais. O primeiro representa o usuário direto da solução, responsável pela monitoração e investigação de incidentes. O segundo representa o usuário final do Globoplay, que não interage diretamente com a plataforma de observabilidade, mas é impactado pela qualidade das análises e das decisões tomadas pelas equipes técnicas.
 
 ---
 
 ## 3. Personas
 
-&emsp; Personas são representações fictícias de usuários reais, construídas a partir de padrões de comportamento, necessidades e objetivos. Funcionam como ferramentas estratégicas que humanizam dados abstratos, orientando decisões de produto ao manter o foco no usuário final durante todo o ciclo de desenvolvimento (COOPER et al., 2014).
+&emsp; Personas são representações fictícias de usuários reais, construídas a partir de padrões de comportamento, necessidades e objetivos. Funcionam como ferramentas estratégicas que humanizam dados abstratos e orientam decisões de produto, mantendo o foco nos usuários ao longo do processo de desenvolvimento (COOPER et al., 2014).
 
-&emsp; As personas deste projeto foram construídas a partir da análise da problemática descrita no documento TAPI pelo Banco Pan, bem como do alinhamento com os stakeholders e da compreensão do atual ambiente operacional de concessão de crédito. Estruturadas a partir das hipóteses iniciais do grupo de desenvolvimento e posteriormente validadas junto ao parceiro de negócios, essas representações refletem com precisão os desafios reais enfrentados pelos principais usuários da solução proposta (PRUITT; ADLIN, 2006).
+&emsp; As personas deste projeto foram construídas a partir da análise da problemática apresentada pela Globo, dos documentos disponibilizados pelo parceiro e dos alinhamentos realizados com os stakeholders. As representações foram elaboradas a partir das hipóteses iniciais do grupo e refinadas conforme o entendimento do contexto de observabilidade, dos dispositivos legados e dos impactos das falhas sobre os assinantes do Globoplay (PRUITT; ADLIN, 2006).
 
-&emsp; Dentre os três perfis identificados, a persona principal e usuária direta da solução é Mariana Silva, Especialista de Políticas de Crédito. Ela atua na operação diária validando e aplicando os parâmetros de concessão, precisando que os limites sugeridos pelo modelo cheguem conformes às regras de negócio vigentes (como piso de R$200 e discretização em múltiplos de R$50) sem elevar o risco da carteira. De maneira complementar e essencial à mecânica do sistema, está José Lopez, Diretor de Data Science, que personifica o usuário técnico-estratégico, sendo o responsável por exigir que o modelo seja formulado matematicamente, documentado, executável em Python e integrável ao motor de decisão. Por fim, Rodrigo Santos, Cliente do banco Pan, representa a ponta deste ecossistema, sendo o beneficiário final impactado pela adequação da oferta. Essas três perspectivas asseguram que a solução equilibre rigor matemático na modelagem com aplicabilidade direta no processo de concessão, gerando inclusão financeira e mitigando o risco sistêmico.
+&emsp; Foram identificados dois perfis com relações diferentes com a solução. Rafael Santos representa a persona principal e usuária direta da plataforma, pois utiliza os dados e as ferramentas de observabilidade para investigar falhas e orientar decisões técnicas. Luísa Silva dos Santos representa uma persona secundária e indireta, pois não utiliza o sistema desenvolvido, mas é beneficiada pelas melhorias que ele pode proporcionar à experiência de reprodução.
 
-### 3.1 Persona 1 — [Mariana Silva, Especialista de Políticas de Crédito]
+### 3.1 Persona 1 - Rafael Santos, engenheiro de observabilidade
 
-<div align='center'>
+<div align="center">
 
-<sub>Figura 1 - Persona: Mariana Silva, Especialista de Políticas de Crédito</sub>
+<sub>Figura 1 - Persona: Rafael Santos, engenheiro de observabilidade</sub>
 
-![Persona Mariana Silva](./assets/persona_mariana_silva.png)
+![Persona Rafael Santos](./assets/persona_rafael.png)
 
-<sup>Fonte: Material produzido pelos autores (2026)</sup>
-
-</div>
-
-&emsp; Mariana Silva, 32 anos, é Especialista de Políticas de Crédito e atua como a usuária principal da solução, sendo a responsável direta por validar e aplicar as regras de negócio de limite de crédito de forma autônoma. Atualmente, ela sofre com um gargalo de tempo considerável em sua rotina, dependendo inteiramente do time de Data Science (José) para testar o impacto de novos parâmetros que deseja aplicar. Em sua integração com o ecossistema, Mariana atua como a guardiã do risco e da rentabilidade: é o trabalho dela que define e afina as "travas" matemáticas projetadas por José, garantindo que o limite de fato entregue na ponta obedeça fielmente às diretrizes do banco e resguarde a segurança da carteira, permitindo assim uma oferta de limite mais precisa e saudável para Rodrigo, o cliente final.
-
-### 3.2 Persona 2 — [José Lopez, Diretor de Data Science]
-
-<div align='center'>
-
-<sub>Figura 2 - Persona: José Lopez, Diretor de Data Science</sub>
-
-![Persona José Lopez](./assets/persona_jose_lopez.png)
-
-<sup>Fonte: Material produzido pelos autores (2026)</sup>
+<sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; José Lopez, 35 anos, Diretor de Data Science, atua como o alicerce técnico e estratégico da solução, sendo o responsável pela integração da modelagem matemática e atestar sua eficiência. Suas maiores dores residem na exaustão operacional que surge ao tentar explicar decisões tomadas em um modelo sem base comparativa sólida e na frequente interrupção de sua rotina técnica para rodar cenários sob demanda para o time de negócios (equipe de Mariana). Em relação à integração do ecossistema, José complementa Mariana desenvolvendo todo o "motor" seguro e documentado, reduzindo dessa forma o seu trabalho manual, para que ela não dependa do time técnico na tomada de decisões diárias.
+&emsp; Rafael Santos, 30 anos, é engenheiro de observabilidade na Globo e lidera tecnicamente a evolução da plataforma interna de observabilidade da empresa. Atuou anteriormente como engenheiro sênior de Site Reliability Engineering (SRE) e participou da construção de uma plataforma voltada à centralização da gestão de SLIs e SLOs, à automação de testes de desempenho e à aplicação de práticas de Chaos Engineering.
 
-### 3.3 Persona 3 — [Rodrigo Santos, Cliente do banco Pan]
+&emsp; Atualmente, Rafael define o roadmap técnico dessa frente e prioriza iniciativas entre diferentes áreas de engenharia. No Globoplay, os componentes de login, player e CDN evoluíram com padrões de monitoração próprios e pouco integrados. Como consequência, a investigação de incidentes exige a consulta e a correlação manual de dados provenientes de ferramentas diferentes.
 
-<div align='center'>
+&emsp; Parte dos dispositivos utilizados para acessar o Globoplay, incluindo televisores antigos e versões legadas do aplicativo, não suporta os protocolos modernos de telemetria que Rafael utilizaria como padrão. Isso reduz a cobertura de monitoração e dificulta a criação de indicadores de confiabilidade para o frontend semelhantes aos já utilizados no backend.
 
-<sub>Figura 3 - Persona: Rodrigo Santos, Cliente do Banco Pan</sub>
+&emsp; Entre suas principais dores estão a falta de um padrão único para a coleta de eventos, a ausência de normalização entre os componentes, a baixa cobertura de dispositivos legados e a dificuldade de obter dados granulares suficientes para apoiar a definição de SLIs e SLOs para o frontend.
 
-![Persona Rodrigo Santos](./assets/persona_rodrigo_santos.png)
+&emsp; Rafael necessita de uma plataforma que centralize os eventos de login, player e CDN, aceite dados provenientes de dispositivos modernos e legados e disponibilize informações comparáveis para consulta e análise. Seu objetivo é reduzir o esforço manual empregado na investigação de incidentes, ampliar a cobertura da observabilidade e melhorar a capacidade de identificar padrões de falha.
 
-<sup>Fonte: Material produzido pelos autores (2026)</sup>
+&emsp; A solução proposta auxilia Rafael ao oferecer uma API unificada de ingestão, uma camada de normalização mínima e interfaces de consulta capazes de organizar eventos por dispositivo, versão, componente, sessão e período. A plataforma não necessariamente determina de forma automática a causa raiz de cada problema, mas oferece evidências que apoiam a formulação e a validação de hipóteses durante a investigação.
+
+#### Cenário de interação
+
+&emsp; Durante uma transmissão ao vivo de grande audiência, ocorre um aumento de falhas em televisores fabricados em 2015. Sem uma visão unificada, Rafael e a equipe precisam consultar separadamente dados de login, player, CDN e infraestrutura para entender o alcance do problema.
+
+&emsp; Com a solução, os eventos são recebidos por uma interface comum e normalizados desde a ingestão. Rafael aplica filtros por período, modelo de dispositivo, versão da aplicação, região e tipo de erro. A análise mostra que a maior concentração de falhas ocorre em um conjunto específico de televisores e em determinada região, permitindo que a equipe direcione a investigação técnica com maior rapidez.
+
+### 3.2 Persona 2 - Luísa Silva dos Santos, assinante do Globoplay
+
+<div align="center">
+
+<sub>Figura 2 - Persona: Luísa Silva dos Santos, assinante do Globoplay</sub>
+
+![Persona Luísa dos Santos](./assets/persona_luisa.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; Rodrigo Santos, 28 anos, representa o cliente correntista do Banco Pan e a ponta final deste fluxo, recebendo diretamente as consequências da operação definida por José (Data Science) e operada por Mariana (Políticas de Crédito). Suas principais dores relacionam-se aos extremos gerados por modelos empíricos ou de "achismo" não parametrizáveis: limites excessivamente generosos que o induzem ao superendividamento ou ofertas baixas que o impedem de efetuar compras maiores. Na interação do ciclo, o Rodrigo valida o quão eficazes foram as decisões de Mariana na ferramenta de otimização desenvolvida por José, transformando a precisão metodológica do modelo, por fim, em melhor experiência e segurança financeira de forma responsável para o usuário em sua jornada diária com o cartão.
+&emsp; Luísa Silva dos Santos, 77 anos, é assinante e usuária frequente do Globoplay, principalmente para assistir a novelas. Ela utiliza uma televisão antiga e possui pouca familiaridade com configurações técnicas, atualizações de software e mensagens de erro.
 
-### 3.4 Conclusão
+&emsp; Durante o uso da plataforma, Luísa enfrenta travamentos e interrupções na reprodução. As mensagens apresentadas na televisão nem sempre são suficientemente claras para que ela compreenda a natureza do problema ou saiba como agir. Como resultado, sente-se frustrada e pode interpretar a falha como um problema permanente da plataforma.
 
-&emsp; Em suma, as três personas operam em uma engrenagem iterativa que valida a necessidade e o impacto da solução. O fluxo inicia-se com José Lopez (Data Science) arquitetando o "motor" matemático que garante o rigor científico e metodológico do modelo. Mariana Silva (Políticas de Crédito), como usuária principal, assume o controle desse motor por meio da ferramenta, aplicando parâmetros e restrições de negócio de forma totalmente autônoma. Essa autonomia quebra definitivamente o ciclo de dependência técnica: José é liberado da execução de cenários operacionais exaustivos sob demanda, enquanto Mariana ganha agilidade para aprovar limites e auditar o risco de forma independente. Como consequência direta da fluidez dessa dinâmica interna, Rodrigo Santos (Cliente) recebe na ponta limites de crédito otimizados, precisos e condizentes com seu perfil de risco, promovendo sua inclusão financeira segura e consolidando os objetivos estratégicos do Banco.
+&emsp; Entre suas principais dores estão os travamentos frequentes, a falta de clareza das mensagens exibidas e a dificuldade de resolver problemas técnicos sem auxílio. Suas necessidades incluem uma experiência de reprodução mais estável e orientações simples quando uma falha puder ser resolvida por uma ação do usuário.
+
+&emsp; Luísa não utilizará diretamente o dashboard ou a API desenvolvida pelo projeto. Sua relação com a solução é indireta. Ao ampliar a visibilidade sobre falhas em dispositivos legados, a plataforma permite que as equipes técnicas identifiquem quais modelos, versões ou condições de uso apresentam maior incidência de problemas.
+
+&emsp; A solução auxilia Luísa ao fornecer dados mais completos para as equipes responsáveis pela manutenção do Globoplay. Esses dados podem apoiar a correção de falhas, a manutenção da compatibilidade com aparelhos antigos e a priorização de melhorias que reduzam travamentos e interrupções.
+
+&emsp; A geração de mensagens explicativas diretamente na televisão não está necessariamente contemplada no escopo atual. Para que isso ocorra, seria necessária uma integração entre os diagnósticos ou classificações produzidos pela plataforma e a interface do aplicativo utilizada pelo assinante.
+
+#### Cenário de impacto
+
+&emsp; Luísa tenta assistir a uma novela, mas a reprodução apresenta interrupções repetidas. Os eventos enviados pelo dispositivo registram falhas de requisição, erros do player e informações sobre o modelo e a versão do aplicativo.
+
+&emsp; A equipe de observabilidade identifica que o mesmo padrão ocorre em outros aparelhos semelhantes. Com base nessa evidência, os responsáveis podem priorizar a investigação, desenvolver uma correção compatível com o dispositivo ou orientar o suporte sobre uma possível ação de mitigação. Dessa forma, Luísa é beneficiada pela solução mesmo sem interagir diretamente com ela.
 
 ---
+
+## 4. Relação entre as personas e a solução
+
+&emsp; As duas personas representam níveis diferentes de interação com o projeto. Rafael é o usuário direto da plataforma e necessita de recursos de consulta, filtragem, correlação e visualização dos eventos. Luísa é uma usuária indireta, cuja experiência depende da capacidade das equipes técnicas de identificar e corrigir falhas que afetam seu dispositivo.
+
+| Persona | Relação com a solução | Principais necessidades | Benefício esperado |
+|---|---|---|---|
+| Rafael Santos | Usuário direto | Dados normalizados, filtros, cobertura de dispositivos legados e apoio à investigação | Redução do tempo de identificação e análise de falhas |
+| Luísa Silva dos Santos | Usuária indireta | Estabilidade, compatibilidade e orientações compreensíveis | Melhoria da experiência em dispositivos antigos |
+
+&emsp; Essa distinção é importante para orientar as decisões de UX. O protótipo principal deverá ser desenvolvido para Rafael e outros profissionais de observabilidade, uma vez que são eles que interagem diretamente com o dashboard. As necessidades de Luísa devem ser consideradas como impactos esperados da solução e como critérios para avaliar a relevância das análises realizadas.
+
 
 ## 4. User Stories
 
@@ -78,12 +118,12 @@
 | US04 | Como Especialista de Políticas de Crédito, eu quero criar e armazenar múltiplos cenários de política (ex: cenário conservador, agressivo, balanceado) com diferentes configurações de parâmetros, e compará-los lado a lado em métricas-chave, para apresentar opções fundamentadas à liderança executiva com suporte quantitativo claro, facilitando tomada de decisão estratégica sobre direcionamento de política de crédito. | Mariana Silva | Necessidade de fundamentação técnica robusta para defender decisões de limite perante liderança executiva, com comparação clara de alternativas. | Plataforma permite criar e nomear múltiplos cenários (ex: "Conservador_2026", "Agressivo_Volume"); cada cenário armazena parâmetros configurados, métricas resultantes e validação cruzada com modelo não-linear; visualização comparativa entre até quatro cenários simultaneamente com métricas principais destacadas; geração de relatório executivo com gráficos comparativos, trade-offs e recomendação fundamentada; possibilidade de marcar cenário como "Recomendado" com justificativa documentada; histórico de cenários comparados registrado para rastreabilidade. |
 | US05 | Como Especialista de Políticas de Crédito, eu quero monitorar continuamente o desempenho da política implementada em produção através de dashboard com métricas-chave (inadimplência real versus projetada, volume aprovado, taxa de aceitação, conformidade) atualizadas por safra, para identificar desvios em relação ao esperado e tomar decisões corretivas rápidas antes que problemas se materializem na carteira. | Mariana Silva | Falta de visibilidade contínua sobre desempenho real das políticas implementadas, dificultando ajustes proativos quando há desvios. | Dashboard exibe métricas de risco e negócio atualizadas por safra; comparação automática entre projetado e realizado para inadimplência física, financeira, volume e retorno; alertas configuráveis quando métricas saem de bounds esperados (ex: inadimplência real 20% acima da projetada); drill-down por segmento de risco para identificar onde estão os desvios; histórico de safras anteriores disponível para análise de tendência; integração com cockpit operacional para ajustes rápidos de política caso desvios sejam identificados. |---
 
-## 5. Jornada do Usuário (Persona: José Lopez)
+## 5. Jornada do Usuário (Persona: Rafael)
 
 &emsp; A Jornada do Usuário é uma ferramenta de design que mapeia, de forma cronológica, as etapas percorridas por uma persona ao interagir com um sistema, produto ou processo; registrando suas ações, pensamentos e estados emocionais em cada fase. Mais do que descrever o que o usuário faz, a jornada evidencia onde estão os pontos de dor, os gargalos operacionais e as oportunidades de melhoria, tornando visível a experiência real do usuário antes e depois da solução (KALBACH, 2016).
 Neste projeto, foram mapeadas duas jornadas complementares para José Lopez, Diretor de Data Science do Banco Pan: a jornada antes da solução, que expõe as limitações do processo atual de auditoria e análise de limites de crédito, e a jornada com a solução, que demonstra como o modelo de otimização transforma sua rotina ao fornecer uma base comparativa estruturada e reduzir a dependência de análises manuais.
 
-### 5.1. Jornada do Usuário Atual José
+### 5.1. Jornada do Usuário Rafael
 
 <div align='center'>
 
@@ -97,7 +137,7 @@ Neste projeto, foram mapeadas duas jornadas complementares para José Lopez, Dir
 
 &emsp; A jornada anterior à solução revela uma rotina marcada por retrabalho e falta de embasamento formal. Sem uma referência comparativa ao algoritmo vigente, José não consegue responder com segurança se os limites concedidos pelo modelo atual são ótimos, toda análise parte do zero. Solicitações do time de Políticas de Crédito interrompem seu fluxo de trabalho, e apresentações à liderança carecem de sustentação matemática. A curva emocional oscila entre frustração, incerteza e bloqueio, refletindo um processo que depende mais de esforço individual do que de estrutura técnica.
 
-### 5.2. Jornada do Usuário Futura José
+### 5.2. Jornada do Usuário Luísa
 
 <div align='center'>
 
@@ -110,20 +150,6 @@ Neste projeto, foram mapeadas duas jornadas complementares para José Lopez, Dir
 </div>
 
 &emsp; Com o modelo de otimização em operação, a jornada de José se torna estruturada e orientada por dados. Ele passa a receber outputs comparáveis ao algoritmo atual, identificar divergências com embasamento técnico e apresentar resultados auditáveis à liderança sem depender de análises pontuais sob demanda. Quando Mariana, do time de Políticas de Crédito, aciona José com dúvidas sobre o modelo, ele consegue explicar a decisão com base nas restrições aplicadas, sem precisar alterar o código. A curva emocional evolui de confiança para satisfação e alívio, indicando que a solução não apenas resolve os pontos de dor anteriores, mas também amplia a autonomia técnica do time.
-
-### 5.3. Jornada do Usuário Mariana
-
-<div align='center'>
-
-<sub>Figura 6 - Jornada do usuário Mariana</sub>
-
-![Jornada do Usuário Mariana](./assets/jornada_usuario_mariana.png)
-
-<sup>Fonte: Material produzido pelos autores (2026)</sup>
-
-</div>
-
-&emsp; Com o modelo de otimização em operação, a jornada de Mariana se torna autônoma e orientada por validação cruzada. Ela passa a testar cenários de política diretamente na nova plataforma operacional, ajustando parâmetros e visualizando impacto em tempo real, sem precisar acionar o time de Data Science a cada novo teste. Quando recebe demandas da liderança para validar propostas de ajuste, Mariana consegue cruzar as recomendações da solução linear com o algoritmo não-linear em produção, identificando convergências e divergências por segmento e fundamentando suas decisões em duas fontes de validação independentes. A conformidade com regras obrigatórias do banco (R$200 mín, múltiplos de R$50, restrições de alavancagem) é garantida automaticamente, eliminando o esforço de auditoria manual. A curva emocional evolui de confiança para determinação e alívio, indicando que a solução não apenas resolve a dependência operacional anterior, mas também fortalece a fundamentação técnica das decisões de política de crédito.
 
 ### 5.3 Conclusão
 
