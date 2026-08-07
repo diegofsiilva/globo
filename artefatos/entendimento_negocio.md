@@ -18,7 +18,7 @@
 
 <sub>Figura 3 - Value Proposition Canvas</sub>
 
-  <img src="../assets/value-proposition-canvas.png">
+  <img src="./assets/value-proposition-canvas.png">
 
 <sup>Fonte: Material produzido pelos autores (2026)</sup>
 
