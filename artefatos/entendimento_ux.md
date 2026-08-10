@@ -42,13 +42,13 @@
 
 &emsp; Rafael Santos, 30 anos, é engenheiro de observabilidade na Globo e representa o usuário principal da plataforma, sendo responsável por definir o roadmap técnico de monitoração e investigar incidentes no Globoplay. Suas principais dores estão na fragmentação dos dados entre login, player e CDN, com cada componente instrumentado de forma independente, e na baixa cobertura de dispositivos legados, que impede a definição de SLIs (Service Level Indicators, indicadores de nível de serviço) e SLOs (Service Level Objectives, metas de nível de serviço) para o frontend. Na interação com a solução, Rafael centraliza a ingestão e a normalização dos eventos em uma interface unificada, aplicando filtros por dispositivo, versão, componente e período para identificar padrões de falha com menor esforço manual e maior cobertura. Durante uma transmissão ao vivo com pico de falhas em TVs antigas, por exemplo, Rafael utiliza esses filtros para isolar a concentração de erros em um modelo e região específicos, o que agiliza a investigação técnica.
 
-### 3.3 Persona 2 - Mariana Souza, analista de suporte
+### 3.2 Persona 2 - Mariana Souza, analista de suporte
 
 <div align="center">
 
 <sub>Figura 2 - Persona: Mariana Souza, analista de suporte</sub>
 
-![Persona Luísa dos Santos](./assets/persona_mariana.png)
+![Persona Mariana Souza](./assets/persona_mariana.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
@@ -57,7 +57,7 @@
 &emsp; Mariana Souza, 28 anos, é Analista de Suporte Nível 2 no Globoplay e representa a persona operacional da solução, atuando como ponte entre os relatos subjetivos dos usuários (como Luísa) e a investigação técnica conduzida por Rafael (Observabilidade). Suas principais dores estão na dependência de descrições vagas dos usuários para formular hipóteses, na fragmentação entre os silos de Login, Player e CDN, que faz chamados percorrerem múltiplas filas, e na invisibilidade de dispositivos legados nos logs convencionais. Na interação com a solução, Mariana utiliza o dashboard unificado para filtrar eventos por dispositivo, região e sessão, direcionando chamados de forma assertiva e eliminando o ciclo de tentativa e erro entre filas. Ao receber uma reclamação de um usuário de Smart TV de 2015 em Manaus, por exemplo, Mariana filtra pelo dispositivo e região no dashboard, identifica erros concentrados naquele recorte e encaminha o chamado diretamente à equipe correta.
 
 
-### 3.2 Persona 3 - Luísa Silva dos Santos, assinante do Globoplay
+### 3.3 Persona 3 - Luísa Silva dos Santos, assinante do Globoplay
 
 <div align="center">
 
@@ -87,7 +87,7 @@
 
 ## 4. User Stories
 
-&emsp; As User Stories conseguem traduzir ações específicas que precisam cumprir na solução, dada alguma necessidade/dor. Elas se tornam essenciais no Entendimento da Experiência do Usuário ao permitir uma validação de dores e necessidades que fazem sentido em relação à solução do problema, seguindo as boas práticas no formato INVEST que amplia a qualidade destas histórias. O acrônimo I.N.V.E.S.T. (Independente, Negociável, Valiosa, Estimável, Pequena e Testável) resume-se à um framework que auxilia na estruturação das User Stories (Bonilha, Diego; 2020).
+&emsp; As User Stories traduzem ações específicas que as personas precisam cumprir na solução diante de necessidades e dores identificadas. Elas se tornam essenciais no Entendimento da Experiência do Usuário ao permitir a validação de necessidades relacionadas ao problema, seguindo as boas práticas do formato INVEST. O acrônimo I.N.V.E.S.T. (Independente, Negociável, Valiosa, Estimável, Pequena e Testável) resume um framework que auxilia na estruturação das User Stories (BONILHA, 2020).
 
 | # | User Story | Persona | Dor atendida | Critérios de aceite |
 |---|------------|---------|--------------|---------------------|
@@ -104,7 +104,6 @@
 ### 4.1 Conclusão
 
 &emsp; As nove User Stories contemplam as principais dores de Rafael e Mariana, cobrindo desde a ingestão unificada e a normalização dos eventos até a consulta por dispositivo, região e sessão. As histórias de Rafael (US01 a US06) concentram as necessidades de engenharia de observabilidade, enquanto as de Mariana (US07 a US09) endereçam a triagem operacional de chamados. Juntas, essas histórias também beneficiam Luísa de forma indireta, uma vez que a ampliação da cobertura e a agilidade na investigação resultam em correções mais rápidas para dispositivos legados.
-
 
 
 ## 6. Referências
