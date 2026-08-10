@@ -56,3 +56,127 @@
 
 &emsp;Os planos de teste a seguir apresentam uma forma inicial de verificar cada requisito não funcional. As condições de infraestrutura, o volume representativo de dados e os protocolos utilizados deverão ser refinados conforme o desenvolvimento do MVP.
 
+
+### Teste de capacidade de ingestão (RNF01)
+
+- **Objetivo:** Verificar se a API suporta o volume inicial definido pela equipe.
+- **Ação:** Utilizar uma ferramenta de teste de carga para enviar 1.000 eventos válidos durante o intervalo de um minuto e, ao final, comparar a quantidade de requisições enviadas, recebidas e registradas.
+- **Critérios de aceite:**
+  - A API recebe as 1.000 requisições dentro do período definido.
+  - O serviço não fica indisponível durante o teste.
+  - Não ocorre perda silenciosa de eventos; uma eventual recusa deve apresentar resposta ou registro que permita identificar seu motivo.
+
+### Teste de tempo de resposta das consultas (RNF02)
+
+- **Objetivo:** Verificar o tempo necessário para retornar consultas simples no dashboard.
+- **Ação:** Preparar uma base com volume representativo do MVP e executar pesquisas simples, como busca por tipo de evento e período. Cada cenário deve ser repetido ao menos cinco vezes.
+- **Critérios de aceite:**
+  - Todas as consultas testadas apresentam o resultado em até 5 segundos.
+  - Os resultados retornados correspondem aos filtros aplicados.
+
+### Teste de crescimento da capacidade (RNF03)
+
+- **Objetivo:** Verificar se a capacidade do sistema pode ser ampliada sem alterar o formato utilizado no envio dos eventos.
+- **Ação:** Executar o teste do RNF01, ampliar de maneira controlada os recursos de processamento e repetir a carga com um volume superior.
+- **Critérios de aceite:**
+  - A API e o formato dos eventos permanecem os mesmos após a ampliação.
+  - O sistema apresenta aumento de capacidade em relação ao primeiro teste.
+  - A meta ampliada deve ser registrada e validada de acordo com a infraestrutura disponível.
+
+### Teste de tratamento de eventos inválidos (RNF04)
+
+- **Objetivo:** Garantir que um evento incorreto não interrompa o recebimento dos demais.
+- **Ação:** Enviar uma sequência contendo eventos válidos e eventos com campos ausentes ou formatos incorretos.
+- **Critérios de aceite:**
+  - Os eventos inválidos são identificados.
+  - Os eventos válidos enviados antes e depois deles continuam sendo processados.
+  - A falha pode ser consultada posteriormente por meio de resposta ou registro.
+
+### Teste de recuperação após falha temporária (RNF05)
+
+- **Objetivo:** Verificar se o sistema retoma o processamento depois de uma falha controlada.
+- **Ação:** Durante um fluxo de eventos, interromper temporariamente um componente de processamento e depois restaurá-lo. Em seguida, comparar os eventos aceitos com os armazenados ou registrados para reprocessamento.
+- **Critérios de aceite:**
+  - O recebimento e o processamento voltam a funcionar após a restauração.
+  - Os eventos aceitos não desaparecem sem registro.
+  - O tempo de recuperação é documentado para posterior validação com o parceiro.
+
+### Teste de compatibilidade (RNF06)
+
+- **Objetivo:** Verificar o recebimento de eventos das plataformas e dos protocolos previstos para o MVP.
+- **Ação:** Criar ao menos um evento válido para cada plataforma e protocolo priorizado e enviá-lo à API.
+- **Critérios de aceite:**
+  - Todos os exemplos previstos para o MVP são aceitos.
+  - Os eventos são normalizados e disponibilizados para consulta.
+  - A lista de plataformas e protocolos utilizada no teste está validada pelo parceiro.
+
+### Teste de usabilidade do dashboard (RNF07)
+
+- **Objetivo:** Avaliar se os principais recursos de consulta podem ser utilizados de forma compreensível.
+- **Ação:** Convidar representantes dos perfis de engenharia, observabilidade ou produto para localizar erros de um período, aplicar dois filtros e identificar o grupo com mais ocorrências.
+- **Critérios de aceite:**
+  - A maioria dos participantes conclui as três tarefas sem ajuda direta.
+  - Os participantes conseguem explicar o significado dos principais gráficos apresentados.
+  - Dificuldades recorrentes são registradas para melhoria da interface.
+
+### Teste de clareza das hipóteses (RNF08)
+
+- **Objetivo:** Verificar se as possíveis causas apresentadas são compreensíveis e possuem uma justificativa visível.
+- **Ação:** Caso o RF17 seja implementado, apresentar exemplos de hipóteses a usuários dos times envolvidos e pedir que identifiquem o problema, a possível causa e as evidências utilizadas.
+- **Critérios de aceite:**
+  - A maioria dos participantes consegue explicar a relação apresentada.
+  - Os dados que contribuíram para a hipótese podem ser identificados.
+  - A interface deixa claro que a hipótese precisa ser validada por uma pessoa.
+
+### Teste de controle de acesso (RNF09)
+
+- **Objetivo:** Verificar se os dados ficam disponíveis somente para acessos autorizados.
+- **Ação:** Tentar acessar uma consulta sem identificação, com uma identificação inválida e com uma identificação válida.
+- **Critérios de aceite:**
+  - Os acessos sem autorização são recusados.
+  - O acesso autorizado funciona conforme esperado.
+  - As tentativas recusadas podem ser identificadas nos registros do sistema.
+
+### Teste de proteção dos dados coletados (RNF10)
+
+- **Objetivo:** Verificar se dados pessoais desnecessários não são expostos pela solução.
+- **Ação:** Processar eventos de teste contendo campos permitidos e um campo não permitido que simule uma informação pessoal, observando o dado armazenado e exibido.
+- **Critérios de aceite:**
+  - Os campos necessários para a monitoração são mantidos.
+  - O campo não autorizado é rejeitado, removido ou mascarado conforme regra acordada com o parceiro.
+  - A informação não aparece nas consultas do dashboard.
+
+### Teste dos registros de falha (RNF11)
+
+- **Objetivo:** Verificar se os registros ajudam a diferenciar problemas de ingestão e processamento.
+- **Ação:** Provocar erros conhecidos, como evento incompleto, formato incorreto e indisponibilidade temporária de um componente, e analisar os registros gerados.
+- **Critérios de aceite:**
+  - Os registros informam o horário, a etapa afetada e uma indicação do erro.
+  - A equipe consegue diferenciar os cenários testados.
+  - Os registros não exibem dados sensíveis desnecessários.
+
+### Teste de consistência da normalização (RNF12)
+
+- **Objetivo:** Verificar se eventos equivalentes de plataformas diferentes podem ser analisados em conjunto.
+- **Ação:** Criar eventos que representem a mesma ocorrência em dois ou mais formatos de origem e comparar os resultados após a normalização.
+- **Critérios de aceite:**
+  - As informações comuns mantêm o mesmo significado depois do processamento.
+  - Os eventos podem ser encontrados e agrupados em uma mesma consulta.
+  - Os campos específicos de cada plataforma não alteram indevidamente os campos comuns.
+
+## Restrições do projeto
+
+&emsp;Além dos requisitos, a elicitação identificou uma restrição que deve orientar o trabalho da equipe:
+
+- Os dados, documentos e desafios fornecidos pelo parceiro não devem ser compartilhados com terceiros.
+
+&emsp;Outras decisões de arquitetura, infraestrutura e tecnologias ainda deverão ser discutidas pela equipe e validadas com o parceiro. Por esse motivo, escolhas como provedor de nuvem, estilo de arquitetura ou ferramentas específicas não são apresentadas neste documento como restrições já definidas.
+
+## Considerações finais
+
+&emsp;A documentação dos requisitos fornece uma referência inicial para o planejamento e a avaliação do sistema. Os requisitos funcionais descrevem as capacidades esperadas da plataforma, enquanto os requisitos não funcionais e seus respectivos planos de teste estabelecem critérios para observar a qualidade da solução. Como a elicitação é uma atividade contínua, o conteúdo deverá ser revisado sempre que uma nova necessidade, restrição ou decisão for validada com o parceiro.
+
+## Referências
+
+- GRUPO GLOBO; INTELI. *TAPI - Turma 15 - Ciência da Computação - Módulo 7: Monitoração Agêntica*. Documento de definição do projeto parceiro, 2026.
+- VALENTE, Marco Tulio. *Engenharia de Software Moderna: princípios e práticas para desenvolvimento de software com produtividade*. Disponível em: [https://engsoftmoderna.info/](https://engsoftmoderna.info/). Acesso em: 10 ago. 2026.
