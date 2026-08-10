@@ -1,32 +1,26 @@
 ## 1. Contexto e escopo do projeto
 
-&emsp; O projeto consiste no desenvolvimento de uma plataforma distribuída de backend para coleta, normalização, processamento e consulta de eventos de telemetria provenientes das aplicações frontend do Globoplay. A solução busca atender a diferentes tipos de dispositivos, sistemas operacionais, versões de aplicativos e condições de conectividade, incluindo equipamentos legados que não oferecem suporte completo aos padrões modernos de observabilidade.
+&emsp; O projeto consiste no desenvolvimento de uma plataforma para coleta, normalização, processamento e consulta de eventos de telemetria das aplicações frontend do Globoplay, incluindo dispositivos modernos e legados.
 
-&emsp; Atualmente, os componentes relacionados ao login, ao player de vídeo e à distribuição de conteúdo por CDN (Content Delivery Network, rede de distribuição de conteúdo) possuem padrões de monitoração distintos. Essa fragmentação dificulta a comparação das informações, exige correlação manual entre diferentes fontes e reduz a visibilidade sobre falhas que afetam plataformas ou dispositivos específicos.
+&emsp; Hoje, componentes como login, player de vídeo e CDN possuem padrões de monitoração diferentes, o que dificulta a comparação dos dados e a identificação rápida de falhas. A solução proposta busca unificar a ingestão, normalizar eventos como `request`, `vitals`, `screen_view`, `video_view`, `session` e `error`, e apoiar a equipe técnica na investigação de incidentes.
 
-&emsp; A solução proposta deverá oferecer uma API unificada de ingestão, suporte a formatos modernos e legados, normalização dos eventos recebidos e disponibilização de consultas e visualizações operacionais. Entre os eventos previstos estão `request`, `vitals`, `screen_view`, `video_view`, `session` e `error`.
-
-&emsp; O principal usuário da plataforma será a equipe técnica responsável pela observabilidade e investigação de incidentes. Entretanto, os benefícios da solução também alcançam indiretamente os assinantes do Globoplay, especialmente aqueles que utilizam dispositivos antigos ou enfrentam condições de conectividade menos favoráveis.
+&emsp; Os usuários diretos da plataforma são profissionais de observabilidade e suporte. Os assinantes do Globoplay são beneficiados indiretamente, principalmente quando usam dispositivos antigos ou enfrentam problemas de conectividade.
 
 ## 2. Metodologia
 
-&emsp; A metodologia adotada orienta-se pelos princípios do Human-Centered Design (HCD) e do Design Thinking, buscando compreender tanto as necessidades dos usuários diretos da plataforma quanto os efeitos da solução sobre os usuários finais do Globoplay.
+&emsp; A metodologia adotada foi baseada em Human-Centered Design (HCD) e Design Thinking, com foco na identificação das necessidades, dores e objetivos dos usuários envolvidos na solução.
 
-&emsp; Como fontes primárias, foram consideradas as entrevistas, reuniões e sessões de alinhamento realizadas com os stakeholders da Globo. Essas interações contribuíram para o entendimento do contexto operacional, das limitações das ferramentas atuais, das características dos dispositivos legados e das necessidades das equipes de engenharia e observabilidade.
+&emsp; Para isso, foram considerados os alinhamentos com stakeholders da Globo, o documento TAPI, o anexo técnico sobre fontes de dados e os exemplos de eventos de telemetria fornecidos pelo parceiro.
 
-&emsp; Como fontes secundárias, foram utilizados o documento TAPI, o anexo técnico sobre as fontes de dados e os exemplos de eventos de telemetria disponibilizados pelo parceiro. Esses materiais permitiram compreender os tipos de mensagens recebidas, os campos associados a dispositivos e sessões, as fontes de QoS e QoE e os desafios relacionados à normalização e correlação das informações.
-
-&emsp; A construção das personas ocorreu a partir da identificação de padrões de comportamento, objetivos, necessidades, dores e cenários de interação relacionados ao problema. Inicialmente, foram levantadas hipóteses pelo grupo de desenvolvimento e, posteriormente, essas hipóteses foram refinadas com base nas informações fornecidas pelo parceiro.
-
-&emsp; Foram definidos três perfis principais. O primeiro representa o usuário direto da solução, responsável pela monitoração e investigação de incidentes. O segundo representa uma usuária operacional, que utiliza a plataforma para apoiar a triagem e o encaminhamento de chamados de suporte. O terceiro representa o usuário final do Globoplay, que não interage diretamente com a plataforma de observabilidade, mas é impactado pela qualidade das análises e das decisões tomadas pelas equipes técnicas.
+&emsp; A partir dessas informações, foram definidas três personas: um engenheiro de observabilidade, uma analista de suporte e uma assinante do Globoplay impactada indiretamente pela qualidade da monitoração.
 
 ## 3. Personas
 
 &emsp; Personas são representações fictícias de usuários reais, construídas a partir de padrões de comportamento, necessidades e objetivos. Funcionam como ferramentas estratégicas que humanizam dados abstratos e orientam decisões de produto, mantendo o foco nos usuários ao longo do processo de desenvolvimento (COOPER et al., 2014).
 
-&emsp; As personas deste projeto foram construídas a partir da análise da problemática apresentada pela Globo, dos documentos disponibilizados pelo parceiro e dos alinhamentos realizados com os stakeholders. As representações foram elaboradas a partir das hipóteses iniciais do grupo e refinadas conforme o entendimento do contexto de observabilidade, dos dispositivos legados e dos impactos das falhas sobre os assinantes do Globoplay (PRUITT; ADLIN, 2006).
+&emsp; As personas deste projeto foram construídas a partir da análise da problemática apresentada pela Globo, dos documentos disponibilizados pelo parceiro e dos operacionalalinhamentos realizados com os stakeholders. As representações foram elaboradas a partir das hipóteses iniciais do grupo e refinadas conforme o entendimento do contexto de observabilidade, dos dispositivos legados e dos impactos das falhas sobre os assinantes do Globoplay (PRUITT; ADLIN, 2006).
 
-&emsp; Foram identificados três perfis com relações diferentes com a solução. Rafael Santos representa a persona principal e usuária direta da plataforma, pois utiliza os dados e as ferramentas de observabilidade para investigar falhas e orientar decisões técnicas. Mariana Souza representa uma persona operacional e também usuária direta, pois utiliza a plataforma para apoiar a triagem de chamados e o encaminhamento assertivo de incidentes às equipes responsáveis. Luísa Silva dos Santos representa uma persona secundária e indireta, pois não utiliza o sistema desenvolvido, mas é beneficiada pelas melhorias que ele pode proporcionar à experiência de reprodução.
+&emsp; Foram identificados três perfis com relações diferentes com a solução. Rafael Santos representa a persona principal e usuária direta da plataforma, pois utiliza os dados e as ferramentas de observabilidade para investigar falhas e orientar decisões técnicas. Mariana Souza representa uma persona  e também usuária direta, pois utiliza a plataforma para apoiar a triagem de chamados e o encaminhamento assertivo de incidentes às equipes responsáveis. Luísa Silva dos Santos representa uma persona secundária e indireta, pois não utiliza o sistema desenvolvido, mas é beneficiada pelas melhorias que ele pode proporcionar à experiência de reprodução.
 
 ### 3.1 Persona 1 - Rafael Santos, engenheiro de observabilidade
 
@@ -74,7 +68,7 @@
 
 ### 3.4. Relação entre as personas e a solução
 
-&emsp; As três personas representam níveis diferentes de interação com o projeto. Rafael é o usuário direto da plataforma e necessita de recursos de consulta, filtragem, correlação e visualização dos eventos para investigação técnica. Mariana também é usuária direta, porém sua interação é orientada à triagem operacional e ao encaminhamento assertivo de chamados. Luísa é uma usuária indireta, cuja experiência depende da capacidade das equipes técnicas de identificar e corrigir falhas que afetam seu dispositivo.
+&emsp; A relação entre as personas e a solução orienta quais funcionalidades devem ser priorizadas no projeto. As necessidades de Rafael e Mariana direcionam os fluxos principais do dashboard, enquanto a experiência de Luísa funciona como indicador do impacto final esperado: reduzir falhas percebidas pelos assinantes por meio de uma monitoração mais completa e acionável.
 
 | Persona | Relação com a solução | Principais necessidades | Benefício esperado |
 |---|---|---|---|
@@ -82,7 +76,7 @@
 | Mariana Souza | Usuária direta (operacional) | Timeline unificada, filtros por dispositivo e região, visibilidade de dispositivos legados | Encaminhamento assertivo de chamados e redução do tempo de resolução |
 | Luísa Silva dos Santos | Usuária indireta | Estabilidade, compatibilidade e orientações compreensíveis | Melhoria da experiência em dispositivos antigos |
 
-&emsp; Essa distinção é importante para orientar as decisões de UX. O protótipo principal deverá ser desenvolvido para Rafael e Mariana, uma vez que são eles que interagem diretamente com o dashboard, Rafael sob a perspectiva de investigação técnica e Mariana sob a perspectiva de triagem operacional. As necessidades de Luísa devem ser consideradas como impactos esperados da solução e como critérios para avaliar a relevância das análises realizadas.
+&emsp; Assim, as decisões de UX devem equilibrar profundidade técnica e clareza operacional. O protótipo precisa permitir análises detalhadas para investigação de incidentes, mas também oferecer caminhos simples para triagem e encaminhamento de problemas, mantendo como referência o efeito dessas decisões na experiência do assinante.
 
 
 ## 4. User Stories
