@@ -34,7 +34,7 @@
 
 </div>
 
-&emsp; Rafael Santos, 30 anos, é engenheiro de observabilidade na Globo e representa o usuário principal da plataforma, sendo responsável por definir o roadmap técnico de monitoração e investigar incidentes no Globoplay. Suas principais dores estão na fragmentação dos dados entre login, player e CDN, com cada componente instrumentado de forma independente, e na baixa cobertura de dispositivos legados, que impede a definição de SLIs (Service Level Indicators, indicadores de nível de serviço) e SLOs (Service Level Objectives, metas de nível de serviço) para o frontend. Na interação com a solução, Rafael centraliza a ingestão e a normalização dos eventos em uma interface unificada, aplicando filtros por dispositivo, versão, componente e período para identificar padrões de falha com menor esforço manual e maior cobertura. Durante uma transmissão ao vivo com pico de falhas em TVs antigas, por exemplo, Rafael utiliza esses filtros para isolar a concentração de erros em um modelo e região específicos, o que agiliza a investigação técnica.
+&emsp; Rafael Santos, 30 anos, é engenheiro de observabilidade na Globo e representa o usuário principal da plataforma. Sua principal dor é a fragmentação dos dados entre login, player e CDN, além da baixa visibilidade sobre dispositivos legados. Na solução, Rafael utiliza filtros por dispositivo, versão, componente e período para investigar padrões de falha. Em uma transmissão ao vivo com aumento de erros em TVs antigas, por exemplo, ele consegue isolar o modelo e a região mais afetados.
 
 ### 3.2 Persona 2 - Mariana Souza, analista de suporte
 
@@ -48,7 +48,7 @@
 
 </div>
 
-&emsp; Mariana Souza, 28 anos, é Analista de Suporte Nível 2 no Globoplay e representa a persona operacional da solução, atuando como ponte entre os relatos subjetivos dos usuários (como Luísa) e a investigação técnica conduzida por Rafael (Observabilidade). Suas principais dores estão na dependência de descrições vagas dos usuários para formular hipóteses, na fragmentação entre os silos de Login, Player e CDN, que faz chamados percorrerem múltiplas filas, e na invisibilidade de dispositivos legados nos logs convencionais. Na interação com a solução, Mariana utiliza o dashboard unificado para filtrar eventos por dispositivo, região e sessão, direcionando chamados de forma assertiva e eliminando o ciclo de tentativa e erro entre filas. Ao receber uma reclamação de um usuário de Smart TV de 2015 em Manaus, por exemplo, Mariana filtra pelo dispositivo e região no dashboard, identifica erros concentrados naquele recorte e encaminha o chamado diretamente à equipe correta.
+&emsp; Mariana Souza, 28 anos, é Analista de Suporte Nível 2 no Globoplay e representa uma persona operacional secundária da solução. Sua principal dor é depender de relatos vagos dos usuários e de ferramentas fragmentadas para direcionar chamados. Na solução, Mariana consulta eventos por dispositivo, região e sessão para fazer uma triagem mais precisa. Ao receber uma reclamação de uma Smart TV de 2015 em Manaus, por exemplo, ela identifica se há erros recorrentes naquele recorte antes de encaminhar o chamado.
 
 
 ### 3.3 Persona 3 - Luísa Silva dos Santos, assinante do Globoplay
@@ -63,7 +63,7 @@
 
 </div>
 
-&emsp; Luísa Silva dos Santos, 77 anos, é assinante do Globoplay e representa a persona indireta deste fluxo, sendo impactada pelas decisões técnicas de Rafael (Observabilidade) e pela triagem operacional de Mariana (Suporte). Suas principais dores estão nos travamentos frequentes durante a reprodução em sua televisão antiga, na falta de clareza das mensagens de erro e na dificuldade de resolver problemas sem auxílio técnico. A relação de Luísa com a plataforma de observabilidade é indireta, e ela é beneficiada quando a solução amplia a visibilidade sobre falhas em dispositivos legados, permitindo que as equipes identifiquem e corrijam problemas que afetam sua experiência de forma mais ágil. Ao enfrentar interrupções repetidas durante uma novela, por exemplo, os eventos do seu dispositivo são captados pela plataforma e a equipe de observabilidade identifica o padrão em aparelhos semelhantes, priorizando a correção de forma transparente para a usuária.
+&emsp; Luísa Silva dos Santos, 77 anos, é assinante do Globoplay e representa a usuária impactada indiretamente pela solução. Sua principal dor são travamentos frequentes em sua televisão antiga e a dificuldade de resolver problemas técnicos sozinha. Embora não utilize a plataforma, Luísa se beneficia quando os eventos do seu dispositivo ajudam a equipe técnica a identificar falhas recorrentes. Ao enfrentar interrupções durante uma novela, por exemplo, seus eventos podem contribuir para priorizar uma correção em aparelhos semelhantes.
 
 
 ### 3.4. Relação entre as personas e a solução
