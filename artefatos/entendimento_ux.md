@@ -2,13 +2,11 @@
 
 &emsp; O projeto consiste no desenvolvimento de uma plataforma distribuída de backend para coleta, normalização, processamento e consulta de eventos de telemetria provenientes das aplicações frontend do Globoplay. A solução busca atender a diferentes tipos de dispositivos, sistemas operacionais, versões de aplicativos e condições de conectividade, incluindo equipamentos legados que não oferecem suporte completo aos padrões modernos de observabilidade.
 
-&emsp; Atualmente, os componentes relacionados ao login, ao player de vídeo e à distribuição de conteúdo por CDN possuem padrões de monitoração distintos. Essa fragmentação dificulta a comparação das informações, exige correlação manual entre diferentes fontes e reduz a visibilidade sobre falhas que afetam plataformas ou dispositivos específicos.
+&emsp; Atualmente, os componentes relacionados ao login, ao player de vídeo e à distribuição de conteúdo por CDN (Content Delivery Network, rede de distribuição de conteúdo) possuem padrões de monitoração distintos. Essa fragmentação dificulta a comparação das informações, exige correlação manual entre diferentes fontes e reduz a visibilidade sobre falhas que afetam plataformas ou dispositivos específicos.
 
 &emsp; A solução proposta deverá oferecer uma API unificada de ingestão, suporte a formatos modernos e legados, normalização dos eventos recebidos e disponibilização de consultas e visualizações operacionais. Entre os eventos previstos estão `request`, `vitals`, `screen_view`, `video_view`, `session` e `error`.
 
 &emsp; O principal usuário da plataforma será a equipe técnica responsável pela observabilidade e investigação de incidentes. Entretanto, os benefícios da solução também alcançam indiretamente os assinantes do Globoplay, especialmente aqueles que utilizam dispositivos antigos ou enfrentam condições de conectividade menos favoráveis.
-
----
 
 ## 2. Metodologia
 
@@ -21,8 +19,6 @@
 &emsp; A construção das personas ocorreu a partir da identificação de padrões de comportamento, objetivos, necessidades, dores e cenários de interação relacionados ao problema. Inicialmente, foram levantadas hipóteses pelo grupo de desenvolvimento e, posteriormente, essas hipóteses foram refinadas com base nas informações fornecidas pelo parceiro.
 
 &emsp; Foram definidos três perfis principais. O primeiro representa o usuário direto da solução, responsável pela monitoração e investigação de incidentes. O segundo representa uma usuária operacional, que utiliza a plataforma para apoiar a triagem e o encaminhamento de chamados de suporte. O terceiro representa o usuário final do Globoplay, que não interage diretamente com a plataforma de observabilidade, mas é impactado pela qualidade das análises e das decisões tomadas pelas equipes técnicas.
-
----
 
 ## 3. Personas
 
@@ -44,29 +40,28 @@
 
 </div>
 
-&emsp; Rafael Santos, 30 anos, é engenheiro de observabilidade na Globo e lidera tecnicamente a evolução da plataforma interna de observabilidade da empresa. Atuou anteriormente como engenheiro sênior de Site Reliability Engineering (SRE) e participou da construção de uma plataforma voltada à centralização da gestão de SLIs e SLOs, à automação de testes de desempenho e à aplicação de práticas de Chaos Engineering.
+&emsp; Rafael Santos, 30 anos, é engenheiro de observabilidade na Globo e representa o usuário principal da plataforma, sendo responsável por definir o roadmap técnico de monitoração e investigar incidentes no Globoplay. Suas principais dores estão na fragmentação dos dados entre login, player e CDN, com cada componente instrumentado de forma independente, e na baixa cobertura de dispositivos legados, que impede a definição de SLIs (Service Level Indicators, indicadores de nível de serviço) e SLOs (Service Level Objectives, metas de nível de serviço) para o frontend. Na interação com a solução, Rafael centraliza a ingestão e a normalização dos eventos em uma interface unificada, aplicando filtros por dispositivo, versão, componente e período para identificar padrões de falha com menor esforço manual e maior cobertura. Durante uma transmissão ao vivo com pico de falhas em TVs antigas, por exemplo, Rafael utiliza esses filtros para isolar a concentração de erros em um modelo e região específicos, o que agiliza a investigação técnica.
 
-&emsp; Atualmente, Rafael define o roadmap técnico dessa frente e prioriza iniciativas entre diferentes áreas de engenharia. No Globoplay, os componentes de login, player e CDN evoluíram com padrões de monitoração próprios e pouco integrados. Como consequência, a investigação de incidentes exige a consulta e a correlação manual de dados provenientes de ferramentas diferentes.
-
-&emsp; Parte dos dispositivos utilizados para acessar o Globoplay, incluindo televisores antigos e versões legadas do aplicativo, não suporta os protocolos modernos de telemetria que Rafael utilizaria como padrão. Isso reduz a cobertura de monitoração e dificulta a criação de indicadores de confiabilidade para o frontend semelhantes aos já utilizados no backend.
-
-&emsp; Entre suas principais dores estão a falta de um padrão único para a coleta de eventos, a ausência de normalização entre os componentes, a baixa cobertura de dispositivos legados e a dificuldade de obter dados granulares suficientes para apoiar a definição de SLIs e SLOs para o frontend.
-
-&emsp; Rafael necessita de uma plataforma que centralize os eventos de login, player e CDN, aceite dados provenientes de dispositivos modernos e legados e disponibilize informações comparáveis para consulta e análise. Seu objetivo é reduzir o esforço manual empregado na investigação de incidentes, ampliar a cobertura da observabilidade e melhorar a capacidade de identificar padrões de falha.
-
-&emsp; A solução proposta auxilia Rafael ao oferecer uma API unificada de ingestão, uma camada de normalização mínima e interfaces de consulta capazes de organizar eventos por dispositivo, versão, componente, sessão e período. A plataforma não necessariamente determina de forma automática a causa raiz de cada problema, mas oferece evidências que apoiam a formulação e a validação de hipóteses durante a investigação.
-
-#### Cenário de interação
-
-&emsp; Durante uma transmissão ao vivo de grande audiência, ocorre um aumento de falhas em televisores fabricados em 2015. Sem uma visão unificada, Rafael e a equipe precisam consultar separadamente dados de login, player, CDN e infraestrutura para entender o alcance do problema.
-
-&emsp; Com a solução, os eventos são recebidos por uma interface comum e normalizados desde a ingestão. Rafael aplica filtros por período, modelo de dispositivo, versão da aplicação, região e tipo de erro. A análise mostra que a maior concentração de falhas ocorre em um conjunto específico de televisores e em determinada região, permitindo que a equipe direcione a investigação técnica com maior rapidez.
-
-### 3.2 Persona 2 - Luísa Silva dos Santos, assinante do Globoplay
+### 3.3 Persona 2 - Mariana Souza, analista de suporte
 
 <div align="center">
 
-<sub>Figura 2 - Persona: Luísa Silva dos Santos, assinante do Globoplay</sub>
+<sub>Figura 2 - Persona: Mariana Souza, analista de suporte</sub>
+
+![Persona Luísa dos Santos](./assets/persona_mariana.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; Mariana Souza, 28 anos, é Analista de Suporte Nível 2 no Globoplay e representa a persona operacional da solução, atuando como ponte entre os relatos subjetivos dos usuários (como Luísa) e a investigação técnica conduzida por Rafael (Observabilidade). Suas principais dores estão na dependência de descrições vagas dos usuários para formular hipóteses, na fragmentação entre os silos de Login, Player e CDN, que faz chamados percorrerem múltiplas filas, e na invisibilidade de dispositivos legados nos logs convencionais. Na interação com a solução, Mariana utiliza o dashboard unificado para filtrar eventos por dispositivo, região e sessão, direcionando chamados de forma assertiva e eliminando o ciclo de tentativa e erro entre filas. Ao receber uma reclamação de um usuário de Smart TV de 2015 em Manaus, por exemplo, Mariana filtra pelo dispositivo e região no dashboard, identifica erros concentrados naquele recorte e encaminha o chamado diretamente à equipe correta.
+
+
+### 3.2 Persona 3 - Luísa Silva dos Santos, assinante do Globoplay
+
+<div align="center">
+
+<sub>Figura 3 - Persona: Luísa Silva dos Santos, assinante do Globoplay</sub>
 
 ![Persona Luísa dos Santos](./assets/persona_luisa.png)
 
@@ -74,47 +69,8 @@
 
 </div>
 
-&emsp; Luísa Silva dos Santos, 77 anos, é assinante e usuária frequente do Globoplay, principalmente para assistir a novelas. Ela utiliza uma televisão antiga e possui pouca familiaridade com configurações técnicas, atualizações de software e mensagens de erro.
+&emsp; Luísa Silva dos Santos, 77 anos, é assinante do Globoplay e representa a persona indireta deste fluxo, sendo impactada pelas decisões técnicas de Rafael (Observabilidade) e pela triagem operacional de Mariana (Suporte). Suas principais dores estão nos travamentos frequentes durante a reprodução em sua televisão antiga, na falta de clareza das mensagens de erro e na dificuldade de resolver problemas sem auxílio técnico. A relação de Luísa com a plataforma de observabilidade é indireta, e ela é beneficiada quando a solução amplia a visibilidade sobre falhas em dispositivos legados, permitindo que as equipes identifiquem e corrijam problemas que afetam sua experiência de forma mais ágil. Ao enfrentar interrupções repetidas durante uma novela, por exemplo, os eventos do seu dispositivo são captados pela plataforma e a equipe de observabilidade identifica o padrão em aparelhos semelhantes, priorizando a correção de forma transparente para a usuária.
 
-&emsp; Durante o uso da plataforma, Luísa enfrenta travamentos e interrupções na reprodução. As mensagens apresentadas na televisão nem sempre são suficientemente claras para que ela compreenda a natureza do problema ou saiba como agir. Como resultado, sente-se frustrada e pode interpretar a falha como um problema permanente da plataforma.
-
-&emsp; Entre suas principais dores estão os travamentos frequentes, a falta de clareza das mensagens exibidas e a dificuldade de resolver problemas técnicos sem auxílio. Suas necessidades incluem uma experiência de reprodução mais estável e orientações simples quando uma falha puder ser resolvida por uma ação do usuário.
-
-&emsp; Luísa não utilizará diretamente o dashboard ou a API desenvolvida pelo projeto. Sua relação com a solução é indireta. Ao ampliar a visibilidade sobre falhas em dispositivos legados, a plataforma permite que as equipes técnicas identifiquem quais modelos, versões ou condições de uso apresentam maior incidência de problemas.
-
-&emsp; A solução auxilia Luísa ao fornecer dados mais completos para as equipes responsáveis pela manutenção do Globoplay. Esses dados podem apoiar a correção de falhas, a manutenção da compatibilidade com aparelhos antigos e a priorização de melhorias que reduzam travamentos e interrupções.
-
-&emsp; A geração de mensagens explicativas diretamente na televisão não está necessariamente contemplada no escopo atual. Para que isso ocorra, seria necessária uma integração entre os diagnósticos ou classificações produzidos pela plataforma e a interface do aplicativo utilizada pelo assinante.
-
-#### Cenário de impacto
-
-&emsp; Luísa tenta assistir a uma novela, mas a reprodução apresenta interrupções repetidas. Os eventos enviados pelo dispositivo registram falhas de requisição, erros do player e informações sobre o modelo e a versão do aplicativo.
-
-&emsp; A equipe de observabilidade identifica que o mesmo padrão ocorre em outros aparelhos semelhantes. Com base nessa evidência, os responsáveis podem priorizar a investigação, desenvolver uma correção compatível com o dispositivo ou orientar o suporte sobre uma possível ação de mitigação. Dessa forma, Luísa é beneficiada pela solução mesmo sem interagir diretamente com ela.
-
----
-
-### 3.3 Persona 3 — Mariana Souza, analista de suporte
-
-&emsp; Mariana Souza, 28 anos, é Analista de Suporte Nível 2 de Atendimento no Globoplay. Trabalha em uma operação 24×7 que recebe reclamações por WhatsApp, e-mail, call center e Reclame Aqui, atendendo uma base ampla de usuários. É o ponto de contato quando reclamações escalam do primeiro nível de atendimento e precisa lidar com uma diversidade imensa de dispositivos, desde smartphones modernos até Smart TVs fabricadas em 2013.
-
-&emsp; No dia a dia, Mariana recebe chamados cuja descrição é predominantemente subjetiva — relatos como "o vídeo não abre" ou "a tela ficou preta" — e precisa traduzir essas informações em hipóteses técnicas para direcionar o caso à fila correta. As áreas de Login, Player e CDN operam como silos isolados, de modo que o chamado frequentemente percorre várias filas até que a área responsável aceite a investigação.
-
-&emsp; A dificuldade se agrava quando o problema envolve dispositivos legados. Televisores fabricados entre 2013 e 2015 não aparecem nos logs ou métricas convencionais, o que impede Mariana de confirmar se o dispositivo está sequer enviando eventos de telemetria. Em eventos de grande escala, como o Big Brother Brasil, os picos de acesso massivos tornam a velocidade de resposta ainda mais crítica para manter o SLA de atendimento.
-
-&emsp; Entre suas principais dores estão a dependência de relatos subjetivos para o diagnóstico inicial, a fragmentação entre os silos técnicos que prolonga o ciclo de escalonamento, a ausência de dados sobre dispositivos legados e a necessidade de reuniões manuais para correlacionar informações dispersas em diferentes ferramentas durante crises.
-
-&emsp; Mariana necessita de uma indicação objetiva de onde está a falha para realizar encaminhamentos assertivos, de uma timeline unificada que mostre o que aconteceu na sessão do usuário entre login, player e CDN, de dados acionáveis sobre o dispositivo — como modelo, versão do sistema operacional e localização geográfica — apresentados de forma simplificada, e de uma redução no tempo que o usuário permanece sem conseguir consumir conteúdo enquanto as equipes técnicas se coordenam.
-
-&emsp; A solução proposta auxilia Mariana ao estender a monitoração para dispositivos antigos, permitindo visualizar erros que antes eram invisíveis. A plataforma traduz os termos técnicos de diferentes silos em uma interface única e compreensível para o suporte, disponibiliza uma timeline correlacionada da sessão do usuário e sinaliza degradações em grupos específicos de usuários antes que o volume de reclamações aumente no atendimento.
-
-#### Cenário de interação
-
-&emsp; Um usuário de uma Smart TV de 2015 em Manaus reclama que o vídeo trava constantemente. Sem a solução, Mariana consulta as métricas nacionais agregadas e tudo parece normal. Ela envia o caso para o time do Player. O time do Player analisa e informa que o problema está na CDN. A CDN devolve o chamado alegando que a causa está no backend. Enquanto Mariana coordena essas trocas de fila, o usuário permanece horas sem o serviço.
-
-&emsp; Com a solução de monitoração, ao receber a mesma reclamação, Mariana abre o dashboard único. Ela filtra pelo dispositivo e pela região do usuário e visualiza que os eventos de erro estão concentrados em um recorte específico, envolvendo modelos de TV de 2015 na região de Manaus. Com esse dado em mãos, direciona o chamado diretamente para a equipe responsável pelo componente identificado, sem precisar passar pelo ciclo de tentativa e erro entre filas.
-
----
 
 ### 3.4. Relação entre as personas e a solução
 
@@ -145,11 +101,11 @@
 | US08 | Como Analista de Suporte, eu quero filtrar eventos de erro por modelo de dispositivo e região, para identificar se um problema reportado é um caso isolado ou um padrão concentrado em um recorte específico. | Mariana Souza | Erros concentrados em dispositivos legados ou regiões específicas ficam mascarados pelas métricas nacionais agregadas, e a analista não consegue diferenciar isso na triagem. | Dashboard permite filtrar eventos por modelo de dispositivo e localização geográfica; é possível visualizar o volume de erros do recorte filtrado comparado ao total. |
 | US09 | Como Analista de Suporte, eu quero visualizar em quais dispositivos legados os eventos estão sendo coletados, para confirmar que o suporte a um usuário de TV antiga não vai depender de investigação manual em outras ferramentas. | Mariana Souza | Dispositivos legados, como TVs de 2013 a 2015, não aparecem em logs ou métricas, dificultando a ajuda a esses usuários. | Dashboard exibe eventos de dispositivos legados no mesmo painel usado para dispositivos modernos; é possível confirmar, para um dispositivo legado específico, se ele está gerando eventos de request, session e error. |
 
-### 5.3 Conclusão
+### 4.1 Conclusão
 
-&emsp; 
+&emsp; As nove User Stories contemplam as principais dores de Rafael e Mariana, cobrindo desde a ingestão unificada e a normalização dos eventos até a consulta por dispositivo, região e sessão. As histórias de Rafael (US01 a US06) concentram as necessidades de engenharia de observabilidade, enquanto as de Mariana (US07 a US09) endereçam a triagem operacional de chamados. Juntas, essas histórias também beneficiam Luísa de forma indireta, uma vez que a ampliação da cobertura e a agilidade na investigação resultam em correções mais rápidas para dispositivos legados.
 
----
+
 
 ## 6. Referências
 
