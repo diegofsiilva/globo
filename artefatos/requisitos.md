@@ -1,13 +1,9 @@
-Especificação:
-Arquivo: requisitos.md
-Pasta no GitHub: /artefatos
+# Requisitos Funcionais, Não Funcionais e Restrições do Projeto
 
-Descrição:
-O objetivo deste artefato é definir os requisitos funcionais e não funcionais do sistema proposto, com base na elicitação realizada com o parceiro e nos padrões da norma ISO 25010, incluindo plano de testes para cada requisito não funcional.
+&emsp;A definição de requisitos representa uma etapa importante para transformar as necessidades apresentadas pelo parceiro em características que possam orientar o desenvolvimento e, posteriormente, ser verificadas pela equipe. No projeto de Monitoração Agêntica, esse entendimento foi construído a partir da análise do TAPI e das conversas realizadas com representantes do Grupo Globo durante o kick-off e os primeiros alinhamentos.
 
+## Requisitos funcionais
 
-Itens a serem entregues:
-(1) Conjunto de requisitos funcionais identificados e numerados (RF1, RF2, ...). (Peso = 5.0)
-(2) Alinhamento dos requisitos funcionais com a elicitação realizada com o parceiro. (Peso = 1.0)
-(3) Conjunto de requisitos não funcionais segundo a norma ISO 25010, numerados (RNF1, RNF2, ...). (Peso = 2.0)
-(4) Para cada requisito não funcional, incluir ao menos uma descrição textual de plano de teste. (Peso = 2.0)
+&emsp;Segundo o livro [Engenharia de Software Moderna](https://engsoftmoderna.info/cap3.html), os requisitos funcionais descrevem os serviços que um sistema deve oferecer, isto é, as funcionalidades que estarão disponíveis para seus usuários ou para outros sistemas. Neste projeto, eles representam as ações necessárias para receber, tratar, armazenar e consultar os eventos de telemetria gerados pelas aplicações frontend do Globoplay.
+
+&emsp;A tabela a seguir apresenta os requisitos funcionais identificados. A coluna **Evidência** relaciona cada requisito às necessidades levantadas junto ao parceiro, enquanto a coluna **Fonte da evidência** indica onde essa necessidade foi registrada ou discutida.
