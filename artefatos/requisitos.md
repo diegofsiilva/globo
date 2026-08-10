@@ -31,3 +31,28 @@
 
 &emsp;Os requisitos RF01 a RF13 estão diretamente relacionados ao escopo mínimo apresentado no TAPI. Os requisitos RF14 a RF16 complementam a experiência de análise discutida durante a elicitação. Já o RF17 deve ser tratado inicialmente como uma possível evolução, pois depende da quantidade e da qualidade dos dados coletados e ainda precisa ser validado com o parceiro. Caso seja implementado, suas hipóteses deverão apoiar a investigação humana, sem serem apresentadas como conclusões definitivas.
 
+## Requisitos não funcionais
+
+&emsp;Ainda conforme o livro [Engenharia de Software Moderna](https://engsoftmoderna.info/cap3.html), os requisitos não funcionais estabelecem características de qualidade e restrições sobre o funcionamento do sistema. Eles não descrevem uma funcionalidade isolada, mas definem condições importantes para que as funcionalidades sejam utilizadas de forma adequada.
+
+&emsp;Os requisitos abaixo foram organizados de acordo com características de qualidade presentes na norma ISO/IEC 25010. As metas numéricas já discutidas pela equipe foram mantidas, enquanto definições ainda não fornecidas pelo parceiro foram registradas de maneira mais aberta para evitar compromissos que não tenham sido validados.
+
+| Requisito não funcional | Descrição | Aspecto de qualidade relacionado à ISO 25010 | Fonte da evidência |
+|---|---|---|---|
+| RNF01 | A API de ingestão deve processar, inicialmente, pelo menos 1.000 requisições por minuto em condições normais de operação. | Eficiência de desempenho - capacidade | Definição inicial da equipe |
+| RNF02 | Consultas simples realizadas no dashboard sobre dados já processados devem apresentar o resultado em até 3 segundos. | Eficiência de desempenho - comportamento em relação ao tempo | Definição inicial da equipe |
+| RNF03 | A solução deve permitir o aumento gradual de sua capacidade de ingestão e processamento sem alterar a forma como os sistemas enviam eventos. | Flexibilidade - escalabilidade | TAPI |
+| RNF04 | Um evento inválido não deve impedir o recebimento dos eventos válidos seguintes, e sua falha deve ser identificável. | Confiabilidade - tolerância a falhas | TAPI e elicitação com o parceiro |
+| RNF05 | Após uma falha temporária, o sistema deve voltar a receber e processar novos eventos sem perder silenciosamente os eventos que já tenham sido aceitos. | Confiabilidade - recuperabilidade | TAPI |
+| RNF06 | A API deve receber eventos das plataformas e dos protocolos modernos e legados selecionados pelo parceiro para o MVP. | Compatibilidade - interoperabilidade | TAPI e kick-off |
+| RNF07 | Os usuários devem conseguir localizar eventos, aplicar filtros e interpretar os principais gráficos sem orientação técnica detalhada. | Capacidade de interação - operabilidade | TAPI e elicitação com o parceiro |
+| RNF08 | Caso sejam apresentadas hipóteses, o sistema deve indicar os eventos ou métricas que justificam a relação sugerida com o problema. | Capacidade de interação - reconhecibilidade da adequação | Elicitação com o parceiro |
+| RNF09 | O acesso às consultas e aos dados deve ser permitido apenas a usuários ou serviços autorizados. | Segurança - confidencialidade e autenticidade | Necessidade identificada pela equipe |
+| RNF10 | Os eventos devem conter apenas as informações necessárias para a monitoração e não devem expor dados pessoais desnecessários no dashboard. | Segurança - confidencialidade | Necessidade identificada pela equipe |
+| RNF11 | O sistema deve registrar informações suficientes sobre falhas de ingestão e processamento para apoiar sua investigação. | Capacidade de manutenção - analisabilidade | Objetivo do projeto e elicitação com o parceiro |
+| RNF12 | Eventos equivalentes enviados por plataformas diferentes devem resultar em informações padronizadas e comparáveis após o processamento. | Adequação funcional - correção funcional | TAPI |
+
+## Planos de teste dos requisitos não funcionais
+
+&emsp;Os planos de teste a seguir apresentam uma forma inicial de verificar cada requisito não funcional. As condições de infraestrutura, o volume representativo de dados e os protocolos utilizados deverão ser refinados conforme o desenvolvimento do MVP.
+
