@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telemetry-backend"
+version = "0.1.0"
+description = "API de ingestao e consulta de telemetria multiplataforma"
+requires-python = ">=3.12"
+dependencies = [
+  "Flask>=3.1,<4",
+  "gunicorn>=23,<24",
+  "python-dotenv>=1.1,<2",
+  "SQLAlchemy>=2.0,<3",
+  "psycopg[binary]>=3.2,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+  "pytest-cov>=6,<7",
+  "ruff>=0.11,<1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
