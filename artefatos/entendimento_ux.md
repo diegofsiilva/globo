@@ -1,26 +1,30 @@
 ## 1. Contexto e escopo do projeto
 
-&emsp; O projeto consiste no desenvolvimento de uma plataforma para coleta, normalização, processamento e consulta de eventos de telemetria das aplicações frontend do Globoplay, incluindo dispositivos modernos e legados.
+&emsp; O projeto consiste no desenvolvimento de uma plataforma que atua como ponto central para o recebimento, o processamento e a consulta de eventos de telemetria das aplicações frontend do Globoplay. Esses eventos são produzidos por diferentes fontes e componentes, como login, player de vídeo e CDN, e podem chegar a partir de dispositivos modernos ou legados.
 
-&emsp; Hoje, componentes como login, player de vídeo e CDN possuem padrões de monitoração diferentes, o que dificulta a comparação dos dados e a identificação rápida de falhas. A solução proposta busca unificar a ingestão, normalizar eventos como `request`, `vitals`, `screen_view`, `video_view`, `session` e `error`, e apoiar a equipe técnica na investigação de incidentes.
+&emsp; No cenário atual, os eventos ficam distribuídos entre componentes e ferramentas de monitoração diferentes. Essa fragmentação dificulta a reconstrução do que aconteceu em uma sessão, a comparação entre dados relacionados e a identificação de padrões de falha. O problema se torna mais evidente em dispositivos antigos e versões legadas das aplicações, cuja cobertura de telemetria pode ser menor e gerar pontos cegos para as equipes técnicas.
 
-&emsp; Os usuários diretos da plataforma são profissionais de observabilidade e suporte. Os assinantes do Globoplay são beneficiados indiretamente, principalmente quando usam dispositivos antigos ou enfrentam problemas de conectividade.
+&emsp; A solução proposta busca reunir eventos como `request`, `vitals`, `screen_view`, `video_view`, `session` e `error` em um fluxo centralizado. Ao preservar informações como origem, tipo, timestamp e dados do dispositivo quando disponíveis, a plataforma oferece uma base comum para consultas e análises. A partir dessa base, profissionais de observabilidade e suporte podem relacionar evidências, investigar comportamentos e formular hipóteses sobre possíveis causas de incidentes.
+
+&emsp; O escopo da plataforma está concentrado na recepção e na disponibilização confiável dos eventos para investigação. A solução não realiza, por si só, o diagnóstico definitivo nem corrige automaticamente as falhas identificadas. Seus usuários diretos são profissionais de observabilidade e suporte, enquanto os assinantes do Globoplay são beneficiados indiretamente pela ampliação da cobertura e pela redução do tempo necessário para compreender e tratar problemas, especialmente em dispositivos legados.
 
 ## 2. Metodologia
 
-&emsp; A metodologia adotada foi baseada em Human-Centered Design (HCD) e Design Thinking, com foco na identificação das necessidades, dores e objetivos dos usuários envolvidos na solução.
+&emsp; A metodologia adotada foi inspirada nos princípios de Human-Centered Design (HCD) e Design Thinking, que orientam a compreensão do contexto de uso e das necessidades das pessoas afetadas antes da definição da solução (ISO, 2019; BROWN, 2009). A abordagem foi aplicada de forma exploratória e documental, buscando transformar as informações fornecidas pelo parceiro em insumos claros para o desenho da experiência.
 
-&emsp; Para isso, foram considerados os alinhamentos com stakeholders da Globo, o documento TAPI, o anexo técnico sobre fontes de dados e os exemplos de eventos de telemetria fornecidos pelo parceiro.
+&emsp; A etapa de levantamento teve caráter documental e utilizou como fontes os alinhamentos realizados com stakeholders da Globo, o documento TAPI, o anexo técnico sobre as fontes de dados e os exemplos de eventos de telemetria fornecidos pelo parceiro. Esses materiais permitiram compreender a fragmentação da monitoração, as limitações de cobertura em diferentes dispositivos e os impactos dessas lacunas nos processos de investigação e suporte.
 
-&emsp; A partir dessas informações, foram definidas três personas: um engenheiro de observabilidade, uma analista de suporte e uma assinante do Globoplay impactada indiretamente pela qualidade da monitoração.
+&emsp; Em seguida, as informações foram organizadas em dores, necessidades, objetivos, cenários de uso e requisitos derivados. Essa síntese permitiu conectar o problema de negócio ao comportamento esperado da solução, especialmente nos pontos relacionados ao recebimento centralizado dos eventos, à cobertura de dispositivos modernos e legados, à confiabilidade da ingestão e ao uso dos dados para apoiar investigações humanas.
+
+&emsp; Como resultado dessa análise, foram elaboradas personas e User Stories para organizar as decisões de UX em torno de usos concretos da plataforma. Não foram realizadas, nesta etapa, entrevistas, observações de campo ou testes com usuários representativos; por isso, os artefatos produzidos devem ser entendidos como uma primeira estruturação do problema, sujeita a validação posterior com profissionais de observabilidade, analistas de suporte e assinantes.
 
 ## 3. Personas
 
 &emsp; Personas são representações fictícias de usuários reais, construídas a partir de padrões de comportamento, necessidades e objetivos. Funcionam como ferramentas estratégicas que humanizam dados abstratos e orientam decisões de produto, mantendo o foco nos usuários ao longo do processo de desenvolvimento (COOPER et al., 2014).
 
-&emsp; As personas deste projeto foram construídas a partir da análise da problemática apresentada pela Globo, dos documentos disponibilizados pelo parceiro e dos operacionalalinhamentos realizados com os stakeholders. As representações foram elaboradas a partir das hipóteses iniciais do grupo e refinadas conforme o entendimento do contexto de observabilidade, dos dispositivos legados e dos impactos das falhas sobre os assinantes do Globoplay (PRUITT; ADLIN, 2006).
+&emsp; Neste projeto, elas funcionam como uma síntese dos principais pontos de vista envolvidos no uso e no impacto da solução. Por se tratar de uma etapa inicial, as representações devem ser lidas como hipóteses fundamentadas, úteis para orientar decisões de escopo, fluxos e priorização, mas ainda abertas a validação e refinamento com usuários representativos (PRUITT; ADLIN, 2006).
 
-&emsp; Foram identificados três perfis com relações diferentes com a solução. Rafael Santos representa a persona principal e usuária direta da plataforma, pois utiliza os dados e as ferramentas de observabilidade para investigar falhas e orientar decisões técnicas. Mariana Souza representa uma persona  e também usuária direta, pois utiliza a plataforma para apoiar a triagem de chamados e o encaminhamento assertivo de incidentes às equipes responsáveis. Luísa Silva dos Santos representa uma persona secundária e indireta, pois não utiliza o sistema desenvolvido, mas é beneficiada pelas melhorias que ele pode proporcionar à experiência de reprodução.
+&emsp; Foram identificados três perfis com relações diferentes com a solução. Rafael Santos representa a persona principal e o usuário direto responsável por investigar falhas e orientar decisões técnicas. Mariana Souza representa uma persona operacional e também usuária direta, pois utiliza os eventos coletados para realizar a triagem de chamados e encaminhar incidentes às equipes responsáveis. Luísa Silva dos Santos representa a persona indireta: ela não utiliza a plataforma desenvolvida, mas é beneficiada pelas melhorias que a ampliação da observabilidade pode proporcionar à experiência de reprodução.
 
 ### 3.1 Persona 1 - Rafael Santos, engenheiro de observabilidade
 
@@ -34,7 +38,7 @@
 
 </div>
 
-&emsp; Rafael Santos, 30 anos, é engenheiro de observabilidade na Globo e representa o usuário principal da plataforma. Sua principal dor é a fragmentação dos dados entre login, player e CDN, além da baixa visibilidade sobre dispositivos legados. Na solução, Rafael utiliza filtros por dispositivo, versão, componente e período para investigar padrões de falha. Em uma transmissão ao vivo com aumento de erros em TVs antigas, por exemplo, ele consegue isolar o modelo e a região mais afetados.
+&emsp; Rafael Santos, 30 anos, atua como engenheiro de observabilidade na Globo e usa dados de telemetria para investigar incidentes no frontend. No projeto, ele é o usuário técnico principal: precisa que eventos de diferentes fontes e dispositivos cheguem a um fluxo centralizado antes de iniciar análises mais profundas. O valor da plataforma para Rafael está na confiabilidade da base disponível para investigação. Com maior cobertura de dispositivos modernos e legados, e sem perdas ou duplicidades na ingestão, ele consegue formular hipóteses com mais segurança.
 
 ### 3.2 Persona 2 - Mariana Souza, analista de suporte
 
@@ -48,7 +52,7 @@
 
 </div>
 
-&emsp; Mariana Souza, 28 anos, é Analista de Suporte Nível 2 no Globoplay e representa uma persona operacional secundária da solução. Sua principal dor é depender de relatos vagos dos usuários e de ferramentas fragmentadas para direcionar chamados. Na solução, Mariana consulta eventos por dispositivo, região e sessão para fazer uma triagem mais precisa. Ao receber uma reclamação de uma Smart TV de 2015 em Manaus, por exemplo, ela identifica se há erros recorrentes naquele recorte antes de encaminhar o chamado.
+&emsp; No suporte Nível 2 do Globoplay, Mariana Souza, 28 anos, lida com chamados que precisam ser qualificados antes de chegar às equipes técnicas. A plataforma entra em sua rotina como apoio à triagem, oferecendo eventos e contexto para transformar relatos pouco específicos em evidências mais objetivas. Sua necessidade principal é reconstruir a sessão com rapidez e comparar o caso com recortes relevantes, como dispositivo, região ou tipo de evento. Com isso, Mariana ganha mais segurança para decidir se o chamado parece isolado, recorrente ou mal direcionado, mantendo a análise humana como parte central do processo.
 
 ## Persona
 
@@ -64,18 +68,18 @@
 
 </div>
 
-&emsp; Luísa Silva dos Santos, 77 anos, é assinante do Globoplay e representa a usuária impactada indiretamente pela solução. Sua principal dor são travamentos frequentes em sua televisão antiga e a dificuldade de resolver problemas técnicos sozinha. Embora não utilize a plataforma, Luísa se beneficia quando os eventos do seu dispositivo ajudam a equipe técnica a identificar falhas recorrentes. Ao enfrentar interrupções durante uma novela, por exemplo, seus eventos podem contribuir para priorizar uma correção em aparelhos semelhantes.
+&emsp; Luísa Silva dos Santos, 77 anos, representa o impacto final da solução fora do ambiente técnico. Como assinante do Globoplay, ela não acessa a plataforma nem interage com ferramentas de observabilidade; sua presença no estudo serve para lembrar que falhas pouco visíveis para as equipes podem ser bastante concretas para quem assiste. Quando eventos de dispositivos antigos passam a ser recebidos e analisados, problemas que antes poderiam ficar dispersos ganham maior chance de investigação e priorização. O benefício para Luísa, portanto, é indireto: reduzir o tempo até uma possível correção ou mitigação de falhas que afetam a reprodução em dispositivos legados.
 
 
-### 3.4. Relação entre as personas e a solução
+### 3.4 Relação entre as personas e a solução
 
 &emsp; A relação entre as personas e a solução orienta quais funcionalidades devem ser priorizadas no projeto. As necessidades de Rafael e Mariana direcionam os fluxos principais do dashboard, enquanto a experiência de Luísa funciona como indicador do impacto final esperado: reduzir falhas percebidas pelos assinantes por meio de uma monitoração mais completa e acionável.
 
 | Persona | Relação com a solução | Principais necessidades | Benefício esperado |
 |---|---|---|---|
-| Rafael Santos | Usuário direto | Dados normalizados, filtros, cobertura de dispositivos legados e apoio à investigação | Redução do tempo de identificação e análise de falhas |
+| Rafael Santos | Usuário direto | Recebimento centralizado, filtros, cobertura de dispositivos legados e apoio à formulação de hipóteses | Redução do tempo de identificação e análise de falhas |
 | Mariana Souza | Usuária direta (operacional) | Timeline unificada, filtros por dispositivo e região, visibilidade de dispositivos legados | Encaminhamento assertivo de chamados e redução do tempo de resolução |
-| Luísa Silva dos Santos | Usuária indireta | Estabilidade, compatibilidade e orientações compreensíveis | Melhoria da experiência em dispositivos antigos |
+| Luísa Silva dos Santos | Usuária indireta | Estabilidade, compatibilidade e cobertura de eventos em dispositivos legados | Melhoria da experiência em dispositivos antigos |
 
 &emsp; Assim, as decisões de UX devem equilibrar profundidade técnica e clareza operacional. O protótipo precisa permitir análises detalhadas para investigação de incidentes, mas também oferecer caminhos simples para triagem e encaminhamento de problemas, mantendo como referência o efeito dessas decisões na experiência do assinante.
 
@@ -95,7 +99,6 @@
 | US07 | Como Analista de Suporte, eu quero filtrar eventos de erro por modelo de dispositivo e região, para identificar se um problema reportado é um caso isolado ou um padrão concentrado em um recorte específico. | Mariana Souza | Erros concentrados em dispositivos legados ou regiões específicas ficam mascarados pelas métricas nacionais agregadas, e a analista não consegue diferenciar isso na triagem. | Dashboard permite filtrar eventos por modelo de dispositivo e localização geográfica; é possível visualizar o volume de erros do recorte filtrado comparado ao total. |
 | US08 | Como Analista de Suporte, eu quero visualizar em quais dispositivos legados os eventos estão sendo coletados, para confirmar que o suporte a um usuário de TV antiga não vai depender de investigação manual em outras ferramentas. | Mariana Souza | Dispositivos legados, como TVs de 2013 a 2015, não aparecem em logs ou métricas, dificultando a ajuda a esses usuários. | Dashboard exibe eventos de dispositivos legados no mesmo painel usado para dispositivos modernos; é possível confirmar, para um dispositivo legado específico, se ele está gerando eventos de request, session e error. |
 
-### 4.1 Conclusão
 
 &emsp; As oito User Stories contemplam as principais dores de Rafael e Mariana, cobrindo desde o recebimento centralizado de eventos de diferentes fontes e dispositivos até a confiabilidade da ingestão e a consulta por dispositivo, região e sessão. As histórias de Rafael (US01 a US05) concentram as necessidades de engenharia de observabilidade, com a US01 estabelecendo a base para reunir dados e permitir a criação posterior de hipóteses. Já as histórias de Mariana (US06 a US08) endereçam a triagem operacional de chamados. Juntas, essas histórias também beneficiam Luísa de forma indireta, uma vez que a ampliação da cobertura e a agilidade na investigação resultam em correções mais rápidas para dispositivos legados.
 
@@ -392,7 +395,11 @@
 
 BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
 
+BROWN, Tim. **Change by Design: How Design Thinking Transforms Organizations and Inspires Innovation**. Nova York: HarperBusiness, 2009.
+
 COOPER, Alan; REIMANN, Robert; CRONIN, David; NOESSEL, Christopher. **About Face: The Essentials of Interaction Design**. 4. ed. Indianápolis: John Wiley & Sons, 2014.
+
+INTERNATIONAL ORGANIZATION FOR STANDARDIZATION. **ISO 9241-210:2019: Ergonomics of Human-System Interaction — Part 210: Human-Centred Design for Interactive Systems**. Genebra: ISO, 2019.
 
 KALBACH, James. **Mapping Experiences: A Complete Guide to Creating Value through Journeys, Blueprints, and Diagrams**. 1. ed. Sebastopol: O'Reilly Media, 2016.
 
