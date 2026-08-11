@@ -270,6 +270,74 @@
 
 &emsp; O painel lateral de ajuste do recorte merece destaque por prevenir um erro específico de análise. Cada sugestão de ajuste informa antecipadamente seu efeito sobre a especificidade do sinal e sobre a cobertura, de modo que o operador saiba, antes de clicar, que expandir para webOS 4.x reduziria a especificidade em 41 pontos e diluiria o sinal.
 
+### 5.4 Fluxos de usabilidade
+
+&emsp; A navegação é organizada em torno de três fluxos completos, correspondentes às tarefas que as personas precisam concluir. As telas são acessíveis diretamente pela navegação lateral, mas o encadeamento entre elas é reforçado por chamadas de ação contextuais, que conduzem o operador ao próximo passo esperado da investigação.
+
+```
+                       ┌──────────────────────────────────────────┐
+                       │  ESCOPO (filtros cumulativos) — global   │
+                       └──────────────────────────────────────────┘
+                                          │
+                                    ┌─────▼─────┐
+                                    │ 01 Agora  │
+                                    └─────┬─────┘
+                 ┌────────────────────────┼────────────────────────┐
+                 │ Fluxo 1                │ Fluxo 2                │ Fluxo 3
+                 ▼                        ▼                        ▼
+         ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
+         │ 04 Hipóteses │         │ 02 Explorar  │         │ 03 Comparar  │
+         └──────┬───────┘         └──────┬───────┘         └──────────────┘
+                │                        │
+                ▼                        ▼
+         ┌──────────────┐         ┌──────────────┐
+         │ 05 Timeline  │◄────────│ 06 Recorte   │
+         └──────────────┘         └──────────────┘
+```
+
+#### 5.4.1 Fluxo 1 — Diagnosticar a causa provável de uma degradação ativa
+
+&emsp; Persona: Rafael Santos. Percurso: **01 Agora → 04 Hipóteses → 05 Timeline**.
+
+| # | Ação do usuário | Tela | O que o sistema apresenta |
+|---|---|---|---|
+| 1 | Abre a plataforma ao receber o alerta | Agora (Fig. 7) | Degradação ativa nomeada, detectada há 7 min, com 41.209 sessões afetadas e taxa de falha 15 vezes acima do baseline |
+| 2 | Varre a tabela de sinais em desvio | Agora (Fig. 7) | Quatro métricas em desvio destacadas e duas dentro do baseline em cinza, ordenadas por sessões impactadas |
+| 3 | Aciona "Ver hipóteses ranqueadas" | Hipóteses (Fig. 10) | Quatro hipóteses ranqueadas, onze descartadas com justificativa, e a hipótese líder com score 87 |
+| 4 | Examina a decomposição do score | Hipóteses (Fig. 10) | Quatro fatores com peso e contribuição, mais as fontes de evidência consultadas |
+| 5 | Aciona "Abrir na timeline" | Timeline (Fig. 11) | Seis fontes em um eixo único, com a janela de correlação destacada e a cronologia atribuída por fonte |
+
+&emsp; O fluxo conclui com o operador em condições de afirmar, com evidência rastreável, que a regressão decorre do rollout da versão 2026.3.0 sobre o mecanismo de fallback em dispositivos webOS 3.x, e não de degradação de CDN ou de saturação de autorização, ambas avaliadas e pontuadas abaixo.
+
+#### 5.4.2 Fluxo 2 — Isolar o recorte de um problema reportado
+
+&emsp; Persona: Mariana Souza. Percurso: **01 Agora → 02 Explorar → 06 Recorte**.
+
+| # | Ação do usuário | Tela | O que o sistema apresenta |
+|---|---|---|---|
+| 1 | Aplica filtros a partir do relato recebido (fabricante, plataforma, região) | Barra de escopo | Chips cumulativos e o custo de cobertura do recorte: 41.209 sessões, 3,1% do tráfego |
+| 2 | Seleciona a aba do tipo de evento `error` | Explorar (Fig. 8) | Volume de erros do recorte e sua evolução temporal separada do volume total |
+| 3 | Agrupa por modelo de dispositivo | Explorar (Fig. 8) | Três modelos LG com variação superior a 1.900% contra o dia anterior, e os demais estáveis |
+| 4 | Consulta os erros mais frequentes no painel lateral | Explorar (Fig. 8) | `dash_shaka_playback:6_6002` concentrando 78,1% dos erros do recorte |
+| 5 | Abre o recorte afetado | Recorte (Fig. 12) | Mapa de calor de dispositivo por região, isolando LG webOS 3.x no Nordeste em 31,2% |
+| 6 | Confirma no nível do evento | Recorte (Fig. 12) | Amostra de sessões com horário, modelo, versão de sistema operacional, evento e código de erro |
+
+&emsp; O fluxo permite que a analista determine se o relato é caso isolado ou padrão concentrado antes de encaminhar o chamado, e que informe à equipe responsável o recorte exato e o código de erro predominante, substituindo o relato subjetivo por evidência quantificada.
+
+#### 5.4.3 Fluxo 3 — Distinguir anomalia de sazonalidade esperada
+
+&emsp; Persona: Rafael Santos. Percurso: **01 Agora → 03 Comparar**.
+
+| # | Ação do usuário | Tela | O que o sistema apresenta |
+|---|---|---|---|
+| 1 | Identifica o desvio na métrica de falha de play | Agora (Fig. 7) | Valor atual de 18,4% contra baseline de 1,2% |
+| 2 | Abre a comparação histórica | Comparar (Fig. 9) | Quatro referências de comparação, entre elas o pico ao vivo anterior |
+| 3 | Seleciona a referência adequada ao contexto | Comparar (Fig. 9) | Série atual sobreposta à série da referência, com destaque dos pontos fora do envelope histórico |
+| 4 | Hierarquiza os desvios por significância | Comparar (Fig. 9) | Falha de play a 14,2σ e join time a 8,9σ, contra p95 de borda a 1,2σ e bitrate a 0,5σ |
+| 5 | Verifica o que mudou entre as janelas | Comparar (Fig. 9) | Cronologia de deploy, autoscale e variação de borda no intervalo comparado |
+
+&emsp; O fluxo descarta a hipótese de sazonalidade com dado explícito: o volume de sessões está 12% **abaixo** do mesmo horário da semana anterior, o que elimina sobrecarga por audiência como explicação e sustenta o descarte registrado na tela de hipóteses.
+
 ## 6. Referências
 
 BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
