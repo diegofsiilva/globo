@@ -50,6 +50,7 @@
 
 &emsp; Mariana Souza, 28 anos, é Analista de Suporte Nível 2 no Globoplay e representa uma persona operacional secundária da solução. Sua principal dor é depender de relatos vagos dos usuários e de ferramentas fragmentadas para direcionar chamados. Na solução, Mariana consulta eventos por dispositivo, região e sessão para fazer uma triagem mais precisa. Ao receber uma reclamação de uma Smart TV de 2015 em Manaus, por exemplo, ela identifica se há erros recorrentes naquele recorte antes de encaminhar o chamado.
 
+## Persona
 
 ### 3.3 Persona 3 - Luísa Silva dos Santos, assinante do Globoplay
 
