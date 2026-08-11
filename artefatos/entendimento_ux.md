@@ -104,7 +104,7 @@
 
 &emsp; O protótipo traduz as User Stories em telas navegáveis, permitindo validar as tarefas e interações planejadas antes de qualquer decisão de implementação. Sua construção seguiu duas etapas encadeadas: primeiro os wireframes de baixa fidelidade, que fixaram a hierarquia da informação e os padrões de layout sem interferência de cor ou tipografia, e depois o protótipo de alta fidelidade, que aplicou o design system e os dados reais de telemetria fornecidos pelo parceiro.
 
-**Protótipo interativo:** *[inserir link do protótipo navegável]*
+**Protótipo interativo:** *https://www.figma.com/design/QlqYW7stAUdAybIOQJy78V/Figma-Globo?node-id=0-1&t=qXG0fp9R1ioKiVnz-1*
 
 ### 5.1 Premissas e decisões de design
 
