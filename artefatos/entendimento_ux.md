@@ -373,6 +373,22 @@
 | 9. Reconhecer, diagnosticar e recuperar de erros | Hipóteses descartadas são exibidas com justificativa, evitando que ausência seja lida como não avaliação | Parcialmente atendida — ver 5.7 |
 | 10. Ajuda e documentação | Cada tela traz uma linha explicativa sob o título e os fatores do score são descritos textualmente | Parcialmente atendida — ver 5.7 |
 
+### 5.7 Lacunas identificadas e próximos passos
+
+&emsp; A inspeção do protótipo e o cruzamento com as User Stories evidenciaram cinco pontos a endereçar na próxima iteração, registrados aqui por constituírem parte do resultado da avaliação.
+
+1. **Estados de ausência de dado.** O protótipo representa apenas o cenário em que há telemetria. Falta projetar o estado de coletor interrompido, situação em que a ausência de sinal pode ser interpretada equivocadamente como ausência de problema. Trata-se de um confundidor documentado na operação do parceiro e a lacuna mais relevante da inspeção heurística.
+2. **Detalhamento de sessão individual.** A US07 pressupõe a reconstrução cronológica dos eventos de uma sessão específica. O protótipo chega ao nível do evento na amostra do recorte, mas não oferece o detalhamento de uma sessão isolada.
+3. **Definição de limite aceitável.** A US06 requer que o operador estabeleça o limite de uma métrica e visualize quando ele é ultrapassado. O protótipo apresenta baseline e envelope, mas não a interface de definição desse limite.
+4. **Cobertura esperada por dispositivo.** A US04 pede a identificação de dispositivos com volume de eventos abaixo do esperado para o tráfego estimado, o que exige exibir a razão entre volume recebido e volume previsto, ainda ausente.
+5. **Glossário de termos técnicos.** Expressões como significância em desvios-padrão, envelope histórico e camada de erro pressupõem familiaridade com o domínio. Um glossário acessível na interface reduziria a barreira de entrada, especialmente para o perfil de suporte.
+
+### 5.8 Conclusão
+
+&emsp; O protótipo cobre os três fluxos de usabilidade exigidos e os encadeia em uma sequência única de investigação, sustentada por um escopo de filtros que persiste entre telas. A progressão do wireframe ao protótipo preservou os três padrões de layout definidos em baixa fidelidade, e as divergências introduzidas ao longo do processo estão registradas e justificadas na subseção 5.2.
+
+&emsp; A contribuição central das telas para o problema do parceiro é tornar visível o que hoje não é observável: a concentração de falhas em um recorte específico de dispositivos legados, evidenciada pelo contraste entre 3,1% do tráfego e 94% dos erros da janela, e a sobreposição de seis fontes hoje isoladas em um único eixo temporal. As lacunas registradas na subseção 5.7 delimitam o trabalho da próxima iteração, mantendo rastreável a distância entre o que foi prototipado e o conjunto completo de User Stories mapeadas.
+
 ## 6. Referências
 
 BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
