@@ -344,17 +344,16 @@
 
 | US | Persona | Tela / fluxo que a representa | Cobertura |
 |---|---|---|---|
-| US01 — API única de ingestão | Rafael | Explorar (Fig. 8): seis abas correspondentes aos tipos de evento do MVP, todas na mesma interface | Indireta — requisito de backend, evidenciado na interface pela unificação dos tipos de evento |
-| US02 — Protocolos modernos e legados | Rafael | Explorar (Fig. 8) e Recorte (Fig. 12): dispositivos legados e modernos na mesma tabela e no mesmo mapa de calor, sem tratamento separado | Integral |
-| US03 — Normalização mínima na ingestão | Rafael | Timeline (Fig. 11): seis fontes heterogêneas sobre um eixo temporal comum, com atribuição de origem por linha | Integral |
-| US04 — Visibilidade da cobertura de instrumentação | Rafael | Explorar (Fig. 8): volume de eventos por modelo e por tipo de evento | Parcial — falta a comparação entre volume recebido e volume esperado para o tráfego estimado |
-| US05 — Pipeline sem perdas em picos de tráfego | Rafael | Explorar (Fig. 8): indicador de atualidade do dado ("atualizado há 4s") | Não coberta na interface — requisito não funcional, a ser validado por teste de carga |
-| US06 — SLIs e SLOs para o frontend | Rafael | Comparar (Fig. 9) e Agora (Fig. 7): baseline por métrica, envelope histórico e significância em desvios-padrão | Parcial — os indicadores existem, mas falta a tela de definição do limite aceitável |
-| US07 — Timeline de eventos de um usuário | Mariana | Recorte (Fig. 12): amostra de sessões com evento, horário e erro por dispositivo | Parcial — há o nível de evento, mas falta o detalhamento cronológico de uma sessão individual |
-| US08 — Filtrar erros por modelo e região | Mariana | Recorte (Fig. 12), Fluxo 2: mapa de calor dispositivo por região e razão entre participação no tráfego e nos erros | Integral |
-| US09 — Coleta em dispositivos legados | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12): confirmação, por modelo legado, dos eventos efetivamente recebidos | Integral |
+| US01 — Ponto central de recebimento de eventos | Rafael | Explorar (Fig. 8): os seis tipos de evento reunidos na mesma interface; Timeline (Fig. 11): seis fontes convergindo para um eixo temporal único, com atribuição de origem por linha | Integral no que a interface representa — a ingestão em si é requisito de backend |
+| US02 — Eventos de dispositivos modernos e legados | Rafael | Explorar (Fig. 8) e Recorte (Fig. 12): dispositivos legados e modernos na mesma tabela e no mesmo mapa de calor, sem tratamento separado | Integral |
+| US03 — Visibilidade da cobertura de instrumentação | Rafael | Explorar (Fig. 8): volume de eventos por modelo e por tipo de evento | Parcial — falta a comparação entre volume recebido e volume esperado para o tráfego estimado |
+| US04 — Ingestão sem perda nem duplicação em picos | Rafael | Explorar (Fig. 8): indicador de atualidade do dado ("atualizado há 4s") | Não coberta na interface — requisito não funcional, a ser validado por teste de carga |
+| US05 — SLIs e SLOs para o frontend | Rafael | Comparar (Fig. 9) e Agora (Fig. 7): baseline por métrica, envelope histórico e significância em desvios-padrão | Parcial — os indicadores existem, mas falta a tela de definição do limite aceitável |
+| US06 — Timeline de eventos de um usuário | Mariana | Recorte (Fig. 12): amostra de sessões com evento, horário e erro por dispositivo | Parcial — há o nível de evento, mas falta o detalhamento cronológico de uma sessão individual |
+| US07 — Filtrar erros por modelo e região | Mariana | Recorte (Fig. 12), Fluxo 2: mapa de calor dispositivo por região e razão entre participação no tráfego e nos erros | Integral |
+| US08 — Coleta em dispositivos legados | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12): confirmação, por modelo legado, dos eventos efetivamente recebidos | Integral |
 
-&emsp; Quatro das nove histórias estão integralmente representadas e três parcialmente, com as lacunas identificadas na subseção 5.7. As duas restantes correspondem a requisitos cuja verificação não ocorre pela interface, e sim por instrumentação e teste de carga do pipeline.
+&emsp; Quatro das oito histórias estão integralmente representadas e três parcialmente, com as lacunas identificadas na subseção 5.7. A restante corresponde a requisito cuja verificação não ocorre pela interface, e sim por instrumentação e teste de carga do pipeline.
 
 ### 5.6 Avaliação heurística
 
@@ -378,9 +377,9 @@
 &emsp; A inspeção do protótipo e o cruzamento com as User Stories evidenciaram cinco pontos a endereçar na próxima iteração, registrados aqui por constituírem parte do resultado da avaliação.
 
 1. **Estados de ausência de dado.** O protótipo representa apenas o cenário em que há telemetria. Falta projetar o estado de coletor interrompido, situação em que a ausência de sinal pode ser interpretada equivocadamente como ausência de problema. Trata-se de um confundidor documentado na operação do parceiro e a lacuna mais relevante da inspeção heurística.
-2. **Detalhamento de sessão individual.** A US07 pressupõe a reconstrução cronológica dos eventos de uma sessão específica. O protótipo chega ao nível do evento na amostra do recorte, mas não oferece o detalhamento de uma sessão isolada.
-3. **Definição de limite aceitável.** A US06 requer que o operador estabeleça o limite de uma métrica e visualize quando ele é ultrapassado. O protótipo apresenta baseline e envelope, mas não a interface de definição desse limite.
-4. **Cobertura esperada por dispositivo.** A US04 pede a identificação de dispositivos com volume de eventos abaixo do esperado para o tráfego estimado, o que exige exibir a razão entre volume recebido e volume previsto, ainda ausente.
+2. **Detalhamento de sessão individual.** A US06 pressupõe a reconstrução cronológica dos eventos de uma sessão específica. O protótipo chega ao nível do evento na amostra do recorte, mas não oferece o detalhamento de uma sessão isolada.
+3. **Definição de limite aceitável.** A US05 requer que o operador estabeleça o limite de uma métrica e visualize quando ele é ultrapassado. O protótipo apresenta baseline e envelope, mas não a interface de definição desse limite.
+4. **Cobertura esperada por dispositivo.** A US03 pede a identificação de dispositivos com volume de eventos abaixo do esperado para o tráfego estimado, o que exige exibir a razão entre volume recebido e volume previsto, ainda ausente.
 5. **Glossário de termos técnicos.** Expressões como significância em desvios-padrão, envelope histórico e camada de erro pressupõem familiaridade com o domínio. Um glossário acessível na interface reduziria a barreira de entrada, especialmente para o perfil de suporte.
 
 ### 5.8 Conclusão
