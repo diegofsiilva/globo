@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend: instalar dependencias",
+      "type": "shell",
+      "command": "python -m pip install -e .[dev]",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: testes",
+      "type": "shell",
+      "command": "python -m pytest",
+      "options": {
+        "cwd": "${workspaceFolder}/backend",
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/backend/src"
+        }
+      },
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,93 +1,129 @@
-# G04
+# Monitoração Agêntica - G04
 
+Backend inicial em Flask para receber, normalizar, armazenar e consultar eventos de
+telemetria de TVs, aplicações web e dispositivos móveis.
 
+## Funcionalidades disponíveis
 
-## Getting started
+- ingestão de um evento ou lote em JSON;
+- ingestão CSV, inclusive com objetos JSON escapados nas colunas;
+- normalização dos seis eventos do MVP: `request`, `vitals`, `screen_view`,
+  `video_view`, `session` e `error`;
+- persistência transacional por um repositório independente do domínio;
+- suporte a SQLite local e PostgreSQL por configuração;
+- filtros cumulativos, paginação e sugestões de valores para filtros;
+- pseudonimização de `user_id` e allowlist de cabeçalhos;
+- health checks e respostas de erro no formato Problem Details.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Executar com Docker
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+Requer Docker com Compose:
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
+```bash
+docker compose up --build
 ```
-cd existing_repo
-git remote add origin https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
-git branch -M main
-git push -uf origin main
+
+A API estará disponível em `http://localhost:5000`. O Compose inicia PostgreSQL,
+aguarda o banco ficar saudável e então inicia a aplicação.
+
+## Executar localmente
+
+É necessário Python 3.12 ou superior. No Windows:
+
+```powershell
+.\backend\scripts\dev.ps1
 ```
 
-## Integrate with your tools
+Em Linux, macOS ou Codespaces:
 
-- [ ] [Set up project integrations](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/settings/integrations)
+```bash
+sh ./backend/scripts/dev.sh
+```
 
-## Collaborate with your team
+O script cria `.venv`, instala as dependências e inicia a API com SQLite. Copie
+`backend/.env.example` para `backend/.env` se desejar personalizar a configuração.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+No VS Code, abra **Run and Debug**, selecione **Backend Flask** e clique em **Run**.
+O repositório também contém um Dev Container compatível com GitHub Codespaces.
 
-## Test and Deploy
+## Exemplos da API
 
-Use the built-in continuous integration in GitLab.
+Enviar um evento:
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+```bash
+curl -X POST http://localhost:5000/api/v1/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamp": "2026-07-13T20:04:44Z",
+    "event_name": "request",
+    "duration": 0.033,
+    "app_env": "production",
+    "device_os": "Tizen"
+  }'
+```
 
-***
+Consultar com filtros cumulativos:
 
-# Editing this README
+```bash
+curl "http://localhost:5000/api/v1/events?event_name=request&device_os=Tizen&page=1"
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Consultar valores sugeridos para filtros:
 
-## Suggestions for a good README
+```bash
+curl "http://localhost:5000/api/v1/events/facets?field=event_name&field=device_os"
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Consultar contagem e latência média por tipo de evento:
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+curl "http://localhost:5000/api/v1/metrics?app_env=production&device_os=Tizen"
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Endpoints de operação:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```text
+GET /health/live
+GET /health/ready
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Configuração
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+| Variável | Padrão | Finalidade |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///instance/telemetry.db` | Conexão SQLAlchemy |
+| `USER_ID_HASH_SALT` | somente desenvolvimento | Salt da pseudonimização |
+| `MAX_CONTENT_LENGTH` | `2097152` | Limite do corpo em bytes |
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Em ambiente compartilhado, `USER_ID_HASH_SALT` deve ser um segredo forte e nunca
+deve ser versionado.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Arquitetura
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+O código segue portas e adaptadores em quatro áreas:
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```text
+interfaces -> application -> domain
+                    ^
+                    |
+             infrastructure
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- `domain`: entidade e erros sem dependência de framework;
+- `application`: normalização e casos de uso;
+- `ports`: contratos dos repositórios;
+- `infrastructure`: implementação SQLAlchemy;
+- `interfaces`: API Flask e adaptação de JSON/CSV.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Para trocar o banco, implemente `EventRepository` e injete a implementação na
+factory da aplicação. As regras de negócio e os casos de uso permanecem inalterados.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Qualidade
 
-## License
-For open source projects, say how it is licensed.
+Dentro de `backend`:
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```bash
+python -m pytest --cov=telemetry
+ruff check .
+ruff format --check .
+```
