@@ -168,6 +168,108 @@
 
 &emsp; Duas divergências entre rascunho e protótipo foram deliberadas. A faixa de indicadores do primeiro rascunho previa três valores e passou a quatro, com a inclusão do tempo decorrido sem reclamação aberta, métrica que evidencia o ganho de detecção proativa. As abas do segundo rascunho previam quatro segmentos e passaram a seis, um para cada tipo de evento mínimo do MVP. A tela de timeline, por sua vez, não possui rascunho antecedente: seu formato de raias paralelas foi definido diretamente em alta fidelidade, por depender da quantidade real de fontes a serem sobrepostas.
 
+### 5.3 Protótipo de alta fidelidade
+
+&emsp; O protótipo é composto por seis telas, numeradas na navegação lateral na ordem em que uma investigação tipicamente as percorre. A numeração é intencional: ela comunica sequência sem impedir acesso direto a qualquer etapa.
+
+#### 5.3.1 Tela 01 — Agora
+
+<div align="center">
+
+<sub>Figura 7 - Tela Agora: estado atual da plataforma</sub>
+
+![Tela Agora](./assets/prototipo_agora.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; A tela de entrada responde "o que está acontecendo agora e quem está sendo afetado". O cabeçalho declara a degradação ativa em linguagem natural ("Play não inicia em TVs LG webOS 3.x no Nordeste"), acompanhada do horário de detecção e do tempo decorrido. Os quatro indicadores quantificam o problema: taxa de falha, sessões no recorte, razão em relação ao baseline e tempo transcorrido sem reclamação aberta.
+
+&emsp; A tabela de sinais em desvio apresenta, para cada métrica, o valor atual, o baseline, o delta, uma *sparkline* dos últimos trinta minutos e o volume de sessões. Métricas dentro do envelope permanecem em cinza, o que permite varrer a tabela e distinguir o que exige atenção sem ler número por número. Ao final, a lista de outras degradações abertas mantém a visibilidade de incidentes concorrentes, classificados por severidade.
+
+#### 5.3.2 Tela 02 — Explorar
+
+<div align="center">
+
+<sub>Figura 8 - Tela Explorar: navegação cumulativa nos eventos</sub>
+
+![Tela Explorar eventos](./assets/prototipo_explorar.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; Esta tela materializa o item do MVP que pede navegação em gráficos com filtros cumulativos. As seis abas correspondem exatamente aos tipos de evento mínimos do escopo, cada uma exibindo o volume coletado no período. A faixa "agrupar por" permite trocar a dimensão de análise entre modelo, UF, ISP, versão e rota sem sair da tela nem perder o escopo.
+
+&emsp; O gráfico de barras empilhadas separa o volume total do volume com erro no mesmo eixo temporal, tornando visível que a degradação é recente e crescente. A tabela abaixo ordena os grupos por volume e inclui a coluna de comparação com o dia anterior, que é o que distingue um patamar alto e normal de uma escalada anômala: três modelos LG apresentam variação superior a 1.900%, enquanto os demais permanecem em torno de zero. O painel lateral oferece busca livre em atributos e a distribuição dos erros mais frequentes do recorte.
+
+#### 5.3.3 Tela 03 — Comparar
+
+<div align="center">
+
+<sub>Figura 9 - Tela Comparar: janela atual contra referências históricas</sub>
+
+![Tela Comparar](./assets/prototipo_comparar.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; A tela de comparação existe para responder à pergunta que mais gera falso positivo em monitoração de streaming: o desvio observado é uma anomalia ou é sazonalidade esperada. As quatro referências disponíveis (ontem no mesmo horário, semana passada, última janela estável e pico ao vivo anterior) endereçam escalas distintas de sazonalidade, incluindo o caso do evento programado, em que o comportamento correto de comparação é contra outro pico e não contra a média.
+
+&emsp; A tabela de métricas apresenta, além do delta, uma coluna de significância expressa em desvios-padrão. Esse acréscimo é o que permite hierarquizar: a falha de início de play está a 14,2σ do esperado, enquanto o p95 de borda, apesar de 12% acima, está a apenas 1,2σ e portanto dentro da variação normal. O painel lateral lista, em ordem cronológica, os eventos de infraestrutura ocorridos entre as duas janelas comparadas.
+
+#### 5.3.4 Tela 04 — Hipóteses
+
+<div align="center">
+
+<sub>Figura 10 - Tela Hipóteses: causas prováveis ranqueadas e decompostas</sub>
+
+![Tela Hipóteses](./assets/prototipo_hipoteses.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; As hipóteses de causa provável aparecem ranqueadas por score, acompanhadas da lista de hipóteses descartadas com a justificativa de cada descarte. Exibir o que foi descartado, e não apenas o que foi eleito, é uma decisão de projeto: sem ela, o operador não tem como saber se a ausência de uma causa na lista significa que ela foi avaliada e rejeitada ou que nunca foi considerada.
+
+&emsp; O painel direito decompõe o score do item selecionado em quatro fatores ponderados, cada um com seu peso, sua contribuição em pontos e a frase que o justifica, além de listar as fontes de evidência consultadas. Essa transparência é o que torna o score utilizável em uma decisão técnica: o operador pode discordar de um fator específico sem descartar a hipótese inteira. As duas ações ao final conduzem à timeline e ao recorte afetado, encadeando os fluxos.
+
+#### 5.3.5 Tela 05 — Timeline
+
+<div align="center">
+
+<sub>Figura 11 - Tela Timeline: seis fontes em um único eixo de tempo</sub>
+
+![Tela Timeline](./assets/prototipo_timeline.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; A timeline é a resposta direta à dor central de Rafael, a fragmentação entre componentes instrumentados por times diferentes. Seis fontes que hoje vivem em ferramentas separadas aparecem como raias paralelas sobre um eixo temporal único, com a janela de correlação destacada. A leitura visual entrega a sequência causal: o deploy às 19:58 precede a subida de p95 na borda às 20:02, que precede a primeira falha de play às 20:04.
+
+&emsp; A cronologia reconstruída abaixo do gráfico apresenta os mesmos fatos em formato textual, atribuindo cada linha à fonte que a originou, o que preserva a rastreabilidade da afirmação. O painel lateral consolida os números da janela de correlação, incluindo a antecedência de sete minutos em relação ao primeiro chamado, métrica que expressa o valor da detecção proativa.
+
+#### 5.3.6 Tela 06 — Recorte
+
+<div align="center">
+
+<sub>Figura 12 - Tela Recorte: definição explícita e ajuste do recorte afetado</sub>
+
+![Tela Recorte](./assets/prototipo_recorte.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; A tela de recorte declara explicitamente a população afetada e a quantifica em quatro dimensões, incluindo a relação entre participação no tráfego e participação nos erros: 3,1% do tráfego concentra 94% dos erros da janela. Esse contraste é a evidência de que o problema é específico de um segmento e não uma degradação geral da plataforma.
+
+&emsp; O mapa de calor cruza família de dispositivo e região, e é onde o problema descrito no TAPI se torna visualmente inegável: a célula de LG webOS 3.x no Nordeste apresenta 31,2% de erro contra valores entre 0,7% e 4,1% em todas as demais combinações. A amostra de sessões abaixo desce ao nível do evento individual, com horário, modelo, versão de sistema operacional, tipo de evento e código de erro.
+
+&emsp; O painel lateral de ajuste do recorte merece destaque por prevenir um erro específico de análise. Cada sugestão de ajuste informa antecipadamente seu efeito sobre a especificidade do sinal e sobre a cobertura, de modo que o operador saiba, antes de clicar, que expandir para webOS 4.x reduziria a especificidade em 41 pontos e diluiria o sinal.
+
 ## 6. Referências
 
 BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
