@@ -100,6 +100,24 @@
 &emsp; As nove User Stories contemplam as principais dores de Rafael e Mariana, cobrindo desde a ingestão unificada e a normalização dos eventos até a consulta por dispositivo, região e sessão. As histórias de Rafael (US01 a US06) concentram as necessidades de engenharia de observabilidade, enquanto as de Mariana (US07 a US09) endereçam a triagem operacional de chamados. Juntas, essas histórias também beneficiam Luísa de forma indireta, uma vez que a ampliação da cobertura e a agilidade na investigação resultam em correções mais rápidas para dispositivos legados.
 
 
+## 5. Protótipo de Front-End
+
+&emsp; O protótipo traduz as User Stories em telas navegáveis, permitindo validar as tarefas e interações planejadas antes de qualquer decisão de implementação. Sua construção seguiu duas etapas encadeadas: primeiro os wireframes de baixa fidelidade, que fixaram a hierarquia da informação e os padrões de layout sem interferência de cor ou tipografia, e depois o protótipo de alta fidelidade, que aplicou o design system e os dados reais de telemetria fornecidos pelo parceiro.
+
+**Protótipo interativo:** *[inserir link do protótipo navegável]*
+
+### 5.1 Premissas e decisões de design
+
+&emsp; A decisão estruturante do protótipo partiu da natureza da pergunta que Rafael e Mariana precisam responder. O operador de plantão não pergunta apenas "o que quebrou", mas sim "isso é problema nosso ou externo, quantos assinantes estão sendo afetados e o que mudou nos últimos minutos". Essa pergunta orientou três escolhas presentes em todas as telas.
+
+&emsp; **A ordenação por impacto, não por magnitude.** Na tela principal, os sinais em desvio aparecem ordenados por número de sessões impactadas, e não pelo tamanho do desvio estatístico. A escolha é explicitada na própria interface, abaixo do título da tabela, porque inverte a convenção usual de ferramentas de monitoração: um desvio de 400% em um recorte de mil sessões é operacionalmente menos urgente que um desvio de 15% em quarenta mil.
+
+&emsp; **O escopo como estado global.** A barra de filtros cumulativos permanece fixa no topo de todas as seis telas, e cada filtro aplicado é exibido como um *chip* removível individualmente. O recorte investigado não se perde ao navegar entre telas, o que atende diretamente ao item do MVP que pede filtros cumulativos com sugestão dos valores efetivamente recebidos. O contador à direita da barra ("41.209 sessões · 3,1% do tráfego · 6 fontes cruzadas") informa continuamente o custo de cobertura de cada filtro aplicado.
+
+&emsp; **Cor como sinal, não como decoração.** A paleta é monocromática com um único acento, reservado exclusivamente para valores fora do envelope esperado. Métricas dentro do baseline aparecem em cinza, mesmo quando presentes na mesma tabela que as métricas em desvio, como se observa nas linhas `session · app startup` e `screen_view · tempo de carga` da tela principal. Em um painel lido sob pressão, a cor precisa carregar informação.
+
+&emsp; Os dados exibidos no protótipo não são fictícios: os modelos de dispositivo (`49LJ5550-SC`, `43LJ5500`, `UN49MU6100`, `43D1200`, `50P65US`, `BTV32D10N5SKH`), o código de erro `dash_shaka_playback:6_6002` e os nomes dos seis tipos de evento foram extraídos das amostras de eventos disponibilizadas pelo parceiro. Os nomes das fontes correlacionadas (Youbora/NPAW, Prometheus VTS, NewRelic APM, Apollo, Tsuru e ServiceNow) e a contagem de treze fontes vêm do anexo técnico de fontes de dados. Essa ancoragem garante que os fluxos representem o dado que a plataforma efetivamente vai receber.
+
 ## 6. Referências
 
 BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
