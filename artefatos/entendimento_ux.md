@@ -356,6 +356,23 @@
 
 &emsp; Quatro das nove histórias estão integralmente representadas e três parcialmente, com as lacunas identificadas na subseção 5.7. As duas restantes correspondem a requisitos cuja verificação não ocorre pela interface, e sim por instrumentação e teste de carga do pipeline.
 
+### 5.6 Avaliação heurística
+
+&emsp; O protótipo foi submetido a uma inspeção baseada nas dez heurísticas de usabilidade de Nielsen (NIELSEN, 1994), com o objetivo de identificar violações antes da implementação. O resultado está sistematizado a seguir.
+
+| Heurística | Como é atendida no protótipo | Situação |
+|---|---|---|
+| 1. Visibilidade do estado do sistema | Indicador "ao vivo" com relógio, horário de detecção e tempo decorrido, atualidade do dado na tela Explorar, contadores de pendência na navegação lateral | Atendida |
+| 2. Correspondência com o mundo real | Vocabulário do domínio preservado (recorte, baseline, envelope, PoP, deploy) e nomes de evento e código de erro idênticos aos emitidos pelas aplicações | Atendida |
+| 3. Controle e liberdade do usuário | Cada filtro é removível individualmente, há ação de limpar escopo, e toda navegação é reversível e não destrutiva | Atendida |
+| 4. Consistência e padrões | Cabeçalho, barra de escopo e navegação numerada idênticos nas seis telas; o acento cromático significa desvio em todas elas | Atendida |
+| 5. Prevenção de erros | O painel de ajuste do recorte antecipa o efeito de cada ajuste sobre especificidade e cobertura antes da ação | Atendida |
+| 6. Reconhecimento em vez de memorização | Filtros sugerem os valores efetivamente recebidos, abas exibem seus volumes e o score é apresentado sempre acompanhado de sua decomposição | Atendida |
+| 7. Flexibilidade e eficiência | Seletor de janela temporal, troca de dimensão de agrupamento, quatro referências de comparação e atalhos contextuais entre telas | Atendida |
+| 8. Estética e design minimalista | Paleta monocromática com acento único, ausência de ornamento e ordenação por impacto operacional | Atendida |
+| 9. Reconhecer, diagnosticar e recuperar de erros | Hipóteses descartadas são exibidas com justificativa, evitando que ausência seja lida como não avaliação | Parcialmente atendida — ver 5.7 |
+| 10. Ajuda e documentação | Cada tela traz uma linha explicativa sob o título e os fatores do score são descritos textualmente | Parcialmente atendida — ver 5.7 |
+
 ## 6. Referências
 
 BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
@@ -363,5 +380,7 @@ BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes
 COOPER, Alan; REIMANN, Robert; CRONIN, David; NOESSEL, Christopher. **About Face: The Essentials of Interaction Design**. 4. ed. Indianápolis: John Wiley & Sons, 2014.
 
 KALBACH, James. **Mapping Experiences: A Complete Guide to Creating Value through Journeys, Blueprints, and Diagrams**. 1. ed. Sebastopol: O'Reilly Media, 2016.
+
+NIELSEN, Jakob. **Enhancing the Explanatory Power of Usability Heuristics**. In: Proceedings of the SIGCHI Conference on Human Factors in Computing Systems (CHI '94). Boston: ACM, 1994. p. 152-158.
 
 PRUITT, John; ADLIN, Tamara. **The Persona Lifecycle: Keeping People in Mind Throughout Product Design**. São Francisco: Morgan Kaufmann, 2006.
