@@ -338,6 +338,24 @@
 
 &emsp; O fluxo descarta a hipótese de sazonalidade com dado explícito: o volume de sessões está 12% **abaixo** do mesmo horário da semana anterior, o que elimina sobrecarga por audiência como explicação e sustenta o descarte registrado na tela de hipóteses.
 
+### 5.5 Correlação entre os fluxos e as User Stories
+
+&emsp; A tabela relaciona cada User Story mapeada na seção 4 à tela e ao fluxo que a representa no protótipo, explicitando o grau de cobertura alcançado nesta etapa.
+
+| US | Persona | Tela / fluxo que a representa | Cobertura |
+|---|---|---|---|
+| US01 — API única de ingestão | Rafael | Explorar (Fig. 8): seis abas correspondentes aos tipos de evento do MVP, todas na mesma interface | Indireta — requisito de backend, evidenciado na interface pela unificação dos tipos de evento |
+| US02 — Protocolos modernos e legados | Rafael | Explorar (Fig. 8) e Recorte (Fig. 12): dispositivos legados e modernos na mesma tabela e no mesmo mapa de calor, sem tratamento separado | Integral |
+| US03 — Normalização mínima na ingestão | Rafael | Timeline (Fig. 11): seis fontes heterogêneas sobre um eixo temporal comum, com atribuição de origem por linha | Integral |
+| US04 — Visibilidade da cobertura de instrumentação | Rafael | Explorar (Fig. 8): volume de eventos por modelo e por tipo de evento | Parcial — falta a comparação entre volume recebido e volume esperado para o tráfego estimado |
+| US05 — Pipeline sem perdas em picos de tráfego | Rafael | Explorar (Fig. 8): indicador de atualidade do dado ("atualizado há 4s") | Não coberta na interface — requisito não funcional, a ser validado por teste de carga |
+| US06 — SLIs e SLOs para o frontend | Rafael | Comparar (Fig. 9) e Agora (Fig. 7): baseline por métrica, envelope histórico e significância em desvios-padrão | Parcial — os indicadores existem, mas falta a tela de definição do limite aceitável |
+| US07 — Timeline de eventos de um usuário | Mariana | Recorte (Fig. 12): amostra de sessões com evento, horário e erro por dispositivo | Parcial — há o nível de evento, mas falta o detalhamento cronológico de uma sessão individual |
+| US08 — Filtrar erros por modelo e região | Mariana | Recorte (Fig. 12), Fluxo 2: mapa de calor dispositivo por região e razão entre participação no tráfego e nos erros | Integral |
+| US09 — Coleta em dispositivos legados | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12): confirmação, por modelo legado, dos eventos efetivamente recebidos | Integral |
+
+&emsp; Quatro das nove histórias estão integralmente representadas e três parcialmente, com as lacunas identificadas na subseção 5.7. As duas restantes correspondem a requisitos cuja verificação não ocorre pela interface, e sim por instrumentação e teste de carga do pipeline.
+
 ## 6. Referências
 
 BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
