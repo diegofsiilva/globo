@@ -118,6 +118,56 @@
 
 &emsp; Os dados exibidos no protótipo não são fictícios: os modelos de dispositivo (`49LJ5550-SC`, `43LJ5500`, `UN49MU6100`, `43D1200`, `50P65US`, `BTV32D10N5SKH`), o código de erro `dash_shaka_playback:6_6002` e os nomes dos seis tipos de evento foram extraídos das amostras de eventos disponibilizadas pelo parceiro. Os nomes das fontes correlacionadas (Youbora/NPAW, Prometheus VTS, NewRelic APM, Apollo, Tsuru e ServiceNow) e a contagem de treze fontes vêm do anexo técnico de fontes de dados. Essa ancoragem garante que os fluxos representem o dado que a plataforma efetivamente vai receber.
 
+### 5.2 Wireframes iniciais
+
+&emsp; Os wireframes foram produzidos em baixa fidelidade, com texto substituto e ausência total de cor, para forçar a discussão sobre disposição e prioridade dos elementos antes de qualquer definição estética. Cada rascunho estabeleceu um padrão de layout reaproveitado depois pelas telas de alta fidelidade.
+
+<div align="center">
+
+<sub>Figura 4 - Wireframe da tela de estado atual</sub>
+
+![Wireframe da tela Agora](./assets/wireframe_agora.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; O primeiro rascunho definiu o padrão de **cabeçalho fixo, navegação lateral e corpo em três blocos**: título do incidente, uma faixa de indicadores numéricos e uma tabela de sinais. A decisão de abrir a tela com um título em linguagem natural, e não com um gráfico, nasceu aqui: o operador precisa saber o que está acontecendo antes de ver qualquer série temporal.
+
+<div align="center">
+
+<sub>Figura 5 - Wireframe da tela de exploração de eventos</sub>
+
+![Wireframe da tela Explorar](./assets/wireframe_explorar.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; O segundo rascunho estabeleceu o padrão de **abas de segmentação, gráfico temporal e tabela agrupada com painel lateral de busca**. A faixa de abas no topo representa a troca de dimensão de análise, e o painel à direita concentra busca livre em atributos e uma lista de valores mais frequentes. Esse arranjo foi posteriormente reutilizado, com adaptações, na tela de comparação histórica.
+
+<div align="center">
+
+<sub>Figura 6 - Wireframe da tela de hipóteses</sub>
+
+![Wireframe da tela Hipóteses](./assets/wireframe_hipoteses.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; O terceiro rascunho definiu o padrão **mestre-detalhe com lista ranqueada**: à esquerda, uma lista de itens precedidos por um valor numérico de ordenação; à direita, o detalhamento do item selecionado, decomposto em barras, com ações ao final. O objetivo declarado desde o rascunho era que a interface nunca apresentasse um score sem apresentar simultaneamente sua decomposição.
+
+&emsp; A tabela a seguir relaciona cada rascunho ao padrão que ele estabeleceu e às telas de alta fidelidade que o aplicam.
+
+| Wireframe | Padrão de layout estabelecido | Telas que aplicam o padrão |
+|---|---|---|
+| Figura 4 | Título em linguagem natural + faixa de indicadores + tabela de sinais | Agora, Recorte |
+| Figura 5 | Abas de segmentação + gráfico temporal + tabela agrupada + painel lateral | Explorar, Comparar |
+| Figura 6 | Mestre-detalhe com lista ranqueada e decomposição do score | Hipóteses |
+
+&emsp; Duas divergências entre rascunho e protótipo foram deliberadas. A faixa de indicadores do primeiro rascunho previa três valores e passou a quatro, com a inclusão do tempo decorrido sem reclamação aberta, métrica que evidencia o ganho de detecção proativa. As abas do segundo rascunho previam quatro segmentos e passaram a seis, um para cada tipo de evento mínimo do MVP. A tela de timeline, por sua vez, não possui rascunho antecedente: seu formato de raias paralelas foi definido diretamente em alta fidelidade, por depender da quantidade real de fontes a serem sobrepostas.
+
 ## 6. Referências
 
 BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
