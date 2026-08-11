@@ -12,7 +12,7 @@
 
 &emsp; **Solução proposta pelo grupo.** Sistema distribuído proprietário de telemetria, com API única de ingestão que aceita protocolos modernos e legados, normalização dos eventos sob vocabulário comum (`request`, `vitals`, `screen_view`, `video_view`, `session`, `error`), pipeline de alta escala sem perdas e camada agêntica de correlação, que devolve uma linha do tempo única do incidente e uma hipótese de causa provável ranqueada, com o recorte afetado explícito.
 
-&emsp; **Escopo avaliado.** A matriz compara a solução-alvo, e não o recorte entregue no módulo. O MVP implementa o caminho de ingestão, processamento assíncrono, armazenamento e consulta, consumindo eventos já mapeados para o vocabulário comum definido pelo projeto (`signal_point`). Os adaptadores por protocolo de origem e a camada de correlação e inferência estão previstos nas fases seguintes, conforme 4.3. Os atributos 1, 2 e 5 descrevem, portanto, capacidade projetada, e sua verificação depende dessas fases.
+&emsp; **Escopo avaliado.** A matriz compara a solução-alvo, e não o recorte entregue no módulo. O MVP implementa o caminho de ingestão, processamento assíncrono, armazenamento e consulta, consumindo eventos já normalizados na tabela `signal_point`. A normalização das fontes é hoje executada por um script do próprio parceiro, e ainda não está definido se ele será reaproveitado ou reescrito pelo grupo — dependência registrada como R17 na seção 2. A camada de correlação e inferência está prevista na Fase 5 do investimento, conforme 4.3. Os atributos 1, 2 e 5 descrevem, portanto, capacidade projetada, e sua verificação depende dessas definições.
 
 &emsp; A matriz avalia as abordagens de solução, e não o Globoplay. Características do produto e da audiência entram como justificativa do valor de cada atributo, não como objeto de avaliação.
 
@@ -47,7 +47,7 @@
 
 <sub>Figura 1 - Curva de valor da matriz de avaliação</sub>
 
-![Curva de valor da matriz de avaliação](../assets/oceano-azul.svg)
+<img src="./assets/oceano-azul.png">
 
 <sup>Fonte: Material produzido pelos autores (2026)</sup>
 
@@ -222,12 +222,14 @@
 
 | # | Produto ou serviço | Atende a |
 |---|---|---|
-| P1 | Vocabulário comum de eventos (`signal_point`) | J1, J3 |
+| P1 | Normalização das fontes para o vocabulário comum (`signal_point`) | J1, J3 |
 | P2 | API única de ingestão | J1, J4 |
 | P3 | Fila de mensagens e worker de processamento | J1, J2 |
 | P4 | Armazenamento com recorte por dimensão | J2, J3 |
 | P5 | Motor de correlação e causa provável | J3, J5, J6 |
 | P6 | Dashboard e API de consulta | J2, J4, J5 |
+
+&emsp; A titularidade de P1 é a principal indefinição do escopo: o parceiro já opera um script de normalização, e ainda não foi decidido se o grupo o reutiliza ou constrói o seu. Enquanto isso não estiver resolvido, P1 é premissa e não entrega, o que afeta diretamente a justificativa do atributo 5 em 1.3.
 
 &emsp; P5 é o componente que diferencia a proposta das alternativas comparadas em 1.3. Sem ele, os demais produtos entregam dados, e não inferência, e a solução se aproxima da suíte de mercado avaliada na matriz. Seu custo de construção está estimado na Fase 5 do investimento inicial, em 4.3.
 
@@ -255,7 +257,7 @@
 | G4 | Melhor priorização dos incidentes | Média | Classificação por impacto |
 | G5 | Cumprimento dos SLAs | Média | Redução do tempo de resposta |
 
-&emsp; O encaixe demonstrado acima delimita a proposta. A solução é baseada em ingestão própria: os eventos das fontes de telemetria, mapeados para o vocabulário comum definido pelo projeto, são recebidos por uma API única na infraestrutura da AWS, processados de forma assíncrona, armazenados, correlacionados e apresentados em dashboard. Dentro do escopo do MVP e conforme o rollout, ela substitui parte das funcionalidades hoje desempenhadas por ferramentas de observabilidade de mercado, e não a totalidade delas. Essa proporção é tratada como premissa B3 na análise financeira, em 4.2. O valor central permanece a ampliação da visibilidade necessária para investigar incidentes, reduzir o tempo perdido entre filas e equipes, apoiar o cumprimento dos SLAs e diminuir o impacto das falhas percebidas pelos assinantes do Globoplay.
+&emsp; O encaixe demonstrado acima delimita a proposta. A solução é baseada em ingestão própria: os eventos das fontes de telemetria, normalizados na tabela `signal_point`, são recebidos por uma API única na infraestrutura da AWS, processados de forma assíncrona, armazenados, correlacionados e apresentados em dashboard. Dentro do escopo do MVP e conforme o rollout, ela substitui parte das funcionalidades hoje desempenhadas por ferramentas de observabilidade de mercado, e não a totalidade delas. Essa proporção é tratada como premissa B3 na análise financeira, em 4.2. O valor central permanece a ampliação da visibilidade necessária para investigar incidentes, reduzir o tempo perdido entre filas e equipes, apoiar o cumprimento dos SLAs e diminuir o impacto das falhas percebidas pelos assinantes do Globoplay.
 
 ## 4. Análise Financeira do Projeto
 
