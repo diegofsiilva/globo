@@ -1,6 +1,6 @@
 ## 1. Contexto e escopo do projeto
 
-&emsp; O projeto consiste no desenvolvimento de uma plataforma que atua como ponto central para o recebimento, o processamento e a consulta de eventos de telemetria das aplicações frontend do Globoplay. Esses eventos são produzidos por diferentes fontes e componentes, como login, player de vídeo e CDN, e podem chegar a partir de dispositivos modernos ou legados.
+&emsp; O projeto consiste no desenvolvimento de uma plataforma que atua como ponto central para o recebimento, o processamento e a consulta de eventos de telemetria das aplicações de front-end do Globoplay. Esses eventos são produzidos por diferentes fontes e componentes, como login, player de vídeo e CDN, e podem chegar a partir de dispositivos modernos ou legados.
 
 &emsp; No cenário atual, os eventos ficam distribuídos entre componentes e ferramentas de monitoração diferentes. Essa fragmentação dificulta a reconstrução do que aconteceu em uma sessão, a comparação entre dados relacionados e a identificação de padrões de falha. O problema se torna mais evidente em dispositivos antigos e versões legadas das aplicações, cuja cobertura de telemetria pode ser menor e gerar pontos cegos para as equipes técnicas.
 
@@ -38,7 +38,7 @@
 
 </div>
 
-&emsp; Rafael Santos, 30 anos, atua como engenheiro de observabilidade na Globo e usa dados de telemetria para investigar incidentes no frontend. No projeto, ele é o usuário técnico principal: precisa que eventos de diferentes fontes e dispositivos cheguem a um fluxo centralizado antes de iniciar análises mais profundas. O valor da plataforma para Rafael está na confiabilidade da base disponível para investigação. Com maior cobertura de dispositivos modernos e legados, e sem perdas ou duplicidades na ingestão, ele consegue formular hipóteses com mais segurança.
+&emsp; Rafael Santos, 30 anos, atua como engenheiro de observabilidade na Globo e usa dados de telemetria para investigar incidentes no front-end. No projeto, ele é o usuário técnico principal: precisa que eventos de diferentes fontes e dispositivos cheguem a um fluxo centralizado antes de iniciar análises mais profundas. O valor da plataforma para Rafael está na confiabilidade da base disponível para investigação. Com maior cobertura de dispositivos modernos e legados, e sem perdas ou duplicidades na ingestão, ele consegue formular hipóteses com mais segurança.
 
 ### 3.2 Persona 2 - Mariana Souza, analista de suporte
 
@@ -54,8 +54,6 @@
 
 &emsp; No suporte Nível 2 do Globoplay, Mariana Souza, 28 anos, lida com chamados que precisam ser qualificados antes de chegar às equipes técnicas. A plataforma entra em sua rotina como apoio à triagem, oferecendo eventos e contexto para transformar relatos pouco específicos em evidências mais objetivas. Sua necessidade principal é reconstruir a sessão com rapidez e comparar o caso com recortes relevantes, como dispositivo, região ou tipo de evento. Com isso, Mariana ganha mais segurança para decidir se o chamado parece isolado, recorrente ou mal direcionado, mantendo a análise humana como parte central do processo.
 
-## Persona
-
 ### 3.3 Persona 3 - Luísa Silva dos Santos, assinante do Globoplay
 
 <div align="center">
@@ -70,44 +68,42 @@
 
 &emsp; Luísa Silva dos Santos, 77 anos, representa o impacto final da solução fora do ambiente técnico. Como assinante do Globoplay, ela não acessa a plataforma nem interage com ferramentas de observabilidade; sua presença no estudo serve para lembrar que falhas pouco visíveis para as equipes podem ser bastante concretas para quem assiste. Quando eventos de dispositivos antigos passam a ser recebidos e analisados, problemas que antes poderiam ficar dispersos ganham maior chance de investigação e priorização. O benefício para Luísa, portanto, é indireto: reduzir o tempo até uma possível correção ou mitigação de falhas que afetam a reprodução em dispositivos legados.
 
-
 ### 3.4 Relação entre as personas e a solução
 
 &emsp; A relação entre as personas e a solução orienta quais funcionalidades devem ser priorizadas no projeto. As necessidades de Rafael e Mariana direcionam os fluxos principais do dashboard, enquanto a experiência de Luísa funciona como indicador do impacto final esperado: reduzir falhas percebidas pelos assinantes por meio de uma monitoração mais completa e acionável.
 
 | Persona | Relação com a solução | Principais necessidades | Benefício esperado |
 |---|---|---|---|
-| Rafael Santos | Usuário direto | Recebimento centralizado, filtros, cobertura de dispositivos legados e apoio à formulação de hipóteses | Redução do tempo de identificação e análise de falhas |
+| Rafael Santos | Usuário direto | Consulta centralizada, filtros, cobertura de dispositivos legados e apoio à formulação de hipóteses | Redução do tempo de identificação e análise de falhas |
 | Mariana Souza | Usuária direta (operacional) | Timeline unificada, filtros por dispositivo e região, visibilidade de dispositivos legados | Encaminhamento assertivo de chamados e redução do tempo de resolução |
 | Luísa Silva dos Santos | Usuária indireta | Estabilidade, compatibilidade e cobertura de eventos em dispositivos legados | Melhoria da experiência em dispositivos antigos |
 
 &emsp; Assim, as decisões de UX devem equilibrar profundidade técnica e clareza operacional. O protótipo precisa permitir análises detalhadas para investigação de incidentes, mas também oferecer caminhos simples para triagem e encaminhamento de problemas, mantendo como referência o efeito dessas decisões na experiência do assinante.
 
-
 ## 4. User Stories
 
-&emsp; As User Stories traduzem ações específicas que as personas precisam cumprir na solução diante de necessidades e dores identificadas. Elas se tornam essenciais no Entendimento da Experiência do Usuário ao permitir a validação de necessidades relacionadas ao problema, seguindo as boas práticas do formato INVEST. O acrônimo I.N.V.E.S.T. (Independente, Negociável, Valiosa, Estimável, Pequena e Testável) resume um framework que auxilia na estruturação das User Stories (BONILHA, 2020).
+&emsp; As User Stories traduzem ações específicas que as personas precisam realizar na solução diante das necessidades e dores identificadas. Elas orientam a validação das funcionalidades do front-end e seguem o formato "como [quem], eu quero [o que], para [por que]". Sua redação também considera os princípios INVEST: Independente, Negociável, Valiosa, Estimável, Pequena e Testável (BONILHA, 2020).
 
-| # | User Story | Persona | Dor atendida | Critérios de aceite |
-|---|------------|---------|--------------|---------------------|
-| US01 | Como Engenheiro de Observabilidade, eu quero um ponto central de recebimento de eventos de diferentes fontes, para reunir esses dados em um único fluxo e possibilitar a criação de hipóteses a partir deles. | Rafael Santos | Os eventos chegam hoje por fontes e componentes diferentes, sem um ponto comum que permita concentrar os dados antes da análise e da formulação de hipóteses. | Um ponto central recebe eventos de diferentes fontes frontend; cada evento recebido mantém identificação de origem, tipo e timestamp; os dados ficam disponíveis em um fluxo unificado para consulta e criação posterior de hipóteses. |
-| US02 | Como Engenheiro de Observabilidade, eu quero que a plataforma receba eventos de diferentes tipos de dispositivos, incluindo dispositivos modernos e legados, para reduzir pontos cegos na telemetria. | Rafael Santos | Parte do parque de dispositivos fica fora da observabilidade por limitações de instrumentação ou coleta, impedindo que seus eventos sejam considerados na análise. | Eventos de dispositivos modernos e legados chegam ao mesmo fluxo centralizado; cada evento identifica dispositivo, modelo e versão quando disponível; dispositivos legados aparecem nas consultas junto com os demais. |
-| US03 | Como Engenheiro de Observabilidade, eu quero visibilidade sobre a cobertura de instrumentação por dispositivo e componente, para identificar de forma objetiva onde ainda existem pontos cegos. | Rafael Santos | Hoje não há um jeito claro de saber quais dispositivos ou regiões estão mal cobertos até que um incidente revele a lacuna. | Painel mostra volume de eventos recebidos por tipo de dispositivo e componente; é possível identificar dispositivos com volume de eventos abaixo do esperado para o tráfego estimado. |
-| US04 | Como Engenheiro de Observabilidade, eu quero que o pipeline de ingestão não perca nem duplique eventos durante picos de tráfego, para manter a confiabilidade dos dados justamente nos momentos de maior audiência. | Rafael Santos | Eventos perdidos ou duplicados em picos comprometem a análise exatamente quando o volume de usuários afetados é maior, podendo distorcer métricas e hipóteses. | Pipeline sustenta o pico de throughput informado pelo parceiro sem descarte de eventos; reenvios do mesmo evento são tratados de forma idempotente; testes de carga validam a ausência de perda e duplicação indevida. |
-| US05 | Como Engenheiro de Observabilidade, eu quero definir SLIs e SLOs para o frontend com base nos dados coletados, para aplicar ao lado cliente a mesma disciplina de confiabilidade já usada no backend. | Rafael Santos | Hoje não há dados granulares suficientes do frontend para propor metas de confiabilidade equivalentes às já existentes no backend. | Dashboard permite acompanhar métricas de referência (ex: taxa de erro, latência) por período; é possível definir um limite aceitável e visualizar quando ele é ultrapassado. |
-| US06 | Como Analista de Suporte, eu quero consultar a timeline de eventos de um usuário específico, para entender o que aconteceu na sessão sem depender de relatos subjetivos como "o vídeo não abre". | Mariana Souza | O diagnóstico inicial depende de relatos subjetivos do usuário, forçando a analista a adivinhar a causa para direcionar o chamado. | É possível localizar a sessão de um usuário e visualizar os eventos registrados nela em ordem cronológica; a timeline mostra ao menos os eventos de session, screen_view, video_view e error. |
-| US07 | Como Analista de Suporte, eu quero filtrar eventos de erro por modelo de dispositivo e região, para identificar se um problema reportado é um caso isolado ou um padrão concentrado em um recorte específico. | Mariana Souza | Erros concentrados em dispositivos legados ou regiões específicas ficam mascarados pelas métricas nacionais agregadas, e a analista não consegue diferenciar isso na triagem. | Dashboard permite filtrar eventos por modelo de dispositivo e localização geográfica; é possível visualizar o volume de erros do recorte filtrado comparado ao total. |
-| US08 | Como Analista de Suporte, eu quero visualizar em quais dispositivos legados os eventos estão sendo coletados, para confirmar que o suporte a um usuário de TV antiga não vai depender de investigação manual em outras ferramentas. | Mariana Souza | Dispositivos legados, como TVs de 2013 a 2015, não aparecem em logs ou métricas, dificultando a ajuda a esses usuários. | Dashboard exibe eventos de dispositivos legados no mesmo painel usado para dispositivos modernos; é possível confirmar, para um dispositivo legado específico, se ele está gerando eventos de request, session e error. |
+&emsp; A priorização utiliza o método MoSCoW. Histórias **Must** compõem a experiência essencial representada nos fluxos principais do protótipo; histórias **Should** agregam valor relevante, mas podem ser concluídas em uma iteração posterior; e histórias **Could** são desejáveis, porém não impedem a validação inicial da proposta.
 
+| # | Prioridade | User Story | Persona | Dor atendida | Critérios de aceite |
+|---|---|---|---|---|---|
+| US01 | Must | Como Engenheiro de Observabilidade, eu quero consultar, em uma única interface, eventos provenientes de diferentes fontes, para correlacionar evidências e formular hipóteses sobre incidentes. | Rafael Santos | Os eventos ficam distribuídos entre componentes e ferramentas diferentes, o que fragmenta a investigação. | A interface reúne os eventos das fontes integradas; cada registro apresenta origem, tipo e timestamp; o usuário identifica as fontes consultadas e visualiza os eventos em uma linha temporal unificada. |
+| US02 | Must | Como Engenheiro de Observabilidade, eu quero filtrar e comparar eventos de dispositivos modernos e legados, para incluir equipamentos com menor cobertura nas investigações. | Rafael Santos | Parte do parque de dispositivos fica fora das análises por limitações de instrumentação ou coleta. | A interface permite filtrar por plataforma, fabricante, modelo e versão quando esses dados estiverem disponíveis; dispositivos modernos e legados aparecem nos mesmos resultados; o recorte aplicado permanece visível durante a navegação. |
+| US03 | Should | Como Engenheiro de Observabilidade, eu quero visualizar a cobertura de instrumentação por dispositivo e componente, para identificar objetivamente onde ainda existem pontos cegos. | Rafael Santos | Não há um meio claro de reconhecer dispositivos ou componentes mal cobertos antes que um incidente revele a lacuna. | O painel apresenta o volume recebido e o volume esperado de eventos por dispositivo e componente; recortes abaixo do limite de cobertura definido são identificados textualmente e podem ser abertos para investigação. |
+| US04 | Could | Como Engenheiro de Observabilidade, eu quero acompanhar indicadores de integridade da ingestão durante picos de tráfego, para avaliar se os dados consultados estão completos e livres de duplicações indevidas. | Rafael Santos | Perdas, duplicações ou atrasos no pipeline podem distorcer as métricas justamente nos momentos de maior audiência. | O painel informa a atualidade dos dados, o atraso de ingestão e as quantidades de eventos recebidos, descartados e deduplicados; desvios dos limites operacionais são destacados com texto e estado visual; o usuário consegue consultar a fonte e o período afetados. |
+| US05 | Should | Como Engenheiro de Observabilidade, eu quero acompanhar SLIs e SLOs do front-end ao longo do tempo, para reconhecer quando uma meta de confiabilidade foi ultrapassada. | Rafael Santos | As equipes não dispõem de visibilidade consolidada sobre metas de confiabilidade do front-end. | O dashboard apresenta o valor atual, o objetivo e o histórico de cada indicador; identifica textualmente quando o objetivo é violado; e permite comparar o período atual com uma referência histórica. |
+| US06 | Should | Como Analista de Suporte, eu quero consultar a timeline de eventos de um usuário específico, para entender o que aconteceu na sessão sem depender de relatos subjetivos como "o vídeo não abre". | Mariana Souza | O diagnóstico inicial depende de relatos subjetivos, o que dificulta o encaminhamento do chamado. | É possível localizar uma sessão e visualizar seus eventos em ordem cronológica; a timeline apresenta ao menos os eventos `session`, `screen_view`, `video_view` e `error`, com horário e origem. |
+| US07 | Must | Como Analista de Suporte, eu quero filtrar eventos de erro por modelo de dispositivo e região, para identificar se um problema reportado é um caso isolado ou um padrão concentrado em um recorte específico. | Mariana Souza | Erros concentrados em dispositivos legados ou regiões específicas ficam mascarados pelas métricas nacionais agregadas. | A interface permite combinar filtros de modelo e região; apresenta o volume e a taxa de erros do recorte em relação ao total; e mantém os filtros aplicados ao navegar entre as telas do fluxo. |
+| US08 | Must | Como Analista de Suporte, eu quero verificar quais eventos estão sendo coletados em um dispositivo legado, para confirmar se existem evidências suficientes antes de encaminhar o chamado. | Mariana Souza | A ausência de dispositivos legados nos logs e nas métricas obriga a investigação manual em outras ferramentas. | A interface exibe os dispositivos legados junto aos demais; ao abrir um recorte, o usuário visualiza os registros recebidos com modelo, versão, horário e tipo de evento. |
 
-&emsp; As oito User Stories contemplam as principais dores de Rafael e Mariana, cobrindo desde o recebimento centralizado de eventos de diferentes fontes e dispositivos até a confiabilidade da ingestão e a consulta por dispositivo, região e sessão. As histórias de Rafael (US01 a US05) concentram as necessidades de engenharia de observabilidade, com a US01 estabelecendo a base para reunir dados e permitir a criação posterior de hipóteses. Já as histórias de Mariana (US06 a US08) endereçam a triagem operacional de chamados. Juntas, essas histórias também beneficiam Luísa de forma indireta, uma vez que a ampliação da cobertura e a agilidade na investigação resultam em correções mais rápidas para dispositivos legados.
-
+&emsp; As quatro histórias classificadas como **Must** sustentam os fluxos centrais do protótipo. A US01 orienta a consulta integrada e a correlação de fontes no Fluxo 1; as US02, US07 e US08 orientam a segmentação por dispositivo e região no Fluxo 2. O Fluxo 3 antecipa parte da US05, classificada como **Should**, ao comparar indicadores com referências históricas. As demais histórias delimitam incrementos planejados e aparecem como lacunas rastreáveis na seção 5.7.
 
 ## 5. Protótipo de Front-End
 
-&emsp; O protótipo traduz as User Stories em telas navegáveis, permitindo validar as tarefas e interações planejadas antes de qualquer decisão de implementação. Sua construção seguiu duas etapas encadeadas: primeiro os wireframes de baixa fidelidade, que fixaram a hierarquia da informação e os padrões de layout sem interferência de cor ou tipografia, e depois o protótipo de alta fidelidade, que aplicou o design system e os dados reais de telemetria fornecidos pelo parceiro.
+&emsp; O protótipo traduz as User Stories em telas navegáveis, permitindo validar as tarefas e interações planejadas antes de qualquer decisão de implementação. Sua construção seguiu duas etapas encadeadas: primeiro os wireframes de baixa fidelidade, que fixaram a hierarquia da informação e os padrões de layout sem interferência de cor ou tipografia; depois, o protótipo de alta fidelidade, que aplicou o design system e utilizou campos e nomenclaturas extraídos das amostras de telemetria fornecidas pelo parceiro.
 
-**Protótipo interativo:** *https://www.figma.com/design/QlqYW7stAUdAybIOQJy78V/Figma-Globo?node-id=0-1&t=qXG0fp9R1ioKiVnz-1*
+**Protótipo navegável no Figma:** [Acessar o protótipo](https://www.figma.com/design/QlqYW7stAUdAybIOQJy78V/Figma-Globo?node-id=0-1&t=qXG0fp9R1ioKiVnz-1)
 
 ### 5.1 Premissas e decisões de design
 
@@ -117,9 +113,9 @@
 
 &emsp; **O escopo como estado global.** A barra de filtros cumulativos permanece fixa no topo de todas as seis telas, e cada filtro aplicado é exibido como um *chip* removível individualmente. O recorte investigado não se perde ao navegar entre telas, o que atende diretamente ao item do MVP que pede filtros cumulativos com sugestão dos valores efetivamente recebidos. O contador à direita da barra ("41.209 sessões · 3,1% do tráfego · 6 fontes cruzadas") informa continuamente o custo de cobertura de cada filtro aplicado.
 
-&emsp; **Cor como sinal, não como decoração.** A paleta é monocromática com um único acento, reservado exclusivamente para valores fora do envelope esperado. Métricas dentro do baseline aparecem em cinza, mesmo quando presentes na mesma tabela que as métricas em desvio, como se observa nas linhas `session · app startup` e `screen_view · tempo de carga` da tela principal. Em um painel lido sob pressão, a cor precisa carregar informação.
+&emsp; **Cor como sinal complementar, não como decoração.** A paleta é monocromática com um único acento, reservado para valores fora do envelope esperado. As métricas em desvio também apresentam rótulos, valores e variações numéricas, para que a informação não dependa exclusivamente da cor. Métricas dentro do baseline aparecem em cinza, como se observa nas linhas `session · app startup` e `screen_view · tempo de carga` da tela principal.
 
-&emsp; Os dados exibidos no protótipo não são fictícios: os modelos de dispositivo (`49LJ5550-SC`, `43LJ5500`, `UN49MU6100`, `43D1200`, `50P65US`, `BTV32D10N5SKH`), o código de erro `dash_shaka_playback:6_6002` e os nomes dos seis tipos de evento foram extraídos das amostras de eventos disponibilizadas pelo parceiro. Os nomes das fontes correlacionadas (Youbora/NPAW, Prometheus VTS, NewRelic APM, Apollo, Tsuru e ServiceNow) e a contagem de treze fontes vêm do anexo técnico de fontes de dados. Essa ancoragem garante que os fluxos representem o dado que a plataforma efetivamente vai receber.
+&emsp; Os modelos de dispositivo (`49LJ5550-SC`, `43LJ5500`, `UN49MU6100`, `43D1200`, `50P65US`, `BTV32D10N5SKH`), o código de erro `dash_shaka_playback:6_6002` e os nomes dos seis tipos de evento foram extraídos das amostras disponibilizadas pelo parceiro. Os nomes das fontes correlacionadas (Youbora/NPAW, Prometheus VTS, NewRelic APM, Apollo, Tsuru e ServiceNow) e a contagem de treze fontes vêm do anexo técnico de fontes de dados. Os percentuais, volumes, horários e relações causais apresentados nas telas compõem um cenário demonstrativo, construído para tornar os fluxos compreensíveis sem atribuir ao parceiro resultados que ainda não foram validados em produção.
 
 ### 5.2 Wireframes iniciais
 
@@ -251,7 +247,7 @@
 
 </div>
 
-&emsp; A timeline é a resposta direta à dor central de Rafael, a fragmentação entre componentes instrumentados por times diferentes. Seis fontes que hoje vivem em ferramentas separadas aparecem como raias paralelas sobre um eixo temporal único, com a janela de correlação destacada. A leitura visual entrega a sequência causal: o deploy às 19:58 precede a subida de p95 na borda às 20:02, que precede a primeira falha de play às 20:04.
+&emsp; A timeline é a resposta direta à dor central de Rafael, a fragmentação entre componentes instrumentados por times diferentes. Seis fontes que hoje vivem em ferramentas separadas aparecem como raias paralelas sobre um eixo temporal único, com a janela de correlação destacada. A leitura visual apresenta a sequência temporal considerada na hipótese: o deploy às 19:58 precede a subida de p95 na borda às 20:02, que precede a primeira falha de play às 20:04.
 
 &emsp; A cronologia reconstruída abaixo do gráfico apresenta os mesmos fatos em formato textual, atribuindo cada linha à fonte que a originou, o que preserva a rastreabilidade da afirmação. O painel lateral consolida os números da janela de correlação, incluindo a antecedência de sete minutos em relação ao primeiro chamado, métrica que expressa o valor da detecção proativa.
 
@@ -267,7 +263,7 @@
 
 </div>
 
-&emsp; A tela de recorte declara explicitamente a população afetada e a quantifica em quatro dimensões, incluindo a relação entre participação no tráfego e participação nos erros: 3,1% do tráfego concentra 94% dos erros da janela. Esse contraste é a evidência de que o problema é específico de um segmento e não uma degradação geral da plataforma.
+&emsp; A tela de recorte declara explicitamente a população afetada e a quantifica em quatro dimensões, incluindo a relação entre participação no tráfego e participação nos erros: 3,1% do tráfego concentra 94% dos erros da janela. No cenário demonstrativo, esse contraste indica que o problema está concentrado em um segmento, em vez de representar uma degradação geral da plataforma.
 
 &emsp; O mapa de calor cruza família de dispositivo e região, e é onde o problema descrito no TAPI se torna visualmente inegável: a célula de LG webOS 3.x no Nordeste apresenta 31,2% de erro contra valores entre 0,7% e 4,1% em todas as demais combinações. A amostra de sessões abaixo desce ao nível do evento individual, com horário, modelo, versão de sistema operacional, tipo de evento e código de erro.
 
@@ -300,7 +296,7 @@
 
 #### 5.4.1 Fluxo 1 — Diagnosticar a causa provável de uma degradação ativa
 
-&emsp; Persona: Rafael Santos. Percurso: **01 Agora → 04 Hipóteses → 05 Timeline**.
+&emsp; Persona: Rafael Santos. User Story principal: **US01 (Must)**. Percurso: **01 Agora → 04 Hipóteses → 05 Timeline**.
 
 | # | Ação do usuário | Tela | O que o sistema apresenta |
 |---|---|---|---|
@@ -310,11 +306,11 @@
 | 4 | Examina a decomposição do score | Hipóteses (Fig. 10) | Quatro fatores com peso e contribuição, mais as fontes de evidência consultadas |
 | 5 | Aciona "Abrir na timeline" | Timeline (Fig. 11) | Seis fontes em um eixo único, com a janela de correlação destacada e a cronologia atribuída por fonte |
 
-&emsp; O fluxo conclui com o operador em condições de afirmar, com evidência rastreável, que a regressão decorre do rollout da versão 2026.3.0 sobre o mecanismo de fallback em dispositivos webOS 3.x, e não de degradação de CDN ou de saturação de autorização, ambas avaliadas e pontuadas abaixo.
+&emsp; O fluxo conclui com o operador em condições de sustentar, com evidência rastreável, que a regressão associada ao rollout da versão 2026.3.0 sobre o mecanismo de fallback em dispositivos webOS 3.x é a hipótese mais provável. Degradação de CDN e saturação de autorização também são avaliadas, mas recebem pontuações inferiores.
 
 #### 5.4.2 Fluxo 2 — Isolar o recorte de um problema reportado
 
-&emsp; Persona: Mariana Souza. Percurso: **01 Agora → 02 Explorar → 06 Recorte**.
+&emsp; Persona: Mariana Souza. User Stories principais: **US02, US07 e US08 (Must)**. Percurso: **01 Agora → 02 Explorar → 06 Recorte**.
 
 | # | Ação do usuário | Tela | O que o sistema apresenta |
 |---|---|---|---|
@@ -329,7 +325,7 @@
 
 #### 5.4.3 Fluxo 3 — Distinguir anomalia de sazonalidade esperada
 
-&emsp; Persona: Rafael Santos. Percurso: **01 Agora → 03 Comparar**.
+&emsp; Persona: Rafael Santos. User Story relacionada: **US05 (Should)**. Percurso: **01 Agora → 03 Comparar**.
 
 | # | Ação do usuário | Tela | O que o sistema apresenta |
 |---|---|---|---|
@@ -339,61 +335,63 @@
 | 4 | Hierarquiza os desvios por significância | Comparar (Fig. 9) | Falha de play a 14,2σ e join time a 8,9σ, contra p95 de borda a 1,2σ e bitrate a 0,5σ |
 | 5 | Verifica o que mudou entre as janelas | Comparar (Fig. 9) | Cronologia de deploy, autoscale e variação de borda no intervalo comparado |
 
-&emsp; O fluxo descarta a hipótese de sazonalidade com dado explícito: o volume de sessões está 12% **abaixo** do mesmo horário da semana anterior, o que elimina sobrecarga por audiência como explicação e sustenta o descarte registrado na tela de hipóteses.
+&emsp; O fluxo enfraquece a hipótese de sazonalidade com um dado explícito: o volume de sessões está 12% **abaixo** do mesmo horário da semana anterior. Esse resultado torna menos provável uma sobrecarga causada apenas pela audiência e sustenta a classificação apresentada na tela de hipóteses.
 
 ### 5.5 Correlação entre os fluxos e as User Stories
 
 &emsp; A tabela relaciona cada User Story mapeada na seção 4 à tela e ao fluxo que a representa no protótipo, explicitando o grau de cobertura alcançado nesta etapa.
 
-| US | Persona | Tela / fluxo que a representa | Cobertura |
-|---|---|---|---|
-| US01 — Ponto central de recebimento de eventos | Rafael | Explorar (Fig. 8): os seis tipos de evento reunidos na mesma interface; Timeline (Fig. 11): seis fontes convergindo para um eixo temporal único, com atribuição de origem por linha | Integral no que a interface representa — a ingestão em si é requisito de backend |
-| US02 — Eventos de dispositivos modernos e legados | Rafael | Explorar (Fig. 8) e Recorte (Fig. 12): dispositivos legados e modernos na mesma tabela e no mesmo mapa de calor, sem tratamento separado | Integral |
-| US03 — Visibilidade da cobertura de instrumentação | Rafael | Explorar (Fig. 8): volume de eventos por modelo e por tipo de evento | Parcial — falta a comparação entre volume recebido e volume esperado para o tráfego estimado |
-| US04 — Ingestão sem perda nem duplicação em picos | Rafael | Explorar (Fig. 8): indicador de atualidade do dado ("atualizado há 4s") | Não coberta na interface — requisito não funcional, a ser validado por teste de carga |
-| US05 — SLIs e SLOs para o frontend | Rafael | Comparar (Fig. 9) e Agora (Fig. 7): baseline por métrica, envelope histórico e significância em desvios-padrão | Parcial — os indicadores existem, mas falta a tela de definição do limite aceitável |
-| US06 — Timeline de eventos de um usuário | Mariana | Recorte (Fig. 12): amostra de sessões com evento, horário e erro por dispositivo | Parcial — há o nível de evento, mas falta o detalhamento cronológico de uma sessão individual |
-| US07 — Filtrar erros por modelo e região | Mariana | Recorte (Fig. 12), Fluxo 2: mapa de calor dispositivo por região e razão entre participação no tráfego e nos erros | Integral |
-| US08 — Coleta em dispositivos legados | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12): confirmação, por modelo legado, dos eventos efetivamente recebidos | Integral |
+| US | Prioridade | Persona | Tela / fluxo que a representa | Cobertura |
+|---|---|---|---|---|
+| US01 — Consulta integrada de diferentes fontes | Must | Rafael | Explorar (Fig. 8): seis tipos de evento na mesma interface; Timeline (Fig. 11), Fluxo 1: seis fontes em um eixo temporal único, com atribuição de origem | Integral |
+| US02 — Comparar dispositivos modernos e legados | Must | Rafael | Explorar (Fig. 8) e Recorte (Fig. 12), Fluxo 2: dispositivos legados e modernos nos mesmos filtros, tabelas e mapa de calor | Integral |
+| US03 — Visualizar cobertura de instrumentação | Should | Rafael | Explorar (Fig. 8): volume de eventos por modelo e por tipo | Parcial — falta comparar o volume recebido com o volume esperado e identificar explicitamente os recortes abaixo do limite |
+| US04 — Acompanhar a integridade da ingestão | Could | Rafael | Explorar (Fig. 8): indicador de atualidade do dado ("atualizado há 4s") | Parcial — faltam atraso de ingestão e quantidades de eventos descartados e deduplicados por fonte e período |
+| US05 — Acompanhar SLIs e SLOs do front-end | Should | Rafael | Agora (Fig. 7) e Comparar (Fig. 9), Fluxo 3: baseline por métrica, envelope histórico e significância estatística | Parcial — faltam o objetivo explícito de cada SLO e o estado de cumprimento ou violação |
+| US06 — Consultar a timeline de uma sessão | Should | Mariana | Recorte (Fig. 12): amostra de sessões com evento, horário e erro por dispositivo | Parcial — falta localizar uma sessão e abrir seu detalhamento cronológico individual |
+| US07 — Filtrar erros por modelo e região | Must | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12), Fluxo 2: filtros cumulativos e mapa de calor por dispositivo e região | Integral |
+| US08 — Verificar eventos de dispositivos legados | Must | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12), Fluxo 2: eventos recebidos por modelo legado, com horário, versão e tipo | Integral |
 
-&emsp; Quatro das oito histórias estão integralmente representadas e três parcialmente, com as lacunas identificadas na subseção 5.7. A restante corresponde a requisito cuja verificação não ocorre pela interface, e sim por instrumentação e teste de carga do pipeline.
+&emsp; As quatro histórias **Must** estão integralmente representadas. As quatro histórias **Should** ou **Could** possuem cobertura parcial e constituem incrementos planejados para as próximas iterações, conforme as lacunas descritas na subseção 5.7.
 
 ### 5.6 Avaliação heurística
 
-&emsp; O protótipo foi submetido a uma inspeção baseada nas dez heurísticas de usabilidade de Nielsen (NIELSEN, 1994), com o objetivo de identificar violações antes da implementação. O resultado está sistematizado a seguir.
+&emsp; O protótipo foi submetido a uma inspeção documental baseada nas dez heurísticas de usabilidade de Nielsen (NIELSEN, 1994), com o objetivo de identificar violações antes da implementação. A inspeção considera as telas e os fluxos especificados; aspectos como navegação por teclado, foco, contraste calculado e resposta a falhas ainda dependem de validação no protótipo executável e na implementação.
 
 | Heurística | Como é atendida no protótipo | Situação |
 |---|---|---|
 | 1. Visibilidade do estado do sistema | Indicador "ao vivo" com relógio, horário de detecção e tempo decorrido, atualidade do dado na tela Explorar, contadores de pendência na navegação lateral | Atendida |
 | 2. Correspondência com o mundo real | Vocabulário do domínio preservado (recorte, baseline, envelope, PoP, deploy) e nomes de evento e código de erro idênticos aos emitidos pelas aplicações | Atendida |
-| 3. Controle e liberdade do usuário | Cada filtro é removível individualmente, há ação de limpar escopo, e toda navegação é reversível e não destrutiva | Atendida |
-| 4. Consistência e padrões | Cabeçalho, barra de escopo e navegação numerada idênticos nas seis telas; o acento cromático significa desvio em todas elas | Atendida |
+| 3. Controle e liberdade do usuário | Cada filtro é removível individualmente, há ação de limpar escopo e a navegação lateral permite retornar diretamente a qualquer etapa sem alterar dados | Atendida |
+| 4. Consistência e padrões | Cabeçalho, barra de escopo e navegação numerada idênticos nas seis telas; o acento cromático significa desvio e é acompanhado de rótulos e valores | Atendida |
 | 5. Prevenção de erros | O painel de ajuste do recorte antecipa o efeito de cada ajuste sobre especificidade e cobertura antes da ação | Atendida |
 | 6. Reconhecimento em vez de memorização | Filtros sugerem os valores efetivamente recebidos, abas exibem seus volumes e o score é apresentado sempre acompanhado de sua decomposição | Atendida |
 | 7. Flexibilidade e eficiência | Seletor de janela temporal, troca de dimensão de agrupamento, quatro referências de comparação e atalhos contextuais entre telas | Atendida |
 | 8. Estética e design minimalista | Paleta monocromática com acento único, ausência de ornamento e ordenação por impacto operacional | Atendida |
-| 9. Reconhecer, diagnosticar e recuperar de erros | Hipóteses descartadas são exibidas com justificativa, evitando que ausência seja lida como não avaliação | Parcialmente atendida — ver 5.7 |
+| 9. Reconhecer, diagnosticar e recuperar de erros | As telas apresentadas não incluem falha de coleta, erro de consulta, mensagem de causa ou ação de recuperação | Não demonstrada nesta iteração — ver 5.7 |
 | 10. Ajuda e documentação | Cada tela traz uma linha explicativa sob o título e os fatores do score são descritos textualmente | Parcialmente atendida — ver 5.7 |
 
 ### 5.7 Lacunas identificadas e próximos passos
 
-&emsp; A inspeção do protótipo e o cruzamento com as User Stories evidenciaram cinco pontos a endereçar na próxima iteração, registrados aqui por constituírem parte do resultado da avaliação.
+&emsp; A inspeção do protótipo e o cruzamento com as User Stories evidenciaram sete pontos a endereçar nas próximas iterações, registrados aqui por constituírem parte do resultado da avaliação.
 
-1. **Estados de ausência de dado.** O protótipo representa apenas o cenário em que há telemetria. Falta projetar o estado de coletor interrompido, situação em que a ausência de sinal pode ser interpretada equivocadamente como ausência de problema. Trata-se de um confundidor documentado na operação do parceiro e a lacuna mais relevante da inspeção heurística.
+1. **Estados de carregamento, ausência de dados e erro.** O protótipo representa apenas o cenário em que há telemetria. Faltam estados de carregamento, falha de consulta e coletor interrompido, acompanhados da causa e de uma ação de recuperação. Sem essa distinção, a ausência de sinal pode ser interpretada equivocadamente como ausência de problema.
 2. **Detalhamento de sessão individual.** A US06 pressupõe a reconstrução cronológica dos eventos de uma sessão específica. O protótipo chega ao nível do evento na amostra do recorte, mas não oferece o detalhamento de uma sessão isolada.
-3. **Definição de limite aceitável.** A US05 requer que o operador estabeleça o limite de uma métrica e visualize quando ele é ultrapassado. O protótipo apresenta baseline e envelope, mas não a interface de definição desse limite.
+3. **Metas explícitas de confiabilidade.** A US05 requer a visualização do objetivo de cada SLO e de seu estado de cumprimento. O protótipo apresenta baseline e envelope histórico, mas ainda não distingue essas referências de uma meta formal de confiabilidade.
 4. **Cobertura esperada por dispositivo.** A US03 pede a identificação de dispositivos com volume de eventos abaixo do esperado para o tráfego estimado, o que exige exibir a razão entre volume recebido e volume previsto, ainda ausente.
-5. **Glossário de termos técnicos.** Expressões como significância em desvios-padrão, envelope histórico e camada de erro pressupõem familiaridade com o domínio. Um glossário acessível na interface reduziria a barreira de entrada, especialmente para o perfil de suporte.
+5. **Integridade da ingestão.** A US04 é representada apenas pela atualidade do dado. Ainda faltam atraso de ingestão, eventos descartados e eventos deduplicados, com detalhamento por fonte e período.
+6. **Glossário de termos técnicos.** Expressões como significância em desvios-padrão, envelope histórico e camada de erro pressupõem familiaridade com o domínio. Um glossário acessível na interface reduziria a barreira de entrada, especialmente para o perfil de suporte.
+7. **Validação de acessibilidade e interação.** A próxima iteração deve medir o contraste dos textos e estados, verificar que a cor não seja o único meio de diferenciação e testar foco visível, ordem de navegação por teclado e mensagens de feedback.
 
 ### 5.8 Conclusão
 
-&emsp; O protótipo cobre os três fluxos de usabilidade exigidos e os encadeia em uma sequência única de investigação, sustentada por um escopo de filtros que persiste entre telas. A progressão do wireframe ao protótipo preservou os três padrões de layout definidos em baixa fidelidade, e as divergências introduzidas ao longo do processo estão registradas e justificadas na subseção 5.2.
+&emsp; O protótipo cobre os três fluxos de usabilidade exigidos em percursos complementares de investigação, sustentados por um escopo de filtros que persiste entre as telas. A progressão do wireframe ao protótipo preservou os três padrões de layout definidos em baixa fidelidade, e as divergências introduzidas ao longo do processo estão registradas e justificadas na subseção 5.2.
 
 &emsp; A contribuição central das telas para o problema do parceiro é tornar visível o que hoje não é observável: a concentração de falhas em um recorte específico de dispositivos legados, evidenciada pelo contraste entre 3,1% do tráfego e 94% dos erros da janela, e a sobreposição de seis fontes hoje isoladas em um único eixo temporal. As lacunas registradas na subseção 5.7 delimitam o trabalho da próxima iteração, mantendo rastreável a distância entre o que foi prototipado e o conjunto completo de User Stories mapeadas.
 
 ## 6. Referências
 
-BONILHA, Diego. **User Stories e o formato INVEST**. 2020. Disponível em fontes técnicas de metodologias ágeis. Acesso em: 29 abr. 2026.
+BONILHA, Diego. **Como escrever as melhores User Stories com INVEST**. Adaptworks, 2020. Disponível em: <https://blog.adapt.works/como-escrever-as-melhores-user-stories-com-invest/>. Acesso em: 29 abr. 2026.
 
 BROWN, Tim. **Change by Design: How Design Thinking Transforms Organizations and Inspires Innovation**. Nova York: HarperBusiness, 2009.
 
