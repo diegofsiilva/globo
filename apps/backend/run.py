@@ -1,12 +1,19 @@
 """Ponto unico de entrada da aplicacao de telemetria."""
 
 import os
+import subprocess
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
 BACKEND_ROOT = Path(__file__).resolve().parent
 SOURCE_ROOT = BACKEND_ROOT / "src"
+RUNTIME_REQUIREMENTS = (
+    "Flask>=3.1,<4",
+    "SQLAlchemy>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
+)
 
 if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
@@ -28,6 +35,38 @@ def load_local_environment(path: Path) -> None:
 
 
 load_local_environment(BACKEND_ROOT / ".env")
+
+
+def ensure_runtime_dependencies() -> None:
+    """Instala as dependencias quando o arquivo e executado em um Python limpo."""
+    required_modules = ("flask", "sqlalchemy", "psycopg")
+    missing = [module for module in required_modules if find_spec(module) is None]
+    if not missing:
+        return
+
+    print(
+        f"Preparando o backend pela primeira vez (dependencias ausentes: {', '.join(missing)})...",
+        flush=True,
+    )
+    try:
+        subprocess.check_call(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                *RUNTIME_REQUIREMENTS,
+            ]
+        )
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            "Nao foi possivel instalar as dependencias automaticamente. "
+            "Verifique sua conexao e execute o arquivo novamente."
+        ) from error
+
+
+ensure_runtime_dependencies()
 
 from telemetry import create_app  # noqa: E402
 

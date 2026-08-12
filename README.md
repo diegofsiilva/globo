@@ -51,7 +51,9 @@ python apps/backend/run.py
 ```
 
 Esse ponto de entrada carrega o ambiente, cria a aplicação Flask, prepara o banco
-SQLite automaticamente e inicia o servidor HTTP.
+SQLite automaticamente e inicia o servidor HTTP. Na primeira execução, se Flask e
+as demais dependências ainda não estiverem disponíveis, o próprio arquivo instala o
+projeto usando o interpretador Python selecionado e então continua a inicialização.
 
 No VS Code, abra `apps/backend` como workspace, acesse **Run and Debug**, selecione
 **Backend Flask** e clique em **Run**. Essa configuração executa o mesmo `run.py`.

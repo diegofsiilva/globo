@@ -1,6 +1,7 @@
 import os
+from unittest.mock import patch
 
-from run import build_app, load_local_environment
+from run import RUNTIME_REQUIREMENTS, build_app, ensure_runtime_dependencies, load_local_environment
 
 
 def test_loads_local_environment_without_external_dependency(tmp_path):
@@ -14,6 +15,28 @@ def test_loads_local_environment_without_external_dependency(tmp_path):
     load_local_environment(env_file)
 
     assert os.environ.pop("TEST_RUN_SETTING") == "valor local"
+
+
+def test_installs_missing_dependencies_with_current_interpreter():
+    def fake_find_spec(module):
+        return None if module == "flask" else object()
+
+    with (
+        patch("run.find_spec", side_effect=fake_find_spec),
+        patch("run.subprocess.check_call") as install,
+    ):
+        ensure_runtime_dependencies()
+
+    install.assert_called_once_with(
+        [
+            os.sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            *RUNTIME_REQUIREMENTS,
+        ]
+    )
 
 
 def test_single_entrypoint_supports_typical_create_read_delete_flow():
