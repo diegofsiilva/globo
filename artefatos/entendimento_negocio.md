@@ -12,6 +12,8 @@
 
 &emsp; **Solução proposta pelo grupo.** Sistema distribuído proprietário de telemetria, com API única de ingestão que aceita protocolos modernos e legados, normalização dos eventos sob vocabulário comum (`request`, `vitals`, `screen_view`, `video_view`, `session`, `error`), pipeline de alta escala sem perdas e camada agêntica de correlação, que devolve uma linha do tempo única do incidente e uma hipótese de causa provável ranqueada, com o recorte afetado explícito.
 
+&emsp; **Escopo avaliado.** A matriz compara a solução-alvo, e não o recorte entregue no módulo. O MVP implementa o caminho de ingestão, processamento assíncrono, armazenamento e consulta, consumindo eventos já normalizados na tabela `signal_point`. A normalização das fontes é hoje executada por um script do próprio parceiro, e ainda não está definido se ele será reaproveitado ou reescrito pelo grupo — dependência registrada como R17 na seção 2. A camada de correlação e inferência está prevista na Fase 5 do investimento, conforme 4.3. Os atributos 1, 2 e 5 descrevem, portanto, capacidade projetada, e sua verificação depende dessas definições.
+
 &emsp; A matriz avalia as abordagens de solução, e não o Globoplay. Características do produto e da audiência entram como justificativa do valor de cada atributo, não como objeto de avaliação.
 
 ### 1.2. Escala e critérios de atribuição das notas
@@ -24,14 +26,14 @@
 - Custo humano por incidente, em horas de especialista, reunião e plantão.
 - Viabilidade operacional, incluindo esforço de implantação e robustez sob evento ao vivo.
 
-&emsp; No atributo 8 a escala foi invertida em relação ao esforço: nota alta significa menor esforço de implantação e menor custo de propriedade. Sem essa inversão, o eixo seria lido em sentido contrário aos demais e a curva perderia consistência.
+&emsp; Todos os atributos são enunciados de modo que nota alta signifique maior entrega de valor, inclusive o atributo 8, formulado como *baixo* esforço de implantação e custo de propriedade. Assim a curva é lida em sentido único, sem inversão de eixo.
 
 ### 1.3. Matriz de avaliação de valor
 
 | Atributo de valor para o Grupo Globo                       | Prática atual (silos + triagem humana) | Suíte de observabilidade de mercado | Solução proposta pelo grupo | Justificativa das notas                                                                                                                                                                                                                                                                                                                                                                             |
 | ---------------------------------------------------------- | -------------------------------------: | ----------------------------------: | --------------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Tempo até a hipótese de causa provável                  |                                      1 |                                   3 |                           5 | Hoje o tempo de resolução é a soma das filas: gasta-se mais para descobrir quem conserta do que para consertar. A suíte comercial encurta o caminho ao reunir sinais em um painel, mas ainda entrega gráficos que alguém precisa interpretar. Só a solução proposta tem como produto final uma hipótese ranqueada, e não um conjunto de séries temporais.                                           |
-| 2. Correlação ponta a ponta em uma linha do tempo única    |                                      1 |                                   3 |                           5 | A experiência do assinante é ponta a ponta, mas a observabilidade não é: nenhum painel atual acompanha a jornada inteira do play. A suíte comercial resolve isso quando todas as fontes são de fato integradas, o que raramente se completa numa cadeia com mais de dez fontes heterogêneas. A solução proposta faz o agrupamento por filtros, que proporciona o olhar de uma linha do tempo única. |
+| 2. Correlação ponta a ponta em uma linha do tempo única    |                                      1 |                                   3 |                           5 | A experiência do assinante é ponta a ponta, mas a observabilidade não é: nenhum painel atual acompanha a jornada inteira do play. A suíte comercial resolve isso quando todas as fontes são de fato integradas, o que raramente se completa numa cadeia com oito fontes heterogêneas. A solução proposta faz o agrupamento por filtros, que proporciona o olhar de uma linha do tempo única. |
 | 3. Detecção de degradação que não gera erro                |                                      2 |                                   3 |                           5 | Buffer alto e tempo de início ruim não produzem taxa de erro, e o painel tradicional não acende. Ferramentas de mercado detectam anomalia, mas sobre métricas agregadas, em que a degradação de um recorte se dilui. A solução proposta parte de eventos de QoE coletados no cliente, em que o sintoma percebido pelo assinante é o próprio dado primário.                                          |
 | 4. Granularidade nos recortes de investigação              |                                      2 |                                   2 |                           5 | Uma falha que atinge meio por cento das sessões pode ser a totalidade das sessões de um modelo de TV numa região. A prática atual dilui isso na média nacional. A suíte comercial é penalizada pelo próprio modelo de cobrança: cada dimensão adicional vira custo e empurra o time de volta ao agregado. Na solução proposta, a granularidade é decidida pela necessidade analítica.               |
 | 5. Cobertura da base real de dispositivos e protocolos     |                                      2 |                                   2 |                           5 | Sete plataformas e centenas de modelos convivem no parque, e parte relevante deles não suporta os padrões modernos de coleta que as plataformas de mercado assumem. Nem a prática atual nem a suíte resolvem isso, porque a limitação está na borda e não no backend. A API única multiprotocolo ataca a causa do ponto cego.                                                                       |
@@ -39,11 +41,17 @@
 | 7. Sustentação sob pico de evento ao vivo                  |                                      3 |                                   4 |                           3 | Aqui a solução proposta não é superior. A prática atual, embora lenta, sobrevive a picos porque não depende de infraestrutura nova. As suítes comerciais operam infraestrutura endurecida por anos de produção. A solução proposta precisa demonstrar ingestão sem perdas em cenários de milhões de sessões simultâneas, e essa capacidade ainda é hipótese de engenharia.                          |
 | 8. Baixo esforço de implantação e custo de propriedade     |                                      5 |                                   3 |                           2 | A prática atual não custa nada para implantar, por definição. Consolidar em suíte comercial é um projeto de migração relevante, com custo recorrente proporcional ao volume. Construir plataforma própria é a alternativa mais cara em desenvolvimento, operação e plantão, e cria um sistema que passa a precisar ele próprio de monitoração.                                                      |
 
-![Gráfico da matriz de avaliação de valor](../assets/oceano-azul.svg)
+&emsp; A Figura 1 apresenta a curva de valor correspondente à matriz.
 
-<figcaption style="text-align: center;">
- Figura 1: Curva de valor da matriz
-</figcaption>
+<div align="center">
+
+<sub>Figura 1 - Curva de valor da matriz de avaliação</sub>
+
+<img src="./assets/oceano-azul.png">
+
+<sup>Fonte: Material produzido pelos autores (2026)</sup>
+
+</div>
 
 ### 1.4. Leitura estratégica da matriz
 
@@ -55,20 +63,20 @@
 
 ### 1.5. Trade-offs explícitos da solução proposta
 
-&emsp; Os principais trade-offs assumidos são:
+&emsp; Os trade-offs abaixo são tratados como riscos de projeto na seção 2, com probabilidade, impacto e plano de ação; aqui interessam apenas como contrapartida da escolha de valor. Os principais são:
 
 - Uma causa provável errada durante um evento ao vivo é pior do que hipótese nenhuma, porque direciona o esforço da equipe para o componente errado no pior momento. A saída precisa vir ranqueada e com evidência auditável, e sua qualidade depende de um histórico de incidentes rotulados que talvez ainda não exista em volume suficiente.
 - A camada de inferência só gera valor sobre eventos confiáveis. Investir na inteligência antes de estabilizar ingestão e olhar para os eventos corretos produziria diagnóstico automático sobre dado incompleto, resultado pior do que a triagem manual de hoje.
-- Ao internalizar a telemetria, o Globoplay passa a depender de um sistema que precisa estar disponível exatamente quando a operação está sob estresse. A indisponibilidade da plataforma de monitoração durante uma transmissão de alta audiência é um modo de falha que não existia enquanto o serviço era terceirizado.
-- Armazenar eventos por dispositivo, versão, UF e operadora em alta escala continua caro, e a política de retenção e amostragem terá de ser decisão explícita de projeto, sob o risco de reproduzir internamente o mesmo incentivo a observar menos.
+- Ao internalizar a telemetria, o Globoplay passa a depender de um sistema que precisa estar disponível exatamente quando a operação está sob estresse. A indisponibilidade da plataforma de monitoração durante uma transmissão de alta audiência é um modo de falha que não existia enquanto o serviço era terceirizado (R11 e R16 da seção 2).
+- Armazenar eventos por dispositivo, versão, UF e operadora em alta escala continua caro, e a política de retenção e amostragem terá de ser decisão explícita de projeto, sob o risco de reproduzir internamente o mesmo incentivo a observar menos (R13 da seção 2).
 
 ### 1.6. Evidências que reforçam a comparação
 
-&emsp; **Contexto do produto.** Cerca de um em cada dez brasileiros acessa o Globoplay, com picos que chegam a 4,1 milhões de sessões em um único evento ao vivo. O produto é entregue em sete plataformas, sobre centenas de modelos de dispositivo, distribuídos por 27 unidades federativas e dezenas de provedores de acesso. A cadeia de entrega envolve mais de treze fontes de dados, produzidas por áreas diferentes, com formatos e janelas de agregação diferentes, e todas precisam ser lidas em conjunto para explicar um único play que deu errado. É esse espaço de busca que torna a varredura manual inviável em plantão.
+&emsp; **Contexto do produto.** O Globoplay reúne cerca de 30 milhões de usuários ativos mensais (EXAME, 2026), com picos que chegam a 4,1 milhões de sessões em um único evento ao vivo. O produto é entregue em sete plataformas, sobre centenas de modelos de dispositivo, distribuídos por 27 unidades federativas e dezenas de provedores de acesso. A cadeia de entrega envolve ao menos oito fontes de dados, produzidas por áreas diferentes, com formatos e janelas de agregação diferentes, e todas precisam ser lidas em conjunto para explicar um único play que deu errado. É esse espaço de busca que torna a varredura manual inviável em plantão.
 
-&emsp; **Impacto econômico da degradação silenciosa.** O estudo de Krishnan e Sitaraman, apresentado no Internet Measurement Conference de 2012 sobre 23 milhões de visualizações na rede da Akamai, mostrou que o abandono começa quando o vídeo demora mais de cerca de 2 segundos para iniciar, com aumento aproximado de 5,8 pontos percentuais na taxa de abandono a cada segundo adicional. Travamentos equivalentes a 1% da duração reduzem em cerca de 5% o tempo assistido, e quem sofre falha de reprodução tem probabilidade cerca de 2,3% menor de voltar na mesma semana. O resultado sustenta o atributo 3: a degradação que não gera erro é justamente a que destrói engajamento.
+&emsp; **Impacto econômico da degradação silenciosa.** O estudo de Krishnan e Sitaraman (2012), conduzido sobre 23 milhões de visualizações na rede da Akamai e apresentado no Internet Measurement Conference, mostrou que o abandono começa quando o vídeo demora mais de cerca de 2 segundos para iniciar, com aumento aproximado de 5,8 pontos percentuais na taxa de abandono a cada segundo adicional. Travamentos equivalentes a 1% da duração reduzem em cerca de 5% o tempo assistido, e quem sofre falha de reprodução tem probabilidade cerca de 2,3% menor de voltar na mesma semana. O resultado sustenta o atributo 3: a degradação que não gera erro é justamente a que destrói engajamento.
 
-&emsp; **Peso do custo de observabilidade.** A pesquisa da Grafana Labs de 2025 aponta que o gasto com observabilidade representa em média cerca de 17% do gasto total com infraestrutura de computação, sendo 10% a resposta mais frequente. Pesquisas do setor também indicam que a maioria dos times filtra, arquiva ou desloca dados para conter custo, reduzindo visibilidade para economizar. É esse comportamento que os atributos 4 e 8 pretendem transformar em decisão consciente.
+&emsp; **Peso do custo de observabilidade.** A pesquisa da Grafana Labs (2025) aponta que o gasto com observabilidade representa em média cerca de 17% do gasto total com infraestrutura de computação, sendo 10% a resposta mais frequente. Pesquisas do setor também indicam que a maioria dos times filtra, arquiva ou desloca dados para conter custo, reduzindo visibilidade para economizar. É esse comportamento que os atributos 4 e 8 pretendem transformar em decisão consciente.
 
 ### 1.7. Quatro ações do Oceano Azul aplicadas ao projeto
 
@@ -100,9 +108,78 @@
 
 &emsp; A diferenciação está em mudar a natureza da entrega, e não apenas sua qualidade. As duas alternativas comparadas entregam dados: uma os espalha em painéis por componente, a outra os reúne em um painel único. Em ambas, a inferência sobre a causa continua sendo tarefa de alguém que conheça o comportamento normal de cada peça da cadeia. A solução do grupo entrega inferência, movendo a fronteira da automação da coleta e da visualização para a formulação de hipótese.
 
-&emsp; Porem ela não é absoluta. A solução é deliberadamente pior em facilidade de adoção e ainda precisa comprovar sustentação sob pico. Seu valor depende de uma decisão do parceiro: aceitar maior custo de propriedade e maior responsabilidade operacional em troca de granularidade, cobertura e velocidade de diagnóstico que nem a prática atual nem o mercado entregam para a realidade específica do Globoplay.
+&emsp; Porém ela não é absoluta. A solução é deliberadamente pior em facilidade de adoção e ainda precisa comprovar sustentação sob pico. Seu valor depende de uma decisão do parceiro: aceitar maior custo de propriedade e maior responsabilidade operacional em troca de granularidade, cobertura e velocidade de diagnóstico que nem a prática atual nem o mercado entregam para a realidade específica do Globoplay.
 
-## 2. Matriz de Risco
+## 2. Matriz de Riscos e Oportunidades
+
+### 2.1. Matriz de Risco
+
+&emsp; A matriz de riscos e oportunidades é uma ferramenta utilizada para identificar, analisar e priorizar eventos que podem afetar o desenvolvimento e os resultados do projeto. Os riscos representam situações incertas que podem gerar impactos negativos, como atrasos, falhas técnicas, aumento de custos ou comprometimento da segurança. Já as oportunidades correspondem a condições que podem produzir benefícios, como redução de custos, melhoria da experiência dos usuários, aumento da eficiência operacional e expansão da solução.
+
+&emsp; Cada risco e oportunidade foi avaliado de acordo com sua probabilidade de ocorrência e seu impacto potencial. A combinação desses dois fatores determina sua classificação e auxilia na definição das prioridades de acompanhamento. Além disso, foram estabelecidos planos de ação para reduzir a probabilidade ou o impacto dos riscos e para ampliar a possibilidade de concretização das oportunidades identificadas.
+
+&emsp; A Figura 2 apresenta a matriz de classificação dos riscos identificados.
+
+<div align="center">
+
+<sub>Figura 2 - Matriz de classificação de riscos</sub>
+
+<img src="./assets/riscos.png" width="1000">
+
+<sup>Fonte: Material produzido pelos autores (2026)</sup>
+
+</div>
+
+| Descrição do risco | Categoria | Classificação na matriz | Explicação | Plano de ação |
+|---|---|---|---|---|
+| **R01: Concentração de conhecimento técnico** | Pessoas | **Risco alto** - Probabilidade: 70%; Impacto: muito alto | O risco ocorre quando apenas um integrante domina componentes críticos da solução, como a API de ingestão, o processamento dos eventos, o banco de dados, a infraestrutura AWS ou o dashboard. A ausência ou indisponibilidade desse integrante pode bloquear tarefas, comprometer o cronograma e dificultar a manutenção da aplicação. | Realizar revisões cruzadas de código, programação em pares nos componentes críticos, rodízio de responsabilidades e documentação técnica contínua. Registrar decisões arquiteturais e compartilhar atualizações durante os rituais Scrum. |
+| **R02: Distribuição desigual de tarefas e atrasos** | Gestão do projeto | **Risco moderado** - Probabilidade: 70%; Impacto: moderado | A concentração de atividades complexas em poucos integrantes pode provocar sobrecarga, redução da qualidade das entregas, desmotivação e atrasos. Ao mesmo tempo, integrantes com tarefas menores podem não desenvolver conhecimento suficiente sobre os componentes centrais do sistema. | Dividir as entregas em tarefas menores, definir responsáveis e revisores, acompanhar semanalmente a carga de trabalho e redistribuir atividades quando forem identificados bloqueios ou desequilíbrios. |
+| **R03: Violação de privacidade e confidencialidade** | Segurança e privacidade | **Risco alto** - Probabilidade: 30%; Impacto: muito alto | Os eventos de telemetria podem conter identificadores de usuário e dispositivo, cabeçalhos de autenticação ou outras informações sensíveis. Além das exigências da LGPD, os documentos do parceiro determinam que os dados e desafios do projeto não sejam compartilhados com terceiros. A exposição pode ocorrer em repositórios públicos, protótipos, vídeos, capturas de tela ou ferramentas externas. | Aplicar minimização, anonimização ou pseudonimização dos dados, remover tokens e cabeçalhos sensíveis, utilizar controles de acesso e criptografia, definir políticas de retenção e empregar dados sintéticos em protótipos, testes públicos e demonstrações. |
+| **R04: Baixo desempenho da ingestão e do processamento em escala** | Desempenho | **Risco alto** - Probabilidade: 70%; Impacto: alto | A API de ingestão e os componentes de processamento podem não suportar o volume médio ou os picos de eventos gerados pelos dispositivos, provocando aumento de latência, acúmulo de mensagens, rejeição de requisições ou indisponibilidade parcial da plataforma. | Definir metas mensuráveis de eventos por segundo, latência, taxa de erro e disponibilidade. Executar testes progressivos de carga, pico e resistência, monitorar gargalos e permitir escalabilidade horizontal dos componentes críticos. |
+| **R05: Dependências técnicas e organizacionais não planejadas** | Gestão do projeto | **Risco moderado** - Probabilidade: 50%; Impacto: moderado | Algumas atividades podem depender de schemas, APIs, dados, ambientes AWS, decisões arquiteturais ou respostas do parceiro que ainda não estejam disponíveis. Isso pode deixar integrantes bloqueados e comprometer a sequência planejada das entregas. | Mapear as dependências durante o planejamento das sprints, priorizar contratos de API e schemas, criar mocks para componentes indisponíveis e registrar responsáveis e prazos para a resolução de cada dependência. |
+| **R06: Dados de teste pouco representativos** | Dados | **Risco baixo** - Probabilidade: 70%; Impacto: moderado | Os dados sintéticos ou exemplos fornecidos podem não representar adequadamente a diversidade de dispositivos, sistemas operacionais, condições de conectividade, formatos de evento e picos de utilização do Globoplay. Isso pode levar à validação de uma arquitetura inadequada e à definição incorreta de requisitos de desempenho. | Solicitar ao parceiro amostras anonimizadas e estatísticas agregadas. Desenvolver um gerador de eventos capaz de simular diferentes dispositivos, versões, condições de rede, tipos de erro, volumes e padrões de utilização. |
+| **R07: Lentidão nas consultas e no dashboard** | Desempenho | **Risco alto** - Probabilidade: 50%; Impacto: alto | O alto volume de registros, a elevada cardinalidade dos campos e a combinação de filtros cumulativos podem tornar as consultas lentas ou excessivamente caras. Isso comprometeria a navegação no dashboard e reduziria a utilidade da solução durante a investigação de incidentes. | Utilizar índices, particionamento, paginação, agregações e cache. Restringir períodos excessivamente amplos quando necessário e realizar testes com diferentes combinações de filtros, volumes e níveis de cardinalidade. |
+| **R08: Incompatibilidade com dispositivos legados** | Compatibilidade | **Risco alto** - Probabilidade: 70%; Impacto: alto | Dispositivos antigos podem não suportar os protocolos, formatos, mecanismos de autenticação, criptografia ou tamanhos de payload adotados pela solução. Como o suporte a dispositivos legados é parte central da proposta de valor, essa incompatibilidade pode impedir o atendimento do objetivo principal do projeto. | Criar uma matriz de compatibilidade com os dispositivos prioritários, definir um contrato mínimo de comunicação, desenvolver adaptadores para formatos diferentes e executar testes com simuladores ou dispositivos representativos. |
+| **R09: Perda, duplicação ou desordenação de eventos** | Confiabilidade e dados | **Risco alto** - Probabilidade: 50%; Impacto: muito alto | Conexões instáveis, falhas temporárias e tentativas automáticas de reenvio podem causar perda, duplicação ou chegada fora de ordem dos eventos. Essas ocorrências podem gerar métricas incorretas, análises inconsistentes e diagnósticos equivocados. | Utilizar identificadores únicos, operações idempotentes, timestamps padronizados, filas persistentes, políticas controladas de retentativa e dead-letter queue. Definir também como eventos atrasados e duplicados serão tratados. |
+| **R10: Incompatibilidade e evolução não controlada dos schemas** | Compatibilidade de dados | **Risco baixo** - Probabilidade: 50%; Impacto: baixo | Diferentes dispositivos e versões das aplicações podem enviar campos, estruturas ou valores distintos. Mudanças não controladas nos schemas podem interromper a ingestão, provocar perda de informações ou tornar versões antigas incompatíveis com o sistema. | Adotar versionamento dos schemas, validação por tipo de evento, compatibilidade retroativa e tolerância controlada a campos adicionais. Implementar testes automatizados de contrato e documentar os campos obrigatórios e opcionais. |
+| **R11: Indisponibilidade do pipeline de telemetria** | Confiabilidade e infraestrutura | **Risco alto** - Probabilidade: 10%; Impacto: muito alto | Falhas na API, na fila, nos processadores ou no armazenamento podem interromper o fluxo de eventos e causar perda de visibilidade operacional. Mesmo interrupções curtas podem ser críticas durante períodos de alta utilização ou incidentes reais. | Desacoplar os componentes por meio de filas, implementar health checks, timeouts, políticas de retentativa e armazenamento temporário. Prever mecanismos de recuperação e testar falhas dos componentes mais críticos. |
+| **R12: Alertas imprecisos ou excessivos** | Operação | **Risco baixo** - Probabilidade: 50%; Impacto: muito baixo | Limites inadequados podem gerar falsos positivos, deixar de identificar falhas relevantes ou produzir notificações em excesso. A fadiga de alertas pode reduzir a confiança dos usuários e fazer com que incidentes reais sejam ignorados. | Definir níveis de severidade, janelas temporais, agrupamento de ocorrências e regras ajustáveis. Acompanhar falsos positivos e falsos negativos e revisar periodicamente os limites com os usuários da plataforma. |
+| **R13: Custos de infraestrutura acima do previsto** | Financeiro | **Risco moderado** - Probabilidade: 30%; Impacto: moderado | A ingestão contínua, o processamento em larga escala, a transferência de dados e o armazenamento de eventos detalhados podem gerar custos superiores às estimativas iniciais, especialmente durante picos ou com políticas de retenção inadequadas. | Estimar o custo total da arquitetura, definir políticas de retenção, agregação, amostragem e compressão e configurar o acompanhamento dos gastos com processamento, armazenamento, transferência e serviços gerenciados. |
+| **R14: Critérios de aceite pouco objetivos** | Requisitos | **Risco moderado** - Probabilidade: 70%; Impacto: moderado | Expressões como "alta escala", "sem perdas", "tempo real" e "falhas críticas" podem não possuir valores mensuráveis. A ausência de critérios objetivos dificulta o desenvolvimento dos requisitos não funcionais, a execução dos testes e a validação do MVP. | Converter os termos em indicadores verificáveis, como eventos por segundo, latência máxima, disponibilidade mínima, período de retenção, taxa aceitável de perda e volume utilizado nos testes. Validar os valores com o parceiro. |
+| **R15: Escopo do MVP superior ao tempo disponível** | Escopo e prazo | **Risco alto** - Probabilidade: 90%; Impacto: muito alto | A quantidade de funcionalidades previstas, incluindo API unificada, suporte a dispositivos legados, ingestão resiliente, normalização, armazenamento, consultas e dashboard, pode superar o tempo e os recursos disponíveis para o desenvolvimento. | Classificar os requisitos como essenciais, desejáveis ou futuros. Priorizar inicialmente um fluxo completo de ponta a ponta, desde o envio de um evento até sua consulta e visualização, evitando implementar funcionalidades isoladas sem integração. |
+| **R16: Ausência de observabilidade da própria plataforma** | Operação e observabilidade | **Risco alto** - Probabilidade: 50%; Impacto: alto | Sem métricas e logs internos, a equipe pode não distinguir uma falha do Globoplay de um problema na própria plataforma de monitoração. Também pode ser difícil identificar acúmulo de mensagens, lentidão no processamento, descarte de eventos ou indisponibilidade de componentes. | Instrumentar a solução com métricas, logs estruturados e, quando aplicável, rastreamento distribuído. Acompanhar latência, throughput, taxa de erro, backlog, descarte de eventos, uso de recursos e disponibilidade. |
+| **R17: Dependência de definições e validações do parceiro** | Stakeholders e requisitos | **Risco alto** - Probabilidade: 90%; Impacto: alto | A falta ou demora na confirmação de protocolos legados, formatos reais das mensagens, campos obrigatórios, volumes, personas, critérios de aceite e papel da camada unificada pode levar à implementação de uma solução desalinhada às necessidades do parceiro. | Consolidar as dúvidas em reuniões de elicitação, registrar respostas e premissas, manter uma matriz de rastreabilidade e validar periodicamente schemas, requisitos, arquitetura e protótipos com os stakeholders. |
+| **R18: Limitações ou indisponibilidade do ambiente AWS Academy** | Infraestrutura | **Risco moderado** - Probabilidade: 30%; Impacto: alto | Restrições de permissões, créditos, duração das sessões, alteração de endereços públicos ou indisponibilidade de serviços podem comprometer a implantação, os testes e a demonstração da aplicação no ambiente exigido para a disciplina. | Documentar e automatizar a implantação, manter scripts de configuração, monitorar o consumo de créditos, testar a aplicação antes da entrega e garantir que ela também possa ser executada localmente. |
+
+### 2.2. Matriz de Oportunidades
+
+&emsp; A Figura 3 apresenta a matriz de classificação das oportunidades identificadas.
+
+<div align="center">
+
+<sub>Figura 3 - Matriz de classificação de oportunidades</sub>
+
+<img src="./assets/oportunidades.png" width="1000">
+
+<sup>Fonte: Material produzido pelos autores (2026)</sup>
+
+</div>
+
+
+
+| Descrição (Oportunidade)                      | Classificação na matriz                                           | Explicação                                                                                                                                                            | Plano de Ação                                                                                                                              |
+| --------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **O01: Diagnóstico mais rápido**              | **Oportunidade alta** - Probabilidade: 90%; Impacto: alto         | A centralização e normalização dos eventos permitirá que as equipes identifiquem falhas e suas causas com maior rapidez.                                              | Medir o tempo médio de detecção e resolução antes e depois da adoção da solução, comparando os resultados para validar o ganho.            |
+| **O02: Visibilidade em dispositivos legados** | **Oportunidade alta** - Probabilidade: 90%; Impacto: moderado     | A solução possibilitará monitorar equipamentos que não são atendidos adequadamente pelas ferramentas modernas de mercado.                                             | Disponibilizar métricas de desempenho, erros e qualidade segmentadas por modelo, versão e plataforma de dispositivo.                       |
+| **O03: Redução de custos de monitoração**     | **Oportunidade alta** - Probabilidade: 50%; Impacto: alto         | O desenvolvimento de uma solução proprietária adaptada ao Globoplay pode diminuir a dependência de plataformas internacionais de monitoração.                         | Comparar periodicamente os custos das soluções externas com o custo por evento da nova plataforma, documentando a economia gerada.         |
+| **O04: Melhoria da experiência**              | **Oportunidade alta** - Probabilidade: 70%; Impacto: muito alto   | A identificação antecipada de lentidão, travamentos, erros e problemas de reprodução permitirá corrigir degradações antes que afetem mais usuários.                   | Organizar indicadores de qualidade por plataforma, dispositivo, versão e condição de rede, criando alertas para degradações relevantes.    |
+| **O05: Inteligência operacional**             | **Oportunidade moderada** - Probabilidade: 50%; Impacto: moderado | Os dados coletados poderão revelar padrões de falha, horários críticos, dispositivos problemáticos e versões com maior incidência de erros.                           | Estruturar relatórios e análises periódicas para apoiar decisões técnicas e a priorização de melhorias no produto.                         |
+| **O06: Plataforma reutilizável**              | **Oportunidade moderada** - Probabilidade: 30%; Impacto: alto     | A arquitetura desenvolvida poderá ser reutilizada por outras aplicações e equipes do Grupo Globo.                                                                     | Projetar APIs genéricas, componentes modulares, contratos versionados e documentação que facilitem a integração de novos sistemas.         |
+| **O07: Alertas proativos**                    | **Oportunidade alta** - Probabilidade: 70%; Impacto: moderado     | A análise contínua dos eventos permitirá identificar tendências negativas antes que elas se transformem em incidentes relevantes.                                     | Estabelecer thresholds relacionados à taxa de erros, latência, falhas de reprodução e outros eventos críticos, com revisão periódica.      |
+| **O08: Expansão para outros produtos**        | **Oportunidade alta** - Probabilidade: 30%; Impacto: muito alto   | A solução poderá evoluir para uma infraestrutura corporativa de observabilidade de frontend utilizada por outros produtos do Grupo Globo.                             | Manter a arquitetura desacoplada do Globoplay, permitindo a configuração de diferentes produtores e tipos de eventos.                      |
+| **O09: Capacitação técnica**                  | **Oportunidade alta** - Probabilidade: 90%; Impacto: baixo        | O projeto permitirá o desenvolvimento de competências práticas em sistemas distribuídos, processamento em escala, APIs, filas, observabilidade e engenharia de dados. | Disseminar o conhecimento por meio de documentação, revisões de código, rodízio entre componentes e encontros de compartilhamento técnico. |
+| **O10: Cumprimento dos SLAs**                 | **Oportunidade alta** - Probabilidade: 70%; Impacto: alto         | A redução do tempo de resposta aos incidentes e o aumento da disponibilidade contribuirão para o cumprimento dos níveis de serviço.                                   | Acompanhar indicadores de latência, erros e disponibilidade para identificar violações de SLA e priorizar ações de melhoria operacional.   |
+
 
 ---
 
@@ -110,119 +187,83 @@
 
 ### 3.1. Value Proposition Canvas
 
-&nbsp; O Canvas da Proposta de Valor é uma ferramenta estratégica que permite compreender de forma visual e objetiva a relação entre o que uma organização oferece e as necessidades de seu público-alvo. Ele é dividido em dois lados complementares: o Perfil do Cliente, que identifica as tarefas, dores e ganhos esperados, e o Mapa de Valor, que apresenta como os produtos e serviços propostos aliviam essas dores e criam benefícios. Neste projeto, a ferramenta é utilizada para relacionar uma solução própria de coleta e análise de telemetria aos desafios enfrentados pelo time de tecnologia da Globo durante o monitoramento e a resolução de incidentes do Globoplay.
+&emsp; O Canvas da Proposta de Valor relaciona, de um lado, as tarefas, dores e ganhos do cliente e, de outro, os produtos, aliviadores de dores e criadores de ganho oferecidos pela solução. Seu propósito não é descrever os dois lados isoladamente, mas demonstrar o encaixe entre eles. Nesta seção, o cliente analisado é o time de tecnologia responsável pelo monitoramento e pela resolução de incidentes do Globoplay; os assinantes são beneficiados de forma indireta, pela redução da duração e do impacto das falhas.
+
+&emsp; A Figura 4 apresenta o canvas consolidado, detalhado nas subseções seguintes.
 
 <div align="center">
 
-<sub>Figura 3 - Value Proposition Canvas</sub>
+<sub>Figura 4 - Value Proposition Canvas</sub>
 
-  <img src="./assets/value-proposition-canvas.png">
+<img src="./assets/value-proposition-canvas.png">
 
 <sup>Fonte: Material produzido pelos autores (2026)</sup>
 
 </div>
 
-##### PROPOSTA DE VALOR
+#### 3.1.1. Perfil do cliente
 
-###### Produtos & Serviços
+&emsp; As tarefas do cliente (*customer jobs*) descrevem o que o time precisa realizar. Além das tarefas funcionais, foi incluída uma tarefa emocional, determinante na operação sob evento ao vivo.
 
-&nbsp; Esta seção detalha os produtos e serviços que compõem a proposta de valor entregue ao cliente.
+| # | Tarefa do cliente | Tipo |
+|---|---|---|
+| J1 | Detectar incidentes | Funcional |
+| J2 | Dimensionar alcance e impacto | Funcional |
+| J3 | Explicar por que a sessão degradou | Funcional |
+| J4 | Monitorar a experiência do usuário | Funcional |
+| J5 | Priorizar e encaminhar chamados | Funcional |
+| J6 | Decidir sob pressão no ao vivo | Emocional |
 
-- **1 -** SDKs e agentes próprios para coleta de telemetria em dispositivos de TV, mobile e web.
-- **2 -** API para receber diretamente os eventos enviados pelos dispositivos.
-- **3 -** Pipeline escalável, executado na AWS, para processamento dos eventos coletados.
-- **4 -** Camada de normalização dos eventos coletados diretamente dos dispositivos, convertendo protocolos modernos e legados para um formato unificado.
-- **5 -** Armazenamento centralizado das informações processadas.
-- **6 -** Dashboard para visualização de incidentes, impactos e alertas operacionais.
-- **7 -** Mecanismo para identificação de incidentes e degradações a partir dos eventos coletados.
+&emsp; Correlacionar eventos manualmente não foi tratado como tarefa do cliente, e sim como custo que a solução pretende eliminar, conforme a ação *Eliminar* descrita em 1.7.
 
-###### Criadores de Ganhos (*Gain Creators*)
+#### 3.1.2. Mapa de valor
 
-&nbsp; Esta seção detalha os elementos da solução que atuam como criadores de ganhos para o cliente, fortalecendo a proposta de valor.
+&emsp; Os produtos e serviços que compõem a proposta e as tarefas do cliente que cada um atende:
 
-- **1 -** A consolidação das informações no dashboard reduz o tempo de análise e diagnóstico.
-- **2 -** A integração dos dados de TV, mobile e web proporciona uma visão mais ampla da experiência dos assinantes.
-- **3 -** A classificação pelo alcance e impacto facilita a priorização dos incidentes mais críticos.
-- **4 -** A coleta própria elimina parte das limitações impostas pelas ferramentas de mercado e amplia o controle da Globo sobre a evolução da plataforma.
-- **5 -** A disponibilidade de telemetria em nível de dispositivo facilita a identificação da causa provável dos incidentes.
-- **6 -** O direcionamento mais preciso dos chamados reduz retrabalho e aumenta a produtividade.
-- **7 -** A detecção e a investigação mais rápidas apoiam o cumprimento dos acordos de nível de serviço (SLA).
-- **8 -** A redução do tempo de resposta contribui para diminuir a duração e o impacto das falhas percebidas pelos assinantes.
+| # | Produto ou serviço | Atende a |
+|---|---|---|
+| P1 | Normalização das fontes para o vocabulário comum (`signal_point`) | J1, J3 |
+| P2 | API única de ingestão | J1, J4 |
+| P3 | Fila de mensagens e worker de processamento | J1, J2 |
+| P4 | Armazenamento com recorte por dimensão | J2, J3 |
+| P5 | Motor de correlação e causa provável | J3, J5, J6 |
+| P6 | Dashboard e API de consulta | J2, J4, J5 |
 
-###### Aliviadores de Dores (*Pain Relievers*)
+&emsp; A titularidade de P1 é a principal indefinição do escopo: o parceiro já opera um script de normalização, e ainda não foi decidido se o grupo o reutiliza ou constrói o seu. Enquanto isso não estiver resolvido, P1 é premissa e não entrega, o que afeta diretamente a justificativa do atributo 5 em 1.3.
 
-&nbsp; Esta seção apresenta os elementos da solução que atuam como aliviadores das dores identificadas no perfil do cliente.
+&emsp; P5 é o componente que diferencia a proposta das alternativas comparadas em 1.3. Sem ele, os demais produtos entregam dados, e não inferência, e a solução se aproxima da suíte de mercado avaliada na matriz. Seu custo de construção está estimado na Fase 5 do investimento inicial, em 4.3.
 
-- **1 -** A coleta própria permite monitorar dispositivos que não são plenamente suportados pelas soluções de mercado, reduzindo a dependência dessas ferramentas no escopo coberto pelo projeto.
-- **2 -** A normalização converte eventos de diferentes plataformas para um formato comum, reduzindo a fragmentação.
-- **3 -** O armazenamento e o dashboard centralizam informações anteriormente distribuídas.
-- **4 -** A análise contínua da telemetria permite identificar degradações mesmo quando não há erros explícitos registrados.
-- **5 -** A correlação entre eventos, dispositivos, plataformas e sessões reduz o tempo necessário para encontrar a causa provável do incidente.
-- **6 -** A visualização do alcance e do impacto ajuda a evitar a priorização inadequada dos incidentes.
-- **7 -** As informações consolidadas apoiam o encaminhamento do chamado para a equipe responsável.
-- **8 -** O processamento escalável permite lidar com o volume de eventos sem comprometer a análise operacional.
+#### 3.1.3. Encaixe entre dores e aliviadores
 
----
+&emsp; A severidade indica o peso da dor para o cliente: **Alta** quando a dor impede a execução da tarefa; **Média** quando a torna mais lenta ou imprecisa.
 
-##### PERFIL DO CLIENTE (Público-Alvo Ideal)
+| # | Dor (*Pain*) | Severidade | Aliviador correspondente (*Pain Reliever*) |
+|---|---|---|---|
+| D1 | Dispositivos legados invisíveis | Alta | Coleta própria de telemetria |
+| D2 | Telemetria fragmentada | Média | Normalização de eventos |
+| D3 | Perda de contexto entre equipes | Alta | Encaminhamento baseado em evidências |
+| D4 | Alto tempo de resolução | Alta | Correlação inteligente de eventos; detecção precoce de degradações |
+| D5 | Insegurança na decisão crítica | Média | Priorização por impacto |
 
-&nbsp; O cliente analisado neste projeto corresponde ao time de tecnologia da Globo responsável pelo monitoramento e pela resolução de incidentes do Globoplay. Embora as equipes técnicas sejam as usuárias diretas da solução, os assinantes são beneficiados indiretamente pela redução do impacto e da duração das falhas.
+#### 3.1.4. Encaixe entre ganhos e criadores de ganho
 
-###### Tarefas do Cliente (*Customer Jobs*)
+&emsp; A relevância indica o quanto o ganho é esperado pelo cliente: **Alta** para ganhos sem os quais a solução não se justifica; **Média** para ganhos complementares.
 
-&nbsp; Esta seção descreve as principais responsabilidades, objetivos e desafios enfrentados pelo cliente, que orientam o desenvolvimento da solução.
+| # | Ganho (*Gain*) | Relevância | Criador correspondente (*Gain Creator*) |
+|---|---|---|---|
+| G1 | Maior visibilidade operacional | Alta | Telemetria em nível de dispositivo; maior autonomia sobre os dados |
+| G2 | Causa provável com evidência | Alta | Visão unificada de TV, mobile e web |
+| G3 | Diagnóstico mais rápido | Alta | Redução do tempo de resposta |
+| G4 | Melhor priorização dos incidentes | Média | Classificação por impacto |
+| G5 | Cumprimento dos SLAs | Média | Redução do tempo de resposta |
 
-- **1 -** Monitorar continuamente a experiência do Globoplay em TV, mobile e web. 
-- **2 -** Detectar incidentes e degradações, inclusive quando não há erros explícitos. 
-- **3 -** Correlacionar eventos e métricas técnicas provenientes de diferentes dispositivos e plataformas. 
-- **4 -** Identificar evidências que apoiem a investigação da causa provável dos incidentes. 
-- **5 -** Mensurar o alcance e o impacto dos incidentes sobre os assinantes. 
-- **6 -** Priorizar incidentes conforme sua criticidade e impacto. 
-- **7 -** Encaminhar os chamados para a equipe responsável e acompanhar sua resolução. 
-- **8 -** Cumprir os SLAs e demonstrar eficiência operacional para outras áreas da Globo. 
-- **9 -** Tomar decisões com segurança, mesmo sob pressão durante incidentes críticos.
+&emsp; O encaixe demonstrado acima delimita a proposta. A solução é baseada em ingestão própria: os eventos das fontes de telemetria, normalizados na tabela `signal_point`, são recebidos por uma API única na infraestrutura da AWS, processados de forma assíncrona, armazenados, correlacionados e apresentados em dashboard. Dentro do escopo do MVP e conforme o rollout, ela substitui parte das funcionalidades hoje desempenhadas por ferramentas de observabilidade de mercado, e não a totalidade delas. Essa proporção é tratada como premissa B3 na análise financeira, em 4.2. O valor central permanece a ampliação da visibilidade necessária para investigar incidentes, reduzir o tempo perdido entre filas e equipes, apoiar o cumprimento dos SLAs e diminuir o impacto das falhas percebidas pelos assinantes do Globoplay.
 
-###### Ganhos Desejados (*Gains*)
-
-&nbsp; Esta seção apresenta os ganhos esperados pelo cliente com a adoção da solução.
-
-- **1 -** Reduzir o tempo necessário para detectar, analisar e diagnosticar incidentes.
-- **2 -** Obter visibilidade sobre dispositivos anteriormente pouco observáveis.
-- **3 -** Identificar mais rapidamente evidências relacionadas à causa provável dos incidentes.
-- **4 -** Conhecer o alcance e o impacto de cada incidente sobre os assinantes.
-- **5 -** Priorizar adequadamente os incidentes mais críticos.
-- **6 -** Reduzir o tempo gasto na identificação da equipe responsável pelo incidente, acelerando todo o fluxo de resolução.
-- **7 -** Aumentar a autonomia e o controle da Globo sobre seus dados de telemetria.
-- **8 -** Reduzir a dependência tecnológica de soluções externas para observabilidade.
-- **9 -** Reduzir retrabalho e aumentar a produtividade das equipes técnicas.
-- **10 -** Apoiar o cumprimento dos SLAs e aumentar a confiança durante a tomada de decisão.
-- **11 -** Diminuir a duração e o impacto percebido das falhas pelos assinantes.
-
-###### Dores (*Pains*)
-
-&nbsp; Esta seção descreve os principais desafios e obstáculos enfrentados pelo cliente.
-
-- **1 -** Dependência de ferramentas de mercado para coletar e disponibilizar dados de observabilidade.
-- **2 -** Dados de telemetria fragmentados e apresentados em formatos diferentes entre TV, mobile e web.
-- **3 -** Perda de contexto durante o encaminhamento do incidente entre diferentes equipes e filas.
-- **4 -** Degradações de desempenho nem sempre geram erros explícitos, dificultando sua detecção pelas ferramentas tradicionais.
-- **5 -** Dificuldade para correlacionar informações e encontrar evidências sobre a causa provável dos incidentes.
-- **6 -** Priorização inadequada quando o impacto real do incidente não está claro.
-- **7 -** O tempo de resolução é elevado porque parte significativa do esforço é gasta identificando qual equipe é responsável pelo problema.
-- **8 -** Encaminhamento de chamados para equipes incorretas, causando retrabalho e atraso na resolução.
-- **9 -** Pressão e insegurança na tomada de decisão durante incidentes críticos.
-- **10 -** Prolongamento das falhas, com risco de descumprimento dos SLAs e prejuízo à experiência dos assinantes.
-
-&nbsp; Dessa forma, o modelo demonstra que a solução proposta é baseada em coleta própria. Por meio de SDKs e agentes próprios, os eventos são coletados diretamente nos dispositivos de TV, mobile e web e enviados à infraestrutura da plataforma na AWS, onde são processados, normalizados, armazenados e apresentados em um dashboard. A solução foi concebida para substituir, dentro do escopo do MVP e conforme o rollout dos SDKs e agentes próprios, parte das funcionalidades atualmente desempenhadas por ferramentas de observabilidade de mercado. O valor central da proposta permanece a ampliação da visibilidade necessária para investigar incidentes, reduzir o tempo perdido entre filas e equipes, apoiar o cumprimento dos SLAs e diminuir o impacto das falhas percebidas pelos assinantes do Globoplay.
-
-
-
->>>>>>> artefatos/entendimento_negocio.md
 ## 4. Análise Financeira do Projeto
 
 ### 4.1. Introdução
 
-&emsp; Esta seção apresenta a análise financeira preliminar da solução de telemetria distribuída para monitoração de frontends multiplataforma do Globoplay, considerando um horizonte de 1 ano. O objetivo é demonstrar a viabilidade econômica da proposta por meio do cálculo do ROI (*Return on Investment*), tratando o benefício como custo evitado e ganho operacional, com premissas justificadas.
+&emsp; Esta seção apresenta a análise financeira preliminar da solução de telemetria distribuída para monitoração de frontends multiplataforma do Globoplay. O objetivo é avaliar a viabilidade econômica da proposta, tratando o benefício como custo evitado, com premissas justificadas. A análise é conduzida em dois horizontes: o ROI (*Return on Investment*) do primeiro ano, em 4.6, e o custo total de propriedade em três anos, na mesma subseção, por ser a métrica adequada a uma decisão de infraestrutura que substitui uma despesa por outra.
 
 &emsp; O parceiro não disponibilizou orçamento fechado para a implementação. Os valores apresentados são estimativas baseadas em premissas justificadas e fontes públicas. Quando uma estimativa é assumida pelo grupo, isso é explicitado.
 
@@ -236,7 +277,7 @@
 
 #### Contexto financeiro da organização
 
-&emsp; O Globoplay alcançou breakeven e lucro em 2025, pela primeira vez em 10 anos de operação, com cerca de 30 milhões de usuários ativos mensais (EXAME, 2026). O Grupo Globo fechou o ano com receita líquida consolidada de R$ 16,87 bi e lucro líquido de R$ 1,45 bi (TELETIME, 2026; ISTOÉ DINHEIRO, 2026).
+&emsp; O Globoplay alcançou breakeven e lucro em 2025, pela primeira vez em 10 anos de operação, com cerca de 30 milhões de usuários ativos mensais (EXAME, 2026). O Grupo Globo fechou o ano com faturamento bruto de R$ 18,2 bi, receita líquida consolidada de R$ 16,87 bi e lucro líquido de R$ 1,45 bi (ISTOÉ DINHEIRO, 2026; TELETIME, 2026).
 
 &emsp; O dado operacionalmente relevante para esta análise é a escala de usuários (A1), que determina o volume de telemetria e, por consequência, o custo de infraestrutura calculado em 4.4. Os indicadores consolidados do grupo servem apenas para dimensionar a ordem de grandeza do investimento frente à capacidade financeira do parceiro.
 
@@ -255,28 +296,28 @@
 | B1 | Contrato enterprise de observabilidade para operação de porte similar | US$ 800 mil – 2 mi/ano | Baixa | VENDORBENCHMARK (2026). A faixa descreve a trajetória de custo de organizações que não controlaram consumo, não um benchmark de operação comparável — ver limitação 1 |
 | B2 | Câmbio USD/BRL | R$ 5,08 | Média | INVESTING.COM (2026), 3 ago. 2026 |
 | B3 | Escopo da ferramenta de mercado substituível pelo MVP no 1º ano | 30–70% (cenários) | Baixa | Estimativa da equipe |
-| B4 | Taxa de captura (rollout na base de dispositivos) no 1º ano | 20–60% (cenários) | Baixa | Estimativa da equipe |
+| B4 | Taxa de captura (migração das aplicações e fontes para a API) no 1º ano | 20–60% (cenários) | Baixa | Estimativa da equipe |
 
-#### D. Custos de implementação
+#### C. Custos de implementação
 
 | # | Premissa | Valor | Confiança | Fonte |
 |---|---|---|---|---|
-| D1 | Equipe do projeto (custo de mercado) | 5 devs (2 sênior + 3 pleno) | Baixa | Equipe típica de projeto Inteli |
-| D2 | Duração do módulo acadêmico (MVP) | 10 semanas | Alta | Cronograma do módulo |
-| D3 | Salário — Dev Back-End Sênior (SP) | R$ 12.250–20.600/mês | Alta | ROBERT HALF (2026) |
-| D4 | Salário — Dev Full-Stack Pleno (SP) | R$ 9.550–15.900/mês | Alta | ROBERT HALF (2026) |
-| D5 | Nuvem — ambiente de desenvolvimento e teste | ~R$ 3.000/mês | Baixa | Estimativa não detalhada por serviço |
+| C1 | Equipe do projeto (custo de mercado) | 5 devs (2 sênior + 3 pleno) | Baixa | Equipe típica de projeto Inteli |
+| C2 | Duração do módulo acadêmico (MVP) | 10 semanas | Alta | Cronograma do módulo |
+| C3 | Salário — Dev Back-End Sênior (SP) | R$ 12.250–20.600/mês | Alta | ROBERT HALF (2026) |
+| C4 | Salário — Dev Full-Stack Pleno (SP) | R$ 9.550–15.900/mês | Alta | ROBERT HALF (2026) |
+| C5 | Nuvem — ambiente de desenvolvimento e teste | ~R$ 3.000/mês | Baixa | Estimativa não detalhada por serviço |
 
-#### D'. Premissas complementares derivadas pela equipe
+#### C'. Premissas complementares derivadas pela equipe
 
-&emsp; D1 a D5 não cobrem todos os itens de uma implantação em produção. As quatro premissas abaixo foram acrescentadas pelo grupo.
+&emsp; C1 a C5 não cobrem todos os itens de uma implantação em produção. As quatro premissas abaixo foram acrescentadas pelo grupo.
 
 | # | Premissa | Valor | Confiança | Derivação |
 |---|---|---|---|---|
-| D6 | Encargos sobre salário (CLT) | +35% sobre o bruto | Média | Prática de mercado |
-| D7 | Custo mensal carregado — sênior / pleno | R$ 24.000 / R$ 17.500 | Média | Médio-superior de D3 e D4 + D6 |
-| D8 | Prazo até produção estável | 6 meses | Baixa | D2 (10 semanas) + ~3,5 meses de hardening, integração e governança |
-| D9 | Volume de eventos em rollout total | ~3,6 bi eventos/mês | Baixa | A1 (30 mi) × ~8 sessões/mês × ~15 eventos/sessão |
+| C6 | Encargos sobre salário (CLT) | +35% sobre o bruto | Média | Prática de mercado |
+| C7 | Custo mensal carregado — sênior / pleno | R$ 24.000 / R$ 17.500 | Média | Médio-superior de C3 e C4 + C6 |
+| C8 | Prazo até produção estável | 6 meses | Baixa | C2 (10 semanas) + ~3,5 meses de hardening, integração e governança |
+| C9 | Volume de eventos em rollout total | ~3,6 bi eventos/mês | Baixa | A1 (30 mi) × ~8 sessões/mês × ~15 eventos/sessão |
 
 &emsp; **Validação futura.** As premissas de menor confiança tornam-se verificáveis já no primeiro trimestre de operação, a partir de métricas que a própria plataforma coleta: custo por evento, cobertura de dispositivos e volume de eventos processados. Este modelo deve ser recalculado quando esses dados existirem.
 
@@ -284,26 +325,28 @@
 
 ### 4.3. Investimento inicial
 
-&emsp; Estimativa do custo que o Globoplay incorreria para levar a solução a produção, não do custo do projeto acadêmico. A Fase 1 corresponde ao escopo do módulo (D2); as Fases 2 a 4 cobrem o que separa o MVP de um sistema em produção sob carga real.
+&emsp; Estimativa do custo que o Globoplay incorreria para levar a solução a produção, não do custo do projeto acadêmico. A Fase 1 corresponde ao escopo do módulo (C2); as Fases 2 a 5 cobrem o que separa o MVP de um sistema em produção sob carga real.
 
 | Fase | Escopo | Duração | Custo (R$) |
 |---|---|---|---|
 | 1. MVP | API única de ingestão, protocolos legados, pipeline de ingestão e armazenamento, normalização mínima, consultas de falhas críticas, dashboard | 10 semanas (~2,5 meses) | 274.000 |
 | 2. Hardening e escala | Resiliência da ingestão, backpressure, tolerância a perda de eventos, testes de carga em pico, ajuste de retenção | 1,5 mês | 164.000 |
-| 3. Integração e rollout | SDKs e agentes para TV, mobile e web; integração com pipeline de dados e stack de alertas do Globoplay; deploy gradual | 1,5 mês | 217.000 |
-| 4. Segurança, privacidade e governança | Adequação à LGPD, política de retenção e anonimização, controle de acesso, documentação | Paralelo às Fases 2 e 3 (~0,5 FTE) | 60.000 |
-| **Total** | | **~6 meses** | **R$ 715.000** |
+| 3. Integração e rollout | Adaptadores para os protocolos em uso nas aplicações de TV, mobile e web; integração com pipeline de dados e stack de alertas do Globoplay; migração gradual das fontes | 1,5 mês | 217.000 |
+| 4. Segurança, privacidade e governança | Adequação à LGPD (BRASIL, 2018), política de retenção e anonimização, controle de acesso, documentação | Paralelo às Fases 2 e 3 (~0,5 FTE) | 60.000 |
+| 5. Correlação e inferência de causa provável | Motor de correlação entre fontes, linha do tempo única do incidente, ranqueamento de hipóteses com evidência associada e calibração sobre incidentes rotulados | Paralelo às Fases 2 e 3 (1 sênior + 1 pleno) | 83.000 |
+| **Total** | | **~6 meses** | **R$ 798.000** |
 
-**Composição.** Equipe core (D1 + D7) = 2 × R$ 24.000 + 3 × R$ 17.500 = R$ 100.500/mês.
+**Composição.** Equipe core (C1 + C7) = 2 × R$ 24.000 + 3 × R$ 17.500 = R$ 100.500/mês.
 
 | Item | Cálculo | Valor (R$) |
 |---|---|---|
 | Equipe core (Fases 1 a 3) | R$ 100.500 × 5,5 meses | 553.000 |
-| Infraestrutura de desenvolvimento e teste (D5) | R$ 3.000 × 6 | 18.000 |
+| Infraestrutura de desenvolvimento e teste (C5) | R$ 3.000 × 6 | 18.000 |
 | Gestão técnica (~20% de dedicação) | R$ 30.000 × 20% × 6 | 36.000 |
 | Especialistas do Globoplay (integração) | 2 engenheiros × 1 mês | 48.000 |
 | Segurança, privacidade e governança | 0,5 FTE sênior × 4 meses + revisão jurídica | 60.000 |
-| **Total** | | **715.000** |
+| Camada de correlação e inferência (P5 do canvas) | (R$ 24.000 + R$ 17.500) × 2 meses | 83.000 |
+| **Total** | | **798.000** |
 
 ---
 
@@ -315,7 +358,7 @@
 
 | Etapa | Cálculo | Resultado |
 |---|---|---|
-| Volume em rollout total (D9) | 30 mi × 8 sessões × 15 eventos | ~3,6 bi eventos/mês |
+| Volume em rollout total (C9) | 30 mi × 8 sessões × 15 eventos | ~3,6 bi eventos/mês |
 | Volume no cenário base | 3,6 bi × 40% (B4) | ~1,44 bi eventos/mês |
 | Dados brutos | 1,44 bi × ~500 bytes | ~720 GB/mês |
 | Dados armazenados | compressão colunar ~10:1 | ~72 GB/mês |
@@ -325,10 +368,12 @@
 | Item | Anual (R$) | Premissa |
 |---|---|---|
 | Infraestrutura de produção (nuvem) | 300.000 | R$ 25.000/mês; escala com B4 |
-| Sustentação e plantão (dev pleno, 50%) | 105.000 | D7: R$ 17.500 × 50% × 12 |
-| Evolução dos SDKs e agentes (dev sênior, 30%) | 86.000 | D7: R$ 24.000 × 30% × 12 |
-| Suporte a engenharia e produto (~20h/mês) | 27.000 | D7: R$ 17.500 ÷ 160h × 20h × 12 |
+| Sustentação e plantão (dev pleno, 50%) | 105.000 | C7: R$ 17.500 × 50% × 12 |
+| Evolução dos adaptadores e da API de ingestão (dev sênior, 30%) | 86.000 | C7: R$ 24.000 × 30% × 12 |
+| Suporte a engenharia e produto (~20h/mês) | 27.000 | C7: R$ 17.500 ÷ 160h × 20h × 12 |
 | **Total** | **518.000** | R$ 218.000 fixos + R$ 300.000 variáveis |
+
+&emsp; A sustentação da camada de inferência (Fase 5) está contemplada no item de evolução, sem acréscimo de quadro no Ano 1 — simplificação que deve ser revista quando houver histórico de incidentes rotulados suficiente para recalibrar o modelo.
 
 &emsp; A parcela variável (R$ 750.000 × B4) é o item mais sensível do modelo e o único que a equipe controla por decisões de arquitetura: política de retenção, agregação de dados históricos, compressão e particionamento. Nenhum ganho de otimização foi incorporado ao modelo, por falta de premissa quantificável.
 
@@ -344,9 +389,9 @@
 | Ganho potencial | Baseline × B3 | R$ 4.064.000 × 50% = **R$ 2.032.000/ano** |
 | Ganho efetivo (Ano 1) | Ganho potencial × B4 | R$ 2.032.000 × 40% = **R$ 812.800** |
 
-&emsp; B3 mede a fração do escopo funcional que o MVP cobre — a solução própria não replica APM completo, tracing distribuído, integrações prontas e suporte contínuo. B4 mede a rampagem: o contrato só deixa de ser pago na proporção em que a base de dispositivos migra.
+&emsp; B3 mede a fração do escopo funcional que o MVP cobre — a solução própria não replica APM completo, tracing distribuído, integrações prontas e suporte contínuo. B4 mede a rampagem: o contrato só deixa de ser pago na proporção em que as aplicações e fontes migram para a nova ingestão.
 
-&emsp; **Nota metodológica.** (i) O benefício é custo evitado bruto; o custo de operar a plataforma própria é descontado em 4.6. (ii) O rollout parcial reduz simultaneamente benefício e custo de infraestrutura, por isso ambos são recalculados em conjunto na sensibilidade. (iii) No teto de B1 (US$ 2 mi/ano), todos os ganhos devem ser multiplicados por 2,5.
+&emsp; **Nota metodológica.** (i) O benefício é custo evitado bruto; o custo de operar a plataforma própria é descontado em 4.6. (ii) O rollout parcial reduz simultaneamente benefício e custo de infraestrutura, por isso ambos são recalculados em conjunto na sensibilidade. (iii) No teto de B1 (US$ 2 mi/ano), o baseline e o ganho efetivo são multiplicados por 2,5, enquanto os custos permanecem inalterados; o benefício líquido do Ano 1 passa a R$ 1.514 mil, conforme a tabela da limitação 1 em 4.7.
 
 ---
 
@@ -361,11 +406,11 @@ Benefício Líquido = Ganhos estimados (1 ano) − Custos operacionais anuais
 
 | Componente | Valor | Origem |
 |---|---|---|
-| Investimento inicial | R$ 715.000 | 4.3 |
+| Investimento inicial | R$ 798.000 | 4.3 |
 | Custos operacionais anuais | R$ 518.000 | 4.4 |
 | Ganho efetivo no Ano 1 | R$ 813.000 | 4.5 (B3 = 50%, B4 = 40%) |
 | **Benefício líquido** | **R$ 295.000** | R$ 813.000 − R$ 518.000 |
-| **ROI (Ano 1)** | **~41%** | R$ 295.000 ÷ R$ 715.000 |
+| **ROI (Ano 1)** | **~37%** | R$ 295.000 ÷ R$ 798.000 |
 
 #### Análise de sensibilidade
 
@@ -373,9 +418,9 @@ Benefício Líquido = Ganhos estimados (1 ano) − Custos operacionais anuais
 
 | Cenário | B3 | B4 | Ganho efetivo Y1 | Custos anuais | Benefício líquido | ROI |
 |---|---|---|---|---|---|---|
-| Pessimista | 30% | 20% | R$ 244 mil | R$ 368 mil | −R$ 124 mil | −17% |
-| Base | 50% | 40% | R$ 813 mil | R$ 518 mil | R$ 295 mil | 41% |
-| Otimista | 70% | 60% | R$ 1.707 mil | R$ 668 mil | R$ 1.039 mil | 145% |
+| Pessimista | 30% | 20% | R$ 244 mil | R$ 368 mil | −R$ 124 mil | −16% |
+| Base | 50% | 40% | R$ 813 mil | R$ 518 mil | R$ 295 mil | 37% |
+| Otimista | 70% | 60% | R$ 1.707 mil | R$ 668 mil | R$ 1.039 mil | 130% |
 
 &emsp; No cenário pessimista o resultado é negativo: o custo de operar a plataforma própria supera o contrato evitado. No cenário base o projeto recupera boa parte do investimento já no Ano 1.
 
@@ -388,21 +433,21 @@ Benefício Líquido = Ganhos estimados (1 ano) − Custos operacionais anuais
 | R$ mil | Ano 1 | Ano 2 | Ano 3 | Total |
 |---|---|---|---|---|
 | **Contratar** — contrato integral | 4.064 | 4.064 | 4.064 | **12.192** |
-| Construir — investimento (4.3) | 715 | — | — | 715 |
+| Construir — investimento (4.3) | 798 | — | — | 798 |
 | Construir — operação (4.4) | 518 | 818 | 968 | 2.304 |
 | Construir — contrato residual | 3.251 | 2.438 | 2.032 | 7.721 |
-| **Construir** — total | 4.484 | 3.256 | 3.000 | **10.741** |
-| **Diferença anual** | −420 | +808 | +1.064 | **+1.451** |
+| **Construir** — total | 4.567 | 3.256 | 3.000 | **10.823** |
+| **Diferença anual** | −503 | +808 | +1.064 | **+1.369** |
 
-&emsp; Construir custa R$ 420 mil **a mais** que contratar no Ano 1: paga-se a construção e o contrato ao mesmo tempo. A virada ocorre no Ano 2, com cruzamento acumulado por volta do mês 18. Em 3 anos, a economia é de R$ 1,45 milhão, ou ~12% do TCO.
+&emsp; Construir custa R$ 503 mil **a mais** que contratar no Ano 1: paga-se a construção e o contrato ao mesmo tempo. A virada ocorre no Ano 2, com cruzamento acumulado por volta do mês 20. Em 3 anos, a economia é de R$ 1,37 milhão, ou ~11% do TCO.
 
 &emsp; A mesma comparação sob os cenários de sensibilidade:
 
 | Cenário (B3; trajetória de B4) | TCO contratar | TCO construir | Diferença em 3 anos |
 |---|---|---|---|
-| Pessimista (30%; 20→40→60%) | 12.192 | 12.998 | **−806** (construir é mais caro) |
-| Base (50%; 40→80→100%) | 12.192 | 10.741 | **+1.451** |
-| Otimista (70%; 60→90→100%) | 12.192 | 8.324 | **+3.868** |
+| Pessimista (30%; 20→40→60%) | 12.192 | 13.081 | **−889** (construir é mais caro) |
+| Base (50%; 40→80→100%) | 12.192 | 10.823 | **+1.369** |
+| Otimista (70%; 60→90→100%) | 12.192 | 8.407 | **+3.785** |
 
 &emsp; O intervalo é largo o bastante para inverter a decisão: no cenário pessimista, contratar é a escolha economicamente correta ao longo de todo o horizonte.
 
@@ -412,15 +457,15 @@ Benefício Líquido = Ganhos estimados (1 ano) − Custos operacionais anuais
 
 #### Viabilidade financeira
 
-&emsp; No cenário base, construir é economicamente preferível a contratar, com economia de ~12% do TCO em 3 anos e virada no mês ~18.
+&emsp; No cenário base, construir é economicamente preferível a contratar, com economia de ~11% do TCO em 3 anos e virada no mês ~20.
 
 | Referência | Valor | Proporção |
 |---|---|---|
-| Investimento inicial | R$ 715 mil | ~18% de um ano de contrato de mercado (baseline B1) |
+| Investimento inicial | R$ 798 mil | ~20% de um ano de contrato de mercado (baseline B1) |
 | Operação anual em regime permanente | R$ 968 mil | ~24% do baseline |
 | Custo operacional / ganho bruto (Ano 1) | R$ 518 mil / R$ 813 mil | 64% |
 
-&emsp; O denominador correto é o gasto com observabilidade, e não o resultado do grupo: comparar R$ 715 mil ao lucro consolidado produz um percentual sem significado decisório. A decisão não se sustenta pelo Ano 1, e sim pela trajetória — o benefício cresce com o rollout, enquanto o investimento é pago uma única vez.
+&emsp; O denominador correto é o gasto com observabilidade, e não o resultado do grupo: comparar R$ 798 mil ao lucro consolidado produz um percentual sem significado decisório. A decisão não se sustenta pelo Ano 1, e sim pela trajetória — o benefício cresce com o rollout, enquanto o investimento é pago uma única vez.
 
 #### Justificativa do resultado
 
@@ -441,14 +486,14 @@ R$ 2.032.000 × B4 = R$ 218.000 + R$ 750.000 × B4  →  B4 ≈ 17%
 | Marco | Condição |
 |---|---|
 | Sustentabilidade operacional (benefício = custos anuais) | B4 ≈ 17% |
-| Virada do TCO acumulado (construir passa a ser mais barato) | mês ~18 |
+| Virada do TCO acumulado (construir passa a ser mais barato) | mês ~20 |
 | Recuperação integral do investimento via TCO | Ano 3 |
 
 #### Benefícios operacionais não monetizados
 
 | Benefício | Estimativa | Situação |
 |---|---|---|
-| Redução do tempo de diagnóstico de incidentes | ~3 engenheiros × 6h × 4 incidentes/mês × 35% de redução ≈ 300h/ano ≈ **R$ 45 mil/ano** (custo D7) | Não incluído no ROI |
+| Redução do tempo de diagnóstico de incidentes | ~3 engenheiros × 6h × 4 incidentes/mês × 35% de redução ≈ 300h/ano ≈ **R$ 45 mil/ano** (custo C7) | Não incluído no ROI |
 | Visibilidade sobre dispositivos legados | Não quantificável — churn não diagnosticado em segmentos que hoje nenhuma ferramenta de mercado observa | Não incluído |
 | Operação em eventos de pico (Copa 2026) | Não quantificável — custo reputacional de degradação não detectada | Não incluído |
 
@@ -461,17 +506,17 @@ R$ 2.032.000 × B4 = R$ 218.000 + R$ 750.000 × B4  →  B4 ≈ 17%
 | B1 | US$ 300 mil/ano | US$ 800 mil/ano | US$ 2 mi/ano |
 | Baseline anual | R$ 1.524 mil | R$ 4.064 mil | R$ 10.160 mil |
 | Benefício líquido Ano 1 | −R$ 213 mil | R$ 295 mil | R$ 1.514 mil |
-| Diferença de TCO em 3 anos | −R$ 1.343 mil | +R$ 1.451 mil | +R$ 8.157 mil |
+| Diferença de TCO em 3 anos | −R$ 1.426 mil | +R$ 1.369 mil | +R$ 8.074 mil |
 
 &emsp; Com B1 em US$ 300 mil/ano, construir é mais caro que contratar em todos os três anos. Este é o primeiro dado a solicitar ao parceiro; enquanto não houver o valor real do contrato do Globoplay, a conclusão de viabilidade permanece condicional.
 
-**2. B3 e B4 não foram validados.** Sem plano de rollout acordado nem inventário de escopo funcional. A amplitude entre cenários vai de −R$ 806 mil a +R$ 3.868 mil de diferença de TCO — larga o bastante para inverter a decisão.
+**2. B3 e B4 não foram validados.** Sem plano de rollout acordado nem inventário de escopo funcional. A amplitude entre cenários vai de −R$ 889 mil a +R$ 3.785 mil de diferença de TCO — larga o bastante para inverter a decisão.
 
-**3. Custo de infraestrutura é derivado, não cotado.** Um erro de fator 2 em D9 altera o custo operacional em ~R$ 300 mil/ano, suficiente para inverter o sinal do benefício. A métrica de custo por evento corrige essa premissa no primeiro trimestre de operação.
+**3. Custo de infraestrutura é derivado, não cotado.** Um erro de fator 2 em C9 altera o custo operacional em ~R$ 300 mil/ano, suficiente para inverter o sinal do benefício. A métrica de custo por evento corrige essa premissa no primeiro trimestre de operação.
 
 **4. Contrato residual tratado como proporcional.** O modelo assume que o contrato de mercado é reduzido na exata proporção do escopo substituído. Compromissos anuais de volume mínimo e ciclos de renovação podem atrasar essa redução em um ano inteiro, empurrando a virada do TCO para o Ano 3.
 
-**5. Custos de time do parceiro possivelmente subestimados.** Assume-se ~2 engenheiros por 1 mês para integração. Se cada plataforma exigir SDK mantido por time separado, integração e manutenção anual crescem de forma relevante.
+**5. Custos de time do parceiro possivelmente subestimados.** Assume-se ~2 engenheiros por 1 mês para integração. Se cada aplicação exigir alterações conduzidas por um time distinto para passar a emitir na API, o esforço de integração e a manutenção anual crescem de forma relevante.
 
 **6. Nenhum ganho de receita foi modelado — e este é o benefício principal do projeto.** A solução existe para detectar falhas de frontend, não para reduzir licença de software. Se 0,1% da base de assinantes for retida por melhor qualidade de experiência, o efeito superaria todo o custo evitado aqui modelado. Na ausência de dados de churn do parceiro, o benefício central do projeto permanece fora da conta, e o resultado apresentado deve ser lido como piso, não como estimativa central.
 
@@ -487,7 +532,7 @@ R$ 2.032.000 × B4 = R$ 218.000 + R$ 750.000 × B4  →  B4 ≈ 17%
 
 &emsp; A Agenda 2030 consiste em um plano global elaborado pela ONU e adotado por quase 200 países em 2015, com foco na promoção do desenvolvimento sustentável (ORGANIZAÇÃO DAS NAÇÕES UNIDAS, 2015). A partir dos ODS, a Agenda incentiva indivíduos, organizações e governos a repensarem suas práticas e decisões em favor do futuro da sociedade e do planeta.
 
-São 17 os ODS relacionados à Agenda, sendo eles:
+&emsp; São 17 os ODS relacionados à Agenda, sendo eles:
 
 - Objetivo 1 - Erradicação da pobreza
     - Acabar com a pobreza em todas as suas formas, em todos os lugares;
@@ -585,7 +630,7 @@ São 17 os ODS relacionados à Agenda, sendo eles:
 - aumentar a visibilidade sobre a saúde das aplicações frontend;
 - permitir a detecção de degradações em diferentes dispositivos;
 - reduzir o tempo necessário para investigar incidentes;
-apoiar o cumprimento dos níveis de serviço;
+- apoiar o cumprimento dos níveis de serviço;
 - aumentar a resiliência da operação por meio de dados mais completos.
 
 &emsp; Também existe relação com a meta 9.4, que trata da modernização da infraestrutura e do uso mais eficiente de recursos e tecnologias (ORGANIZAÇÃO DAS NAÇÕES UNIDAS, [s. d.]a). Nesse aspecto, a plataforma pode:
@@ -661,7 +706,8 @@ apoiar o cumprimento dos níveis de serviço;
 &emsp; Quando as ferramentas de observabilidade não conseguem coletar dados de equipamentos antigos, os problemas desses usuários podem permanecer invisíveis por mais tempo. Consequentemente, a operação pode priorizar apenas os dispositivos mais modernos e mais bem monitorados.
 
 &emsp; A plataforma proposta pode reduzir essa assimetria ao permitir que dispositivos com diferentes capacidades enviem eventos por interfaces compatíveis com suas limitações.
-A contribuição indireta ao ODS 10 inclui:
+
+&emsp; A contribuição indireta ao ODS 10 inclui:
 
 - ampliação da visibilidade sobre usuários de dispositivos legados;
 - redução da diferença de monitoramento entre plataformas modernas e antigas;
@@ -709,7 +755,8 @@ A contribuição indireta ao ODS 10 inclui:
 &emsp; Essas informações podem apoiar decisões de otimização da infraestrutura.
 
 &emsp; Além disso, a compatibilidade com dispositivos legados pode contribuir para prolongar sua utilização. Caso aplicações deixem de funcionar corretamente apenas por falta de suporte de observabilidade ou compatibilidade, usuários podem ser incentivados a substituir aparelhos ainda funcionais. Uma plataforma capaz de identificar e apoiar a correção de problemas nesses equipamentos pode reduzir esse incentivo.
-A principal relação ocorre com a meta 12.2, que trata da gestão sustentável e do uso eficiente dos recursos (ORGANIZAÇÃO DAS NAÇÕES UNIDAS, [s. d.]c). A plataforma pode apoiar essa meta por meio de:
+
+&emsp; A principal relação ocorre com a meta 12.2, que trata da gestão sustentável e do uso eficiente dos recursos (ORGANIZAÇÃO DAS NAÇÕES UNIDAS, [s. d.]c). A plataforma pode apoiar essa meta por meio de:
 
 - políticas de retenção de dados;
 - agregação de eventos históricos;
@@ -722,7 +769,8 @@ A principal relação ocorre com a meta 12.2, que trata da gestão sustentável 
 &emsp; Também existe relação indireta com a meta 12.5, voltada à redução da geração de resíduos por prevenção, redução, reciclagem e reuso (ORGANIZAÇÃO DAS NAÇÕES UNIDAS, [s. d.]c). O possível impacto ocorre pela extensão da vida útil de dispositivos. Entretanto, o projeto não atua diretamente na gestão de resíduos eletrônicos. Portanto, essa contribuição deve ser apresentada como potencial e indireta.
 
 &emsp; A meta 12.6, que incentiva grandes empresas a adotarem práticas sustentáveis e integrarem informações de sustentabilidade (ORGANIZAÇÃO DAS NAÇÕES UNIDAS, [s. d.]c), também pode ser considerada. A plataforma poderá incluir indicadores de eficiência da infraestrutura, desde que a Globo decida monitorá-los.
-Os principais impactos positivos são:
+
+&emsp; Os principais impactos positivos são:
 
 - melhor utilização dos recursos de computação e armazenamento;
 - redução de processamento redundante;
@@ -745,7 +793,7 @@ Os principais impactos positivos são:
 | Suporte a legados | Quantidade de dispositivos antigos ainda atendidos |
 | Escalabilidade sob demanda | Diferença entre recursos provisionados e recursos efetivamente utilizados |
 
-Apesar das contribuições potenciais, a plataforma também poderá aumentar o consumo de recursos devido a:
+&emsp; Apesar das contribuições potenciais, a plataforma também poderá aumentar o consumo de recursos devido a:
 
 - armazenamento de milhões de eventos;
 - replicação de dados;
@@ -822,35 +870,27 @@ Apesar das contribuições potenciais, a plataforma também poderá aumentar o c
 
 ## 6. Referências bibliográficas
 
-KRISHNAN, S. Shunmuga; SITARAMAN, Ramesh K. _Video Stream Quality Impacts Viewer Behavior: Inferring Causality Using Quasi-Experimental Designs_. In: ACM Internet Measurement Conference (IMC), 2012. Disponível em: https://people.cs.umass.edu/~ramesh/Site/HOME_files/imc208-krishnan.pdf. Acesso em: ago. 2026.
-
-ANDROID DEVELOPERS. _ANRs | App quality_. Disponível em: https://developer.android.com/topic/performance/vitals/anr. Acesso em: ago. 2026.
-
-GOOGLE PLAY CONSOLE HELP. _Monitor your app's technical quality with Android vitals_. Disponível em: https://support.google.com/googleplay/android-developer/answer/9844486. Acesso em: ago. 2026.
-
-GRAFANA LABS. _Observability Survey Report 2025_. Disponível em: https://grafana.com/observability-survey/2025/. Acesso em: ago. 2026.
+AMAZON WEB SERVICES. Pricing de serviços de computação e armazenamento. Seattle: AWS, 2026. Disponível em: https://aws.amazon.com/pricing/. Acesso em: 4 ago. 2026.
 
 BRASIL. _Lei nº 13.709, de 14 de agosto de 2018_ (Lei Geral de Proteção de Dados Pessoais).
 
-ORGANIZAÇÃO DAS NAÇÕES UNIDAS. Transformando nosso mundo: a Agenda 2030 para o Desenvolvimento Sustentável. Nova York: ONU, 2015. Disponível em: https://sdgs.un.org/2030agenda. Acesso em: 4 ago. 2026.
+EXAME. Após 1º lucro em 10 anos de vida, Globoplay se prepara para virar o jogo na guerra do streaming. São Paulo, 25 fev. 2026. Por Mateus Omena. Disponível em: https://exame.com/pop/apos-1o-lucro-em-10-anos-de-vida-globoplay-se-prepara-para-virar-o-jogo-na-guerra-do-streaming/. Acesso em: 4 ago. 2026.
 
-ORGANIZAÇÃO DAS NAÇÕES UNIDAS. Objetivos de Desenvolvimento Sustentável no Brasil. Brasília, DF: Nações Unidas Brasil, [s. d.]. Disponível em: https://brasil.un.org/pt-br/sdgs. Acesso em: 4 ago. 2026.
+GRAFANA LABS. _Observability Survey Report 2025_. Disponível em: https://grafana.com/observability-survey/2025/. Acesso em: ago. 2026.
+
+INVESTING.COM. Cotação USD/BRL. 2026. Disponível em: https://br.investing.com/currencies/usd-brl. Acesso em: 3 ago. 2026.
+
+ISTOÉ DINHEIRO. Globo fatura R$ 18,2 bilhões em 2025, mas lucro cai; veja números do balanço. São Paulo, 25 mar. 2026. Disponível em: https://istoedinheiro.com.br/globo-fatura-r-182-bilhoes-em-2025-mas-lucro-cai-veja-numeros-do-balanco. Acesso em: 4 ago. 2026.
+
+KRISHNAN, S. Shunmuga; SITARAMAN, Ramesh K. Video stream quality impacts viewer behavior: inferring causality using quasi-experimental designs. In: ACM INTERNET MEASUREMENT CONFERENCE, 2012, Boston. Proceedings [...]. New York: ACM, 2012. p. 211-224.
+
+ORGANIZAÇÃO DAS NAÇÕES UNIDAS. Transformando nosso mundo: a Agenda 2030 para o Desenvolvimento Sustentável. Nova York: ONU, 2015. Disponível em: https://sdgs.un.org/2030agenda. Acesso em: 4 ago. 2026.
 
 ORGANIZAÇÃO DAS NAÇÕES UNIDAS. Objetivo de Desenvolvimento Sustentável 9: indústria, inovação e infraestrutura. Brasília, DF: Nações Unidas Brasil, [s. d.]a. Disponível em: https://brasil.un.org/pt-br/sdgs/9. Acesso em: 4 ago. 2026.
 
 ORGANIZAÇÃO DAS NAÇÕES UNIDAS. Objetivo de Desenvolvimento Sustentável 10: redução das desigualdades. Brasília, DF: Nações Unidas Brasil, [s. d.]b. Disponível em: https://brasil.un.org/pt-br/sdgs/10. Acesso em: 4 ago. 2026.
 
 ORGANIZAÇÃO DAS NAÇÕES UNIDAS. Objetivo de Desenvolvimento Sustentável 12: consumo e produção responsáveis. Brasília, DF: Nações Unidas Brasil, [s. d.]c. Disponível em: https://brasil.un.org/pt-br/sdgs/12. Acesso em: 4 ago. 2026.
-
-AMAZON WEB SERVICES. Pricing de serviços de computação e armazenamento. Seattle: AWS, 2026. Disponível em: https://aws.amazon.com/pricing/. Acesso em: 4 ago. 2026.
-
-BEM PARANÁ. Globoplay acelera em 2026, supera falhas e se impõe na guerra do streaming. Curitiba, 1 maio 2026. Coluna TV Canal 1, por Ayrton Tartuce. Disponível em: https://www.bemparana.com.br/publicacao/colunas/tv-canal-1/globoplay-acelera-em-2026-supera-falhas-e-se-impoe-na-guerra-do-streaming/. Acesso em: 4 ago. 2026.
-
-EXAME. Após 1º lucro em 10 anos de vida, Globoplay se prepara para virar o jogo na guerra do streaming. São Paulo, 25 fev. 2026. Por Mateus Omena. Disponível em: https://exame.com/pop/apos-1o-lucro-em-10-anos-de-vida-globoplay-se-prepara-para-virar-o-jogo-na-guerra-do-streaming/. Acesso em: 4 ago. 2026.
-
-INVESTING.COM. Cotação USD/BRL. 2026. Disponível em: https://br.investing.com/currencies/usd-brl. Acesso em: 3 ago. 2026.
-
-ISTOÉ DINHEIRO. Globo fatura R$ 18,2 bilhões em 2025, mas lucro cai; veja números do balanço. São Paulo, 25 mar. 2026. Disponível em: https://istoedinheiro.com.br/globo-fatura-r-182-bilhoes-em-2025-mas-lucro-cai-veja-numeros-do-balanco. Acesso em: 4 ago. 2026.
 
 ROBERT HALF. Guia Salarial 2026. São Paulo: Robert Half, 2026. Disponível em: https://www.roberthalf.com.br/guia-salarial. Acesso em: 4 ago. 2026.
 
