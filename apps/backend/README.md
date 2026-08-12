@@ -2,13 +2,39 @@
 
 API Flask que serve os eventos de telemetria para a dashboard. **Somente
 leitura**: a entrada de eventos é o pipeline
-`API Gateway → SQS → ECS Fargate → DynamoDB` (ver [`worker/`](../../worker) e
-[`infra/`](../../infra)).
+`API Gateway → SQS → ECS Fargate → DynamoDB` (ver [`worker/`](../worker) e
+[`infra/`](../infra)).
 
-Publicada em Lambda + API Gateway. No ar em:
+Publicada em Lambda + API Gateway.
 
+## Documentação interativa
+
+A própria API se documenta:
+
+| Rota | O que é |
+|---|---|
+| `GET /docs` | Swagger UI |
+| `GET /openapi.json` | especificação OpenAPI 3.1 |
+
+A spec é montada em código, importando as mesmas constantes que o adaptador usa
+para validar — documentação que deriva da regra não consegue divergir dela. Há
+teste travando isso nos dois sentidos: rota sem documentação e documentação sem
+rota quebram a suíte.
+
+## Como obter a URL
+
+**A URL não está escrita em lugar nenhum do repositório**, de propósito. Pegue
+do Terraform e guarde no `.env` (que é gitignored):
+
+```bash
+cd apps/infra
+terraform output -raw read_api_url
 ```
-$ARGUS_API_URL
+
+Depois, no `.env` da raiz:
+
+```bash
+ARGUS_API_URL=https://...
 ```
 
 ---
@@ -25,6 +51,7 @@ $ARGUS_API_URL
 | `GET /api/v1/metrics/timeseries?compare=true` | série temporal e comparação | RF12, RF14, RF15 |
 | `GET /api/v1/facets?field=` | valores existentes para os filtros | RF10 |
 | `GET /health/live` · `GET /health/ready` | saúde | — |
+| `GET /docs` · `GET /openapi.json` | documentação | — |
 
 Filtros aceitos em `/events` e nas métricas, todos combináveis: `session_id`,
 `device_id`, `event_name`, `app_env`, `app_target`, `app_version`, `app_bucket`,
@@ -34,7 +61,8 @@ Filtros aceitos em `/events` e nas métricas, todos combináveis: `session_id`,
 ### Exemplos
 
 ```bash
-API=$ARGUS_API_URL
+source ../../.env       # define ARGUS_API_URL
+API="$ARGUS_API_URL"
 
 curl "$API/api/v1/events?event_name=error&device_os=WebOS&limit=20"
 curl "$API/api/v1/metrics/breakdown?dimension=device_manufacturer"
@@ -137,7 +165,7 @@ conveniente enquanto a API quebra contra o banco de verdade.
 
 ```bash
 ./scripts/build_lambda.sh                       # gera dist/telemetry-read-api.zip
-cd ../../infra && AWS_PROFILE=g4 terraform apply
+cd ../infra && terraform apply
 ```
 
 O `boto3` não entra no zip — o runtime da Lambda já o traz. Sobram Flask e
