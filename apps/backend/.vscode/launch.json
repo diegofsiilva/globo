@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend Flask",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run.py",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "FLASK_DEBUG": "1"
+      },
+      "preLaunchTask": "Backend: instalar dependencias"
+    }
+  ]
+}
