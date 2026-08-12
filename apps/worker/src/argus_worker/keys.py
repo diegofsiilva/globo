@@ -35,20 +35,33 @@ EVENT_ID_SK_CHARS = 12
 
 
 def canonical_json(payload: dict[str, Any]) -> str:
-    """Serializacao estavel: mesma entrada, sempre os mesmos bytes."""
+    """Serialização estável: mesma entrada gera sempre os mesmos bytes.
+
+    Args:
+        payload (dict[str, Any]): Dicionário com os dados do evento.
+
+    Returns:
+        str: String JSON canônica com chaves ordenadas.
+    """
     return json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
     )
 
 
 def build_event_id(event: BaseEvent) -> str:
-    """Id deterministico do evento.
+    """Id determinístico do evento.
 
-    Se o cliente mandou `event_id`, ele manda. Senao, derivamos do conteudo:
-    duas entregas do mesmo evento produzem a mesma chave, entao a reentrega do
-    SQS (que e at-least-once por design) vira um overwrite identico no DynamoDB
-    em vez de uma linha duplicada. Idempotencia sem leitura previa nem
+    Se o cliente mandou `event_id`, ele manda. Senão, derivamos do conteúdo:
+    duas entregas do mesmo evento produzem a mesma chave, então a reentrega do
+    SQS (que é at-least-once por design) vira um overwrite idêntico no DynamoDB
+    em vez de uma linha duplicada. Idempotência sem leitura prévia nem
     ConditionExpression.
+
+    Args:
+        event (BaseEvent): Instância do evento de telemetria já validado.
+
+    Returns:
+        str: O `event_id` do cliente, ou o SHA-256 do conteúdo canonicalizado.
     """
     if event.event_id:
         return event.event_id
@@ -59,11 +72,27 @@ def build_event_id(event: BaseEvent) -> str:
 
 
 def _sk_timestamp(moment: datetime) -> str:
-    """ISO-8601 UTC com milissegundos -- ordenavel lexicograficamente."""
+    """Formata o timestamp em ISO-8601 UTC com milissegundos ordenável lexicograficamente.
+
+    Args:
+        moment (datetime): Objeto datetime a ser formatado.
+
+    Returns:
+        str: String de data/hora formatada.
+    """
     return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def shard_for(event_id: str, shards: int) -> int:
+    """Calcula o índice do shard para partição da GSI1 com base no event_id.
+
+    Args:
+        event_id (str): Identificador do evento.
+        shards (int): Quantidade total de shards configurados.
+
+    Returns:
+        int: Número do shard (de 0 a shards-1).
+    """
     if shards <= 1:
         return 0
     return int(event_id[:8], 16) % shards
@@ -77,7 +106,18 @@ def build_item(
     gsi1_shards: int,
     max_clock_skew_days: int,
 ) -> dict[str, Any]:
-    """Monta o item completo do DynamoDB a partir do evento validado."""
+    """Monta o item completo do DynamoDB a partir do evento validado.
+
+    Args:
+        event (BaseEvent): Evento de telemetria parseado.
+        ingested_at (datetime): Data/hora de ingestão do evento pelo worker.
+        retention_days (int): Dias de retenção antes da expiração pelo TTL do DynamoDB.
+        gsi1_shards (int): Número de shards da GSI1.
+        max_clock_skew_days (int): Limite tolerado de desvio do relógio.
+
+    Returns:
+        dict[str, Any]: Item formatado para inserção no DynamoDB.
+    """
     event_id = build_event_id(event)
     short_id = event_id[:EVENT_ID_SK_CHARS]
     ts = _sk_timestamp(event.timestamp)

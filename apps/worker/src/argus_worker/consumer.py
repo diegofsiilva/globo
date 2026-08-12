@@ -35,6 +35,8 @@ log = logging.getLogger(__name__)
 
 
 class Consumer:
+    """Consumidor principal de mensagens do SQS e gravador batch no DynamoDB."""
+
     def __init__(
         self,
         *,
@@ -43,6 +45,15 @@ class Consumer:
         repository: EventRepository,
         metrics: Metrics,
     ) -> None:
+        """Inicializa o consumidor SQS.
+
+        Args:
+            config (Config): Configurações do worker.
+            sqs_client: Cliente Boto3 para SQS.
+            repository (EventRepository): Repositório para escrita dos eventos
+                no DynamoDB.
+            metrics (Metrics): Coletor de métricas.
+        """
         self._config = config
         self._sqs = sqs_client
         self._repo = repository
@@ -59,12 +70,25 @@ class Consumer:
             signal.signal(sig, self._request_stop)
 
     def _request_stop(self, signum, _frame) -> None:
+        """Handler interno para solicitações de interrupção graciosa via sinais do SO.
+
+        Args:
+            signum: Número do sinal recebido.
+            _frame: Frame de execução atual (ignorado).
+        """
         log.info(
             "sinal recebido, encerrando apos o ciclo atual", extra={"signal": signum}
         )
         self._running = False
 
     def run(self) -> None:
+        """Laço principal: consome a fila até receber um sinal de parada.
+
+        Nenhuma exceção de ciclo derruba o worker. Como as mensagens só são
+        apagadas depois da gravação, uma falha aqui apenas deixa o visibility
+        timeout expirar e o SQS reentregar -- o que a idempotência da chave do
+        item torna seguro.
+        """
         log.info(
             "worker iniciado",
             extra={
@@ -176,6 +200,11 @@ class Consumer:
     # ----------------------------------------------------------------- #
 
     def _receive(self) -> list[dict[str, Any]]:
+        """Realiza a recepção de um lote de mensagens da fila SQS configurada.
+
+        Returns:
+            list[dict[str, Any]]: Lista de dicionários de mensagens retornadas pelo SQS.
+        """
         response = self._sqs.receive_message(
             QueueUrl=self._config.queue_url,
             MaxNumberOfMessages=self._config.batch_size,
@@ -189,7 +218,15 @@ class Consumer:
     def _process_message(
         self, message: dict[str, Any]
     ) -> tuple[list[dict[str, Any]], int, bool]:
-        """Devolve (itens prontos, quantos foram para a DLQ, houve falha fatal)."""
+        """Processa o conteúdo de uma mensagem recebida.
+
+        Args:
+            message (dict[str, Any]): Mensagem bruta recebida do SQS.
+
+        Returns:
+            tuple[list[dict[str, Any]], int, bool]: Trinca contendo os itens formatados,
+                quantidade de itens em quarentena (DLQ) e sinalização de falha fatal.
+        """
         message_id = message["MessageId"]
 
         try:
@@ -244,12 +281,29 @@ class Consumer:
         return items, quarantined, False
 
     def _missing_recommended(self, event) -> bool:
+        """Verifica se o evento está sem algum dos campos recomendados.
+
+        Args:
+            event: Instância do evento de telemetria parseado.
+
+        Returns:
+            bool: True se faltar algum campo recomendado, False se completo.
+        """
         return any(
             getattr(event, name, None) is None for name in self._config.recommended_fields
         )
 
     def _quarantine(self, payload: Any, reason: str, message_id: str) -> bool:
-        """Manda o payload para a DLQ com o motivo. False se nem isso funcionou."""
+        """Manda o payload para a DLQ com o motivo. False se nem isso funcionou.
+
+        Args:
+            payload (Any): Dados originais do evento/mensagem com erro.
+            reason (str): Descrição do motivo da falha.
+            message_id (str): ID da mensagem original SQS.
+
+        Returns:
+            bool: True se o envio para a DLQ foi bem sucedido.
+        """
         body = (
             payload
             if isinstance(payload, str)
@@ -285,6 +339,11 @@ class Consumer:
         return True
 
     def _delete(self, messages: list[dict[str, Any]]) -> None:
+        """Apaga em lotes as mensagens já processadas da fila SQS.
+
+        Args:
+            messages (list[dict[str, Any]]): Lista de mensagens a apagar.
+        """
         if not messages:
             return
         # DeleteMessageBatch aceita 10 por chamada -- o mesmo teto do receive,
@@ -330,6 +389,15 @@ def _extract_events(body: str) -> list[dict[str, Any]]:
     O API Gateway repassa o corpo do POST cru para o SQS, entao o formato e o
     que o cliente mandou: um evento, uma lista de eventos, ou um envelope
     {"events": [...]}.
+
+    Args:
+        body (str): String com o corpo JSON recebido do SQS.
+
+    Returns:
+        list[dict[str, Any]]: Lista de dicionários de eventos extraídos.
+
+    Raises:
+        ValueError: Se o corpo for vazio, malformado ou não contiver eventos.
     """
     if not body or not body.strip():
         raise ValueError("corpo da mensagem vazio")

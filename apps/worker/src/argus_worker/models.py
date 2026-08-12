@@ -67,7 +67,7 @@ class BaseEvent(BaseModel):
     @field_validator("timestamp", mode="after")
     @classmethod
     def _to_utc(cls, value: datetime) -> datetime:
-        """Timestamp sem timezone e tratado como UTC em vez de rejeitado."""
+        """Timestamp sem timezone é tratado como UTC em vez de rejeitado."""
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value.astimezone(UTC)
@@ -75,6 +75,7 @@ class BaseEvent(BaseModel):
     @field_validator("session_id", "device_id", mode="after")
     @classmethod
     def _not_blank(cls, value: str) -> str:
+        """Garante que session_id e device_id não sejam strings em branco."""
         if not value:
             raise ValueError("nao pode ser vazio")
         return value
@@ -166,8 +167,17 @@ def parse_event(raw: dict[str, Any]) -> tuple[BaseEvent, bool]:
     """Valida um evento cru.
 
     Devolve (evento, is_known). `is_known` False significa que caiu no
-    GenericEvent -- o dado e gravado do mesmo jeito, mas contabilizado.
-    Levanta pydantic.ValidationError se nem o envelope basico bater.
+    GenericEvent -- o dado é gravado do mesmo jeito, mas contabilizado.
+
+    Args:
+        raw (dict[str, Any]): Dicionário com os dados brutos do evento.
+
+    Returns:
+        tuple[BaseEvent, bool]: Par (instância do modelo, se o `event_name` é conhecido).
+
+    Raises:
+        TypeError: Se a entrada não for um objeto dicionário.
+        pydantic.ValidationError: Se nem o envelope básico bater.
     """
     if not isinstance(raw, dict):
         raise TypeError(f"evento precisa ser objeto JSON, recebi {type(raw).__name__}")

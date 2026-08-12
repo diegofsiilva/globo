@@ -44,11 +44,19 @@ MASKED = "***"
 
 
 def hash_user_id(user_id: str | None, salt: str) -> str | None:
-    """Identificador estavel e nao reversivel.
+    """Identificador estável e não reversível.
 
-    O salt impede que alguem com a tabela de hashes cruze o resultado com uma
-    lista conhecida de user_ids. Estavel porque o dashboard precisa agrupar
-    eventos do mesmo usuario sem saber quem ele e.
+    O salt impede que alguém com a tabela de hashes cruze o resultado com uma
+    lista conhecida de user_ids. Estável porque o dashboard precisa agrupar
+    eventos do mesmo usuário sem saber quem ele é.
+
+    Args:
+        user_id (str | None): Identificador do usuário em claro.
+        salt (str): Sal de segurança configurado para desidentificação.
+
+    Returns:
+        str | None: SHA-256 truncado em 32 caracteres hexadecimais, ou None se
+            o valor estiver ausente ou já mascarado.
     """
     if not user_id or user_id == MASKED:
         return None
@@ -56,7 +64,15 @@ def hash_user_id(user_id: str | None, salt: str) -> str | None:
 
 
 def sanitize_url(url: Any) -> str | None:
-    """Remove credencial e identificador da query string, preservando a rota."""
+    """Remove credencial e identificador da query string, preservando a rota.
+
+    Args:
+        url (Any): URL original a ser higienizada.
+
+    Returns:
+        str | None: URL sem os parâmetros sensíveis, com esquema, host e path
+            intactos, ou None se a entrada for vazia.
+    """
     if not url:
         return None
     text = str(url)
@@ -72,6 +88,14 @@ def sanitize_url(url: Any) -> str | None:
 
 
 def redact_headers(headers: Any) -> dict[str, Any]:
+    """Filtra cabeçalhos HTTP mantendo apenas os presentes na allowlist de cabeçalhos seguros.
+
+    Args:
+        headers (Any): Dicionário de cabeçalhos HTTP.
+
+    Returns:
+        dict[str, Any]: Dicionário filtrado apenas com cabeçalhos permitidos.
+    """
     if not isinstance(headers, dict):
         return {}
     return {
@@ -82,7 +106,14 @@ def redact_headers(headers: Any) -> dict[str, Any]:
 
 
 def redact_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
-    """Aplica a redacao no bloco de campos especificos do tipo de evento."""
+    """Aplica a redação no bloco de campos específicos do tipo de evento.
+
+    Args:
+        attributes (dict[str, Any]): Dicionário de atributos do evento.
+
+    Returns:
+        dict[str, Any]: Atributos com os campos sensíveis removidos ou mascarados.
+    """
     clean: dict[str, Any] = {}
     for key, value in attributes.items():
         lowered = key.lower()

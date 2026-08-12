@@ -35,6 +35,16 @@ _FILTER_PARAMS = [
 
 
 def _parameter(name: str, description: str, **schema: Any) -> dict[str, Any]:
+    """Cria um objeto de parâmetro OpenAPI para query string.
+
+    Args:
+        name (str): Nome do parâmetro.
+        description (str): Descrição do parâmetro.
+        **schema (Any): Atributos adicionais do esquema OpenAPI.
+
+    Returns:
+        dict[str, Any]: Dicionário formatado no padrão de parâmetro OpenAPI.
+    """
     return {
         "name": name,
         "in": "query",
@@ -45,6 +55,11 @@ def _parameter(name: str, description: str, **schema: Any) -> dict[str, Any]:
 
 
 def _common_query_parameters() -> list[dict[str, Any]]:
+    """Gera a lista de parâmetros de busca reutilizáveis para endpoints de consulta.
+
+    Returns:
+        list[dict[str, Any]]: Lista de definições de parâmetros OpenAPI.
+    """
     params = [_parameter(name, description) for name, description in _FILTER_PARAMS]
     params += [
         _parameter(
@@ -58,6 +73,11 @@ def _common_query_parameters() -> list[dict[str, Any]]:
 
 
 def _pagination_parameters() -> list[dict[str, Any]]:
+    """Gera os parâmetros de paginação por limite e cursor para a documentação OpenAPI.
+
+    Returns:
+        list[dict[str, Any]]: Lista de parâmetros de paginação.
+    """
     return [
         {
             "name": "limit",
@@ -74,6 +94,11 @@ def _pagination_parameters() -> list[dict[str, Any]]:
 
 
 def _event_schema() -> dict[str, Any]:
+    """Constrói o esquema JSON Schema para TelemetryEvent na especificação OpenAPI.
+
+    Returns:
+        dict[str, Any]: Dicionário do esquema da entidade de evento.
+    """
     return {
         "type": "object",
         "description": (
@@ -170,6 +195,11 @@ def _event_schema() -> dict[str, Any]:
 
 
 def _next_cursor_schema() -> dict[str, Any]:
+    """Gera o esquema OpenAPI para o atributo de próximo cursor da paginação.
+
+    Returns:
+        dict[str, Any]: Esquema do cursor.
+    """
     return {
         "type": ["string", "null"],
         "description": (
@@ -181,6 +211,11 @@ def _next_cursor_schema() -> dict[str, Any]:
 
 
 def _query_stats_schema() -> dict[str, Any]:
+    """Gera o esquema OpenAPI para as estatísticas de custo da consulta.
+
+    Returns:
+        dict[str, Any]: Esquema de estatísticas da query.
+    """
     return {
         "type": "object",
         "description": (
@@ -206,6 +241,11 @@ def _query_stats_schema() -> dict[str, Any]:
 
 
 def build_spec() -> dict[str, Any]:
+    """Constrói o documento de especificação OpenAPI 3.1 da API de telemetria.
+
+    Returns:
+        dict[str, Any]: Especificação completa da API no padrão OpenAPI 3.1.0.
+    """
     event_schema = _event_schema()
     common = _common_query_parameters()
 

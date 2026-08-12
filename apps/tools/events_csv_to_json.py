@@ -55,21 +55,45 @@ RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 
 def to_snake(column: str) -> str:
-    """"App Model Year" -> "app_model_year"."""
+    """"App Model Year" -> "app_model_year".
+
+    Args:
+        column (str): Nome original da coluna no CSV.
+
+    Returns:
+        str: Nome normalizado em snake_case.
+    """
     if column in COLUMN_OVERRIDES:
         return COLUMN_OVERRIDES[column]
     return RE_NON_ALNUM.sub("_", column.strip().lower()).strip("_")
 
 
 def parse_timestamp(raw: str) -> str:
-    """"July 13, 2026 20:04:44" (America/Sao_Paulo) -> "2026-07-13T23:04:44Z"."""
+    """Converte um timestamp textual ("July 13, 2026 20:04:44") para formato ISO 8601 em UTC.
+
+    Args:
+        raw (str): String com data e hora local do CSV.
+
+    Returns:
+        str: String formatada em ISO 8601 UTC.
+    """
     naive = datetime.strptime(raw.strip(), "%B %d, %Y %H:%M:%S")
     utc = naive.replace(tzinfo=EVENT_TZ).astimezone(ZoneInfo("UTC"))
     return utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def coerce(column: str, raw: str):
-    """Converte o valor bruto do CSV para o tipo JSON adequado."""
+    """Converte o valor bruto do CSV para o tipo JSON adequado.
+
+    Devolve int, float, bool, dict, str ou None conforme o conteúdo do campo.
+
+    Args:
+        column (str): Nome original da coluna.
+        raw (str): Conteúdo textual bruto do campo.
+
+    Returns:
+        Any: Valor convertido.
+    """
     value = raw.strip()
     if value == "":
         return None
@@ -95,7 +119,14 @@ def coerce(column: str, raw: str):
 
 
 def convert_row(row: dict[str, str]) -> dict:
-    """Uma linha do CSV -> um evento JSON canonico."""
+    """Converte uma linha de dicionário lida do CSV em um evento JSON canônico.
+
+    Args:
+        row (dict[str, str]): Dicionário com pares coluna->valor da linha.
+
+    Returns:
+        dict: Dicionário formatado no schema canônico de evento de telemetria.
+    """
     event: dict = {}
     for column, raw in row.items():
         if column is None:
@@ -108,6 +139,14 @@ def convert_row(row: dict[str, str]) -> dict:
 
 
 def convert_file(path: Path) -> list[dict]:
+    """Lê e converte todas as linhas de um arquivo CSV de eventos.
+
+    Args:
+        path (Path): Caminho para o arquivo .csv.
+
+    Returns:
+        list[dict]: Lista de dicionários dos eventos extraídos.
+    """
     with path.open("r", encoding="utf-8-sig", newline="") as fh:
         return [convert_row(row) for row in csv.DictReader(fh)]
 
@@ -118,6 +157,7 @@ def convert_file(path: Path) -> list[dict]:
 
 
 def main() -> int:
+    """Função de entrada do CLI para conversão de CSVs em payloads JSON."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--src", type=Path, required=True, help="pasta com os CSVs")
     ap.add_argument("--out", type=Path, help="pasta destino dos .json")

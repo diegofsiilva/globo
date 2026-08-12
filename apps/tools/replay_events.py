@@ -32,7 +32,17 @@ from events_csv_to_json import convert_file  # noqa: E402
 
 
 def load_events(src: Path) -> list[dict]:
-    """Carrega eventos de uma pasta com .csv (export do BI) ou .json."""
+    """Carrega eventos de uma pasta contendo arquivos .csv (export do BI) ou .json.
+
+    Args:
+        src (Path): Diretório contendo os arquivos de eventos.
+
+    Returns:
+        list[dict]: Lista de dicionários de eventos prontos para envio.
+
+    Raises:
+        SystemExit: Se a pasta for inválida ou vazia.
+    """
     if not src.is_dir():
         raise SystemExit(f"erro: {src} nao e uma pasta")
 
@@ -49,6 +59,16 @@ def load_events(src: Path) -> list[dict]:
 
 
 def post(url: str, payload, timeout: float = 10.0) -> tuple[int, str]:
+    """Realiza uma requisição HTTP POST para a API de ingestão.
+
+    Args:
+        url (str): Endpoint HTTP de destino.
+        payload: Objeto ou lista a ser serializado em JSON.
+        timeout (float, optional): Tempo limite em segundos. Padrão é 10.0.
+
+    Returns:
+        tuple[int, str]: Par contendo (código de status HTTP, resposta cortada).
+    """
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         url, data=data, headers={"Content-Type": "application/json"}, method="POST"
@@ -63,6 +83,7 @@ def post(url: str, payload, timeout: float = 10.0) -> tuple[int, str]:
 
 
 def main() -> int:
+    """Ponto de entrada do utilitário de simulação e replay de eventos."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--src", type=Path, required=True, help="pasta com os eventos")
     ap.add_argument("--url", help="URL de ingestao (obrigatoria sem --dry-run)")

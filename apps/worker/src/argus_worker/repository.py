@@ -36,9 +36,15 @@ class ItemTooLarge(ValueError):
 def _sanitize(value: Any) -> Any:
     """Deixa o valor no formato que o DynamoDB aceita.
 
-    float vira Decimal (o DynamoDB nao tem float), via str para nao arrastar o
-    residuo binario de IEEE-754: Decimal(0.1) e 0.1000000000000000055..., ja
-    Decimal("0.1") e exatamente 0.1.
+    float vira Decimal (o DynamoDB não tem float), via str para não arrastar o
+    resíduo binário de IEEE-754: Decimal(0.1) é 0.1000000000000000055..., já
+    Decimal("0.1") é exatamente 0.1.
+
+    Args:
+        value (Any): Valor a ser sanitizado, de qualquer profundidade.
+
+    Returns:
+        Any: Valor equivalente com os floats convertidos em Decimal.
     """
     if isinstance(value, float):
         if value != value or value in (float("inf"), float("-inf")):
@@ -54,6 +60,14 @@ def _sanitize(value: Any) -> Any:
 
 
 def _estimate_bytes(item: dict[str, Any]) -> int:
+    """Estima o tamanho aproximado em bytes de um item para o DynamoDB.
+
+    Args:
+        item (dict[str, Any]): Dicionário com os atributos do item.
+
+    Returns:
+        int: Estimativa em bytes.
+    """
     total = 0
     for key, value in item.items():
         total += len(str(key).encode("utf-8"))
@@ -62,7 +76,14 @@ def _estimate_bytes(item: dict[str, Any]) -> int:
 
 
 def serialize(item: dict[str, Any]) -> dict[str, Any]:
-    """Item Python -> mapa de AttributeValue."""
+    """Converte um item Python no formato de mapa de AttributeValue do Boto3.
+
+    Args:
+        item (dict[str, Any]): Item bruto.
+
+    Returns:
+        dict[str, Any]: Mapa de AttributeValue serializado.
+    """
     return {k: _SERIALIZER.serialize(_sanitize(v)) for k, v in item.items()}
 
 
@@ -73,6 +94,12 @@ def check_size(item: dict[str, Any]) -> None:
     passar por mais que tentemos, entao ele precisa ser desviado para a DLQ na
     entrada -- se entrasse no lote, derrubaria os outros 24 itens junto e o
     redrive repetiria a falha para sempre.
+
+    Args:
+        item (dict[str, Any]): Item a ser inspecionado.
+
+    Raises:
+        ItemTooLarge: Se o tamanho estimado exceder o limite seguro.
     """
     size = _estimate_bytes(item)
     if size > MAX_ITEM_BYTES:
@@ -85,6 +112,14 @@ class EventRepository:
     """Grava eventos no DynamoDB, reportando quais itens ficaram para tras."""
 
     def __init__(self, client, table_name: str, max_retries: int = 5) -> None:
+        """Inicializa o repositório do worker.
+
+        Args:
+            client: Cliente Boto3 para DynamoDB.
+            table_name (str): Nome da tabela no DynamoDB.
+            max_retries (int, optional): Número máximo de tentativas de reenvio
+                para itens não processados.
+        """
         self._client = client
         self._table = table_name
         self._max_retries = max_retries
@@ -95,6 +130,12 @@ class EventRepository:
         Conjunto vazio significa que tudo entrou. As chaves devolvidas fazem o
         chamador segurar o delete da mensagem no SQS, para que o redrive tente
         de novo.
+
+        Args:
+            items (list[dict[str, Any]]): Lista de itens a serem gravados.
+
+        Returns:
+            set[str]: Conjunto de chaves dos itens que falharam.
         """
         failed: set[str] = set()
         for chunk in _chunks(_dedupe(items), DYNAMO_MAX_BATCH):
@@ -102,6 +143,14 @@ class EventRepository:
         return failed
 
     def _write_chunk(self, chunk: list[dict[str, Any]]) -> set[str]:
+        """Escreve um lote de até 25 itens utilizando a API BatchWriteItem.
+
+        Args:
+            chunk (list[dict[str, Any]]): Lista contendo até 25 itens.
+
+        Returns:
+            set[str]: Chaves dos itens não processados no lote.
+        """
         by_key: dict[str, dict[str, Any]] = {}
         requests: list[dict[str, Any]] = []
 
@@ -164,6 +213,14 @@ _RETRYABLE_CODES = frozenset(
 
 
 def _item_key(item: dict[str, Any]) -> str:
+    """Extrai a chave identificadora no formato 'pk|sk' de um item.
+
+    Args:
+        item (dict[str, Any]): Dicionário com os atributos do item.
+
+    Returns:
+        str: String da chave combinada.
+    """
     return f"{item.get('pk')}|{item.get('sk')}"
 
 
@@ -179,6 +236,12 @@ def _dedupe(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     Manter a ultima e seguro porque chave igual significa conteudo igual: as
     duas versoes so diferem em `ingested_at`.
+
+    Args:
+        items (list[dict[str, Any]]): Lista de itens.
+
+    Returns:
+        list[dict[str, Any]]: Lista sem itens com chaves duplicadas.
     """
     unique: dict[str, dict[str, Any]] = {}
     for item in items:
@@ -187,11 +250,24 @@ def _dedupe(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _sleep_backoff(attempt: int) -> None:
-    """Backoff exponencial com jitter total, para nao sincronizar as tasks."""
+    """Backoff exponencial com jitter total, para não sincronizar as tasks.
+
+    Args:
+        attempt (int): Número da tentativa atual, base do crescimento exponencial.
+    """
     delay = min(2**attempt * 0.05, 2.0)
     time.sleep(random.uniform(0, delay))
 
 
 def _chunks(items: list[Any], size: int) -> Iterable[list[Any]]:
+    """Divide uma lista em pedaços (chunks) de tamanho fixo.
+
+    Args:
+        items (list[Any]): Lista de itens.
+        size (int): Tamanho de cada sub-lote.
+
+    Yields:
+        Iterable[list[Any]]: Sub-listas com até `size` elementos.
+    """
     for start in range(0, len(items), size):
         yield items[start : start + size]

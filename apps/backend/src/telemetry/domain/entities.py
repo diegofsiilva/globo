@@ -1,3 +1,5 @@
+"""Entidades de domínio da aplicação de telemetria."""
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any

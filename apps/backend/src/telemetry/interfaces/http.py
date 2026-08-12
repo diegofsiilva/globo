@@ -29,6 +29,7 @@ health = Blueprint("health", __name__)
 
 @health.get("/")
 def index():
+    """Endpoint raiz da API fornecendo informações básicas e lista de rotas principais."""
     return jsonify(
         {
             "service": "telemetry-read-api",
@@ -53,39 +54,44 @@ def index():
 
 @health.get("/favicon.ico")
 def favicon():
+    """Endpoint de favicon para requisições do navegador (retorna 204 No Content)."""
     return "", 204
 
 
 @health.get("/openapi.json")
 def openapi_spec():
-    """Especificacao da API. O campo `servers` vem do host desta requisicao."""
+    """Especificação OpenAPI 3.1 da API. O campo `servers` vem do host desta requisição."""
     return jsonify(build_spec())
 
 
 @health.get("/docs")
 def swagger_ui():
-    """Swagger UI apontando para /openapi.json."""
+    """Serve a interface gráfica do Swagger UI, apontando para /openapi.json."""
     return Response(SWAGGER_UI, mimetype="text/html")
 
 
 @api.get("/events")
 def search_events():
+    """Endpoint para busca paginada de eventos de telemetria com filtros cumulativos."""
     return jsonify(SearchEvents(repository()).execute(filters_from_query()))
 
 
 @api.get("/sessions/<session_id>")
 def session_timeline(session_id: str):
+    """Endpoint para obtenção da linha do tempo completa de eventos de uma determinada sessão."""
     limit = parse_int("limit", default=200, minimum=1, maximum=1000)
     return jsonify(GetSessionTimeline(repository()).execute(session_id, limit))
 
 
 @api.get("/sessions/<session_id>/events/<event_id>")
 def event_detail(session_id: str, event_id: str):
+    """Endpoint para consultar os detalhes de um evento específico por ID de sessão e evento."""
     return jsonify(GetEvent(repository()).execute(session_id, event_id))
 
 
 @api.get("/devices/<device_id>")
 def device_history(device_id: str):
+    """Endpoint para buscar o histórico de eventos de um dispositivo específico."""
     filters = filters_from_query()
     values = {field: getattr(filters, field) for field in filters.__slots__}
     values["device_id"] = device_id
@@ -94,6 +100,7 @@ def device_history(device_id: str):
 
 @api.get("/metrics/breakdown")
 def breakdown():
+    """Endpoint de agrupamento métrico de eventos por uma dimensão específica."""
     dimension = request.args.get("dimension")
     if not dimension:
         raise ValidationError("parametro 'dimension' e obrigatorio", field="dimension")
@@ -103,6 +110,7 @@ def breakdown():
 
 @api.get("/metrics/timeseries")
 def timeseries():
+    """Endpoint para obtenção da série temporal de volume de eventos e comparações temporais."""
     interval = parse_int("interval", default=60, minimum=1, maximum=1440)
     compare = request.args.get("compare", "").lower() in {"1", "true", "yes"}
     return jsonify(GetTimeseries(repository()).execute(filters_from_query(), interval, compare))
@@ -110,6 +118,7 @@ def timeseries():
 
 @api.get("/facets")
 def facets():
+    """Endpoint para consultar as opções e valores existentes de filtros facetados."""
     fields = request.args.getlist("field") or [
         "event_name",
         "app_env",
@@ -123,11 +132,13 @@ def facets():
 
 @health.get("/health/live")
 def liveness():
+    """Endpoint de verificação de liveness da aplicação para a infraestrutura de orquestração."""
     return jsonify({"status": "ok"})
 
 
 @health.get("/health/ready")
 def readiness():
+    """Endpoint de verificação de readiness checando a conexão com o repositório."""
     ready = repository().ping()
     return jsonify({"status": "ok" if ready else "unavailable"}), 200 if ready else 503
 
@@ -138,6 +149,11 @@ def readiness():
 
 
 def filters_from_query() -> EventFilters:
+    """Extrai e constrói um objeto EventFilters a partir dos parâmetros da Query String HTTP.
+
+    Returns:
+        EventFilters: Objeto contendo os filtros parseados.
+    """
     return EventFilters(
         session_id=request.args.get("session_id"),
         device_id=request.args.get("device_id"),
@@ -158,6 +174,17 @@ def filters_from_query() -> EventFilters:
 
 
 def parse_datetime(name: str) -> datetime | None:
+    """Extrai e valida um parâmetro de data/hora ISO 8601 da query string.
+
+    Args:
+        name (str): Nome do parâmetro de busca.
+
+    Returns:
+        datetime | None: Data/hora em datetime UTC ou None.
+
+    Raises:
+        ValidationError: Se o parâmetro contiver formato inválido.
+    """
     value = request.args.get(name)
     if not value:
         return None
@@ -168,6 +195,20 @@ def parse_datetime(name: str) -> datetime | None:
 
 
 def parse_int(name: str, *, default: int, minimum: int, maximum: int) -> int:
+    """Extrai e valida um parâmetro numérico inteiro dentro de um intervalo.
+
+    Args:
+        name (str): Nome do parâmetro na query string.
+        default (int): Valor padrão caso ausente.
+        minimum (int): Limite mínimo aceitável.
+        maximum (int): Limite máximo aceitável.
+
+    Returns:
+        int: Valor numérico inteiro validado.
+
+    Raises:
+        ValidationError: Se o parâmetro não for inteiro ou estiver fora da faixa permitida.
+    """
     value = request.args.get(name)
     if value is None:
         return default
@@ -183,4 +224,9 @@ def parse_int(name: str, *, default: int, minimum: int, maximum: int) -> int:
 
 
 def repository() -> Any:
+    """Obtém a instância atual do repositório de eventos vinculada à extensão do Flask.
+
+    Returns:
+        Any: Instância do repositório de eventos.
+    """
     return current_app.extensions["event_repository"]

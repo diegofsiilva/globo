@@ -17,10 +17,20 @@ CELLS: list[tuple[str, str]] = []
 
 
 def md(text: str) -> None:
+    """Adiciona uma célula Markdown ao acervo do notebook.
+
+    Args:
+        text (str): Conteúdo de texto formatado em Markdown.
+    """
     CELLS.append(("md", text.strip("\n")))
 
 
 def code(src: str) -> None:
+    """Adiciona uma célula de código Python ao acervo do notebook.
+
+    Args:
+        src (str): Código fonte Python.
+    """
     CELLS.append(("code", src.strip("\n")))
 
 
@@ -2828,6 +2838,11 @@ jupyter nbconvert --execute --inplace notebooks/eda_argus.ipynb
 
 
 def build(out: Path) -> None:
+    """Monta o notebook a partir das células acumuladas e grava em disco.
+
+    Args:
+        out (Path): Caminho do arquivo .ipynb a ser escrito.
+    """
     nb = nbf.v4.new_notebook()
     nb.cells = [
         nbf.v4.new_markdown_cell(src) if kind == "md" else nbf.v4.new_code_cell(src)

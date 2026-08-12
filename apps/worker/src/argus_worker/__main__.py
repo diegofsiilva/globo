@@ -18,6 +18,14 @@ from .repository import EventRepository
 
 
 def build_boto_config(config: Config) -> BotoConfig:
+    """Cria a configuração BotoConfig para os clientes AWS SQS e DynamoDB.
+
+    Args:
+        config (Config): Objeto de configurações do worker.
+
+    Returns:
+        BotoConfig: Instância da configuração BotoConfig.
+    """
     return BotoConfig(
         region_name=config.region,
         # O retry adaptativo do botocore ja respeita o throttle do servico; o
@@ -32,6 +40,11 @@ def build_boto_config(config: Config) -> BotoConfig:
 
 
 def main() -> int:
+    """Ponto de entrada de execução da aplicação worker.
+
+    Returns:
+        int: Código de retorno (0 para sucesso, 1 para falha).
+    """
     try:
         config = Config.from_env()
     except (RuntimeError, ValueError) as exc:
