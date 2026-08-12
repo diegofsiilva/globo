@@ -1,0 +1,13 @@
+# Dump bruto cedido pelo parceiro — 4 GB, nao redistribuir (DATASET.md §11)
+argus_dump.sql
+
+# Artefatos gerados por tools/etl_dump.py a partir do dump
+data/parquet/
+
+# Ambiente Python
+.venv/
+__pycache__/
+*.pyc
+
+# Checkpoints do Jupyter
+.ipynb_checkpoints/
