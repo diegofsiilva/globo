@@ -12,16 +12,28 @@ def test_readiness(client):
     assert response.json == {"status": "ok"}
 
 
-def test_root_describes_running_api(client):
+def test_root_describes_the_read_api(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert response.json["service"] == "telemetry-backend"
+    assert response.json["service"] == "telemetry-read-api"
     assert response.json["status"] == "ok"
-    assert response.json["endpoints"]["create"] == "POST /api/v1/events"
+    assert "search" in response.json["endpoints"]
 
 
-def test_favicon_does_not_generate_not_found(client):
-    response = client.get("/favicon.ico")
+def test_root_avisa_que_ingestao_nao_passa_por_aqui(client):
+    """A entrada de eventos e o API Gateway; deixar isso explicito evita que
+    alguem tente publicar evento nesta API e perca tempo."""
+    response = client.get("/")
 
-    assert response.status_code == 204
+    assert "ingestao" in response.json["notes"].lower()
+    assert "create" not in response.json["endpoints"]
+
+
+def test_cors_liberado_para_o_dashboard(client):
+    """A dashboard e um site estatico em outra origem (Next com output:
+    export); sem estes cabecalhos o navegador bloqueia a chamada."""
+    response = client.get("/api/v1/events")
+
+    assert response.headers["Access-Control-Allow-Origin"] == "*"
+    assert "GET" in response.headers["Access-Control-Allow-Methods"]
