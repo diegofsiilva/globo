@@ -26,6 +26,10 @@ docker compose -f apps/backend/compose.yaml up --build
 A API estará disponível em `http://localhost:5000`. O Compose inicia PostgreSQL,
 aguarda o banco ficar saudável e então inicia a aplicação.
 
+Ao abrir `http://127.0.0.1:5000/` no navegador, a API retorna seu estado e a lista
+de endpoints disponíveis. Como este repositório contém somente o backend neste
+momento, essa página é uma resposta JSON, não uma interface gráfica.
+
 ## Executar localmente
 
 É necessário Python 3.12 ou superior. No Windows:

@@ -20,6 +20,31 @@ api = Blueprint("api", __name__, url_prefix="/api/v1")
 health = Blueprint("health", __name__)
 
 
+@health.get("/")
+def index():
+    return jsonify(
+        {
+            "service": "telemetry-backend",
+            "status": "ok",
+            "message": "API de telemetria em execucao",
+            "endpoints": {
+                "create": "POST /api/v1/events",
+                "read_all": "GET /api/v1/events",
+                "read_one": "GET /api/v1/events/{event_id}",
+                "delete": "DELETE /api/v1/events/{event_id}",
+                "facets": "GET /api/v1/events/facets",
+                "metrics": "GET /api/v1/metrics",
+                "health": "GET /health/ready",
+            },
+        }
+    )
+
+
+@health.get("/favicon.ico")
+def favicon():
+    return "", 204
+
+
 @api.post("/events")
 def ingest_events():
     payloads = parse_request_payload()
