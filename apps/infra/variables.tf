@@ -302,10 +302,10 @@ variable "read_api_package_path" {
 
     Precisa existir ANTES do plan: o Terraform calcula o hash do arquivo para
     saber se a funcao mudou. Gere com:
-      apps/backend/scripts/build_lambda.sh
+      ../backend/scripts/build_lambda.sh
   EOT
   type        = string
-  default     = "../apps/backend/dist/telemetry-read-api.zip"
+  default     = "../backend/dist/telemetry-read-api.zip"
 }
 
 variable "read_api_memory_mb" {

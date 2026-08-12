@@ -26,7 +26,7 @@ SALT = "test-salt"
 
 # As fixtures dos seis eventos reais sao as mesmas que o worker usa: uma fonte
 # de verdade so para os dois lados do pipeline.
-FIXTURES_DIR = Path(__file__).resolve().parents[3] / "worker" / "tests" / "fixtures"
+FIXTURES_DIR = Path(__file__).resolve().parents[2] / "worker" / "tests" / "fixtures"
 
 
 def _to_decimal(value: Any) -> Any:

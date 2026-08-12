@@ -15,13 +15,13 @@ __pycache__/
 # Terraform: state guarda ARN e pode guardar valor sensivel; tfvars guarda
 # config da conta. O .terraform.lock.hcl VAI versionado de proposito, e o que
 # garante a mesma versao de provider para todo mundo.
-infra/.terraform/
-infra/*.tfstate
-infra/*.tfstate.*
-infra/*.tfvars
-!infra/*.tfvars.example
-infra/backend.tf
-infra/tfplan
+apps/infra/.terraform/
+apps/infra/*.tfstate
+apps/infra/*.tfstate.*
+apps/infra/*.tfvars
+!apps/infra/*.tfvars.example
+apps/infra/backend.tf
+apps/infra/tfplan
 crash.log
 
 # Cache de ferramentas Python
@@ -31,3 +31,9 @@ crash.log
 # Pacote de deploy da Lambda, gerado por scripts/build_lambda.sh
 apps/backend/dist/
 apps/backend/instance/
+
+# Endpoints, IDs de conta e segredos. O .env.example mostra as chaves, nunca
+# os valores.
+.env
+.env.*
+!.env.example

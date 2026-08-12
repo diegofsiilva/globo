@@ -15,8 +15,8 @@ fica claro que o BI renderiza em America/Sao_Paulo, entao assumimos UTC-3 e
 normalizamos para UTC. Ver EVENT_TZ.
 
 Uso:
-    python tools/events_csv_to_json.py --src ~/Downloads/Events --out worker/tests/fixtures
-    python tools/events_csv_to_json.py --src ~/Downloads/Events --stdout
+    python apps/tools/events_csv_to_json.py --src ~/Downloads/Events --out apps/worker/tests/fixtures
+    python apps/tools/events_csv_to_json.py --src ~/Downloads/Events --stdout
 """
 
 from __future__ import annotations

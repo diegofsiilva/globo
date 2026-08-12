@@ -347,7 +347,7 @@ def test_formato_do_item_espelha_o_worker(sample_events):
     import sys
     from pathlib import Path
 
-    worker_src = Path(__file__).resolve().parents[3] / "worker" / "src"
+    worker_src = Path(__file__).resolve().parents[2] / "worker" / "src"
     if str(worker_src) not in sys.path:
         sys.path.insert(0, str(worker_src))
 

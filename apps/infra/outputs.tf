@@ -55,7 +55,7 @@ output "docker_push_commands" {
       | docker login --username AWS --password-stdin ${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com
 
     docker build --platform linux/${lower(var.worker_cpu_architecture) == "arm64" ? "arm64" : "amd64"} \
-      -t ${aws_ecr_repository.worker.repository_url}:${var.worker_image_tag} worker/
+      -t ${aws_ecr_repository.worker.repository_url}:${var.worker_image_tag} ../worker/
 
     docker push ${aws_ecr_repository.worker.repository_url}:${var.worker_image_tag}
 
