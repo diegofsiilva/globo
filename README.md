@@ -1,14 +1,16 @@
+# Inteli - Instituto de Tecnologia e Liderança
+
 <p align="center">
-  <img src="assets/inteli-logo.png" alt="Inteli" width="180"/>
+  <img src="assets/inteli-logo.png" alt="Inteli" width="260"/>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="assets/grupoglobo.png" alt="Grupo Globo" width="180"/>
+  <img src="assets/grupoglobo.png" alt="Grupo Globo" width="260"/>
 </p>
 
-# _[Nome do Projeto]_
+## G04 - Vale a Pena Ver de Novo
 
 **Sistema distribuído de telemetria para diagnóstico de degradação de streaming**
 
-**Grupo 04** — Turma T15 · 2026-2A · Parceiro: **Grupo Globo**
+Turma T15 · 2026-2A · Parceiro: **Grupo Globo**
 
 ### Integrantes
 
