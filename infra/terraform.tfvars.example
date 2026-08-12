@@ -1,0 +1,36 @@
+# Copie para terraform.tfvars e ajuste. terraform.tfvars esta no .gitignore.
+
+region      = "us-east-1"
+environment = "dev"
+
+# --- Rede -------------------------------------------------------------------
+# Vazio usa a VPC/subnets default da conta.
+# vpc_id     = "vpc-0123456789abcdef0"
+# subnet_ids = ["subnet-aaa", "subnet-bbb"]
+
+# true = subnet publica com IP publico, sem NAT Gateway (economiza ~US$ 32/mes).
+# false exige subnet privada com NAT ou VPC endpoints -- ver infra/README.md.
+assign_public_ip = true
+
+# --- DynamoDB ---------------------------------------------------------------
+retention_days = 90
+
+# Shards da GSI1. Precisa ser IGUAL ao GSI1_SHARDS do worker.
+# 1 em dev facilita a leitura; 10+ em producao evita particao quente.
+gsi1_shards = 10
+
+# --- Worker -----------------------------------------------------------------
+worker_desired_count = 1
+worker_cpu           = 256
+worker_memory        = 512
+
+# Aponte para o SHA do commit em vez de "latest" para deploy rastreavel.
+# worker_image_tag = "sha-abc1234"
+
+# --- Alarmes ----------------------------------------------------------------
+# Sem e-mail, o topico SNS e criado mas ninguem e avisado.
+# alarm_email = "voce@exemplo.com"
+
+# --- Producao ---------------------------------------------------------------
+# api_cors_allow_origins = ["https://seu-dominio.com.br"]
+# container_insights     = "enabled"
