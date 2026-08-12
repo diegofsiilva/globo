@@ -6,7 +6,7 @@ Terraform do fluxo `API Gateway → SQS → ECS Fargate → DynamoDB`.
 > profile `g4`, us-east-1). Ver [§ AWS Academy](#aws-academy--learner-lab) para
 > as adaptações que esse ambiente exige.
 
-O desenho e os porquês estão em [`../artefatos/arquitetura_ingestao.md`](../artefatos/arquitetura_ingestao.md).
+O desenho e os porquês estão em [`artefatos/arquitetura.md`](../../artefatos/arquitetura.md).
 
 ---
 
