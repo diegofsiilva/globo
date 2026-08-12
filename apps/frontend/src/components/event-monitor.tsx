@@ -18,6 +18,8 @@ type SimulatedEvent = {
   technicalDetail: string;
   userEffect: string;
   displayedMessage: string;
+  source: string;
+  processingStatus: "Processado" | "Recebido" | "Erro no processamento";
 };
 
 // Dados simulados a partir dos seis CSVs fornecidos. Identificadores pessoais,
@@ -38,6 +40,8 @@ const events: SimulatedEvent[] = [
     technicalDetail: "dash_shaka_playback:6_6002",
     userEffect: "O usuário tentou assistir a um vídeo, mas a reprodução falhou.",
     displayedMessage: "Para assistir, tente carregar novamente",
+    source: "Loader · dataset histórico",
+    processingStatus: "Processado",
   },
   {
     id: "evt-request-samsung",
@@ -55,6 +59,8 @@ const events: SimulatedEvent[] = [
     technicalDetail: "GET · HTTP 200 OK",
     userEffect: "Nenhum problema explícito foi identificado nesta requisição.",
     displayedMessage: "A requisição foi concluída com sucesso",
+    source: "Loader · dataset histórico",
+    processingStatus: "Processado",
   },
   {
     id: "evt-screen-panasonic",
@@ -72,6 +78,8 @@ const events: SimulatedEvent[] = [
     technicalDetail: "screen_view · live",
     userEffect: "O usuário acessou uma tela de conteúdo ao vivo.",
     displayedMessage: "Nenhuma mensagem de erro foi registrada",
+    source: "Loader · dataset histórico",
+    processingStatus: "Processado",
   },
   {
     id: "evt-session-panasonic",
@@ -89,6 +97,8 @@ const events: SimulatedEvent[] = [
     technicalDetail: "session:start · 1280×720",
     userEffect: "Uma sessão do aplicativo foi iniciada no dispositivo.",
     displayedMessage: "Nenhuma mensagem de erro foi registrada",
+    source: "Loader · dataset histórico",
+    processingStatus: "Processado",
   },
   {
     id: "evt-video-tcl",
@@ -106,6 +116,8 @@ const events: SimulatedEvent[] = [
     technicalDetail: "video_view:open · live · ads",
     userEffect: "O usuário abriu um conteúdo ao vivo.",
     displayedMessage: "Nenhuma mensagem de erro foi registrada",
+    source: "Loader · dataset histórico",
+    processingStatus: "Processado",
   },
   {
     id: "evt-vitals-lg",
@@ -123,6 +135,8 @@ const events: SimulatedEvent[] = [
     technicalDetail: "vitals:frozen",
     userEffect: "O usuário pode ter percebido travamento ou falta de resposta do aplicativo.",
     displayedMessage: "O aplicativo deixou de responder temporariamente",
+    source: "Loader · dataset histórico",
+    processingStatus: "Processado",
   },
 ];
 
@@ -135,12 +149,59 @@ const prioritizedEvents = [...events].sort((eventA, eventB) => {
 });
 
 export function EventMonitor() {
+  const [statusFilter, setStatusFilter] = useState<"all" | "attention" | "normal">("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [selectedId, setSelectedId] = useState(prioritizedEvents[0].id);
-  const selected = prioritizedEvents.find((event) => event.id === selectedId) ?? prioritizedEvents[0];
+  const eventTypes = [...new Set(events.map((event) => event.eventName.split(" · ")[0]))];
+  const filteredEvents = prioritizedEvents.filter((event) => {
+    const matchesStatus = statusFilter === "all" || event.status === statusFilter;
+    const matchesType = typeFilter === "all" || event.eventName.startsWith(typeFilter);
+    return matchesStatus && matchesType;
+  });
+  const selected = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0] ?? prioritizedEvents[0];
   const needsAttention = selected.status === "attention";
+  const attentionCount = events.filter((event) => event.status === "attention").length;
+  const normalizedPayload = {
+    event_id: selected.id,
+    event_name: selected.eventName.split(" · ")[0],
+    occurred_at: `2026-07-13T${selected.time}-03:00`,
+    source: "loader",
+    processing_status: selected.processingStatus.toLowerCase(),
+    device: {
+      manufacturer: selected.manufacturer,
+      model: selected.model,
+      model_year: selected.modelYear,
+      platform: selected.platform,
+    },
+    app_version: selected.version,
+    route: selected.route,
+    classification: selected.classification,
+  };
 
   return (
-    <section className="monitor" aria-label="Eventos recebidos">
+    <section aria-label="Eventos recebidos">
+      <div className="monitor-toolbar">
+        <div className="event-counters">
+          <strong>{events.length} processados</strong>
+          <span>{attentionCount} requerem atenção</span>
+          <span>Última atualização: 20:06:10</span>
+        </div>
+        <div className="event-filters" aria-label="Filtros de eventos">
+          <div className="status-filter">
+            {(["all", "attention", "normal"] as const).map((filter) => (
+              <button key={filter} type="button" aria-pressed={statusFilter === filter} onClick={() => setStatusFilter(filter)}>
+                {filter === "all" ? "Todos" : filter === "attention" ? "Requer atenção" : "Normais"}
+              </button>
+            ))}
+          </div>
+          <select aria-label="Filtrar por tipo de evento" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+            <option value="all">Todos os tipos</option>
+            {eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="monitor">
       <div className="events-panel">
         <div className="panel-heading">
           <div>
@@ -151,7 +212,7 @@ export function EventMonitor() {
         </div>
 
         <div className="events-list">
-          {prioritizedEvents.map((event) => (
+          {filteredEvents.map((event) => (
             <button
               type="button"
               key={event.id}
@@ -169,6 +230,7 @@ export function EventMonitor() {
               </span>
             </button>
           ))}
+          {filteredEvents.length === 0 && <p className="empty-list">Nenhum evento corresponde aos filtros.</p>}
         </div>
       </div>
 
@@ -203,6 +265,12 @@ export function EventMonitor() {
           <div><span>Detalhe técnico</span><code>{selected.technicalDetail}</code></div>
         </div>
 
+        <div className="operational-grid">
+          <div><span>Origem</span><strong>{selected.source}</strong></div>
+          <div><span>ID técnico</span><code>{selected.id}</code></div>
+          <div><span>Horário de ocorrência</span><strong>13 jul. 2026 · {selected.time}</strong></div>
+        </div>
+
         {needsAttention && (
           <div className="analysis-notice">
             <div>
@@ -211,7 +279,13 @@ export function EventMonitor() {
             </div>
           </div>
         )}
+
+        <details className="payload-details">
+          <summary>Ver payload normalizado</summary>
+          <pre>{JSON.stringify(normalizedPayload, null, 2)}</pre>
+        </details>
       </article>
+      </div>
     </section>
   );
 }
