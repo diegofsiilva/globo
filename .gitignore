@@ -11,3 +11,19 @@ __pycache__/
 
 # Checkpoints do Jupyter
 .ipynb_checkpoints/
+
+# Terraform: state guarda ARN e pode guardar valor sensivel; tfvars guarda
+# config da conta. O .terraform.lock.hcl VAI versionado de proposito, e o que
+# garante a mesma versao de provider para todo mundo.
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfvars
+!infra/*.tfvars.example
+infra/backend.tf
+infra/tfplan
+crash.log
+
+# Cache de ferramentas Python
+.pytest_cache/
+.ruff_cache/
