@@ -5,7 +5,11 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import BadRequest, HTTPException, RequestEntityTooLarge
 
 from telemetry.config import Config
-from telemetry.domain.exceptions import UnsupportedMediaTypeError, ValidationError
+from telemetry.domain.exceptions import (
+    EventNotFoundError,
+    UnsupportedMediaTypeError,
+    ValidationError,
+)
 from telemetry.infrastructure.database import build_repository
 from telemetry.interfaces.http import api, health
 
@@ -34,6 +38,10 @@ def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(UnsupportedMediaTypeError)
     def handle_media_type(error: UnsupportedMediaTypeError):
         return problem(415, "Unsupported media type", str(error))
+
+    @app.errorhandler(EventNotFoundError)
+    def handle_not_found(error: EventNotFoundError):
+        return problem(404, "Event not found", str(error))
 
     @app.errorhandler(BadRequest)
     def handle_bad_request(error: BadRequest):

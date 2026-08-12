@@ -2,9 +2,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from telemetry.application.normalization import normalize_event
-from telemetry.domain.exceptions import ValidationError
+from telemetry.domain.exceptions import EventNotFoundError, ValidationError
 from telemetry.ports.event_repository import EventFilters, EventRepository
 
 
@@ -69,6 +70,26 @@ class SearchEvents:
                 "total": result.total,
             },
         }
+
+
+class GetEvent:
+    def __init__(self, repository: EventRepository) -> None:
+        self.repository = repository
+
+    def execute(self, event_id: UUID) -> dict[str, Any]:
+        event = self.repository.get(event_id)
+        if event is None:
+            raise EventNotFoundError(f"Evento {event_id} nao encontrado")
+        return serialize_event(event)
+
+
+class DeleteEvent:
+    def __init__(self, repository: EventRepository) -> None:
+        self.repository = repository
+
+    def execute(self, event_id: UUID) -> None:
+        if not self.repository.delete(event_id):
+            raise EventNotFoundError(f"Evento {event_id} nao encontrado")
 
 
 class GetMetrics:

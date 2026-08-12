@@ -6,7 +6,13 @@ from typing import Any
 
 from flask import Blueprint, current_app, jsonify, request
 
-from telemetry.application.use_cases import GetMetrics, IngestEvents, SearchEvents
+from telemetry.application.use_cases import (
+    DeleteEvent,
+    GetEvent,
+    GetMetrics,
+    IngestEvents,
+    SearchEvents,
+)
 from telemetry.domain.exceptions import UnsupportedMediaTypeError, ValidationError
 from telemetry.ports.event_repository import EventFilters
 
@@ -39,6 +45,17 @@ def ingest_events():
 @api.get("/events")
 def search_events():
     return jsonify(SearchEvents(repository()).execute(filters_from_query()))
+
+
+@api.get("/events/<uuid:event_id>")
+def get_event(event_id):
+    return jsonify(GetEvent(repository()).execute(event_id))
+
+
+@api.delete("/events/<uuid:event_id>")
+def delete_event(event_id):
+    DeleteEvent(repository()).execute(event_id)
+    return "", 204
 
 
 @api.get("/metrics")

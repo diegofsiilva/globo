@@ -1,7 +1,7 @@
 services:
   api:
     build:
-      context: ./backend
+      context: .
     environment:
       DATABASE_URL: postgresql+psycopg://telemetry:telemetry@database:5432/telemetry
       USER_ID_HASH_SALT: ${USER_ID_HASH_SALT:-local-compose-only}

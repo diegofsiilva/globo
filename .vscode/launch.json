@@ -7,9 +7,9 @@
       "request": "launch",
       "module": "flask",
       "args": ["--app", "telemetry:create_app", "run", "--debug"],
-      "cwd": "${workspaceFolder}/backend",
+      "cwd": "${workspaceFolder}/apps/backend",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/backend/src"
+        "PYTHONPATH": "${workspaceFolder}/apps/backend/src"
       },
       "preLaunchTask": "Backend: instalar dependencias"
     }

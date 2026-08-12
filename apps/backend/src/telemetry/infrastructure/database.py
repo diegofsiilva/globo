@@ -91,6 +91,19 @@ class SqlAlchemyEventRepository:
             items = [self._to_entity(model) for model in session.scalars(statement)]
         return EventPage(items=items, total=total, page=filters.page, page_size=filters.page_size)
 
+    def get(self, event_id: UUID) -> TelemetryEvent | None:
+        with self.session_factory() as session:
+            model = session.get(EventModel, str(event_id))
+            return self._to_entity(model) if model is not None else None
+
+    def delete(self, event_id: UUID) -> bool:
+        with self.session_factory.begin() as session:
+            model = session.get(EventModel, str(event_id))
+            if model is None:
+                return False
+            session.delete(model)
+            return True
+
     def metrics(self, filters: EventFilters) -> Sequence[EventMetric]:
         statement = (
             select(

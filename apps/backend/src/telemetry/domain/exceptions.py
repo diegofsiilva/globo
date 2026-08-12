@@ -10,3 +10,7 @@ class ValidationError(TelemetryError):
 
 class UnsupportedMediaTypeError(TelemetryError):
     pass
+
+
+class EventNotFoundError(TelemetryError):
+    pass

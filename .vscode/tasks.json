@@ -6,7 +6,7 @@
       "type": "shell",
       "command": "python -m pip install -e .[dev]",
       "options": {
-        "cwd": "${workspaceFolder}/backend"
+        "cwd": "${workspaceFolder}/apps/backend"
       },
       "problemMatcher": []
     },
@@ -15,9 +15,9 @@
       "type": "shell",
       "command": "python -m pytest",
       "options": {
-        "cwd": "${workspaceFolder}/backend",
+        "cwd": "${workspaceFolder}/apps/backend",
         "env": {
-          "PYTHONPATH": "${workspaceFolder}/backend/src"
+          "PYTHONPATH": "${workspaceFolder}/apps/backend/src"
         }
       },
       "group": "test",

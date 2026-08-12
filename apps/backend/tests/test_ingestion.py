@@ -114,3 +114,30 @@ def test_rejects_empty_csv(client):
     response = client.post("/api/v1/events", data="Timestamp,Event Name\n", content_type="text/csv")
 
     assert response.status_code == 422
+
+
+def test_reads_and_deletes_event_by_id(client):
+    event_id = "63811f26-0249-4f34-936a-b79e6d9cf857"
+    client.post("/api/v1/events", json=valid_event(event_id=event_id))
+
+    read = client.get(f"/api/v1/events/{event_id}")
+    deleted = client.delete(f"/api/v1/events/{event_id}")
+    read_after_delete = client.get(f"/api/v1/events/{event_id}")
+
+    assert read.status_code == 200
+    assert read.json["event_id"] == event_id
+    assert deleted.status_code == 204
+    assert read_after_delete.status_code == 404
+
+
+def test_delete_returns_not_found_for_unknown_event(client):
+    response = client.delete("/api/v1/events/63811f26-0249-4f34-936a-b79e6d9cf857")
+
+    assert response.status_code == 404
+
+
+def test_update_methods_are_not_available(client):
+    event_id = "63811f26-0249-4f34-936a-b79e6d9cf857"
+
+    assert client.put(f"/api/v1/events/{event_id}", json=valid_event()).status_code == 405
+    assert client.patch(f"/api/v1/events/{event_id}", json={"app_env": "test"}).status_code == 405

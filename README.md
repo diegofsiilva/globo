@@ -20,7 +20,7 @@ telemetria de TVs, aplicações web e dispositivos móveis.
 Requer Docker com Compose:
 
 ```bash
-docker compose up --build
+docker compose -f apps/backend/compose.yaml up --build
 ```
 
 A API estará disponível em `http://localhost:5000`. O Compose inicia PostgreSQL,
@@ -31,20 +31,21 @@ aguarda o banco ficar saudável e então inicia a aplicação.
 É necessário Python 3.12 ou superior. No Windows:
 
 ```powershell
-.\backend\scripts\dev.ps1
+.\apps\backend\scripts\dev.ps1
 ```
 
 Em Linux, macOS ou Codespaces:
 
 ```bash
-sh ./backend/scripts/dev.sh
+sh ./apps/backend/scripts/dev.sh
 ```
 
 O script cria `.venv`, instala as dependências e inicia a API com SQLite. Copie
-`backend/.env.example` para `backend/.env` se desejar personalizar a configuração.
+`apps/backend/.env.example` para `apps/backend/.env` se desejar personalizar a configuração.
 
 No VS Code, abra **Run and Debug**, selecione **Backend Flask** e clique em **Run**.
-O repositório também contém um Dev Container compatível com GitHub Codespaces.
+O Dev Container específico do serviço está em `apps/backend/.devcontainer`; abra a
+pasta `apps/backend` como workspace para utilizá-lo.
 
 ## Exemplos da API
 
@@ -61,6 +62,15 @@ curl -X POST http://localhost:5000/api/v1/events \
     "device_os": "Tizen"
   }'
 ```
+
+Ler ou excluir um evento pelo identificador:
+
+```bash
+curl "http://localhost:5000/api/v1/events/63811f26-0249-4f34-936a-b79e6d9cf857"
+curl -X DELETE "http://localhost:5000/api/v1/events/63811f26-0249-4f34-936a-b79e6d9cf857"
+```
+
+O MVP expõe somente criação, leitura e exclusão. Não há endpoints `PUT` ou `PATCH`.
 
 Consultar com filtros cumulativos:
 
@@ -120,7 +130,7 @@ factory da aplicação. As regras de negócio e os casos de uso permanecem inalt
 
 ## Qualidade
 
-Dentro de `backend`:
+Dentro de `apps/backend`:
 
 ```bash
 python -m pytest --cov=telemetry
