@@ -13,6 +13,7 @@ locals {
   apigw_role_arn          = var.create_iam_roles ? aws_iam_role.apigw_sqs[0].arn : var.existing_role_arn
   task_execution_role_arn = var.create_iam_roles ? aws_iam_role.task_execution[0].arn : var.existing_role_arn
   task_role_arn           = var.create_iam_roles ? aws_iam_role.task[0].arn : var.existing_role_arn
+  read_api_role_arn       = var.create_iam_roles ? aws_iam_role.read_api[0].arn : var.existing_role_arn
 }
 
 data "aws_caller_identity" "current" {}

@@ -291,3 +291,89 @@ variable "alarm_queue_age_seconds" {
   type        = number
   default     = 300
 }
+
+# --------------------------------------------------------------------------- #
+# API de leitura (dashboard)
+# --------------------------------------------------------------------------- #
+
+variable "read_api_package_path" {
+  description = <<-EOT
+    Caminho do zip da API de leitura.
+
+    Precisa existir ANTES do plan: o Terraform calcula o hash do arquivo para
+    saber se a funcao mudou. Gere com:
+      apps/backend/scripts/build_lambda.sh
+  EOT
+  type        = string
+  default     = "../apps/backend/dist/telemetry-read-api.zip"
+}
+
+variable "read_api_memory_mb" {
+  description = <<-EOT
+    Memoria da Lambda de leitura.
+
+    1024 e nao 512 por medicao, nao por precaucao: na Lambda a fatia de CPU e
+    proporcional a memoria, e o fan-out da GSI1 precisa de CPU para serializar
+    dezenas de respostas em paralelo. Medido contra a tabela real, a busca por
+    tipo caiu de ~2,8s (512 MB) para ~1,5s (1024 MB) -- a diferenca entre
+    raspar no teto de 3s do RNF02 e ter folga. O custo a mais e desprezivel no
+    volume de um dashboard.
+  EOT
+  type        = number
+  default     = 1024
+}
+
+variable "read_api_timeout_seconds" {
+  description = "Timeout da Lambda. Acima do teto de 3s do RNF02, com folga para cold start."
+  type        = number
+  default     = 30
+}
+
+variable "read_api_default_window_hours" {
+  description = "Janela padrao das consultas sem periodo informado. Evita varrer a tabela sem querer."
+  type        = number
+  default     = 168
+}
+
+variable "read_api_max_items_scanned" {
+  description = "Teto de itens lidos numa agregacao. Protege o tempo de resposta."
+  type        = number
+  default     = 20000
+}
+
+variable "read_api_throttle_rate_limit" {
+  description = "Requisicoes por segundo da API de leitura."
+  type        = number
+  default     = 50
+}
+
+variable "read_api_throttle_burst_limit" {
+  description = "Pico instantaneo da API de leitura."
+  type        = number
+  default     = 100
+}
+
+variable "dashboard_origins" {
+  description = <<-EOT
+    Origens do dashboard aceitas no CORS.
+
+    ["*"] e aceitavel enquanto a API nao tem autenticacao e os dados sao de
+    teste. Restrinja para o dominio do dashboard antes de producao: esta API
+    serve dado, diferente da de ingestao, que so recebe.
+  EOT
+  type        = list(string)
+  default     = ["*"]
+}
+
+variable "user_id_hash_salt" {
+  description = <<-EOT
+    Salt do hash de user_id na saida da API (RNF10).
+
+    O DynamoDB guarda o identificador original porque a ingestao nao o
+    transforma; o hash acontece na leitura. Trocar o salt reembaralha tudo:
+    eventos do mesmo usuario deixam de agrupar com os antigos.
+  EOT
+  type        = string
+  default     = "trocar-em-producao"
+  sensitive   = true
+}

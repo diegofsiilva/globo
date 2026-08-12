@@ -63,3 +63,20 @@ output "docker_push_commands" {
       --service ${aws_ecs_service.worker.name} --force-new-deployment --region ${var.region}
   EOT
 }
+
+output "read_api_url" {
+  description = "URL base da API de leitura. E esta que o dashboard consome."
+  value       = aws_apigatewayv2_api.read.api_endpoint
+}
+
+output "read_api_examples" {
+  description = "Chamadas de exemplo da API de leitura."
+  value = {
+    busca    = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/events?event_name=error&limit=20"
+    sessao   = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/sessions/{session_id}"
+    aparelho = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/devices/{device_id}"
+    agrupado = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/metrics/breakdown?dimension=device_manufacturer"
+    serie    = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/metrics/timeseries?interval=60&compare=true"
+    filtros  = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/facets?field=event_name&field=app_target"
+  }
+}
