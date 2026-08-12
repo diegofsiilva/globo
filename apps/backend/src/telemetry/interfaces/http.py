@@ -9,7 +9,7 @@ permissao de DeleteItem.
 from datetime import datetime
 from typing import Any
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request
 
 from telemetry.application.use_cases import (
     GetBreakdown,
@@ -20,6 +20,7 @@ from telemetry.application.use_cases import (
     SearchEvents,
 )
 from telemetry.domain.exceptions import ValidationError
+from telemetry.interfaces.openapi import SWAGGER_UI, build_spec
 from telemetry.ports.event_repository import EventFilters
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -42,6 +43,8 @@ def index():
                 "timeseries": "GET /api/v1/metrics/timeseries?interval=60&compare=true",
                 "facets": "GET /api/v1/facets?field=event_name&field=app_target",
                 "health": "GET /health/ready",
+                "docs": "GET /docs",
+                "openapi": "GET /openapi.json",
             },
             "notes": "Ingestao nao passa por aqui: use o endpoint do API Gateway.",
         }
@@ -51,6 +54,18 @@ def index():
 @health.get("/favicon.ico")
 def favicon():
     return "", 204
+
+
+@health.get("/openapi.json")
+def openapi_spec():
+    """Especificacao da API. O campo `servers` vem do host desta requisicao."""
+    return jsonify(build_spec())
+
+
+@health.get("/docs")
+def swagger_ui():
+    """Swagger UI apontando para /openapi.json."""
+    return Response(SWAGGER_UI, mimetype="text/html")
 
 
 @api.get("/events")
