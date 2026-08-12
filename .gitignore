@@ -27,3 +27,7 @@ crash.log
 # Cache de ferramentas Python
 .pytest_cache/
 .ruff_cache/
+
+# Pacote de deploy da Lambda, gerado por scripts/build_lambda.sh
+apps/backend/dist/
+apps/backend/instance/

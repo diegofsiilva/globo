@@ -11,8 +11,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent
 SOURCE_ROOT = BACKEND_ROOT / "src"
 RUNTIME_REQUIREMENTS = (
     "Flask>=3.1,<4",
-    "SQLAlchemy>=2.0,<3",
-    "psycopg[binary]>=3.2,<4",
+    "boto3>=1.35,<2",
 )
 
 if str(SOURCE_ROOT) not in sys.path:
@@ -39,7 +38,7 @@ load_local_environment(BACKEND_ROOT / ".env")
 
 def ensure_runtime_dependencies() -> None:
     """Instala as dependencias quando o arquivo e executado em um Python limpo."""
-    required_modules = ("flask", "sqlalchemy", "psycopg")
+    required_modules = ("flask", "boto3")
     missing = [module for module in required_modules if find_spec(module) is None]
     if not missing:
         return
