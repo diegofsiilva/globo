@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="Electron" agent="claude">
+  <diagram id="usecase-req" name="Casos de Uso - Requisitos">
+    <mxGraphModel dx="2224" dy="1711" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="sys" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#333333;fontSize=15;fontStyle=1;" value="Plataforma de Monitoração Agêntica (MVP)" vertex="1">
+          <mxGeometry height="995" width="700" x="300" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc01" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Enviar evento de telemetria&lt;br&gt;(RF01, RF02, RF03, RF07)" vertex="1">
+          <mxGeometry height="70" width="250" x="340" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="uc02" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="Validar campos mínimos&lt;br&gt;do evento (RF04)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="uc03" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="Normalizar evento em&lt;br&gt;formato comum (RF05)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="uc04" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="Armazenar evento&lt;br&gt;processado (RF06)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="uc05" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Consultar eventos por&lt;br&gt;tipo, período e atributos&lt;br&gt;(RF08)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="uc08" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Agrupar eventos por&lt;br&gt;critério (RF11)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="uc09" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Visualizar dashboard de&lt;br&gt;gráficos e indicadores&lt;br&gt;(RF12)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="uc10" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Consultar falhas&lt;br&gt;críticas (RF13)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="uc13" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Investigar problema com&lt;br&gt;dados de contexto (RF16)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="740" as="geometry" />
+        </mxCell>
+        <mxCell id="uc11" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Comparar período atual&lt;br&gt;com período anterior (RF14)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="uc12" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Acompanhar picos de&lt;br&gt;erro e latência (RF15)" vertex="1">
+          <mxGeometry height="70" width="250" x="700" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="uc06" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="Aplicar filtros&lt;br&gt;cumulativos (RF09)" vertex="1">
+          <mxGeometry height="70" width="250" x="340" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="uc07" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;" value="Sugerir valores existentes&lt;br&gt;nos filtros (RF10)" vertex="1">
+          <mxGeometry height="70" width="250" x="340" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="uc14" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;" value="Consultar hipóteses de&lt;br&gt;causa raiz (RF17)" vertex="1">
+          <mxGeometry height="70" width="250" x="340" y="740" as="geometry" />
+        </mxCell>
+        <mxCell id="a_app" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=12;fontStyle=1" value="Aplicação frontend&lt;br&gt;do Globoplay" vertex="1">
+          <mxGeometry height="80" width="40" x="170" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="a_obs" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=12;fontStyle=1" value="Analista de&lt;br&gt;Suporte N2&lt;br&gt;(Mariana)" vertex="1">
+          <mxGeometry height="80" width="40" x="1270" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="a_user" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=12;fontStyle=1" value="Usuário do dashboard" vertex="1">
+          <mxGeometry height="80" width="40" x="1100" y="555" as="geometry" />
+        </mxCell>
+        <mxCell id="a_eng" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=12;fontStyle=1" value="Engenheiro de&lt;br&gt;Observabilidade&lt;br&gt;(Rafael)" vertex="1">
+          <mxGeometry height="80" width="40" x="1270" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="a_app" style="endArrow=none;html=1;rounded=0;strokeColor=#333333;" target="uc01" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="a_obs" style="endArrow=block;endFill=0;endSize=12;html=1;rounded=0;strokeColor=#333333;" target="a_user" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="a_eng" style="endArrow=block;endFill=0;endSize=12;html=1;rounded=0;strokeColor=#333333;" target="a_user" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="uc05" style="endArrow=none;html=1;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="a_user" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1005" y="415" />
+              <mxPoint x="1005" y="595" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="uc13" style="endArrow=none;html=1;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="a_user" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1005" y="775" />
+              <mxPoint x="1005" y="595" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="uc08" style="endArrow=none;html=1;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="a_user" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="505" />
+              <mxPoint x="1040" y="595" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="uc10" style="endArrow=none;html=1;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="a_user" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="685" />
+              <mxPoint x="1040" y="595" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="uc09" style="endArrow=none;html=1;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="a_user" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1075" y="595" />
+              <mxPoint x="1075" y="595" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="uc11" style="endArrow=none;html=1;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="a_eng" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1005" y="875" />
+              <mxPoint x="1005" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="uc12" style="endArrow=none;html=1;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="a_eng" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1005" y="965" />
+              <mxPoint x="1005" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="uc01" style="endArrow=open;endSize=10;dashed=1;html=1;rounded=0;strokeColor=#82b366;fontSize=10;verticalAlign=bottom;labelBackgroundColor=#ffffff;" target="uc02" value="«include»">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="uc01" style="endArrow=open;endSize=10;dashed=1;html=1;rounded=0;strokeColor=#82b366;fontSize=10;verticalAlign=bottom;labelBackgroundColor=#ffffff;" target="uc03" value="«include»">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="uc01" style="endArrow=open;endSize=10;dashed=1;html=1;rounded=0;strokeColor=#82b366;fontSize=10;verticalAlign=bottom;labelBackgroundColor=#ffffff;" target="uc04" value="«include»">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="uc05" style="endArrow=open;endSize=10;dashed=1;html=1;rounded=0;strokeColor=#82b366;fontSize=10;verticalAlign=bottom;labelBackgroundColor=#ffffff;" target="uc06" value="«include»">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="uc07" style="endArrow=open;endSize=10;dashed=1;html=1;rounded=0;strokeColor=#d79b00;fontSize=10;verticalAlign=bottom;labelBackgroundColor=#ffffff;" target="uc06" value="«extend»">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="uc14" style="endArrow=open;endSize=10;dashed=1;html=1;rounded=0;strokeColor=#d79b00;fontSize=10;verticalAlign=bottom;labelBackgroundColor=#ffffff;" target="uc13" value="«extend»">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="nota" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=14;verticalAlign=top;align=left;fontSize=11;fillColor=#ffffff;strokeColor=#999999;" value="&lt;b&gt;Legenda&lt;/b&gt;&lt;br&gt;• Azul: caso de uso iniciado por um ator&lt;br&gt;• Verde: caso de uso executado como parte de outro («include»)&lt;br&gt;• Laranja tracejado: comportamento opcional («extend») — RF10 e RF17&lt;br&gt;• RF17 depende de validação com o parceiro (possível evolução)" vertex="1">
+          <mxGeometry height="110" width="520" x="300" y="1070" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
