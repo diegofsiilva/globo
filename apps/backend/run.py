@@ -11,9 +11,23 @@ SOURCE_ROOT = BACKEND_ROOT / "src"
 if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
-from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(BACKEND_ROOT / ".env")
+def load_local_environment(path: Path) -> None:
+    """Carrega um .env simples sem exigir uma dependencia externa."""
+    if not path.is_file():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key:
+            continue
+        os.environ.setdefault(key, value.strip().strip("'\""))
+
+
+load_local_environment(BACKEND_ROOT / ".env")
 
 from telemetry import create_app  # noqa: E402
 

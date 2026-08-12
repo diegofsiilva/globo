@@ -3,8 +3,9 @@
   "tasks": [
     {
       "label": "Backend: instalar dependencias",
-      "type": "shell",
-      "command": "python -m pip install -e .[dev]",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "pip", "install", "-e", ".[dev]"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -12,8 +13,9 @@
     },
     {
       "label": "Backend: testes",
-      "type": "shell",
-      "command": "python -m pytest",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "pytest"],
       "options": {
         "cwd": "${workspaceFolder}",
         "env": {

@@ -1,4 +1,19 @@
-from run import build_app
+import os
+
+from run import build_app, load_local_environment
+
+
+def test_loads_local_environment_without_external_dependency(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "# comentario\nTEST_RUN_SETTING='valor local'\nINVALID_LINE\n",
+        encoding="utf-8",
+    )
+    os.environ.pop("TEST_RUN_SETTING", None)
+
+    load_local_environment(env_file)
+
+    assert os.environ.pop("TEST_RUN_SETTING") == "valor local"
 
 
 def test_single_entrypoint_supports_typical_create_read_delete_flow():
