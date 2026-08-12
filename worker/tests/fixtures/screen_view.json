@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-07-13T23:04:53Z",
+  "app_bucket": "S3",
+  "app_env": "production",
+  "app_target": "dom-panasonic_s-linux-unknown",
+  "app_version": "2026.3.0",
+  "device_id": "86fc2f2597b59998b4a01cd273cd0d0b9193d6ab",
+  "device_manufacturer": "Panasonic_S",
+  "device_model": "43D1200",
+  "device_model_year": "unknown",
+  "device_os": "Linux",
+  "device_os_version": "unknown",
+  "duration": 2.166,
+  "event_name": "screen_view",
+  "route_params": {},
+  "route_path": "live",
+  "session_id": "79963a65-d674-46fc-ac4c-5fad1143f47e",
+  "user_id": "65a4283b-b7ad-42a4-b787-f256b3a2ecb5"
+}
