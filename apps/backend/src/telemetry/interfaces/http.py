@@ -1,19 +1,25 @@
-import csv
-import io
-from collections.abc import Mapping
+"""Rotas HTTP da API de leitura.
+
+Somente leitura. Nao ha POST nem DELETE: a entrada de eventos e o pipeline
+API Gateway -> SQS -> worker, que ja resolve idempotencia, retry e DLQ, e o
+expurgo e feito pelo TTL do DynamoDB -- a task role do worker nem tem
+permissao de DeleteItem.
+"""
+
 from datetime import datetime
 from typing import Any
 
 from flask import Blueprint, current_app, jsonify, request
 
 from telemetry.application.use_cases import (
-    DeleteEvent,
+    GetBreakdown,
     GetEvent,
-    GetMetrics,
-    IngestEvents,
+    GetFacets,
+    GetSessionTimeline,
+    GetTimeseries,
     SearchEvents,
 )
-from telemetry.domain.exceptions import UnsupportedMediaTypeError, ValidationError
+from telemetry.domain.exceptions import ValidationError
 from telemetry.ports.event_repository import EventFilters
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -24,18 +30,20 @@ health = Blueprint("health", __name__)
 def index():
     return jsonify(
         {
-            "service": "telemetry-backend",
+            "service": "telemetry-read-api",
             "status": "ok",
-            "message": "API de telemetria em execucao",
+            "message": "API de leitura dos eventos de telemetria",
             "endpoints": {
-                "create": "POST /api/v1/events",
-                "read_all": "GET /api/v1/events",
-                "read_one": "GET /api/v1/events/{event_id}",
-                "delete": "DELETE /api/v1/events/{event_id}",
-                "facets": "GET /api/v1/events/facets",
-                "metrics": "GET /api/v1/metrics",
+                "search": "GET /api/v1/events",
+                "session_timeline": "GET /api/v1/sessions/{session_id}",
+                "event_detail": "GET /api/v1/sessions/{session_id}/events/{event_id}",
+                "device_history": "GET /api/v1/devices/{device_id}",
+                "breakdown": "GET /api/v1/metrics/breakdown?dimension=app_target",
+                "timeseries": "GET /api/v1/metrics/timeseries?interval=60&compare=true",
+                "facets": "GET /api/v1/facets?field=event_name&field=app_target",
                 "health": "GET /health/ready",
             },
+            "notes": "Ingestao nao passa por aqui: use o endpoint do API Gateway.",
         }
     )
 
@@ -45,69 +53,59 @@ def favicon():
     return "", 204
 
 
-@api.post("/events")
-def ingest_events():
-    payloads = parse_request_payload()
-    use_case = IngestEvents(repository(), current_app.config["USER_ID_HASH_SALT"])
-    result = use_case.execute(payloads)
-    response = {
-        "accepted": result.accepted,
-        "rejected": result.rejected,
-        "errors": [
-            {
-                "row": error.index,
-                "code": error.code,
-                "message": error.message,
-                "field": error.field,
-            }
-            for error in result.errors
-        ],
-    }
-    status = 201 if result.accepted and not result.rejected else 207 if result.accepted else 422
-    return jsonify(response), status
-
-
 @api.get("/events")
 def search_events():
     return jsonify(SearchEvents(repository()).execute(filters_from_query()))
 
 
-@api.get("/events/<uuid:event_id>")
-def get_event(event_id):
-    return jsonify(GetEvent(repository()).execute(event_id))
+@api.get("/sessions/<session_id>")
+def session_timeline(session_id: str):
+    limit = parse_int("limit", default=200, minimum=1, maximum=1000)
+    return jsonify(GetSessionTimeline(repository()).execute(session_id, limit))
 
 
-@api.delete("/events/<uuid:event_id>")
-def delete_event(event_id):
-    DeleteEvent(repository()).execute(event_id)
-    return "", 204
+@api.get("/sessions/<session_id>/events/<event_id>")
+def event_detail(session_id: str, event_id: str):
+    return jsonify(GetEvent(repository()).execute(session_id, event_id))
 
 
-@api.get("/metrics")
-def metrics():
-    return jsonify(GetMetrics(repository()).execute(filters_from_query()))
+@api.get("/devices/<device_id>")
+def device_history(device_id: str):
+    filters = filters_from_query()
+    values = {field: getattr(filters, field) for field in filters.__slots__}
+    values["device_id"] = device_id
+    return jsonify(SearchEvents(repository()).execute(EventFilters(**values)))
 
 
-def filters_from_query() -> EventFilters:
-    return EventFilters(
-        event_name=request.args.get("event_name"),
-        app_env=request.args.get("app_env"),
-        app_target=request.args.get("app_target"),
-        device_os=request.args.get("device_os"),
-        occurred_from=parse_query_datetime("from"),
-        occurred_to=parse_query_datetime("to"),
-        page=parse_positive_int("page", default=1, maximum=1_000_000),
-        page_size=parse_positive_int("page_size", default=50, maximum=200),
+@api.get("/metrics/breakdown")
+def breakdown():
+    dimension = request.args.get("dimension")
+    if not dimension:
+        raise ValidationError("parametro 'dimension' e obrigatorio", field="dimension")
+    limit = parse_int("limit", default=20, minimum=1, maximum=100)
+    return jsonify(GetBreakdown(repository()).execute(filters_from_query(), dimension, limit))
+
+
+@api.get("/metrics/timeseries")
+def timeseries():
+    interval = parse_int("interval", default=60, minimum=1, maximum=1440)
+    compare = request.args.get("compare", "").lower() in {"1", "true", "yes"}
+    return jsonify(
+        GetTimeseries(repository()).execute(filters_from_query(), interval, compare)
     )
 
 
-@api.get("/events/facets")
-def event_facets():
-    fields = request.args.getlist("field") or ["event_name", "app_env", "app_target", "device_os"]
-    try:
-        return jsonify({"facets": repository().facets(fields)})
-    except ValueError as error:
-        raise ValidationError(str(error), field="field") from error
+@api.get("/facets")
+def facets():
+    fields = request.args.getlist("field") or [
+        "event_name",
+        "app_env",
+        "app_target",
+        "device_os",
+        "device_manufacturer",
+    ]
+    limit = parse_int("limit", default=20, minimum=1, maximum=100)
+    return jsonify(GetFacets(repository()).execute(fields, limit))
 
 
 @health.get("/health/live")
@@ -121,57 +119,55 @@ def readiness():
     return jsonify({"status": "ok" if ready else "unavailable"}), 200 if ready else 503
 
 
-def parse_request_payload() -> list[Mapping[str, Any]]:
-    if request.mimetype == "text/csv":
-        text = request.get_data(as_text=True)
-        try:
-            payloads = list(csv.DictReader(io.StringIO(text)))
-        except csv.Error as error:
-            raise ValidationError("CSV invalido") from error
-        if not payloads:
-            raise ValidationError("CSV deve conter ao menos um evento")
-        return payloads
-
-    if request.is_json:
-        payload = request.get_json()
-        if isinstance(payload, dict) and "events" in payload:
-            payload = payload["events"]
-        if isinstance(payload, dict):
-            return [payload]
-        if (
-            payload
-            and isinstance(payload, list)
-            and all(isinstance(item, dict) for item in payload)
-        ):
-            return payload
-        raise ValidationError("JSON deve ser um evento, uma lista ou um objeto com events")
-
-    raise UnsupportedMediaTypeError("Use application/json ou text/csv")
+# ---------------------------------------------------------------------- #
+# Parsing dos parametros
+# ---------------------------------------------------------------------- #
 
 
-def parse_query_datetime(name: str) -> datetime | None:
+def filters_from_query() -> EventFilters:
+    return EventFilters(
+        session_id=request.args.get("session_id"),
+        device_id=request.args.get("device_id"),
+        event_name=request.args.get("event_name"),
+        app_env=request.args.get("app_env"),
+        app_target=request.args.get("app_target"),
+        app_version=request.args.get("app_version"),
+        app_bucket=request.args.get("app_bucket"),
+        device_os=request.args.get("device_os"),
+        device_manufacturer=request.args.get("device_manufacturer"),
+        device_model=request.args.get("device_model"),
+        route_path=request.args.get("route_path"),
+        occurred_from=parse_datetime("from"),
+        occurred_to=parse_datetime("to"),
+        limit=parse_int("limit", default=50, minimum=1, maximum=500),
+        cursor=request.args.get("cursor"),
+    )
+
+
+def parse_datetime(name: str) -> datetime | None:
     value = request.args.get(name)
     if not value:
         return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as error:
-        raise ValidationError(f"Parametro {name} deve ser ISO 8601", field=name) from error
-    return parsed
+        raise ValidationError(f"parametro '{name}' deve ser ISO 8601", field=name) from error
 
 
-def parse_positive_int(name: str, *, default: int, maximum: int) -> int:
+def parse_int(name: str, *, default: int, minimum: int, maximum: int) -> int:
     value = request.args.get(name)
     if value is None:
         return default
     try:
         parsed = int(value)
     except ValueError as error:
-        raise ValidationError(f"Parametro {name} deve ser inteiro", field=name) from error
-    if parsed < 1 or parsed > maximum:
-        raise ValidationError(f"Parametro {name} deve estar entre 1 e {maximum}", field=name)
+        raise ValidationError(f"parametro '{name}' deve ser inteiro", field=name) from error
+    if parsed < minimum or parsed > maximum:
+        raise ValidationError(
+            f"parametro '{name}' deve estar entre {minimum} e {maximum}", field=name
+        )
     return parsed
 
 
-def repository():
+def repository() -> Any:
     return current_app.extensions["event_repository"]
