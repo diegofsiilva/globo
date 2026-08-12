@@ -10,8 +10,8 @@ requires-python = ">=3.12"
 dependencies = [
   "Flask>=3.1,<4",
   "gunicorn>=23,<24",
-  "SQLAlchemy>=2.0,<3",
-  "psycopg[binary]>=3.2,<4",
+  "boto3>=1.35,<2",
+  "apig-wsgi>=2.18,<3",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +19,13 @@ dev = [
   "pytest>=8.3,<9",
   "pytest-cov>=6,<7",
   "ruff>=0.11,<1",
+  # DynamoDB falso: os testes gravam itens no formato exato que o worker
+  # produz, em vez de conversar com a AWS.
+  "moto[dynamodb]>=5.0,<6",
+  # Usado por um teste só: test_formato_do_item_espelha_o_worker importa a
+  # implementação real do worker (que valida com pydantic) para comparar as
+  # chaves geradas. É o que impede a API e o worker de divergirem em silêncio.
+  "pydantic>=2.9,<3",
 ]
 
 [tool.setuptools.packages.find]
@@ -27,6 +34,11 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Os testes importam `tests.conftest` para reaproveitar o construtor de itens
+# do DynamoDB. Sem isto, `pytest` como executável falha na coleção, embora
+# `python -m pytest` funcione — este último insere o diretório atual no path
+# e o primeiro não.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

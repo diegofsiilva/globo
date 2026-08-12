@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-07-13T23:06:07Z",
+  "action": "frozen",
+  "app_bucket": "S3",
+  "app_env": "production",
+  "app_target": "dom-lg-webos-2017",
+  "app_version": "2026.3.0",
+  "device_id": "8f8530ec-a1bc-2756-414c-f9e4e8201832",
+  "device_manufacturer": "LG",
+  "device_model": "49LJ5550-SC",
+  "device_model_year": 2017,
+  "device_os": "WebOS",
+  "device_os_version": "3.9.0",
+  "duration": 0.7832199999988079,
+  "event_name": "vitals",
+  "route_params": {
+    "id": "9970843",
+    "resume_at": 333551
+  },
+  "route_path": "vod",
+  "session_id": "87805f67-ef2d-4b17-ba09-b4b6178113a9",
+  "user_id": "f09679f2-8479-4d5d-a14f-82e10b8e7b6c"
+}

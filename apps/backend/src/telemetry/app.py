@@ -10,11 +10,21 @@ from telemetry.domain.exceptions import (
     UnsupportedMediaTypeError,
     ValidationError,
 )
-from telemetry.infrastructure.database import build_repository
+from telemetry.infrastructure.dynamo import build_repository
 from telemetry.interfaces.http import api, health
 
 
-def create_app(config: dict[str, Any] | type[Config] | None = None) -> Flask:
+def create_app(
+    config: dict[str, Any] | type[Config] | None = None,
+    *,
+    repository: Any = None,
+) -> Flask:
+    """Monta a aplicacao.
+
+    `repository` permite injetar um adaptador pronto -- e o que os testes usam
+    para apontar a API para um DynamoDB falso sem passar por variavel de
+    ambiente.
+    """
     app = Flask(__name__)
     app.config.from_object(Config)
     if config:
@@ -23,11 +33,46 @@ def create_app(config: dict[str, Any] | type[Config] | None = None) -> Flask:
         else:
             app.config.from_object(config)
 
-    app.extensions["event_repository"] = build_repository(app.config["DATABASE_URL"])
+    app.extensions["event_repository"] = repository or build_repository(
+        app.config["EVENTS_TABLE_NAME"],
+        region=app.config["AWS_REGION"],
+        endpoint_url=app.config.get("DYNAMODB_ENDPOINT_URL"),
+        gsi1_shards=app.config["GSI1_SHARDS"],
+        user_id_hash_salt=app.config["USER_ID_HASH_SALT"],
+    )
     app.register_blueprint(api)
     app.register_blueprint(health)
+    register_cors(app)
     register_error_handlers(app)
     return app
+
+
+def register_cors(app: Flask) -> None:
+    """CORS manual, sem dependencia extra.
+
+    A dashboard e um site estatico (Next com output: export) servido de outra
+    origem, entao o navegador exige estes cabecalhos. Escrito a mao porque sao
+    poucas linhas e cada dependencia a menos e um pacote a menos para caber no
+    limite de tamanho da Lambda.
+    """
+    origins = [
+        origin.strip()
+        for origin in str(app.config.get("CORS_ORIGINS", "*")).split(",")
+        if origin.strip()
+    ]
+
+    @app.after_request
+    def apply_cors(response):
+        requested = request.headers.get("Origin")
+        if "*" in origins:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+        elif requested and requested in origins:
+            response.headers["Access-Control-Allow-Origin"] = requested
+            response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Max-Age"] = "300"
+        return response
 
 
 def register_error_handlers(app: Flask) -> None:
