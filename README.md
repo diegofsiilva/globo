@@ -43,7 +43,18 @@ sh ./apps/backend/scripts/dev.sh
 O script cria `.venv`, instala as dependências e inicia a API com SQLite. Copie
 `apps/backend/.env.example` para `apps/backend/.env` se desejar personalizar a configuração.
 
-No VS Code, abra **Run and Debug**, selecione **Backend Flask** e clique em **Run**.
+Depois que as dependências estiverem instaladas, toda a aplicação é iniciada por um
+único arquivo:
+
+```bash
+python apps/backend/run.py
+```
+
+Esse ponto de entrada carrega o ambiente, cria a aplicação Flask, prepara o banco
+SQLite automaticamente e inicia o servidor HTTP.
+
+No VS Code, abra `apps/backend` como workspace, acesse **Run and Debug**, selecione
+**Backend Flask** e clique em **Run**. Essa configuração executa o mesmo `run.py`.
 O Dev Container específico do serviço está em `apps/backend/.devcontainer`; abra a
 pasta `apps/backend` como workspace para utilizá-lo.
 

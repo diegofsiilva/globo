@@ -10,4 +10,4 @@ fi
 
 "$venv_path/bin/python" -m pip install -e "$backend_root[dev]"
 cd "$backend_root"
-exec "$venv_path/bin/python" -m flask --app telemetry:create_app run --debug --host 0.0.0.0 --port 5000
+FLASK_DEBUG=1 exec "$venv_path/bin/python" run.py

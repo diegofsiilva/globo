@@ -5,11 +5,10 @@
       "name": "Backend Flask",
       "type": "debugpy",
       "request": "launch",
-      "module": "flask",
-      "args": ["--app", "telemetry:create_app", "run", "--debug"],
-      "cwd": "${workspaceFolder}/apps/backend",
+      "program": "${workspaceFolder}/run.py",
+      "cwd": "${workspaceFolder}",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/apps/backend/src"
+        "FLASK_DEBUG": "1"
       },
       "preLaunchTask": "Backend: instalar dependencias"
     }

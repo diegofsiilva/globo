@@ -1,11 +1,13 @@
 import os
 from pathlib import Path
 
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Config:
     DATABASE_URL = os.getenv(
         "DATABASE_URL",
-        f"sqlite:///{Path.cwd() / 'instance' / 'telemetry.db'}",
+        f"sqlite:///{BACKEND_ROOT / 'instance' / 'telemetry.db'}",
     )
     USER_ID_HASH_SALT = os.getenv("USER_ID_HASH_SALT", "local-development-only")
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(2 * 1024 * 1024)))

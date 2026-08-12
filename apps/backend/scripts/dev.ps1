@@ -9,7 +9,6 @@ if (-not (Test-Path -LiteralPath $Python)) {
 }
 
 & $Python -m pip install -e "${BackendRoot}[dev]"
-$env:FLASK_APP = "telemetry:create_app"
 $env:FLASK_DEBUG = "1"
 Set-Location $BackendRoot
-& $Python -m flask run --host 0.0.0.0 --port 5000
+& $Python run.py
