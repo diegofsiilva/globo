@@ -1,13 +1,12 @@
 """Testes do adaptador DynamoDB contra o formato real de item."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 
 from telemetry.domain.exceptions import ValidationError
 from telemetry.ports.event_repository import EventFilters
 from tests.conftest import build_item
-
 
 # --------------------------------------------------------------------------- #
 # Compatibilidade com o que o worker grava
@@ -162,9 +161,7 @@ def test_busca_sem_chave_cai_no_scan(repository, seeded):
 
 def test_filtros_cumulativos(repository, seeded):
     """RF09: mais de um filtro na mesma consulta."""
-    page = repository.search(
-        EventFilters(app_bucket="S3", device_os="Linux", limit=50)
-    )
+    page = repository.search(EventFilters(app_bucket="S3", device_os="Linux", limit=50))
 
     assert page.items, "esperava ao menos um evento S3 + Linux"
     for event in page.items:
@@ -177,9 +174,7 @@ def test_filtro_por_periodo(repository, table, sample_events):
     table.put_item(Item=build_item(antigo))
     table.put_item(Item=build_item(sample_events["error"]))
 
-    page = repository.search(
-        EventFilters(occurred_from=datetime(2026, 6, 1, tzinfo=UTC), limit=50)
-    )
+    page = repository.search(EventFilters(occurred_from=datetime(2026, 6, 1, tzinfo=UTC), limit=50))
 
     assert len(page.items) == 1
     assert page.items[0].occurred_at.year == 2026
@@ -221,9 +216,7 @@ def test_cursor_percorre_sem_repetir_nem_pular(repository, seeded):
 
 def test_cursor_no_fanout_da_gsi1(repository, seeded, table, sample_events):
     for i in range(5):
-        table.put_item(
-            Item=build_item(dict(sample_events["error"], session_id=f"sessao-{i}"))
-        )
+        table.put_item(Item=build_item(dict(sample_events["error"], session_id=f"sessao-{i}")))
 
     vistos = []
     cursor = None

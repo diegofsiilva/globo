@@ -105,9 +105,7 @@ def breakdown():
 def timeseries():
     interval = parse_int("interval", default=60, minimum=1, maximum=1440)
     compare = request.args.get("compare", "").lower() in {"1", "true", "yes"}
-    return jsonify(
-        GetTimeseries(repository()).execute(filters_from_query(), interval, compare)
-    )
+    return jsonify(GetTimeseries(repository()).execute(filters_from_query(), interval, compare))
 
 
 @api.get("/facets")

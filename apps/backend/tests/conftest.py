@@ -56,9 +56,12 @@ def build_item(event: dict, *, ingested_at: datetime | None = None) -> dict:
     ingested_at = ingested_at or datetime.now(UTC)
     payload = {key: value for key, value in event.items() if value is not None}
     payload.pop("event_id", None)
-    event_id = event.get("event_id") or hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-    ).hexdigest()
+    event_id = (
+        event.get("event_id")
+        or hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        ).hexdigest()
+    )
 
     occurred = datetime.fromisoformat(str(event["timestamp"]).replace("Z", "+00:00"))
     if occurred.tzinfo is None:

@@ -72,9 +72,7 @@ def test_valores_aceitos_vem_das_constantes_do_codigo(client):
     assert set(dimension["schema"]["enum"]) == BREAKDOWN_FIELDS
 
     field = next(
-        p
-        for p in spec["paths"]["/api/v1/facets"]["get"]["parameters"]
-        if p["name"] == "field"
+        p for p in spec["paths"]["/api/v1/facets"]["get"]["parameters"] if p["name"] == "field"
     )
     assert set(field["schema"]["items"]["enum"]) == FACET_FIELDS
 
@@ -93,8 +91,6 @@ def test_spec_nao_expoe_campo_sensivel_como_filtravel(client):
 
     assert "user_id_hash" in corpo  # o hash e documentado
     field = next(
-        p
-        for p in spec["paths"]["/api/v1/facets"]["get"]["parameters"]
-        if p["name"] == "field"
+        p for p in spec["paths"]["/api/v1/facets"]["get"]["parameters"] if p["name"] == "field"
     )
     assert "user_id" not in field["schema"]["items"]["enum"]

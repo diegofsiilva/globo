@@ -89,7 +89,7 @@ def _event_schema() -> dict[str, Any]:
                     "Nao e UUID. Derivar do conteudo e o que torna a ingestao "
                     "idempotente."
                 ),
-                "example": "3b5d31ce4020a1f8d4c9e2b7a6f0123456789abc" + "def123456789abcdef1234",
+                "example": ("3b5d31ce4020a1f8d4c9e2b7a6f0123456789abcdef123456789abcdef1234"),
             },
             "event_name": {
                 "type": "string",
@@ -127,7 +127,9 @@ def _event_schema() -> dict[str, Any]:
             },
             "duration_ms": {
                 "type": ["number", "null"],
-                "description": "Duracao em milissegundos. O banco guarda segundos; a conversao e feita aqui.",
+                "description": (
+                    "Duracao em milissegundos. O banco guarda segundos; a conversao e feita aqui."
+                ),
             },
             "action": {"type": ["string", "null"], "example": "open"},
             "route_path": {"type": ["string", "null"], "example": "vod"},
@@ -158,10 +160,23 @@ def _event_schema() -> dict[str, Any]:
             "attributes": {
                 "type": "object",
                 "additionalProperties": True,
-                "description": "Campos especificos do tipo do evento, ja com dado pessoal removido.",
+                "description": (
+                    "Campos especificos do tipo do evento, ja com dado pessoal removido."
+                ),
             },
         },
         "required": ["event_id", "event_name", "occurred_at", "session_id", "device_id"],
+    }
+
+
+def _next_cursor_schema() -> dict[str, Any]:
+    return {
+        "type": ["string", "null"],
+        "description": (
+            "Cursor da proxima pagina. Nulo significa que nao ha mais "
+            "resultados. Opaco: no fan-out ele guarda a posicao de cada "
+            "particao, porque elas avancam em ritmos diferentes."
+        ),
     }
 
 
@@ -242,10 +257,7 @@ def build_spec() -> dict[str, Any]:
                                         "type": "object",
                                         "properties": {
                                             "items": {"type": "array", "items": event_schema},
-                                            "next_cursor": {
-                                                "type": ["string", "null"],
-                                                "description": "Passe em `cursor` para a proxima pagina. Nulo na ultima.",
-                                            },
+                                            "next_cursor": _next_cursor_schema(),
                                             "query": _query_stats_schema(),
                                         },
                                     }
@@ -308,7 +320,7 @@ def build_spec() -> dict[str, Any]:
                                                     "app": {"type": "object"},
                                                 },
                                             },
-                                            "next_cursor": {"type": ["string", "null"]},
+                                            "next_cursor": _next_cursor_schema(),
                                             "query": _query_stats_schema(),
                                         },
                                     }
@@ -374,7 +386,7 @@ def build_spec() -> dict[str, Any]:
                                         "type": "object",
                                         "properties": {
                                             "items": {"type": "array", "items": event_schema},
-                                            "next_cursor": {"type": ["string", "null"]},
+                                            "next_cursor": _next_cursor_schema(),
                                             "query": _query_stats_schema(),
                                         },
                                     }
@@ -429,7 +441,10 @@ def build_spec() -> dict[str, Any]:
                                                         "count": {"type": "integer"},
                                                         "share": {
                                                             "type": "number",
-                                                            "description": "Fracao do total, arredondada em 4 casas.",
+                                                            "description": (
+                                                                "Fracao do total,"
+                                                                " arredondada em 4 casas."
+                                                            ),
                                                         },
                                                         "average_duration_ms": {
                                                             "type": ["number", "null"]

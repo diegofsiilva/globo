@@ -43,9 +43,7 @@ class GetSessionTimeline:
         self.repository = repository
 
     def execute(self, session_id: str, limit: int = 200) -> dict[str, Any]:
-        page = self.repository.search(
-            EventFilters(session_id=session_id, limit=limit)
-        )
+        page = self.repository.search(EventFilters(session_id=session_id, limit=limit))
         if not page.items:
             raise EventNotFoundError(f"Sessao {session_id} nao encontrada")
 
@@ -76,9 +74,7 @@ class GetBreakdown:
     def __init__(self, repository: EventRepository) -> None:
         self.repository = repository
 
-    def execute(
-        self, filters: EventFilters, dimension: str, limit: int = 20
-    ) -> dict[str, Any]:
+    def execute(self, filters: EventFilters, dimension: str, limit: int = 20) -> dict[str, Any]:
         try:
             groups = self.repository.breakdown(filters, dimension, limit)
         except ValueError as error:
@@ -150,8 +146,7 @@ class GetTimeseries:
             "to": previous_filters.occurred_to.isoformat(),
             "total": previous_total,
             "buckets": [
-                {"bucket": bucket.bucket.isoformat(), "count": bucket.count}
-                for bucket in previous
+                {"bucket": bucket.bucket.isoformat(), "count": bucket.count} for bucket in previous
             ],
         }
         payload["change"] = {

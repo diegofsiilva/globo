@@ -6,7 +6,6 @@ import pytest
 
 from tests.conftest import build_item
 
-
 # --------------------------------------------------------------------------- #
 # Busca (RF08, RF09)
 # --------------------------------------------------------------------------- #
@@ -192,8 +191,7 @@ def test_timeseries_compara_com_periodo_anterior(client, seeded, table, sample_e
     table.put_item(Item=build_item(antigo))
 
     response = client.get(
-        "/api/v1/metrics/timeseries"
-        "?from=2026-07-13T00:00:00Z&to=2026-07-14T00:00:00Z&compare=true"
+        "/api/v1/metrics/timeseries?from=2026-07-13T00:00:00Z&to=2026-07-14T00:00:00Z&compare=true"
     )
 
     assert response.status_code == 200

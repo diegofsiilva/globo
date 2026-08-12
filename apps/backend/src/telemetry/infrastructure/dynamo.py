@@ -233,8 +233,7 @@ class DynamoEventRepository:
         """
         if dimension not in BREAKDOWN_FIELDS:
             raise ValueError(
-                f"dimensao invalida: {dimension}. "
-                f"Use uma de: {', '.join(sorted(BREAKDOWN_FIELDS))}"
+                f"dimensao invalida: {dimension}. Use uma de: {', '.join(sorted(BREAKDOWN_FIELDS))}"
             )
 
         events = self._collect(filters)
@@ -255,17 +254,13 @@ class DynamoEventRepository:
                 key=key,
                 count=count,
                 average_duration_ms=(
-                    round(sum(durations[key]) / len(durations[key]), 3)
-                    if durations[key]
-                    else None
+                    round(sum(durations[key]) / len(durations[key]), 3) if durations[key] else None
                 ),
             )
             for key, count in counts.most_common(limit)
         ]
 
-    def timeseries(
-        self, filters: EventFilters, interval_minutes: int = 60
-    ) -> Sequence[TimeBucket]:
+    def timeseries(self, filters: EventFilters, interval_minutes: int = 60) -> Sequence[TimeBucket]:
         """Serie temporal do volume de eventos (RF12, base para RF14 e RF15)."""
         if interval_minutes < 1:
             raise ValueError("interval_minutes deve ser >= 1")
@@ -277,8 +272,7 @@ class DynamoEventRepository:
         for event in events:
             moment = event.occurred_at.astimezone(UTC)
             offset = (
-                moment
-                - moment.replace(hour=0, minute=0, second=0, microsecond=0)
+                moment - moment.replace(hour=0, minute=0, second=0, microsecond=0)
             ).total_seconds()
             start = moment.replace(hour=0, minute=0, second=0, microsecond=0) + step * int(
                 offset // step.total_seconds()
@@ -372,9 +366,7 @@ class DynamoEventRepository:
     ) -> EventPage:
         # Na GSI1 o event_name ja e chave da particao; nas outras rotas ele
         # precisa entrar como filtro.
-        condition = self._filter_expression(
-            filters, include_event_name=(index != "gsi1")
-        )
+        condition = self._filter_expression(filters, include_event_name=(index != "gsi1"))
         collected: list[tuple[dict[str, Any], TelemetryEvent, str]] = []
         scanned = 0
         executed = 0
@@ -450,10 +442,7 @@ class DynamoEventRepository:
         proprio.
         """
         if len(pending) <= 1:
-            return [
-                (partition_id, self._table.query(**kwargs))
-                for partition_id, kwargs in pending
-            ]
+            return [(partition_id, self._table.query(**kwargs)) for partition_id, kwargs in pending]
 
         workers = min(self._max_workers, len(pending))
         with ThreadPoolExecutor(max_workers=workers) as pool:
