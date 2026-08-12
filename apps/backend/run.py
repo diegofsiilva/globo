@@ -19,7 +19,11 @@ if str(SOURCE_ROOT) not in sys.path:
 
 
 def load_local_environment(path: Path) -> None:
-    """Carrega um .env simples sem exigir uma dependencia externa."""
+    """Carrega variáveis de um arquivo .env simples para os.environ sem dependências externas.
+
+    Args:
+        path (Path): Caminho para o arquivo .env a ser lido.
+    """
     if not path.is_file():
         return
     for raw_line in path.read_text(encoding="utf-8").splitlines():
@@ -37,7 +41,11 @@ load_local_environment(BACKEND_ROOT / ".env")
 
 
 def ensure_runtime_dependencies() -> None:
-    """Instala as dependencias quando o arquivo e executado em um Python limpo."""
+    """Garante que as dependências necessárias estejam instaladas em um ambiente Python limpo.
+
+    Raises:
+        RuntimeError: Se a instalação automática via pip falhar.
+    """
     required_modules = ("flask", "boto3")
     missing = [module for module in required_modules if find_spec(module) is None]
     if not missing:
@@ -71,12 +79,19 @@ from telemetry import create_app  # noqa: E402
 
 
 def build_app(config: dict[str, Any] | None = None):
-    """Cria a aplicacao e prepara a persistencia configurada."""
+    """Cria a aplicação Flask e prepara a persistência configurada.
+
+    Args:
+        config (dict[str, Any] | None): Dicionário opcional com configurações da aplicação.
+
+    Returns:
+        Flask: Instância da aplicação WSGI/Flask configurada.
+    """
     return create_app(config)
 
 
 def main() -> None:
-    """Inicia todos os componentes necessarios para o backend local."""
+    """Inicia todos os componentes necessários para o servidor backend local."""
     app = build_app()
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "5000"))

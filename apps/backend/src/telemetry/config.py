@@ -1,7 +1,11 @@
+"""Configurações da aplicação de telemetria backend."""
+
 import os
 
 
 class Config:
+    """Configurações globais do backend da aplicação de telemetria."""
+
     # Tabela que o worker de ingestao escreve. Ver infra/dynamodb.tf.
     EVENTS_TABLE_NAME = os.getenv("EVENTS_TABLE_NAME", "argus-events-dev")
     AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
@@ -36,6 +40,8 @@ class Config:
 
 
 class TestConfig(Config):
+    """Configurações utilizadas para ambiente de execução de testes unitários/integração."""
+
     TESTING = True
     EVENTS_TABLE_NAME = "argus-events-test"
     USER_ID_HASH_SALT = "test-salt"

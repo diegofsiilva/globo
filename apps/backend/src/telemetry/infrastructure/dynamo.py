@@ -114,6 +114,17 @@ BREAKDOWN_FIELDS = FACET_FIELDS | {"device_model_year"}
 
 
 class DynamoEventRepository:
+    """Adaptador de leitura do DynamoDB que implementa a porta `EventRepository`.
+
+    Traduz os filtros do dashboard no caminho de acesso mais barato disponível
+    (Query na tabela, na GSI1 com fan-out por shard/dia, na GSI2, ou Scan como
+    último recurso) e converte os itens crus em `TelemetryEvent` já redigido.
+
+    Os limites de `max_items_scanned` e `max_days_fanout` existem para dar teto
+    ao custo de uma requisição: num banco que cobra por item lido, uma consulta
+    sem filtro poderia varrer a tabela inteira.
+    """
+
     def __init__(
         self,
         table,
@@ -126,6 +137,24 @@ class DynamoEventRepository:
         max_workers: int = 16,
         table_factory: Callable[[], Any] | None = None,
     ) -> None:
+        """Inicializa o repositório de leitura.
+
+        Args:
+            table: Recurso de tabela do boto3 (`dynamodb.Table`).
+            gsi1_shards (int, optional): Número de shards da GSI1, que precisa
+                bater com o que o worker usa na escrita. Padrão é 10.
+            user_id_hash_salt (str, optional): Sal aplicado ao `user_id` na
+                conversão para entidade.
+            max_items_scanned (int, optional): Teto de itens lidos por consulta.
+                Padrão é 20.000.
+            max_days_fanout (int, optional): Máximo de dias abertos em paralelo
+                no fan-out da GSI1. Padrão é 31.
+            default_window_hours (int, optional): Janela usada quando a consulta
+                não informa período. Padrão é 168 (7 dias).
+            max_workers (int, optional): Teto de queries paralelas. Padrão é 16.
+            table_factory (Callable[[], Any] | None, optional): Fábrica de tabela
+                por thread; sem ela, o recurso do boto3 é compartilhado.
+        """
         self._table = table
         self._shards = max(1, gsi1_shards)
         self._salt = user_id_hash_salt
@@ -157,6 +186,12 @@ class DynamoEventRepository:
         return self._to_entity(items[0]) if items else None
 
     def ping(self) -> bool:
+        """Verifica se a tabela responde, para o readiness probe.
+
+        Returns:
+            bool: True se o `describe_table` respondeu; False em qualquer erro,
+                que é registrado no log em vez de propagado.
+        """
         try:
             self._table.load()
             return True
@@ -364,6 +399,24 @@ class DynamoEventRepository:
         strategy: str,
         cursor: dict[str, Any],
     ) -> EventPage:
+        """Consulta várias partições em paralelo e funde o resultado numa página.
+
+        Cada partição tem seu próprio ponto de retomada dentro do cursor, então
+        a paginação continua exatamente de onde parou mesmo com o fan-out.
+
+        Args:
+            filters (EventFilters): Filtros da consulta, incluindo o `limit`.
+            partitions (list[tuple[str | None, Any]]): Pares (id da partição,
+                KeyConditionExpression) a consultar.
+            index (str | None): Nome do índice secundário, ou None para a tabela.
+            strategy (str): Rótulo do caminho de acesso, reportado em `QueryStats`.
+            cursor (dict[str, Any]): Estado de retomada por partição; o valor
+                "done" marca partição já esgotada.
+
+        Returns:
+            EventPage: Itens ordenados do mais recente para o mais antigo, com
+                o cursor da próxima página e as estatísticas de custo.
+        """
         # Na GSI1 o event_name ja e chave da particao; nas outras rotas ele
         # precisa entrar como filtro.
         condition = self._filter_expression(filters, include_event_name=(index != "gsi1"))
@@ -453,6 +506,14 @@ class DynamoEventRepository:
             return [(futures[future], future.result()) for future in as_completed(futures)]
 
     def _query_one(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Executa uma Query usando a Table da thread corrente.
+
+        Args:
+            kwargs (dict[str, Any]): Argumentos já montados para `Table.query`.
+
+        Returns:
+            dict[str, Any]: Resposta crua do DynamoDB.
+        """
         return self._thread_table().query(**kwargs)
 
     def _thread_table(self):
@@ -612,11 +673,31 @@ class DynamoEventRepository:
     # ------------------------------------------------------------------ #
 
     def _window(self, filters: EventFilters) -> tuple[datetime, datetime]:
+        """Resolve a janela temporal efetiva da consulta.
+
+        Sem período informado, aplica `default_window_hours` para trás: uma
+        consulta sem recorte viraria uma varredura da tabela inteira.
+
+        Args:
+            filters (EventFilters): Filtros com o período opcional.
+
+        Returns:
+            tuple[datetime, datetime]: Par (início, fim) da janela.
+        """
         end = filters.occurred_to or datetime.now(UTC)
         start = filters.occurred_from or (end - self._default_window)
         return start, end
 
     def _within_window(self, event: TelemetryEvent, filters: EventFilters) -> bool:
+        """Confere se o evento cai dentro do período pedido.
+
+        Args:
+            event (TelemetryEvent): Evento já convertido.
+            filters (EventFilters): Filtros com os limites do período.
+
+        Returns:
+            bool: True se o evento está dentro da janela (ou se ela é aberta).
+        """
         if filters.occurred_from and event.occurred_at < filters.occurred_from:
             return False
         if filters.occurred_to and event.occurred_at > filters.occurred_to:
@@ -641,6 +722,18 @@ class DynamoEventRepository:
         return condition
 
     def _to_entity(self, item: dict[str, Any]) -> TelemetryEvent:
+        """Converte um item cru do DynamoDB na entidade de domínio.
+
+        É aqui que a redação acontece na leitura: o `user_id` vira hash e os
+        atributos passam por `redact_attributes` antes de sair do adaptador,
+        então nenhuma camada acima vê o dado sensível.
+
+        Args:
+            item (dict[str, Any]): Item cru como o boto3 devolveu.
+
+        Returns:
+            TelemetryEvent: Entidade com os campos já normalizados e redigidos.
+        """
         attributes = {
             key: _plain(value)
             for key, value in item.items()
@@ -682,7 +775,14 @@ class DynamoEventRepository:
 
 
 def _plain(value: Any) -> Any:
-    """Decimal do boto3 -> int/float. O resto passa direto."""
+    """Converte instâncias de Decimal do boto3 para tipos nativos (int/float).
+
+    Args:
+        value (Any): Valor a ser convertido.
+
+    Returns:
+        Any: Valor com Decimals convertidos em int ou float.
+    """
     if isinstance(value, Decimal):
         as_int = int(value)
         return as_int if value == as_int else float(value)
@@ -696,6 +796,14 @@ def _plain(value: Any) -> Any:
 
 
 def _text(value: Any) -> str | None:
+    """Converte um valor para string sem espaços nas extremidades ou None.
+
+    Args:
+        value (Any): Valor original.
+
+    Returns:
+        str | None: String tratada ou None se vazia.
+    """
     if value is None:
         return None
     text = str(value).strip()
@@ -703,6 +811,14 @@ def _text(value: Any) -> str | None:
 
 
 def _parse_datetime(value: Any) -> datetime:
+    """Converte um valor de data/hora em datetime UTC.
+
+    Args:
+        value (Any): Valor bruto contendo timestamp.
+
+    Returns:
+        datetime: Objeto datetime normalizado em UTC ou o epoch base em caso de falha.
+    """
     parsed = _parse_optional_datetime(value)
     if parsed is None:
         # Item sem timestamp nao deveria existir (o worker exige), mas a API de
@@ -712,6 +828,14 @@ def _parse_datetime(value: Any) -> datetime:
 
 
 def _parse_optional_datetime(value: Any) -> datetime | None:
+    """Converte opcionalmente uma string de data/hora para datetime UTC.
+
+    Args:
+        value (Any): Valor opcional.
+
+    Returns:
+        datetime | None: Objeto datetime em UTC ou None.
+    """
     if not value:
         return None
     text = str(value).replace("Z", "+00:00")
@@ -723,7 +847,15 @@ def _parse_optional_datetime(value: Any) -> datetime | None:
 
 
 def _key_of(item: dict[str, Any], index: str | None) -> dict[str, Any]:
-    """A chave que o ExclusiveStartKey precisa, por indice consultado."""
+    """A chave que o ExclusiveStartKey precisa, por indice consultado.
+
+    Args:
+        item (dict[str, Any]): Item bruto do DynamoDB.
+        index (str | None): Nome do índice.
+
+    Returns:
+        dict[str, Any]: Chaves do item para controle de paginação.
+    """
     key = {"pk": item.get("pk"), "sk": item.get("sk")}
     if index == "gsi1":
         key |= {"gsi1pk": item.get("gsi1pk"), "gsi1sk": item.get("gsi1sk")}
@@ -733,11 +865,30 @@ def _key_of(item: dict[str, Any], index: str | None) -> dict[str, Any]:
 
 
 def _encode_cursor(state: dict[str, Any]) -> str:
+    """Codifica o estado da paginação em uma string base64 segura para URL.
+
+    Args:
+        state (dict[str, Any]): Dicionário com o estado das partições ou offset.
+
+    Returns:
+        str: String codificada em Base64 URL safe.
+    """
     raw = json.dumps(state, default=str, separators=(",", ":")).encode()
     return base64.urlsafe_b64encode(raw).decode()
 
 
 def _decode_cursor(cursor: str | None) -> dict[str, Any]:
+    """Decodifica a string de cursor em um dicionário de estado.
+
+    Args:
+        cursor (str | None): Cursor Base64 recebido do cliente.
+
+    Returns:
+        dict[str, Any]: Dicionário com o estado decodificado.
+
+    Raises:
+        ValidationError: Se o cursor for malformado ou inválido.
+    """
     if not cursor:
         return {}
     try:
@@ -760,6 +911,19 @@ def build_repository(
     user_id_hash_salt: str = "",
     max_workers: int = 16,
 ) -> DynamoEventRepository:
+    """Cria e configura uma instância de DynamoEventRepository com pool de conexões otimizado.
+
+    Args:
+        table_name (str): Nome da tabela no AWS DynamoDB.
+        region (str): Região da AWS.
+        endpoint_url (str | None, optional): URL customizada do DynamoDB (para testes locais).
+        gsi1_shards (int, optional): Quantidade de shards na GSI1. Padrão é 10.
+        user_id_hash_salt (str, optional): Sal para desidentificação de usuário.
+        max_workers (int, optional): Número máximo de conexões paralelas. Padrão é 16.
+
+    Returns:
+        DynamoEventRepository: Instância pronta do repositório.
+    """
     import boto3
     from botocore.config import Config as BotoConfig
 
@@ -774,6 +938,12 @@ def build_repository(
     )
 
     def make_table():
+        """Cria um recurso de Table novo, um por thread do fan-out.
+
+        Returns:
+            Any: Recurso `dynamodb.Table` do boto3, que não é thread-safe e por
+                isso não pode ser compartilhado entre as queries paralelas.
+        """
         resource = boto3.resource(
             "dynamodb",
             config=boto_config,

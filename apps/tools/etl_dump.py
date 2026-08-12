@@ -106,7 +106,14 @@ RE_ESCAPE = re.compile(rb"\\.")
 
 
 def _unescape(raw: bytes) -> str:
-    """Remove as aspas externas e desfaz os escapes do mysqldump."""
+    """Remove as aspas externas e desfaz os escapes do mysqldump.
+
+    Args:
+        raw (bytes): Bytes brutos do campo entre aspas.
+
+    Returns:
+        str: Texto decodificado e sanitizado.
+    """
     body = raw[1:-1]
     if b"\\" in body:
         body = RE_ESCAPE.sub(lambda m: UNESCAPE.get(m.group(0), m.group(0)[1:]), body)
@@ -114,7 +121,14 @@ def _unescape(raw: bytes) -> str:
 
 
 def split_values(inner: bytes) -> list[bytes]:
-    """Divide o miolo de `(...)` nos campos, respeitando strings entre aspas."""
+    """Divide o miolo de `(...)` nos campos, respeitando strings entre aspas.
+
+    Args:
+        inner (bytes): Sequência de bytes entre parênteses da instrução VALUES.
+
+    Returns:
+        list[bytes]: Lista dos valores em bytes de cada coluna.
+    """
     fields: list[bytes] = []
     start = 0
     for m in RE_TOKEN.finditer(inner):
@@ -126,7 +140,15 @@ def split_values(inner: bytes) -> list[bytes]:
 
 
 def convert_field(raw: bytes, mysql_type: str):
-    """Converte um campo bruto do dump para o tipo Python correspondente."""
+    """Converte um campo bruto do dump para o tipo Python correspondente.
+
+    Args:
+        raw (bytes): Conteúdo em bytes do campo.
+        mysql_type (str): Nome do tipo MySQL da coluna.
+
+    Returns:
+        Any: Valor convertido (int, float, str ou None).
+    """
     if raw == b"NULL" or raw == b"":
         return None
     if raw[0:1] == b"'":
@@ -155,6 +177,14 @@ class TableWriter:
     """Acumula linhas e escreve em Parquet a cada BATCH_ROWS."""
 
     def __init__(self, table: str, columns: list[str], types: list[str], out_dir: Path):
+        """Inicializa o gravador Parquet da tabela.
+
+        Args:
+            table (str): Nome da tabela.
+            columns (list[str]): Nomes das colunas.
+            types (list[str]): Tipos MySQL correspondentes.
+            out_dir (Path): Diretório de saída dos arquivos Parquet.
+        """
         self.table = table
         self.columns = columns
         self.types = types
@@ -168,6 +198,11 @@ class TableWriter:
         self.rows = 0
 
     def add(self, values: list):
+        """Adiciona uma linha de valores ao buffer local.
+
+        Args:
+            values (list): Lista de valores da linha.
+        """
         for buf, v in zip(self.buffers, values):
             buf.append(v)
         self.buffered += 1
@@ -176,6 +211,7 @@ class TableWriter:
             self.flush()
 
     def flush(self):
+        """Despeja o buffer acumulado gravando um novo row group no arquivo Parquet."""
         if not self.buffered:
             return
         arrays = [
@@ -187,6 +223,7 @@ class TableWriter:
         self.buffered = 0
 
     def close(self):
+        """Finaliza a gravação e fecha o gravador do arquivo Parquet."""
         self.flush()
         self.writer.close()
 
@@ -197,6 +234,15 @@ class TableWriter:
 
 
 def run(dump_path: Path, out_dir: Path) -> dict:
+    """Executa a conversão completa em streaming do arquivo .sql para Parquet.
+
+    Args:
+        dump_path (Path): Caminho para o arquivo SQL de dump.
+        out_dir (Path): Diretório de destino dos arquivos Parquet.
+
+    Returns:
+        dict: Manifesto com estatísticas do processo de exportação.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[1/2] lendo DDL de {dump_path.name} ...", flush=True)
@@ -296,6 +342,7 @@ def run(dump_path: Path, out_dir: Path) -> dict:
 
 
 def main() -> int:
+    """Função principal do utilitário de linha de comando."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dump", default="argus_dump.sql", type=Path)
     ap.add_argument("--out", default="data/parquet", type=Path)

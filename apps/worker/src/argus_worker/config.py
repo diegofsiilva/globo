@@ -17,6 +17,18 @@ SQS_MAX_MESSAGES = 10
 
 
 def _env_int(name: str, default: int) -> int:
+    """Lê uma variável de ambiente convertendo-a para número inteiro com valor padrão.
+
+    Args:
+        name (str): Nome da variável de ambiente.
+        default (int): Valor padrão caso a variável esteja ausente.
+
+    Returns:
+        int: Valor inteiro obtido.
+
+    Raises:
+        ValueError: Se o valor lido não puder ser convertido para int.
+    """
     raw = os.getenv(name)
     if raw is None or raw.strip() == "":
         return default
@@ -27,6 +39,15 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _env_bool(name: str, default: bool) -> bool:
+    """Lê uma variável de ambiente convertendo-a para booleano.
+
+    Args:
+        name (str): Nome da variável de ambiente.
+        default (bool): Valor padrão se ausente.
+
+    Returns:
+        bool: Valor booleano parseado.
+    """
     raw = os.getenv(name)
     if raw is None or raw.strip() == "":
         return default
@@ -35,7 +56,7 @@ def _env_bool(name: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class Config:
-    """Parametros de execucao do worker."""
+    """Parâmetros de execução e configuração do worker de ingestão."""
 
     queue_url: str
     dlq_url: str
@@ -81,6 +102,14 @@ class Config:
 
     @classmethod
     def from_env(cls) -> Config:
+        """Carrega e valida as configurações do worker a partir das variáveis de ambiente.
+
+        Returns:
+            Config: Instância da configuração populada.
+
+        Raises:
+            RuntimeError: Se variáveis obrigatórias estiverem ausentes.
+        """
         missing = [
             name
             for name in ("EVENTS_QUEUE_URL", "EVENTS_DLQ_URL", "EVENTS_TABLE_NAME")

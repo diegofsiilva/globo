@@ -32,6 +32,17 @@ handler = make_lambda_handler(app, binary_support=False)
 
 
 def lambda_handler(event, context):
+    """Entrypoint invocado pela AWS Lambda a cada requisição do API Gateway.
+
+    Args:
+        event (dict): Evento do API Gateway no payload format 2.0.
+        context: Objeto de contexto de execução da Lambda (`LambdaContext`),
+            repassado ao `apig-wsgi` sem uso direto aqui.
+
+    Returns:
+        dict: Resposta no formato de proxy do API Gateway, já traduzida a
+            partir da resposta WSGI produzida pelo Flask.
+    """
     return handler(event, context)
 
 

@@ -17,7 +17,7 @@ from typing import Any
 
 
 class JsonFormatter(logging.Formatter):
-    """Formata LogRecord como uma linha JSON, com os extras no mesmo nivel."""
+    """Formata LogRecord como uma linha JSON, com os extras no mesmo nível."""
 
     _RESERVED = frozenset(vars(logging.LogRecord("", 0, "", 0, "", (), None))) | {
         "asctime",
@@ -26,6 +26,14 @@ class JsonFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:
+        """Formata o registro de log em uma string JSON estruturada.
+
+        Args:
+            record (logging.LogRecord): Registro do log.
+
+        Returns:
+            str: String JSON com a linha de log.
+        """
         payload: dict[str, Any] = {
             "level": record.levelname,
             "logger": record.name,
@@ -41,6 +49,15 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(level: str, service_name: str) -> logging.Logger:
+    """Configura a saída de logs estruturados em JSON para o stdout.
+
+    Args:
+        level (str): Nível mínimo do log ('INFO', 'DEBUG', 'WARNING', etc.).
+        service_name (str): Nome do serviço para o logger retornado.
+
+    Returns:
+        logging.Logger: Instância do logger configurado.
+    """
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
 
@@ -58,19 +75,37 @@ def configure_logging(level: str, service_name: str) -> logging.Logger:
 
 
 class Metrics:
-    """Acumula metricas de um ciclo e emite um unico bloco EMF no flush."""
+    """Acumula métricas de um ciclo e emite um único bloco EMF no flush."""
 
     def __init__(self, namespace: str, service_name: str) -> None:
+        """Inicializa o gerenciador de métricas.
+
+        Args:
+            namespace (str): Namespace das métricas no CloudWatch.
+            service_name (str): Nome do serviço para dimensão.
+        """
         self._namespace = namespace
         self._service_name = service_name
         self._counts: dict[str, float] = {}
         self._units: dict[str, str] = {}
 
     def count(self, name: str, value: float = 1.0) -> None:
+        """Incrementa um contador de métrica.
+
+        Args:
+            name (str): Nome da métrica.
+            value (float, optional): Valor a incrementar. Padrão é 1.0.
+        """
         self._counts[name] = self._counts.get(name, 0.0) + value
         self._units.setdefault(name, "Count")
 
     def duration_ms(self, name: str, value: float) -> None:
+        """Registra uma métrica de duração em milissegundos.
+
+        Args:
+            name (str): Nome da métrica.
+            value (float): Valor da duração em milissegundos.
+        """
         self._counts[name] = value
         self._units[name] = "Milliseconds"
 

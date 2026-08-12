@@ -1,3 +1,5 @@
+"""Módulo de normalização de payloads brutos de telemetria."""
+
 import hashlib
 import json
 from collections.abc import Mapping
@@ -47,12 +49,33 @@ CSV_FIELD_MAP = {
 
 
 def canonicalize_keys(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Converte chaves legadas ou em formato CSV para os nomes canônicos de atributos.
+
+    Args:
+        payload (Mapping[str, Any]): Dicionário de payload com chaves brutas.
+
+    Returns:
+        dict[str, Any]: Dicionário com chaves padronizadas.
+    """
     return {CSV_FIELD_MAP.get(key, key): value for key, value in payload.items()}
 
 
 def normalize_event(
     raw_payload: Mapping[str, Any], *, received_at: datetime, user_id_hash_salt: str
 ) -> TelemetryEvent:
+    """Normaliza um payload bruto para uma instância de TelemetryEvent.
+
+    Args:
+        raw_payload (Mapping[str, Any]): Payload original do evento.
+        received_at (datetime): Data/hora do recebimento na API.
+        user_id_hash_salt (str): Sal para geração de hash do identificador de usuário.
+
+    Returns:
+        TelemetryEvent: Evento normalizado.
+
+    Raises:
+        ValidationError: Se faltar algum campo obrigatório ou o payload for inválido.
+    """
     payload = canonicalize_keys(raw_payload)
     event_name = required_text(payload, "event_name").lower()
     if event_name not in SUPPORTED_EVENT_NAMES:
@@ -95,6 +118,18 @@ def normalize_event(
 
 
 def required_text(payload: Mapping[str, Any], field: str) -> str:
+    """Extrai e valida um campo de texto obrigatório.
+
+    Args:
+        payload (Mapping[str, Any]): Dicionário de payload.
+        field (str): Nome do campo obrigatório.
+
+    Returns:
+        str: Valor do campo como texto.
+
+    Raises:
+        ValidationError: Se o campo for nulo, vazio ou inexistente.
+    """
     value = optional_text(payload.get(field))
     if not value:
         raise ValidationError(f"Campo obrigatorio ausente: {field}", field=field)
@@ -102,6 +137,14 @@ def required_text(payload: Mapping[str, Any], field: str) -> str:
 
 
 def optional_text(value: Any) -> str | None:
+    """Converte um valor para string tratada e limpa ou None se ausente/inválido.
+
+    Args:
+        value (Any): Valor original.
+
+    Returns:
+        str | None: Texto sanitizado ou None.
+    """
     if value is None:
         return None
     text = str(value).strip()
@@ -109,6 +152,18 @@ def optional_text(value: Any) -> str | None:
 
 
 def optional_float(value: Any, field: str) -> float | None:
+    """Converte um valor opcional para float.
+
+    Args:
+        value (Any): Valor a ser convertido.
+        field (str): Nome do campo para mensagem de erro.
+
+    Returns:
+        float | None: Valor numérico convertido ou None.
+
+    Raises:
+        ValidationError: Se o valor for texto não numérico.
+    """
     value = optional_text(value)
     if value is None:
         return None
@@ -119,6 +174,18 @@ def optional_float(value: Any, field: str) -> float | None:
 
 
 def optional_int(value: Any, field: str) -> int | None:
+    """Converte um valor opcional para inteiro.
+
+    Args:
+        value (Any): Valor a ser convertido.
+        field (str): Nome do campo para mensagem de erro.
+
+    Returns:
+        int | None: Valor inteiro convertido ou None.
+
+    Raises:
+        ValidationError: Se o valor não for um número inteiro válido.
+    """
     value = optional_text(value)
     if value is None:
         return None
@@ -129,6 +196,17 @@ def optional_int(value: Any, field: str) -> int | None:
 
 
 def parse_event_id(value: Any) -> UUID:
+    """Converte ou gera um UUID para o identificador do evento.
+
+    Args:
+        value (Any): Valor bruto recebido para o event_id.
+
+    Returns:
+        UUID: Objeto UUID resultante.
+
+    Raises:
+        ValidationError: Se o valor fornecido for um UUID inválido.
+    """
     if not optional_text(value):
         return uuid4()
     try:
@@ -138,6 +216,17 @@ def parse_event_id(value: Any) -> UUID:
 
 
 def parse_datetime(value: Any) -> datetime:
+    """Converte strings de data/hora ISO ou formatos legados para um objeto datetime em UTC.
+
+    Args:
+        value (Any): Valor bruto contendo timestamp.
+
+    Returns:
+        datetime: Objeto datetime normalizado em UTC.
+
+    Raises:
+        ValidationError: Se o timestamp for nulo ou em formato desconhecido.
+    """
     text = optional_text(value)
     if not text:
         raise ValidationError("timestamp ou occurred_at e obrigatorio", field="timestamp")
@@ -159,6 +248,18 @@ def parse_datetime(value: Any) -> datetime:
 
 
 def parse_json_object(value: Any, field: str) -> dict[str, Any]:
+    """Valida e converte uma string JSON em um dicionário Python.
+
+    Args:
+        value (Any): String JSON ou dicionário.
+        field (str): Nome do campo para contextualizar erro.
+
+    Returns:
+        dict[str, Any]: Objeto JSON parseado.
+
+    Raises:
+        ValidationError: Se o JSON for malformado ou não for um objeto.
+    """
     if value in (None, ""):
         return {}
     if isinstance(value, dict):
@@ -173,6 +274,14 @@ def parse_json_object(value: Any, field: str) -> dict[str, Any]:
 
 
 def sanitize_url(value: Any) -> str | None:
+    """Higieniza uma URL removendo query params sensíveis.
+
+    Args:
+        value (Any): URL bruta.
+
+    Returns:
+        str | None: URL sanitizada ou None.
+    """
     url = optional_text(value)
     if not url:
         return None
@@ -186,6 +295,14 @@ def sanitize_url(value: Any) -> str | None:
 
 
 def build_attributes(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Constrói o dicionário de atributos dinâmicos do evento.
+
+    Args:
+        payload (Mapping[str, Any]): Payload normalizado.
+
+    Returns:
+        dict[str, Any]: Dicionário de atributos do evento sem campos bloqueados.
+    """
     request_headers = parse_json_object(payload.get("request_headers"), "request_headers")
     safe_headers = {
         str(key).lower(): value
@@ -219,6 +336,15 @@ def build_attributes(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def hash_user_id(user_id: str | None, salt: str) -> str | None:
+    """Gera hash SHA-256 de um ID de usuário.
+
+    Args:
+        user_id (str | None): ID de usuário original.
+        salt (str): Sal de segurança.
+
+    Returns:
+        str | None: Hash resultante em hexadecimal ou None.
+    """
     if not user_id:
         return None
     return hashlib.sha256(f"{salt}:{user_id}".encode()).hexdigest()

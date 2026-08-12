@@ -1,3 +1,5 @@
+"""Factory de criação da aplicação Flask e manipuladores globais de requisições e erros."""
+
 import logging
 from typing import Any
 
@@ -19,11 +21,17 @@ def create_app(
     *,
     repository: Any = None,
 ) -> Flask:
-    """Monta a aplicacao.
+    """Monta a aplicação.
 
-    `repository` permite injetar um adaptador pronto -- e o que os testes usam
-    para apontar a API para um DynamoDB falso sem passar por variavel de
-    ambiente.
+    Args:
+        config (dict[str, Any] | type[Config] | None): Configurações a aplicar
+            por cima do `Config` padrão.
+        repository (Any, optional): Permite injetar um adaptador pronto -- é o
+            que os testes usam para apontar a API para um DynamoDB falso sem
+            passar por variável de ambiente.
+
+    Returns:
+        Flask: Instância da aplicação Flask pronta para execução.
     """
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -48,12 +56,15 @@ def create_app(
 
 
 def register_cors(app: Flask) -> None:
-    """CORS manual, sem dependencia extra.
+    """CORS manual, sem dependência extra.
 
-    A dashboard e um site estatico (Next com output: export) servido de outra
-    origem, entao o navegador exige estes cabecalhos. Escrito a mao porque sao
-    poucas linhas e cada dependencia a menos e um pacote a menos para caber no
+    A dashboard é um site estático (Next com output: export) servido de outra
+    origem, então o navegador exige estes cabeçalhos. Escrito à mão porque são
+    poucas linhas e cada dependência a menos é um pacote a menos para caber no
     limite de tamanho da Lambda.
+
+    Args:
+        app (Flask): Aplicação Flask onde o handler de CORS será registrado.
     """
     origins = [
         origin.strip()
@@ -63,6 +74,7 @@ def register_cors(app: Flask) -> None:
 
     @app.after_request
     def apply_cors(response):
+        """Acrescenta os cabeçalhos de CORS a toda resposta que sai da API."""
         requested = request.headers.get("Origin")
         if "*" in origins:
             response.headers["Access-Control-Allow-Origin"] = "*"
@@ -76,37 +88,61 @@ def register_cors(app: Flask) -> None:
 
 
 def register_error_handlers(app: Flask) -> None:
+    """Registra manipuladores globais de exceção para resposta Problem Details (RFC 7807).
+
+    Args:
+        app (Flask): Aplicação Flask para o registro dos errorhandlers.
+    """
+
     @app.errorhandler(ValidationError)
     def handle_validation(error: ValidationError):
+        """Filtro ou payload inválido -> 422, apontando o campo culpado."""
         return problem(422, "Validation error", str(error), field=error.field)
 
     @app.errorhandler(UnsupportedMediaTypeError)
     def handle_media_type(error: UnsupportedMediaTypeError):
+        """Content-Type que a API não aceita -> 415."""
         return problem(415, "Unsupported media type", str(error))
 
     @app.errorhandler(EventNotFoundError)
     def handle_not_found(error: EventNotFoundError):
+        """Evento ou sessão inexistente -> 404."""
         return problem(404, "Event not found", str(error))
 
     @app.errorhandler(BadRequest)
     def handle_bad_request(error: BadRequest):
+        """Corpo malformado detectado pelo Werkzeug -> 400."""
         return problem(400, "Bad request", "Corpo da requisicao invalido")
 
     @app.errorhandler(RequestEntityTooLarge)
     def handle_too_large(error: RequestEntityTooLarge):
+        """Corpo acima de MAX_CONTENT_LENGTH -> 413."""
         return problem(413, "Payload too large", "O corpo excede o limite configurado")
 
     @app.errorhandler(HTTPException)
     def handle_http(error: HTTPException):
+        """Rede de segurança das demais HTTPException, preservando o status original."""
         return problem(error.code or 500, error.name, error.description)
 
     @app.errorhandler(Exception)
     def handle_unexpected(error: Exception):
+        """Último recurso: registra o traceback e devolve 500 sem vazar detalhe interno."""
         app.logger.exception("unexpected_error", extra={"path": request.path})
         return problem(500, "Internal server error", "Erro interno inesperado")
 
 
 def problem(status: int, title: str, detail: str, **extra: Any):
+    """Gera uma resposta padronizada de erro seguindo a RFC 7807 (Problem Details).
+
+    Args:
+        status (int): Código de status HTTP do erro.
+        title (str): Título legível do erro.
+        detail (str): Descrição detalhada do erro.
+        **extra (Any): Campos adicionais a serem incorporados no JSON de resposta.
+
+    Returns:
+        Response: Objeto de resposta JSON do Flask com Content-Type 'application/problem+json'.
+    """
     payload = {
         "type": "about:blank",
         "title": title,

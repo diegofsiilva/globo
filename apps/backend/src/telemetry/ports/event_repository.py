@@ -1,3 +1,5 @@
+"""Porta e modelos de repositório de eventos de telemetria."""
+
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -40,7 +42,7 @@ class EventFilters:
 
 @dataclass(frozen=True, slots=True)
 class QueryStats:
-    """Quanto custou a consulta.
+    """Estatísticas de execução e custo da consulta.
 
     Vai na resposta de proposito. Num banco que cobra por item lido, a
     diferenca entre `scanned` e `returned` e a conta do filtro que roda depois
@@ -56,6 +58,8 @@ class QueryStats:
 
 @dataclass(frozen=True, slots=True)
 class EventPage:
+    """Página resultante de uma busca por eventos com suporte a cursor opaco."""
+
     items: Sequence[TelemetryEvent]
     next_cursor: str | None = None
     stats: QueryStats | None = None
@@ -63,7 +67,7 @@ class EventPage:
 
 @dataclass(frozen=True, slots=True)
 class EventMetric:
-    """Contagem agrupada por um valor de uma dimensao."""
+    """Contagem e métricas de agregacao por uma dimensão específica."""
 
     key: str
     count: int
@@ -72,7 +76,7 @@ class EventMetric:
 
 @dataclass(frozen=True, slots=True)
 class TimeBucket:
-    """Um ponto da serie temporal."""
+    """Ponto de agregação da série temporal."""
 
     bucket: datetime
     count: int
@@ -80,7 +84,7 @@ class TimeBucket:
 
 
 class EventRepository(Protocol):
-    """Porta de leitura.
+    """Porta de leitura de eventos de telemetria.
 
     Sem add/delete de proposito: a escrita pertence ao pipeline de ingestao
     (API Gateway -> SQS -> worker), que ja resolve idempotencia, retry e DLQ.
@@ -88,18 +92,72 @@ class EventRepository(Protocol):
     manter em sincronia e dois caminhos que divergem com o tempo.
     """
 
-    def search(self, filters: EventFilters) -> EventPage: ...
+    def search(self, filters: EventFilters) -> EventPage:
+        """Busca eventos aplicando filtros cumulativos.
 
-    def get(self, session_id: str, event_id: str) -> TelemetryEvent | None: ...
+        Args:
+            filters (EventFilters): Filtros e opções de paginação.
+
+        Returns:
+            EventPage: Página de eventos e metadados.
+        """
+        ...
+
+    def get(self, session_id: str, event_id: str) -> TelemetryEvent | None:
+        """Busca um evento específico por ID de sessão e ID do evento.
+
+        Args:
+            session_id (str): Identificador da sessão.
+            event_id (str): Identificador do evento.
+
+        Returns:
+            TelemetryEvent | None: Instância do evento se encontrado, senão None.
+        """
+        ...
 
     def breakdown(
         self, filters: EventFilters, dimension: str, limit: int = 20
-    ) -> Sequence[EventMetric]: ...
+    ) -> Sequence[EventMetric]:
+        """Agrupa métricas de eventos por uma dimensão específica.
 
-    def timeseries(
-        self, filters: EventFilters, interval_minutes: int = 60
-    ) -> Sequence[TimeBucket]: ...
+        Args:
+            filters (EventFilters): Filtros aplicados à busca.
+            dimension (str): Nome da dimensão para agrupamento.
+            limit (int, optional): Quantidade máxima de categorias retornadas.
 
-    def facets(self, fields: Sequence[str], limit: int = 20) -> dict[str, list[str]]: ...
+        Returns:
+            Sequence[EventMetric]: Lista de métricas agrupadas.
+        """
+        ...
 
-    def ping(self) -> bool: ...
+    def timeseries(self, filters: EventFilters, interval_minutes: int = 60) -> Sequence[TimeBucket]:
+        """Agrupa eventos em uma série temporal.
+
+        Args:
+            filters (EventFilters): Filtros aplicados à busca.
+            interval_minutes (int, optional): Intervalo em minutos para agrupar buckets.
+
+        Returns:
+            Sequence[TimeBucket]: Série temporal de buckets.
+        """
+        ...
+
+    def facets(self, fields: Sequence[str], limit: int = 20) -> dict[str, list[str]]:
+        """Obtém valores distintos existentes para preenchimento de opções de filtro.
+
+        Args:
+            fields (Sequence[str]): Nomes dos campos solicitados.
+            limit (int, optional): Limite de opções retornadas por campo.
+
+        Returns:
+            dict[str, list[str]]: Dicionário com lista de opções facetadas por campo.
+        """
+        ...
+
+    def ping(self) -> bool:
+        """Verifica a conectividade e integridade do repositório.
+
+        Returns:
+            bool: True se o repositório estiver acessível.
+        """
+        ...
