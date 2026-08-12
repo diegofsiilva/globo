@@ -1,156 +1,144 @@
-# Monitoração Agêntica - G04
+# Inteli - Instituto de Tecnologia e Liderança
 
-Backend inicial em Flask para receber, normalizar, armazenar e consultar eventos de
-telemetria de TVs, aplicações web e dispositivos móveis.
+<p align="center">
+  <img src="assets/inteli-logo.png" alt="Inteli" width="260"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/grupoglobo.png" alt="Grupo Globo" width="260"/>
+</p>
 
-## Funcionalidades disponíveis
+## G04 - Vale a Pena Ver de Novo
 
-- ingestão de um evento ou lote em JSON;
-- ingestão CSV, inclusive com objetos JSON escapados nas colunas;
-- normalização dos seis eventos do MVP: `request`, `vitals`, `screen_view`,
-  `video_view`, `session` e `error`;
-- persistência transacional por um repositório independente do domínio;
-- suporte a SQLite local e PostgreSQL por configuração;
-- filtros cumulativos, paginação e sugestões de valores para filtros;
-- pseudonimização de `user_id` e allowlist de cabeçalhos;
-- health checks e respostas de erro no formato Problem Details.
+**Sistema distribuído de telemetria para diagnóstico de degradação de streaming**
 
-## Executar com Docker
+Turma T15 · 2026-2A · Parceiro: **Grupo Globo**
 
-Requer Docker com Compose:
+### Integrantes
 
-```bash
-docker compose -f apps/backend/compose.yaml up --build
-```
+- [Christian Gandra](https://www.linkedin.com/in/christian-gandra/)
+- [Diego Figueiredo](https://www.linkedin.com/in/diegofigueiredos/)
+- [Gabriel Bartmanovicz](https://www.linkedin.com/in/gabriel-bartmanovicz/)
+- [Livia Saboia Tavares](https://www.linkedin.com/in/livia-saboia-tavares/)
+- [Lorenzo Ferrari Aggio](https://www.linkedin.com/in/lorenzo-ferrari-aggio/)
+- [Luiz Gustavo](https://www.linkedin.com/in/luiz-gustavo-0b33b62b7/)
+- [Nicole Riedla](https://www.linkedin.com/in/nicoleriedla/)
+- [Vinicius Cadena](https://github.com/ViniCadena1405)
 
-A API estará disponível em `http://localhost:5000`. O Compose inicia PostgreSQL,
-aguarda o banco ficar saudável e então inicia a aplicação.
+---
 
-Ao abrir `http://127.0.0.1:5000/` no navegador, a API retorna seu estado e a lista
-de endpoints disponíveis. Como este repositório contém somente o backend neste
-momento, essa página é uma resposta JSON, não uma interface gráfica.
+## Descrição do projeto
 
-## Executar localmente
+A cadeia de entrega do Globoplay (player, CDN, backend, identidade, catálogo) é monitorada em silos: cada área tem seu próprio painel e vocabulário de métricas, o que faz com que a triagem de um incidente consuma mais tempo para descobrir *quem* conserta do que para de fato consertar — e degradações que não geram erro (buffer alto, tempo de início ruim) sequer acendem os alertas atuais. A solução é um sistema distribuído de telemetria com API única de ingestão, normalização dos eventos sob vocabulário comum, pipeline assíncrono de alta escala e camada de consulta que devolve uma linha do tempo única do incidente com o recorte afetado explícito, permitindo identificar a causa provável em minutos e sem depender de um especialista por componente.
 
-É necessário Python 3.12 ou superior. No Windows:
-
-```powershell
-.\apps\backend\scripts\dev.ps1
-```
-
-Em Linux, macOS ou Codespaces:
-
-```bash
-sh ./apps/backend/scripts/dev.sh
-```
-
-O script cria `.venv`, instala as dependências e inicia a API com SQLite. Copie
-`apps/backend/.env.example` para `apps/backend/.env` se desejar personalizar a configuração.
-
-Depois que as dependências estiverem instaladas, toda a aplicação é iniciada por um
-único arquivo:
-
-```bash
-python apps/backend/run.py
-```
-
-Esse ponto de entrada carrega o ambiente, cria a aplicação Flask, prepara o banco
-SQLite automaticamente e inicia o servidor HTTP. Na primeira execução, se Flask e
-as demais dependências ainda não estiverem disponíveis, o próprio arquivo instala o
-projeto usando o interpretador Python selecionado e então continua a inicialização.
-
-No VS Code, abra `apps/backend` como workspace, acesse **Run and Debug**, selecione
-**Backend Flask** e clique em **Run**. Essa configuração executa o mesmo `run.py`.
-O Dev Container específico do serviço está em `apps/backend/.devcontainer`; abra a
-pasta `apps/backend` como workspace para utilizá-lo.
-
-## Exemplos da API
-
-Enviar um evento:
-
-```bash
-curl -X POST http://localhost:5000/api/v1/events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "timestamp": "2026-07-13T20:04:44Z",
-    "event_name": "request",
-    "duration": 0.033,
-    "app_env": "production",
-    "device_os": "Tizen"
-  }'
-```
-
-Ler ou excluir um evento pelo identificador:
-
-```bash
-curl "http://localhost:5000/api/v1/events/63811f26-0249-4f34-936a-b79e6d9cf857"
-curl -X DELETE "http://localhost:5000/api/v1/events/63811f26-0249-4f34-936a-b79e6d9cf857"
-```
-
-O MVP expõe somente criação, leitura e exclusão. Não há endpoints `PUT` ou `PATCH`.
-
-Consultar com filtros cumulativos:
-
-```bash
-curl "http://localhost:5000/api/v1/events?event_name=request&device_os=Tizen&page=1"
-```
-
-Consultar valores sugeridos para filtros:
-
-```bash
-curl "http://localhost:5000/api/v1/events/facets?field=event_name&field=device_os"
-```
-
-Consultar contagem e latência média por tipo de evento:
-
-```bash
-curl "http://localhost:5000/api/v1/metrics?app_env=production&device_os=Tizen"
-```
-
-Endpoints de operação:
-
-```text
-GET /health/live
-GET /health/ready
-```
-
-## Configuração
-
-| Variável | Padrão | Finalidade |
-|---|---|---|
-| `DATABASE_URL` | `sqlite:///instance/telemetry.db` | Conexão SQLAlchemy |
-| `USER_ID_HASH_SALT` | somente desenvolvimento | Salt da pseudonimização |
-| `MAX_CONTENT_LENGTH` | `2097152` | Limite do corpo em bytes |
-
-Em ambiente compartilhado, `USER_ID_HASH_SALT` deve ser um segredo forte e nunca
-deve ser versionado.
+---
 
 ## Arquitetura
 
-O código segue portas e adaptadores em quatro áreas:
-
-```text
-interfaces -> application -> domain
-                    ^
-                    |
-             infrastructure
+```
+signal_point ──> loader ──> API de ingestão (Flask) ──> SQS ──> worker ──> DynamoDB ──> API de consulta (Flask) ──> dashboard
 ```
 
-- `domain`: entidade e erros sem dependência de framework;
-- `application`: normalização e casos de uso;
-- `ports`: contratos dos repositórios;
-- `infrastructure`: implementação SQLAlchemy;
-- `interfaces`: API Flask e adaptação de JSON/CSV.
+| Camada | Responsabilidade | Serviço AWS |
+|--------|------------------|-------------|
+| API de ingestão | Recebe eventos via HTTP (`POST /events`), valida e publica na fila | EC2 |
+| Fila de mensagens | Absorve picos de requisições e desacopla ingestão do processamento | SQS |
+| Worker | Consome a fila e grava os eventos como itens no banco | EC2 |
+| Banco de dados | Armazenamento não relacional dos sinais (`telemetry_signals`) | DynamoDB |
+| API de consulta | Filtragem e ordenação dos sinais (`GET /events`) | EC2 |
+| Dashboard | Visualização final | S3 (site estático) |
 
-Para trocar o banco, implemente `EventRepository` e injete a implementação na
-factory da aplicação. As regras de negócio e os casos de uso permanecem inalterados.
+Detalhamento completo em [`/artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
-## Qualidade
+---
 
-Dentro de `apps/backend`:
+## Estrutura de pastas
+
+| Pasta / Arquivo | Conteúdo |
+|-----------------|----------|
+| `/artefatos` | Documentação das sprints — entendimento de negócio, UX, requisitos e documentação técnica do MVP |
+| `/apps` | Código das aplicações, organizado em subpastas |
+| `/apps/basica` | Aplicação do MVP inicial: `api-ingestao`, `api-consulta`, `worker`, `loader` e `frontend` |
+| `/slides` | Apresentações das sprints |
+| `/assets` | Imagens e recursos usados na documentação |
+| `README.md` | Este arquivo |
+| `.gitignore` | Arquivos e pastas ignorados pelo controle de versão |
+
+---
+
+## Execução local
+
+### Pré-requisitos
+
+- _[Python 3.x]_
+- _[Node.js 20+]_
+- _[Docker (opcional)]_
+- Credenciais AWS do AWS Academy configuradas (`~/.aws/credentials`)
+
+### Passos
 
 ```bash
-python -m pytest --cov=telemetry
-ruff check .
-ruff format --check .
+# 1. clonar o repositório
+git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
+cd g04/apps/basica
+
+# 2. configurar variáveis de ambiente
+cp .env.example .env
+# preencher AWS_REGION, SQS_QUEUE_URL, DYNAMO_TABLE, ...
+
+# 3. instalar dependências
+_[comando]_
+
+# 4. subir os serviços
+_[comando]_
 ```
+
+| Serviço | Porta local |
+|---------|-------------|
+| API de ingestão | _[porta]_ |
+| API de consulta | _[porta]_ |
+| Frontend | _[porta]_ |
+
+> **GitHub Codespaces / VS Code:** o repositório inclui _[devcontainer / tasks.json]_, bastando acionar **Run** para iniciar o sistema.
+
+---
+
+## Execução na AWS
+
+| Serviço | Configuração | Endpoint |
+|---------|-------------|----------|
+| EC2 | _[tipo da instância, AMI, security group e portas liberadas]_ | _[IP ou DNS público]_ |
+| SQS | _[nome da fila e visibility timeout]_ | _[URL da fila]_ |
+| DynamoDB | Tabela `telemetry_signals` (PK/SK) | _[região]_ |
+| S3 | _[nome do bucket do site estático]_ | _[URL do site]_ |
+
+### Passos de implantação
+
+1. _[Provisionar a instância EC2 no lab do AWS Academy]_
+2. _[Criar a fila SQS e a tabela DynamoDB]_
+3. _[Clonar o repositório na instância e configurar as variáveis de ambiente]_
+4. _[Iniciar a API de ingestão, a API de consulta e o worker]_
+5. _[Publicar o frontend no bucket S3 com hospedagem de site estático habilitada]_
+
+---
+
+## Documentação
+
+| Artefato | Descrição |
+|----------|-----------|
+| [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas |
+| [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, jornadas e decisões de experiência |
+| [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
+| [MVP inicial](artefatos/mvp-inicial.md) | Arquitetura, modelo de dados e documentação do código do protótipo |
+
+---
+
+## Padrões de contribuição
+
+- **Documentação de código:** docstrings (PEP 257) em Python e JSDoc em JavaScript. Todo módulo tem cabeçalho descritivo e toda função documenta parâmetros, retorno e comportamento.
+- **Commits:** mensagens descritivas, distribuídas ao longo da sprint.
+- **Tags:** uma tag `SPRINTX` por entrega, criada na data de entrega da sprint.
+
+---
+
+## Licença
+
+_[a definir]_
