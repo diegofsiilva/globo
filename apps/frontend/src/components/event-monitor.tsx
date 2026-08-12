@@ -1,167 +1,54 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchEvents, type ApiEvent } from "@/lib/events-api";
 
-type SimulatedEvent = {
-  id: string;
-  time: string;
-  eventName: string;
-  manufacturer: string;
-  model: string;
-  modelYear: string;
-  platform: string;
-  version: string;
-  route: string;
-  duration?: string;
-  status: "normal" | "attention";
-  classification: string;
-  technicalDetail: string;
-  userEffect: string;
-  displayedMessage: string;
-  source: string;
-  processingStatus: "Processado" | "Recebido" | "Erro no processamento";
+type DisplayEvent = {
+  id: string; time: string; occurredAt: string; eventName: string;
+  manufacturer: string; model: string; modelYear: string; platform: string;
+  version: string; route: string; duration?: string;
+  status: "normal" | "attention"; classification: string;
+  technicalDetail: string; userEffect: string; displayedMessage: string;
+  source: string; processingStatus: "Processado";
 };
-
-// Dados simulados a partir dos seis CSVs fornecidos. Identificadores pessoais,
-// de sessão e de dispositivo foram omitidos intencionalmente.
-const events: SimulatedEvent[] = [
-  {
-    id: "evt-error-philco",
-    time: "20:04:11",
-    eventName: "error",
-    manufacturer: "Philco",
-    model: "BTV32D10N5SKH",
-    modelYear: "2021",
-    platform: "NetRange",
-    version: "2026.3.0",
-    route: "VOD",
-    status: "attention",
-    classification: "Erro ao reproduzir vídeo",
-    technicalDetail: "dash_shaka_playback:6_6002",
-    userEffect: "O usuário tentou assistir a um vídeo, mas a reprodução falhou.",
-    displayedMessage: "Para assistir, tente carregar novamente",
-    source: "Loader · dataset histórico",
-    processingStatus: "Processado",
-  },
-  {
-    id: "evt-request-samsung",
-    time: "20:04:44",
-    eventName: "request",
-    manufacturer: "Samsung",
-    model: "UN49MU6100",
-    modelYear: "2017",
-    platform: "Tizen 3.0",
-    version: "2026.3.0",
-    route: "VOD",
-    duration: "0,033 s",
-    status: "normal",
-    classification: "Requisição concluída",
-    technicalDetail: "GET · HTTP 200 OK",
-    userEffect: "Nenhum problema explícito foi identificado nesta requisição.",
-    displayedMessage: "A requisição foi concluída com sucesso",
-    source: "Loader · dataset histórico",
-    processingStatus: "Processado",
-  },
-  {
-    id: "evt-screen-panasonic",
-    time: "20:04:53",
-    eventName: "screen_view",
-    manufacturer: "Panasonic",
-    model: "43D1200",
-    modelYear: "não informado",
-    platform: "Linux",
-    version: "2026.3.0",
-    route: "Ao vivo",
-    duration: "2,166 s",
-    status: "normal",
-    classification: "Visualização de tela",
-    technicalDetail: "screen_view · live",
-    userEffect: "O usuário acessou uma tela de conteúdo ao vivo.",
-    displayedMessage: "Nenhuma mensagem de erro foi registrada",
-    source: "Loader · dataset histórico",
-    processingStatus: "Processado",
-  },
-  {
-    id: "evt-session-panasonic",
-    time: "20:04:54",
-    eventName: "session · start",
-    manufacturer: "Panasonic",
-    model: "32D1280",
-    modelYear: "não informado",
-    platform: "Linux",
-    version: "2026.3.0",
-    route: "Sessão",
-    duration: "6,486 s",
-    status: "normal",
-    classification: "Início de sessão",
-    technicalDetail: "session:start · 1280×720",
-    userEffect: "Uma sessão do aplicativo foi iniciada no dispositivo.",
-    displayedMessage: "Nenhuma mensagem de erro foi registrada",
-    source: "Loader · dataset histórico",
-    processingStatus: "Processado",
-  },
-  {
-    id: "evt-video-tcl",
-    time: "20:05:19",
-    eventName: "video_view · open",
-    manufacturer: "TCL",
-    model: "50P65US",
-    modelYear: "2018",
-    platform: "Linux",
-    version: "2026.3.0",
-    route: "Ao vivo",
-    duration: "3,756 s",
-    status: "normal",
-    classification: "Abertura de conteúdo",
-    technicalDetail: "video_view:open · live · ads",
-    userEffect: "O usuário abriu um conteúdo ao vivo.",
-    displayedMessage: "Nenhuma mensagem de erro foi registrada",
-    source: "Loader · dataset histórico",
-    processingStatus: "Processado",
-  },
-  {
-    id: "evt-vitals-lg",
-    time: "20:06:07",
-    eventName: "vitals · frozen",
-    manufacturer: "LG",
-    model: "49LJ5550-SC",
-    modelYear: "2017",
-    platform: "webOS 3.9.0",
-    version: "2026.3.0",
-    route: "VOD",
-    duration: "0,783 s",
-    status: "attention",
-    classification: "Interface congelada",
-    technicalDetail: "vitals:frozen",
-    userEffect: "O usuário pode ter percebido travamento ou falta de resposta do aplicativo.",
-    displayedMessage: "O aplicativo deixou de responder temporariamente",
-    source: "Loader · dataset histórico",
-    processingStatus: "Processado",
-  },
-];
-
-const prioritizedEvents = [...events].sort((eventA, eventB) => {
-  if (eventA.status !== eventB.status) {
-    return eventA.status === "attention" ? -1 : 1;
-  }
-
-  return eventB.time.localeCompare(eventA.time);
-});
 
 export function EventMonitor() {
   const [statusFilter, setStatusFilter] = useState<"all" | "attention" | "normal">("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [selectedId, setSelectedId] = useState(prioritizedEvents[0].id);
-  const eventTypes = [...new Set(events.map((event) => event.eventName.split(" · ")[0]))];
-  const filteredEvents = prioritizedEvents.filter((event) => {
+  const [periodFilter, setPeriodFilter] = useState<"5" | "15" | "60" | "all">("15");
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [manufacturerFilter, setManufacturerFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const period = getPeriod(periodFilter);
+  const eventsQuery = useQuery({
+    queryKey: ["events", typeFilter, platformFilter, manufacturerFilter, periodFilter],
+    queryFn: ({ signal }) => fetchEvents({
+      eventName: typeFilter === "all" ? undefined : typeFilter,
+      platform: platformFilter === "all" ? undefined : platformFilter,
+      manufacturer: manufacturerFilter === "all" ? undefined : manufacturerFilter,
+      ...period,
+    }, signal),
+  });
+  const liveEvents = eventsQuery.data?.items.map(mapApiEvent) ?? [];
+  const orderedEvents = [...liveEvents].sort((a, b) => a.status === b.status ? b.time.localeCompare(a.time) : a.status === "attention" ? -1 : 1);
+  const eventTypes = [...new Set(liveEvents.map((event) => event.eventName.split(" · ")[0]))];
+  const platforms = [...new Set(liveEvents.map((event) => event.platform))].sort();
+  const manufacturers = [...new Set(liveEvents.map((event) => event.manufacturer))].sort();
+  const filteredEvents = orderedEvents.filter((event) => {
     const matchesStatus = statusFilter === "all" || event.status === statusFilter;
     const matchesType = typeFilter === "all" || event.eventName.startsWith(typeFilter);
-    return matchesStatus && matchesType;
+    const matchesPlatform = platformFilter === "all" || event.platform === platformFilter;
+    const matchesManufacturer = manufacturerFilter === "all" || event.manufacturer === manufacturerFilter;
+    const searchableContent = [event.id, event.eventName, event.manufacturer, event.model, event.modelYear, event.platform, event.version, event.route, event.classification, event.technicalDetail].join(" ").toLocaleLowerCase("pt-BR");
+    const matchesQuery = searchableContent.includes(query.trim().toLocaleLowerCase("pt-BR"));
+    return matchesStatus && matchesType && matchesPlatform && matchesManufacturer && matchesQuery;
   });
-  const selected = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0] ?? prioritizedEvents[0];
-  const needsAttention = selected.status === "attention";
-  const attentionCount = events.filter((event) => event.status === "attention").length;
-  const hypothesis = selected.eventName.startsWith("vitals")
+  const selected = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0] ?? orderedEvents[0] ?? null;
+  const needsAttention = selected?.status === "attention";
+  const attentionCount = liveEvents.filter((event) => event.status === "attention").length;
+  const hypothesis = selected?.eventName.startsWith("vitals")
     ? {
         primary: "Regressão de performance na versão 2026.3.0 causando congelamento no webOS 3.9",
         score: 82,
@@ -172,11 +59,11 @@ export function EventMonitor() {
         score: 87,
         alternatives: [[61, "Manifesto DASH incompatível com o player do dispositivo"], [39, "Falha de autorização ou licença durante o início do play"], [24, "Instabilidade de rede durante o carregamento inicial"]] as const,
       };
-  const normalizedPayload = {
+  const normalizedPayload = selected ? {
     event_id: selected.id,
     event_name: selected.eventName.split(" · ")[0],
-    occurred_at: `2026-07-13T${selected.time}-03:00`,
-    source: "loader",
+    occurred_at: selected.occurredAt,
+    source: "api",
     processing_status: selected.processingStatus.toLowerCase(),
     device: {
       manufacturer: selected.manufacturer,
@@ -187,17 +74,18 @@ export function EventMonitor() {
     app_version: selected.version,
     route: selected.route,
     classification: selected.classification,
-  };
+  } : null;
 
   return (
     <section id="eventos" aria-label="Eventos recebidos">
       <div className="monitor-toolbar">
         <div className="event-counters">
-          <strong>{events.length} processados</strong>
+          <strong>{liveEvents.length} eventos</strong>
           <span>{attentionCount} requerem atenção</span>
-          <span>Última atualização: 20:06:10</span>
+          <span>{eventsQuery.isFetching ? "Atualizando…" : `Última atualização: ${new Date().toLocaleTimeString("pt-BR")}`}</span>
         </div>
         <div className="event-filters" aria-label="Filtros de eventos">
+          <input type="search" aria-label="Pesquisar eventos" placeholder="Buscar modelo, versão, código..." value={query} onChange={(event) => setQuery(event.target.value)} />
           <div className="status-filter">
             {(["all", "attention", "normal"] as const).map((filter) => (
               <button key={filter} type="button" aria-pressed={statusFilter === filter} onClick={() => setStatusFilter(filter)}>
@@ -209,6 +97,15 @@ export function EventMonitor() {
             <option value="all">Todos os tipos</option>
             {eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}
           </select>
+          <select aria-label="Filtrar por período" value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value as "5" | "15" | "60" | "all")}>
+            <option value="5">Últimos 5 min</option><option value="15">Últimos 15 min</option><option value="60">Última hora</option><option value="all">Todo o período</option>
+          </select>
+          <select aria-label="Filtrar por plataforma" value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)}>
+            <option value="all">Todas as plataformas</option>{platforms.map((platform) => <option key={platform} value={platform}>{platform}</option>)}
+          </select>
+          <select aria-label="Filtrar por fabricante" value={manufacturerFilter} onChange={(event) => setManufacturerFilter(event.target.value)}>
+            <option value="all">Todos os fabricantes</option>{manufacturers.map((manufacturer) => <option key={manufacturer} value={manufacturer}>{manufacturer}</option>)}
+          </select>
         </div>
       </div>
 
@@ -219,7 +116,7 @@ export function EventMonitor() {
             <p className="section-label">Ordenados por prioridade</p>
             <h2>Últimos eventos</h2>
           </div>
-          <span className="mock-badge">6 eventos simulados</span>
+          <span className="mock-badge">{eventsQuery.isError ? "API indisponível" : "API conectada"}</span>
         </div>
 
         <div className="events-list">
@@ -227,7 +124,7 @@ export function EventMonitor() {
             <button
               type="button"
               key={event.id}
-              className={event.id === selected.id ? "event-row active" : "event-row"}
+              className={event.id === selected?.id ? "event-row active" : "event-row"}
               onClick={() => setSelectedId(event.id)}
             >
               <span className="event-time">{event.time}</span>
@@ -241,17 +138,19 @@ export function EventMonitor() {
               </span>
             </button>
           ))}
-          {filteredEvents.length === 0 && <p className="empty-list">Nenhum evento corresponde aos filtros.</p>}
+          {eventsQuery.isLoading && <p className="empty-list">Carregando eventos…</p>}
+          {!eventsQuery.isLoading && filteredEvents.length === 0 && <p className="empty-list">Nenhum evento corresponde aos filtros.</p>}
+          {eventsQuery.isError && <p className="api-warning">Não foi possível consultar a API. Tente novamente.</p>}
         </div>
       </div>
 
-      <article className="event-detail" aria-live="polite">
+      {selected ? <article className="event-detail" aria-live="polite">
         <div className="detail-header">
           <div className={needsAttention ? "status" : "status normal"}>
             <i aria-hidden="true" />
             {needsAttention ? "Possível problema identificado" : "Evento sem falha explícita"}
           </div>
-          <span>13 jul. 2026 · {selected.time}</span>
+          <span>{new Date(selected.occurredAt).toLocaleDateString("pt-BR")} · {selected.time}</span>
         </div>
 
         <h2>{selected.userEffect}</h2>
@@ -274,13 +173,13 @@ export function EventMonitor() {
           <summary>Ver payload normalizado</summary>
           <pre>{JSON.stringify(normalizedPayload, null, 2)}</pre>
         </details>
-      </article>
+      </article> : <article className="event-detail empty-detail" aria-live="polite"><p>Selecione filtros ou aguarde a chegada de eventos.</p></article>}
       </div>
     </section>
   );
 }
 
-function HypothesisBoard({ hypothesis, event }: { hypothesis: { primary: string; score: number; alternatives: readonly (readonly [number, string])[] }; event: SimulatedEvent }) {
+function HypothesisBoard({ hypothesis, event }: { hypothesis: { primary: string; score: number; alternatives: readonly (readonly [number, string])[] }; event: DisplayEvent }) {
   return (
     <section className="hypothesis-section hypothesis-board" id="hipoteses">
       <header className="hypothesis-title"><h3>Hipóteses de causa provável</h3><span>4 geradas · simulação demonstrativa</span></header>
@@ -311,4 +210,61 @@ function HypothesisRow({ score, label, index, selected = false }: { score: numbe
 
 function Factor({ label, value, description }: { label: string; value: number; description: string }) {
   return <div className="hypothesis-factor"><div><strong>{label}</strong><span>{value}/100</span></div><i><b style={{ width: `${value}%` }} /></i><p>{description}</p></div>;
+}
+
+function mapApiEvent(event: ApiEvent): DisplayEvent {
+  const occurredAt = new Date(event.occurred_at);
+  const action = event.action ? ` · ${event.action}` : "";
+  const isAttention = event.event_name === "error" || (event.event_name === "vitals" && event.action === "frozen");
+  const errorName = readAttribute(event.attributes, "error_name");
+  const errorMessage = readAttribute(event.attributes, "error_message");
+  const errorStack = readAttribute(event.attributes, "error_stack");
+
+  return {
+    id: event.event_id,
+    occurredAt: event.occurred_at,
+    time: occurredAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    eventName: `${event.event_name}${action}`,
+    manufacturer: event.device_manufacturer ?? "Não informado",
+    model: event.device_model ?? "Não informado",
+    modelYear: String(event.device_model_year ?? "não informado"),
+    platform: [event.device_os, event.device_os_version].filter((value) => value && value !== "unknown").join(" ") || "Não informada",
+    version: event.app_version ?? "Não informada",
+    route: event.route_path ?? "Não informada",
+    duration: event.duration_ms == null ? undefined : `${(event.duration_ms / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} s`,
+    status: isAttention ? "attention" : "normal",
+    classification: errorName ?? classifyEvent(event.event_name, event.action),
+    technicalDetail: errorStack ?? `${event.event_name}${action}`,
+    userEffect: describeUserEffect(event.event_name, event.action),
+    displayedMessage: errorMessage ?? (isAttention ? "Possível impacto identificado no evento" : "Nenhuma falha explícita foi registrada"),
+    source: "API de consulta",
+    processingStatus: "Processado",
+  };
+}
+
+function readAttribute(attributes: Record<string, unknown>, key: string) {
+  const value = attributes[key];
+  return typeof value === "string" ? value : null;
+}
+
+function classifyEvent(eventName: string, action: string | null) {
+  if (eventName === "error") return "Erro da aplicação";
+  if (eventName === "vitals" && action === "frozen") return "Interface congelada";
+  return ({ request: "Requisição", screen_view: "Visualização de tela", session: "Sessão", video_view: "Reprodução de vídeo", vitals: "Sinal de desempenho" } as Record<string, string>)[eventName] ?? "Evento de telemetria";
+}
+
+function describeUserEffect(eventName: string, action: string | null) {
+  if (eventName === "error") return "O usuário encontrou um erro durante o uso do Globoplay.";
+  if (eventName === "vitals" && action === "frozen") return "O usuário pode ter percebido travamento ou falta de resposta do aplicativo.";
+  if (eventName === "video_view") return "O usuário acessou um conteúdo de vídeo.";
+  if (eventName === "screen_view") return "O usuário acessou uma tela do aplicativo.";
+  if (eventName === "session") return "Uma sessão do aplicativo foi registrada.";
+  return "Nenhum problema explícito foi identificado neste evento.";
+}
+
+function getPeriod(period: "5" | "15" | "60" | "all") {
+  if (period === "all") return {};
+  const to = new Date();
+  const from = new Date(to.getTime() - Number(period) * 60_000);
+  return { from: from.toISOString(), to: to.toISOString() };
 }
