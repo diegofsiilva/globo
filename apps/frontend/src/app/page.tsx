@@ -2,21 +2,15 @@ import { EventMonitor } from "@/components/event-monitor";
 
 export default function Home() {
   return (
-    <main>
+    <main className="app-shell">
       <header className="site-header">
-        <span>Globoplay</span>
+        <div className="brand">
+          <div className="brand-mark" aria-hidden="true" />
+          <strong>Monitoração Agêntica</strong><span>Globoplay</span>
+        </div>
+        <div className="live-indicator"><i aria-hidden="true" />Dados simulados · 20:06:10</div>
       </header>
-
-      <div className="page">
-        <section className="intro">
-          <p className="eyebrow">Monitoramento de telemetria</p>
-          <p>
-            Consulte os eventos processados e entenda o possível problema
-            percebido durante o uso do Globoplay.
-          </p>
-        </section>
-        <EventMonitor />
-      </div>
+          <EventMonitor />
     </main>
   );
 }

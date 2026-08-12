@@ -161,6 +161,17 @@ export function EventMonitor() {
   const selected = filteredEvents.find((event) => event.id === selectedId) ?? filteredEvents[0] ?? prioritizedEvents[0];
   const needsAttention = selected.status === "attention";
   const attentionCount = events.filter((event) => event.status === "attention").length;
+  const hypothesis = selected.eventName.startsWith("vitals")
+    ? {
+        primary: "Regressão de performance na versão 2026.3.0 causando congelamento no webOS 3.9",
+        score: 82,
+        alternatives: [[58, "Pressão de memória no modelo LG 49LJ5550-SC"], [37, "Timeout durante a retomada do conteúdo VOD"], [21, "Instabilidade temporária do sistema operacional"]] as const,
+      }
+    : {
+        primary: "Falha no player DASH/Shaka ao iniciar conteúdo VOD em dispositivos NetRange",
+        score: 87,
+        alternatives: [[61, "Manifesto DASH incompatível com o player do dispositivo"], [39, "Falha de autorização ou licença durante o início do play"], [24, "Instabilidade de rede durante o carregamento inicial"]] as const,
+      };
   const normalizedPayload = {
     event_id: selected.id,
     event_name: selected.eventName.split(" · ")[0],
@@ -179,7 +190,7 @@ export function EventMonitor() {
   };
 
   return (
-    <section aria-label="Eventos recebidos">
+    <section id="eventos" aria-label="Eventos recebidos">
       <div className="monitor-toolbar">
         <div className="event-counters">
           <strong>{events.length} processados</strong>
@@ -244,41 +255,20 @@ export function EventMonitor() {
         </div>
 
         <h2>{selected.userEffect}</h2>
-
-        <div className="user-message">
-          <span>Mensagem ou efeito observado</span>
-          <blockquote>“{selected.displayedMessage}”</blockquote>
-        </div>
-
+        
         <div className="detail-block">
-          <h3>Contexto do evento</h3>
-          <div className="tags">
-            <span>{selected.manufacturer}</span><span>{selected.model}</span>
-            <span>ano {selected.modelYear}</span><span>{selected.platform}</span>
-            <span>{selected.route}</span><span>app {selected.version}</span>
-            {selected.duration && <span>duração {selected.duration}</span>}
-          </div>
-        </div>
+                  <h3>Contexto do evento</h3>
+                  <div className="tags">
+                    <span>{selected.manufacturer}</span><span>{selected.model}</span>
+                    <span>ano {selected.modelYear}</span><span>{selected.platform}</span>
+                    <span>{selected.route}</span><span>app {selected.version}</span>
+                    {selected.duration && <span>duração {selected.duration}</span>}
+                  </div>
+                </div>
 
-        <div className="detail-grid">
-          <div><span>Classificação</span><strong>{selected.classification}</strong></div>
-          <div><span>Detalhe técnico</span><code>{selected.technicalDetail}</code></div>
-        </div>
+        {needsAttention && <HypothesisBoard hypothesis={hypothesis} event={selected} />}
 
-        <div className="operational-grid">
-          <div><span>Origem</span><strong>{selected.source}</strong></div>
-          <div><span>ID técnico</span><code>{selected.id}</code></div>
-          <div><span>Horário de ocorrência</span><strong>13 jul. 2026 · {selected.time}</strong></div>
-        </div>
-
-        {needsAttention && (
-          <div className="analysis-notice">
-            <div>
-              <span>Status da análise</span>
-              <strong>Evento individual — aguardando correlação</strong>
-            </div>
-          </div>
-        )}
+        
 
         <details className="payload-details">
           <summary>Ver payload normalizado</summary>
@@ -288,4 +278,37 @@ export function EventMonitor() {
       </div>
     </section>
   );
+}
+
+function HypothesisBoard({ hypothesis, event }: { hypothesis: { primary: string; score: number; alternatives: readonly (readonly [number, string])[] }; event: SimulatedEvent }) {
+  return (
+    <section className="hypothesis-section hypothesis-board" id="hipoteses">
+      <header className="hypothesis-title"><h3>Hipóteses de causa provável</h3><span>4 geradas · simulação demonstrativa</span></header>
+      <div className="hypothesis-columns">
+        <div className="hypothesis-ranking">
+          <HypothesisRow score={hypothesis.score} label={hypothesis.primary} index={1} selected />
+          {hypothesis.alternatives.map(([score, label], index) => <HypothesisRow key={label} score={score} label={label} index={index + 2} />)}
+          <div className="discarded-hypotheses"><span>Descartadas</span><p><b>12</b> Falha geral da CDN — outros dispositivos operam normalmente.</p><p><b>08</b> Indisponibilidade do conteúdo — reprodução ocorre em outras plataformas.</p></div>
+        </div>
+        <div className="hypothesis-explanation">
+          <span className="calculation-label">Como este score foi calculado</span>
+          <h4>{hypothesis.primary}</h4>
+          <div className="score-summary"><strong>{hypothesis.score}</strong><span>soma ponderada de fatores simulados, normalizada de 0–100</span></div>
+          <Factor label="Correspondência com o código técnico" value={94} description={`${event.technicalDetail} aponta para o mesmo subsistema da hipótese.`} />
+          <Factor label="Especificidade do dispositivo" value={88} description={`O recorte coincide com ${event.manufacturer} ${event.model} e ${event.platform}.`} />
+          <Factor label="Coincidência com a versão" value={79} description={`O evento foi observado no aplicativo ${event.version}.`} />
+          <Factor label="Precedente simulado" value={72} description="Cenário semelhante foi usado como histórico sintético para a demonstração." />
+          <div className="consulted-evidence"><span>Evidências consultadas</span><p><b>evento normalizado</b><code>{event.id}</code></p><p><b>código técnico</b><code>{event.technicalDetail}</code></p><p><b>recorte do dispositivo</b><em>{event.manufacturer} · {event.platform}</em></p></div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HypothesisRow({ score, label, index, selected = false }: { score: number; label: string; index: number; selected?: boolean }) {
+  return <div className={`hypothesis-row${selected ? " selected-hypothesis" : ""}`}><strong>{score}</strong><div><span>Hipótese {index}{selected ? " · principal" : ""}</span><b>{label}</b><i><em style={{ width: `${score}%` }} /></i></div></div>;
+}
+
+function Factor({ label, value, description }: { label: string; value: number; description: string }) {
+  return <div className="hypothesis-factor"><div><strong>{label}</strong><span>{value}/100</span></div><i><b style={{ width: `${value}%` }} /></i><p>{description}</p></div>;
 }
