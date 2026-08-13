@@ -31,6 +31,76 @@
 
 &emsp;Os requisitos RF01 a RF13 estão diretamente relacionados ao escopo mínimo apresentado no TAPI. Os requisitos RF14 a RF16 complementam a experiência de análise discutida durante a elicitação. Já o RF17 deve ser tratado inicialmente como uma possível evolução, pois depende da quantidade e da qualidade dos dados coletados e ainda precisa ser validado com o parceiro. Caso seja implementado, suas hipóteses deverão apoiar a investigação humana, sem serem apresentadas como conclusões definitivas.
 
+## Diagrama de casos de uso
+
+&emsp;O diagrama de casos de uso representa, em notação UML, os requisitos funcionais apresentados na seção anterior. Ele mostra quem interage com a plataforma (atores), quais serviços o sistema oferece (casos de uso) e como esses serviços se relacionam entre si. O arquivo editável está em `assets/diagrama_casos_de_uso.drawio` e pode ser aberto no [diagrams.net](https://app.diagrams.net).
+
+<div align="center">
+
+<sub>Figura 1 - Diagrama de casos de uso dos requisitos funcionais</sub>
+
+![Diagrama de casos de uso](./assets/diagrama_casos_de_uso.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp;O diagrama contempla apenas os requisitos funcionais. Os requisitos não funcionais descrevem qualidades do sistema, e não serviços oferecidos aos atores, de modo que sua verificação permanece nos planos de teste apresentados adiante.
+
+### Atores
+
+| Ator | Tipo | Papel no sistema |
+|---|---|---|
+| Aplicação frontend do Globoplay | Sistema externo | Emite os eventos de telemetria. Representa o conjunto das plataformas em que o Globoplay está presente, sem enumerá-las, uma vez que cada uma pode apresentar falhas próprias e a lista definitiva ainda será priorizada com o parceiro. |
+| Usuário do dashboard | Ator generalizado | Reúne o comportamento de consulta e análise comum aos dois perfis operacionais. Não é instanciado diretamente. |
+| Engenheiro de Observabilidade | Ator especializado | Investiga padrões de falha, acompanha limites de confiabilidade e compara períodos. |
+| Analista de Suporte N2 | Ator especializado | Faz a triagem de chamados a partir dos eventos registrados. |
+
+&emsp;O ator "Aplicação frontend do Globoplay" foi mantido genérico de forma proposital. O RF02 e o RF03 tratam de plataformas e protocolos diversos, incluindo dispositivos legados, e enumerar categorias no diagrama daria a impressão de um escopo fechado. A definição das plataformas e dos protocolos priorizados para o MVP é validada com o parceiro.
+
+### Relação entre os atores e as personas
+
+&emsp;Os atores do diagrama derivam das personas definidas em [entendimento_ux.md](./entendimento_ux.md). A correspondência é a seguinte:
+
+| Persona | Relação com a solução | Ator correspondente | Casos de uso associados |
+|---|---|---|---|
+| Rafael Santos - engenheiro de observabilidade | Usuário direto (persona principal) | Engenheiro de Observabilidade | Todos os casos do "Usuário do dashboard", além de comparar períodos (RF14), acompanhar picos de erro e latência (RF15) e consultar hipóteses de causa raiz (RF17) |
+| Mariana Souza - analista de suporte N2 | Usuária direta (operacional) | Analista de Suporte N2 | Casos herdados do "Usuário do dashboard": consultar eventos (RF08), agrupar (RF11), dashboard (RF12), falhas críticas (RF13) e investigar problema (RF16) |
+| Luísa Silva dos Santos - assinante do Globoplay | Usuária indireta | Não é modelada como ator | Nenhum |
+
+&emsp;Luísa não aparece como ator porque não interage com a plataforma. Em UML, um ator representa quem troca informação com o sistema, e a relação de Luísa é de benefício indireto: seus eventos chegam pelo ator "Aplicação frontend do Globoplay" e o resultado da investigação se traduz em correções no dispositivo dela. Representá-la como ator sugeriria uma interação que não existe.
+
+&emsp;A distinção entre os dois atores diretos segue a diferença registrada nas User Stories: as histórias US01 a US05, de Rafael, tratam de cobertura, confiabilidade da ingestão e definição de limites de confiabilidade; as histórias US06 a US08, de Mariana, tratam de triagem por sessão, dispositivo e região. Como ambas partem das mesmas consultas ao dashboard, a generalização evita repetir as mesmas associações duas vezes.
+
+&emsp;O perfil de produto, citado no RNF07 como um dos públicos do dashboard, não foi modelado como ator porque não possui persona correspondente no entendimento de UX. Caso venha a ser considerado um usuário do MVP, será necessário criar a persona antes de incluí-lo no diagrama.
+
+### Rastreabilidade entre casos de uso e requisitos
+
+| Caso de uso | Ator ou caso de uso de origem | Requisitos atendidos |
+|---|---|---|
+| Enviar evento de telemetria | Aplicação frontend do Globoplay | RF01, RF02, RF03, RF07 |
+| Validar campos mínimos do evento | «include» de "Enviar evento de telemetria" | RF04 |
+| Normalizar evento em formato comum | «include» de "Enviar evento de telemetria" | RF05 |
+| Armazenar evento processado | «include» de "Enviar evento de telemetria" | RF06 |
+| Consultar eventos por tipo, período e atributos | Usuário do dashboard | RF08 |
+| Aplicar filtros cumulativos | «include» de "Consultar eventos" | RF09 |
+| Sugerir valores existentes nos filtros | «extend» de "Aplicar filtros cumulativos" | RF10 |
+| Agrupar eventos por critério | Usuário do dashboard | RF11 |
+| Visualizar dashboard de gráficos e indicadores | Usuário do dashboard | RF12 |
+| Consultar falhas críticas | Usuário do dashboard | RF13 |
+| Investigar problema com dados de contexto | Usuário do dashboard | RF16 |
+| Consultar hipóteses de causa raiz | «extend» de "Investigar problema" | RF17 |
+| Comparar período atual com período anterior | Engenheiro de Observabilidade | RF14 |
+| Acompanhar picos de erro e latência | Engenheiro de Observabilidade | RF15 |
+
+&emsp;Todos os requisitos funcionais de RF01 a RF17 estão representados no diagrama.
+
+### Convenções adotadas
+
+- **«include»** indica um comportamento sempre executado como parte do caso de uso base. É o caso da validação, da normalização e do armazenamento, que ocorrem em toda ingestão de evento.
+- **«extend»** indica um comportamento opcional, executado apenas em determinadas condições. Foi aplicado ao RF10 (sugestão de valores) e ao RF17 (hipóteses de causa raiz).
+- O RF17 aparece com contorno tracejado por ser tratado como uma possível evolução, conforme registrado na seção anterior, e depende de validação com o parceiro.
+
 ## Requisitos não funcionais
 
 &emsp;Ainda conforme o livro [Engenharia de Software Moderna](https://engsoftmoderna.info/cap3.html), os requisitos não funcionais estabelecem características de qualidade e restrições sobre o funcionamento do sistema. Eles não descrevem uma funcionalidade isolada, mas definem condições importantes para que as funcionalidades sejam utilizadas de forma adequada.
@@ -174,9 +244,10 @@
 
 ## Considerações finais
 
-&emsp;A documentação dos requisitos fornece uma referência inicial para o planejamento e a avaliação do sistema. Os requisitos funcionais descrevem as capacidades esperadas da plataforma, enquanto os requisitos não funcionais e seus respectivos planos de teste estabelecem critérios para observar a qualidade da solução. Como a elicitação é uma atividade contínua, o conteúdo deverá ser revisado sempre que uma nova necessidade, restrição ou decisão for validada com o parceiro.
+&emsp;A documentação dos requisitos fornece uma referência inicial para o planejamento e a avaliação do sistema. Os requisitos funcionais descrevem as capacidades esperadas da plataforma e são representados de forma gráfica no diagrama de casos de uso, enquanto os requisitos não funcionais e seus respectivos planos de teste estabelecem critérios para observar a qualidade da solução. Como a elicitação é uma atividade contínua, o conteúdo deverá ser revisado sempre que uma nova necessidade, restrição ou decisão for validada com o parceiro.
 
 ## Referências
 
 - GRUPO GLOBO; INTELI. *TAPI - Turma 15 - Ciência da Computação - Módulo 7: Monitoração Agêntica*. Documento de definição do projeto parceiro, 2026.
+- OBJECT MANAGEMENT GROUP. *OMG Unified Modeling Language (OMG UML), version 2.5.1*. Disponível em: [https://www.omg.org/spec/UML/](https://www.omg.org/spec/UML/). Acesso em: 12 ago. 2026.
 - VALENTE, Marco Tulio. *Engenharia de Software Moderna: princípios e práticas para desenvolvimento de software com produtividade*. Disponível em: [https://engsoftmoderna.info/](https://engsoftmoderna.info/). Acesso em: 10 ago. 2026.
