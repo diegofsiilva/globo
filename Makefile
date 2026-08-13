@@ -16,10 +16,12 @@ include .env
 export
 endif
 
-WORKER  := apps/worker
-BACKEND := apps/backend
-INFRA   := apps/infra
-TOOLS   := apps/tools
+WORKER   := apps/basica/worker
+BACKEND  := apps/basica/backend
+INFRA    := apps/basica/infra
+TOOLS    := apps/basica/tools
+FRONTEND := apps/basica/frontend
+POSTMAN  := artefatos/postman
 
 # Pasta com os CSVs de evento exportados do BI.
 EVENTS_SRC ?= $(HOME)/Downloads/Events
@@ -116,7 +118,7 @@ docs: ## Abre a documentação Swagger da API publicada
 	@open "$(ARGUS_API_URL)/docs" 2>/dev/null || echo "Acesse: $$ARGUS_API_URL/docs"
 
 .PHONY: openapi
-openapi: ## Salva a especificação OpenAPI em apps/backend/openapi.json
+openapi: ## Salva a especificação OpenAPI em apps/basica/backend/openapi.json
 	@$(call require_env,ARGUS_API_URL)
 	curl -s "$(ARGUS_API_URL)/openapi.json" -o $(BACKEND)/openapi.json
 	@echo "gravado em $(BACKEND)/openapi.json"
@@ -172,6 +174,60 @@ deploy: test-backend lambda-build ## Testa, empacota e publica a API de leitura
 worker-deploy: ## Publica a imagem do worker no ECR e força novo deploy
 	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform output -raw docker_push_commands | bash
+
+# --------------------------------------------------------------------------- #
+# Dashboard
+# --------------------------------------------------------------------------- #
+
+.PHONY: frontend-install
+frontend-install: ## Instala as dependências do dashboard
+	cd $(FRONTEND) && npm ci
+
+# A URL da API entra no bundle em tempo de build e NUNCA fica escrita no código
+# (ver .env.example). Sem ela o build falha de propósito: um bundle apontando
+# para o próprio domínio devolveria o HTML da página no lugar do JSON, e o erro
+# só apareceria no navegador do usuário.
+.PHONY: frontend-build
+frontend-build: ## Gera o site estático do dashboard
+	@$(call require_env,ARGUS_API_URL)
+	cd $(FRONTEND) && NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" npm run build
+
+.PHONY: frontend-deploy
+frontend-deploy: frontend-build ## Publica o dashboard no bucket S3
+	@$(call require_env,AWS_PROFILE)
+	aws s3 sync $(FRONTEND)/out/ \
+	  "s3://$$(cd $(INFRA) && terraform output -raw frontend_bucket)/" --delete
+	@echo
+	@echo "Dashboard no ar: $$(cd $(INFRA) && terraform output -raw frontend_url)"
+
+.PHONY: frontend-dev
+frontend-dev: ## Sobe o dashboard local contra a API publicada
+	@$(call require_env,ARGUS_API_URL)
+	cd $(FRONTEND) && NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" npm run dev
+
+# --------------------------------------------------------------------------- #
+# Testes de API (Postman)
+# --------------------------------------------------------------------------- #
+
+.PHONY: postman-env
+postman-env: ## Gera o environment do Postman a partir do .env
+	@$(call require_env,ARGUS_API_URL)
+	@$(call require_env,ARGUS_INGEST_URL)
+	@printf '%s\n' \
+	  '{' \
+	  '  "name": "Argus — lab (gerado, nao versionado)",' \
+	  '  "values": [' \
+	  '    { "key": "read_url", "value": "$(ARGUS_API_URL)", "type": "default", "enabled": true },' \
+	  '    { "key": "ingest_url", "value": "$(ARGUS_INGEST_URL)", "type": "default", "enabled": true }' \
+	  '  ],' \
+	  '  "_postman_variable_scope": "environment"' \
+	  '}' > $(POSTMAN)/environment.json
+	@echo "$(POSTMAN)/environment.json gerado (está no .gitignore)"
+
+.PHONY: postman
+postman: postman-env ## Roda a coleção Postman contra as APIs publicadas
+	npx --yes newman@6 run $(POSTMAN)/argus.postman_collection.json \
+	  -e $(POSTMAN)/environment.json --delay-request 1500
 
 # --------------------------------------------------------------------------- #
 # Operação

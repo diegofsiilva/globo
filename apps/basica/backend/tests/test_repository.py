@@ -73,7 +73,8 @@ def test_tipo_desconhecido_e_lido(repository, table):
     table.put_item(
         Item=build_item(
             {
-                "timestamp": "2026-08-12T10:00:00Z",
+                # Dentro da janela de REFERENCE_NOW, como as demais fixtures.
+                "timestamp": "2026-07-13T23:07:00Z",
                 "event_name": "ad_impression",
                 "session_id": "s-novo",
                 "device_id": "d-novo",

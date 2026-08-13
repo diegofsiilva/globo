@@ -51,11 +51,11 @@ App de TV ──> API Gateway ──> SQS ──> ECS Fargate ──> DynamoDB �
 | Worker | Consome a fila por long polling, valida, deduplica e grava em lote | ECS Fargate (ARM64) |
 | Banco de dados | Tabela única com GSI1 (tipo + dia, com shard) e GSI2 (aparelho), TTL nativo | DynamoDB |
 | API de leitura | Filtros cumulativos, agregações, paginação por cursor e redação de dado pessoal | AWS Lambda (Flask) + API Gateway |
-| Dashboard | Visualização e investigação de incidentes | S3 + CloudFront (site estático) |
+| Dashboard | Visualização e investigação de incidentes | S3 (site estático) |
 
 Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura.md`](artefatos/arquitetura.md).
 
-> **Estado:** os fluxos de ingestão e leitura estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O dashboard está em desenvolvimento na branch `feat/frontend-inicial`.
+> **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
 ---
 
@@ -63,14 +63,15 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-| `/apps/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
-| `/apps/worker` | Worker de ingestão, que consome o SQS e grava no DynamoDB |
-| `/apps/infra` | Terraform de toda a infraestrutura AWS |
-| `/apps/tools` | Conversão dos CSVs de evento, replay para a API e ETL do dump |
-| `/apps/notebooks` | Análise exploratória do dataset do parceiro |
-| `/apps/frontend` | Dashboard Next.js *(em desenvolvimento)* |
-| `/artefatos` | Documentação das sprints: negócio, UX, requisitos e arquitetura |
-| `/artefatos/assets` | Imagens usadas nos artefatos |
+| `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
+| `/apps/basica/worker` | Worker de ingestão, que consome o SQS e grava no DynamoDB |
+| `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
+| `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
+| `/apps/basica/tools` | Conversão dos CSVs de evento, replay para a API e ETL do dump |
+| `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
+| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, arquitetura e MVP |
+| `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
+| `/artefatos/postman` | Coleção Postman de teste das duas APIs |
 | `/assets` | Logos usados neste README |
 | `Makefile` | Comandos do projeto; `make` sozinho lista os alvos |
 | `.env.example` | Chaves de configuração; os valores ficam no `.env`, fora do repositório |
@@ -85,10 +86,12 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 - Python 3.12 ou superior
 - [uv](https://docs.astral.sh/uv/), que monta os ambientes a partir do `pyproject.toml` de cada app
+- Node.js 20+ (para o dashboard)
 - Docker (para construir a imagem do worker)
 - Terraform 1.x (para a infraestrutura)
-- Node.js 20+ (para o dashboard)
 - Credenciais AWS configuradas (`aws sts get-caller-identity` deve responder)
+
+Em Codespaces ou VS Code, tudo o que segue funciona sem configuração adicional.
 
 ### Passos
 
@@ -103,21 +106,37 @@ cp .env.example .env      # ou: make env, que lê os endpoints do Terraform
 # 3. instalar as dependências dos dois apps Python
 make install
 
-# 4. rodar a suíte de testes
+# 4. rodar a suíte de testes (58 do worker + 72 do backend)
 make test
 
 # 5. subir a API de leitura local, apontando para o DynamoDB
 make api
+
+# 6. subir o dashboard contra a API publicada
+make frontend-install
+make frontend-dev
 ```
 
 | Serviço | Porta local | Como subir |
 |---------|-------------|------------|
 | API de leitura | 5000 | `make api` |
-| Dashboard | 3000 | `cd apps/frontend && npm run dev` |
+| Dashboard | 3000 | `make frontend-dev` |
+
+O backend também sobe por um único arquivo, sem `make`:
+
+```bash
+python apps/basica/backend/run.py
+```
+
+Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask** — é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`.
 
 O worker não é executado localmente contra a fila real: use `make worker-image` para construir a imagem e `make replay` para reenviar os eventos de exemplo à API de ingestão publicada.
 
-> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam no `.env`, que está no `.gitignore`. Enquanto as APIs não tiverem autenticação, a URL é a única barreira de acesso aos dados.
+### Sem credenciais AWS
+
+Os testes rodam contra um DynamoDB falso (moto), então `make test` e `make lint` funcionam sem nenhuma configuração de nuvem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
+
+> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam no `.env`, que está no `.gitignore` — o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). Enquanto as APIs não tiverem autenticação, a URL é a única barreira de acesso aos dados.
 
 Outros alvos úteis: `make lint`, `make check`, `make smoke` (verifica a API publicada), `make dlq` (mostra os eventos rejeitados com o motivo), `make pause` / `make resume` (desliga e religa o worker sem destruir a infraestrutura).
 
@@ -125,7 +144,7 @@ Outros alvos úteis: `make lint`, `make check`, `make smoke` (verifica a API pub
 
 ## Execução na AWS
 
-Toda a infraestrutura é provisionada por Terraform em [`apps/infra`](apps/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado (~US$ 14/mês para 1 milhão de eventos/mês).
+Toda a infraestrutura é provisionada por Terraform em [`apps/basica/infra`](apps/basica/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado (~US$ 14/mês para 1 milhão de eventos/mês).
 
 | Recurso | Configuração |
 |---------|--------------|
@@ -134,12 +153,13 @@ Toda a infraestrutura é provisionada por Terraform em [`apps/infra`](apps/infra
 | ECS Fargate | 0.25 vCPU / 0.5 GB, ARM64, subnet pública sem regra de entrada |
 | DynamoDB | Tabela única `argus-events-<ambiente>`, com GSI1, GSI2 e TTL |
 | Lambda + API Gateway | API de leitura, empacotada por `scripts/build_lambda.sh` |
+| S3 | Bucket com website hosting, que serve o export estático do dashboard |
 | CloudWatch | Namespace `Argus/Ingestion` com 5 alarmes |
 
 ### Passos de implantação
 
 ```bash
-cd apps/infra
+cd apps/basica/infra
 cp terraform.tfvars.example terraform.tfvars
 
 # 1. cria a infraestrutura sem o worker (o ECR nasce vazio)
@@ -147,16 +167,28 @@ terraform init
 terraform apply -var="worker_desired_count=0"
 
 # 2. publica a imagem do worker no ECR
-terraform output -raw docker_push_commands   # imprime a sequência pronta
+cd ../../.. && make worker-deploy
 
 # 3. liga o worker
-terraform apply -var="worker_desired_count=1"
+cd apps/basica/infra && terraform apply -var="worker_desired_count=1"
 
-# 4. publica a API de leitura
-cd ../.. && make deploy
+# 4. gera o .env a partir dos outputs e publica a API e o dashboard
+cd ../../..
+make env
+make deploy
+make frontend-deploy
 ```
 
-Validação: `make smoke` verifica a API publicada ponta a ponta e `make count` conta os eventos armazenados.
+Verificação:
+
+```bash
+make smoke      # confere as rotas da API publicada
+make postman    # roda a coleção Postman contra as duas APIs
+make count      # conta os eventos armazenados
+make dlq        # mostra os eventos rejeitados, com o motivo
+```
+
+Para economizar crédito do lab, `make pause` desliga o worker sem destruir nada e `make resume` religa.
 
 ---
 
@@ -164,12 +196,13 @@ Validação: `make smoke` verifica a API publicada ponta a ponta e `make count` 
 
 | Artefato | Descrição |
 |----------|-----------|
+| [MVP inicial](artefatos/mvp-inicial.md) | O que está implantado, modelo de dados e relatório de testes |
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
 | [Arquitetura](artefatos/arquitetura.md) | Fluxos, modelo de dados, decisões de projeto, segurança, custo e validação |
-| [API de leitura](apps/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
-| [Infraestrutura](apps/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
+| [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
+| [Infraestrutura](apps/basica/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
 
 A API também se documenta em tempo de execução: `GET /docs` serve a Swagger UI e `GET /openapi.json` a especificação OpenAPI 3.1.
 

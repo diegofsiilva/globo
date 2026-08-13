@@ -27,7 +27,7 @@ rota quebram a suíte.
 do Terraform e guarde no `.env` (que é gitignored):
 
 ```bash
-cd apps/infra
+cd apps/basica/infra
 terraform output -raw read_api_url
 ```
 
@@ -119,7 +119,7 @@ que trafega para a tela é a versão reduzida.
 ## Rodar local
 
 ```bash
-cd apps/backend
+cd apps/basica/backend
 uv run --with flask --with boto3 python lambda_handler.py
 ```
 

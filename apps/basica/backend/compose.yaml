@@ -8,7 +8,7 @@
 #   docker run -p 8000:8000 amazon/dynamodb-local
 #   DYNAMODB_ENDPOINT_URL=http://host.docker.internal:8000 docker compose up
 #
-# (a tabela e os indices precisam existir; ver apps/backend/tests/conftest.py
+# (a tabela e os indices precisam existir; ver apps/basica/backend/tests/conftest.py
 # para o schema exato que o worker usa)
 
 services:

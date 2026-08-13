@@ -1,7 +1,5 @@
 """Testes das rotas de leitura, com o formato real de item no DynamoDB."""
 
-from datetime import UTC, datetime
-
 import pytest
 
 from tests.conftest import build_item
@@ -266,7 +264,9 @@ def test_tipo_novo_aparece_na_api(client, table):
     table.put_item(
         Item=build_item(
             {
-                "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                # Data fixa, dentro da janela de REFERENCE_NOW: com now() o teste
+                # dependia de o relogio estar perto das fixtures.
+                "timestamp": "2026-07-13T23:07:00Z",
                 "event_name": "ad_impression",
                 "session_id": "s-novo",
                 "device_id": "d-novo",

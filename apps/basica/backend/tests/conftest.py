@@ -24,6 +24,13 @@ TABLE_NAME = "argus-events-test"
 SHARDS = 4
 SALT = "test-salt"
 
+# As fixtures sao os eventos reais do export, todos de 2026-07-13. Uma consulta
+# sem periodo fecha a janela no "agora", e o fan-out da GSI1 mantem apenas os
+# `max_days_fanout` dias mais recentes -- entao, com o relogio real, esses
+# testes passavam por proximidade da data e falhavam 31 dias depois, sem
+# nenhuma mudanca de codigo. O relogio fica fixo um dia depois das fixtures.
+REFERENCE_NOW = datetime(2026, 7, 14, 12, 0, tzinfo=UTC)
+
 # As fixtures dos seis eventos reais sao as mesmas que o worker usa: uma fonte
 # de verdade so para os dois lados do pipeline.
 FIXTURES_DIR = Path(__file__).resolve().parents[2] / "worker" / "tests" / "fixtures"
@@ -164,7 +171,11 @@ def seeded(table, sample_events):
 @pytest.fixture
 def repository(table):
     return DynamoEventRepository(
-        table, gsi1_shards=SHARDS, user_id_hash_salt=SALT, default_window_hours=24 * 400
+        table,
+        gsi1_shards=SHARDS,
+        user_id_hash_salt=SALT,
+        default_window_hours=24 * 400,
+        clock=lambda: REFERENCE_NOW,
     )
 
 
@@ -177,6 +188,7 @@ def app(table):
             gsi1_shards=SHARDS,
             user_id_hash_salt=SALT,
             default_window_hours=24 * 400,
+            clock=lambda: REFERENCE_NOW,
         ),
     )
 

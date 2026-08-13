@@ -69,6 +69,16 @@ output "read_api_url" {
   value       = aws_apigatewayv2_api.read.api_endpoint
 }
 
+output "frontend_url" {
+  description = "Endereco publico do dashboard. E o link que vai no relatorio e no video."
+  value       = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
+}
+
+output "frontend_bucket" {
+  description = "Bucket do site. Destino do `aws s3 sync` em make frontend-deploy."
+  value       = aws_s3_bucket.frontend.id
+}
+
 output "read_api_examples" {
   description = "Chamadas de exemplo da API de leitura."
   value = {
