@@ -1,156 +1,147 @@
-# Monitoração Agêntica - G04
+<p align="center">
+  <img src="assets/inteli.png" alt="Inteli" height="60">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/parceiro.png" alt="Grupo Globo" height="60">
+</p>
 
-Backend inicial em Flask para receber, normalizar, armazenar e consultar eventos de
-telemetria de TVs, aplicações web e dispositivos móveis.
+# Argus — Monitoração Agêntica
 
-## Funcionalidades disponíveis
+**Grupo 4 · Turma 15 · Ciência da Computação · Módulo 7 · Inteli**
 
-- ingestão de um evento ou lote em JSON;
-- ingestão CSV, inclusive com objetos JSON escapados nas colunas;
-- normalização dos seis eventos do MVP: `request`, `vitals`, `screen_view`,
-  `video_view`, `session` e `error`;
-- persistência transacional por um repositório independente do domínio;
-- suporte a SQLite local e PostgreSQL por configuração;
-- filtros cumulativos, paginação e sugestões de valores para filtros;
-- pseudonimização de `user_id` e allowlist de cabeçalhos;
-- health checks e respostas de erro no formato Problem Details.
+Projeto desenvolvido em parceria com o **Grupo Globo**.
 
-## Executar com Docker
+## Integrantes
 
-Requer Docker com Compose:
+- Christian Santos
+- Diego Silva
+- Gabriel W. Bartmanovicz
+- Livia Tavares
+- Lorenzo Ferrari Aggio
+- Luiz Gustavo Oliveira
+- Nicole Neves
+- Vinicius de Castro Cadena
 
-```bash
-docker compose -f apps/basica/backend/compose.yaml up --build
+## O projeto
+
+Quando o streaming degrada, o time de operação do Globoplay hoje precisa de um
+especialista por componente para descobrir onde está a falha: os sinais ficam
+espalhados entre CDN, player, autorização e o próprio app, cada um no seu painel,
+e correlacioná-los é trabalho manual que custa minutos caros em pleno incidente.
+O Argus é uma plataforma de telemetria que recebe os eventos emitidos pelo app de
+TV em qualquer escala, normaliza sob um vocabulário comum
+(`request`, `vitals`, `screen_view`, `video_view`, `session`, `error`), grava sem
+perda e devolve tudo numa linha do tempo única — o alicerce sobre o qual a camada
+agêntica de correlação vai, em seguida, apontar a causa provável de um incidente
+com o recorte afetado explícito.
+
+## Estrutura do repositório
+
+```
+apps/basica/          a aplicação
+  backend/            API de leitura (Flask em Lambda) — arquitetura hexagonal
+  worker/             worker de ingestão (SQS → DynamoDB), em ECS Fargate
+  frontend/           dashboard em Next.js, export estático servido por S3
+  infra/              Terraform de toda a infraestrutura AWS
+  tools/              conversão de CSV, replay de eventos e ETL do dump
+  notebooks/          análise exploratória do dataset do parceiro
+artefatos/            documentação do projeto
+  assets/             imagens e diagramas
+  postman/            coleção de testes das APIs
+assets/               logos
+Makefile              todos os comandos do projeto
 ```
 
-A API estará disponível em `http://localhost:5000`. O Compose inicia PostgreSQL,
-aguarda o banco ficar saudável e então inicia a aplicação.
+`make` sozinho lista os alvos disponíveis.
 
-Ao abrir `http://127.0.0.1:5000/` no navegador, a API retorna seu estado e a lista
-de endpoints disponíveis. Como este repositório contém somente o backend neste
-momento, essa página é uma resposta JSON, não uma interface gráfica.
+## Documentação
+
+| Documento | Conteúdo |
+|---|---|
+| [MVP inicial](artefatos/mvp-inicial.md) | o que está implantado, modelo de dados e relatório de testes |
+| [Arquitetura](artefatos/arquitetura.md) | decisões técnicas e trade-offs |
+| [Requisitos](artefatos/requisitos.md) | RF, RNF e critérios de verificação |
+| [Entendimento de negócio](artefatos/entendimento_negocio.md) | matriz de valor, riscos e oportunidades |
+| [Entendimento de UX](artefatos/entendimento_ux.md) | personas, protótipo e fluxo de investigação |
 
 ## Executar localmente
 
-É necessário Python 3.12 ou superior. No Windows:
-
-```powershell
-.\apps\backend\scripts\dev.ps1
-```
-
-Em Linux, macOS ou Codespaces:
+Requer **Python 3.12+**, **Node 20+** e **uv**. Em Codespaces ou VS Code, tudo o
+que segue funciona sem configuração adicional.
 
 ```bash
-sh ./apps/basica/backend/scripts/dev.sh
+git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
+cd g04
+
+cp .env.example .env    # preencha com os valores do terraform output
+make install            # ambientes Python do backend e do worker
+make test               # 58 testes do worker + 72 do backend
 ```
 
-O script cria `.venv`, instala as dependências e inicia a API com SQLite. Copie
-`apps/basica/backend/.env.example` para `apps/basica/backend/.env` se desejar personalizar a configuração.
+Para subir a API e o dashboard:
 
-Depois que as dependências estiverem instaladas, toda a aplicação é iniciada por um
-único arquivo:
+```bash
+make api                # API de leitura local, contra o DynamoDB real
+make frontend-install
+make frontend-dev       # dashboard em http://localhost:3000
+```
+
+O backend também sobe por um único arquivo, sem `make`:
 
 ```bash
 python apps/basica/backend/run.py
 ```
 
-Esse ponto de entrada carrega o ambiente, cria a aplicação Flask, prepara o banco
-SQLite automaticamente e inicia o servidor HTTP. Na primeira execução, se Flask e
-as demais dependências ainda não estiverem disponíveis, o próprio arquivo instala o
-projeto usando o interpretador Python selecionado e então continua a inicialização.
+Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor;
+na primeira execução ele instala as dependências sozinho. No VS Code, abra
+`apps/basica/backend` como workspace, vá em **Run and Debug** e execute
+**Backend Flask** — é o mesmo `run.py`. O Dev Container do serviço está em
+`apps/basica/backend/.devcontainer`.
 
-No VS Code, abra `apps/basica/backend` como workspace, acesse **Run and Debug**, selecione
-**Backend Flask** e clique em **Run**. Essa configuração executa o mesmo `run.py`.
-O Dev Container específico do serviço está em `apps/basica/backend/.devcontainer`; abra a
-pasta `apps/basica/backend` como workspace para utilizá-lo.
+### Sem credenciais AWS
 
-## Exemplos da API
+Os testes rodam contra um DynamoDB falso (moto), então `make test` e `make lint`
+funcionam sem nenhuma configuração de nuvem. Só os alvos de operação
+(`api`, `deploy`, `smoke`, `postman`) precisam do `.env` preenchido.
 
-Enviar um evento:
+## Executar na AWS
 
-```bash
-curl -X POST http://localhost:5000/api/v1/events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "timestamp": "2026-07-13T20:04:44Z",
-    "event_name": "request",
-    "duration": 0.033,
-    "app_env": "production",
-    "device_os": "Tizen"
-  }'
-```
-
-Ler ou excluir um evento pelo identificador:
+As credenciais vêm do AWS Academy Learner Lab. Com o lab iniciado e o perfil
+configurado:
 
 ```bash
-curl "http://localhost:5000/api/v1/events/63811f26-0249-4f34-936a-b79e6d9cf857"
-curl -X DELETE "http://localhost:5000/api/v1/events/63811f26-0249-4f34-936a-b79e6d9cf857"
+cd apps/basica/infra
+cp terraform.tfvars.example terraform.tfvars    # ajuste se necessário
+terraform init && terraform apply
+
+cd ../../..
+make env                # gera o .env a partir dos outputs do Terraform
+make deploy             # empacota e publica a API de leitura
+make worker-deploy      # publica a imagem do worker no ECR
+make frontend-deploy    # build do dashboard e sync no bucket S3
 ```
 
-O MVP expõe somente criação, leitura e exclusão. Não há endpoints `PUT` ou `PATCH`.
-
-Consultar com filtros cumulativos:
+Verificação:
 
 ```bash
-curl "http://localhost:5000/api/v1/events?event_name=request&device_os=Tizen&page=1"
+make smoke      # confere as rotas da API publicada
+make postman    # roda a coleção de testes contra as duas APIs
+make count      # conta os eventos armazenados
+make dlq        # mostra os eventos rejeitados, com o motivo
 ```
 
-Consultar valores sugeridos para filtros:
+Para economizar crédito do lab, `make pause` desliga o worker sem destruir nada e
+`make resume` religa.
 
-```bash
-curl "http://localhost:5000/api/v1/events/facets?field=event_name&field=device_os"
-```
+## Segredos
 
-Consultar contagem e latência média por tipo de evento:
-
-```bash
-curl "http://localhost:5000/api/v1/metrics?app_env=production&device_os=Tizen"
-```
-
-Endpoints de operação:
-
-```text
-GET /health/live
-GET /health/ready
-```
-
-## Configuração
-
-| Variável | Padrão | Finalidade |
-|---|---|---|
-| `DATABASE_URL` | `sqlite:///instance/telemetry.db` | Conexão SQLAlchemy |
-| `USER_ID_HASH_SALT` | somente desenvolvimento | Salt da pseudonimização |
-| `MAX_CONTENT_LENGTH` | `2097152` | Limite do corpo em bytes |
-
-Em ambiente compartilhado, `USER_ID_HASH_SALT` deve ser um segredo forte e nunca
-deve ser versionado.
-
-## Arquitetura
-
-O código segue portas e adaptadores em quatro áreas:
-
-```text
-interfaces -> application -> domain
-                    ^
-                    |
-             infrastructure
-```
-
-- `domain`: entidade e erros sem dependência de framework;
-- `application`: normalização e casos de uso;
-- `ports`: contratos dos repositórios;
-- `infrastructure`: implementação SQLAlchemy;
-- `interfaces`: API Flask e adaptação de JSON/CSV.
-
-Para trocar o banco, implemente `EventRepository` e injete a implementação na
-factory da aplicação. As regras de negócio e os casos de uso permanecem inalterados.
+Nenhuma URL de API, ID de conta ou segredo é versionado. O `.env.example` mostra
+as chaves e como obter os valores; o `.env` está no `.gitignore`. O mesmo vale
+para o environment do Postman (`artefatos/postman/environment.example.json`).
 
 ## Qualidade
 
-Dentro de `apps/basica/backend`:
-
 ```bash
-python -m pytest --cov=telemetry
-ruff check .
-ruff format --check .
+make check     # testes + ruff + terraform fmt/validate
+make lint
+make test
 ```
