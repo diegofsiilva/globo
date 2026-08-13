@@ -1,24 +1,23 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="Electron" agent="claude">
   <diagram id="usecase-req" name="Casos de Uso - Requisitos">
-    <mxGraphModel dx="2224" dy="1711" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1540" dy="1185" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="sys" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#333333;fontSize=15;fontStyle=1;" value="Plataforma de Monitoração Agêntica (MVP)" vertex="1">
-          <mxGeometry height="995" width="700" x="300" y="40" as="geometry" />
+          <mxGeometry height="995" width="680" x="300" y="40" as="geometry" />
         </mxCell>
         <mxCell id="uc01" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Enviar evento de telemetria&lt;br&gt;(RF01, RF02, RF03, RF07)" vertex="1">
-          <mxGeometry height="70" width="250" x="340" y="90" as="geometry" />
+          <mxGeometry height="70" width="250" x="340" y="120" as="geometry" />
         </mxCell>
         <mxCell id="uc02" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="Validar campos mínimos&lt;br&gt;do evento (RF04)" vertex="1">
-          <mxGeometry height="70" width="250" x="700" y="60" as="geometry" />
+          <mxGeometry height="70" width="250" x="700" y="95" as="geometry" />
         </mxCell>
         <mxCell id="uc03" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="Normalizar evento em&lt;br&gt;formato comum (RF05)" vertex="1">
-          <mxGeometry height="70" width="250" x="700" y="150" as="geometry" />
+          <mxGeometry height="70" width="250" x="700" y="180" as="geometry" />
         </mxCell>
         <mxCell id="uc04" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="Armazenar evento&lt;br&gt;processado (RF06)" vertex="1">
-          <mxGeometry height="70" width="250" x="700" y="240" as="geometry" />
+          <mxGeometry height="70" width="250" x="700" y="260" as="geometry" />
         </mxCell>
         <mxCell id="uc05" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Consultar eventos por&lt;br&gt;tipo, período e atributos&lt;br&gt;(RF08)" vertex="1">
           <mxGeometry height="70" width="250" x="700" y="380" as="geometry" />
@@ -51,7 +50,7 @@
           <mxGeometry height="70" width="250" x="340" y="740" as="geometry" />
         </mxCell>
         <mxCell id="a_app" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=12;fontStyle=1" value="Aplicação frontend&lt;br&gt;do Globoplay" vertex="1">
-          <mxGeometry height="80" width="40" x="170" y="85" as="geometry" />
+          <mxGeometry height="80" width="40" x="170" y="115" as="geometry" />
         </mxCell>
         <mxCell id="a_obs" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=12;fontStyle=1" value="Analista de&lt;br&gt;Suporte N2&lt;br&gt;(Mariana)" vertex="1">
           <mxGeometry height="80" width="40" x="1270" y="470" as="geometry" />
@@ -115,7 +114,6 @@
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1005" y="875" />
-              <mxPoint x="1005" y="680" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -123,7 +121,6 @@
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1005" y="965" />
-              <mxPoint x="1005" y="680" />
             </Array>
           </mxGeometry>
         </mxCell>
