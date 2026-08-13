@@ -561,21 +561,3 @@ artefatos/    documentação do projeto
 Makefile      comandos
 ```
 
----
-
-## 12. Pendências antes de produção
-
-1. **Autenticação nas duas APIs** (§8.1). É a lacuna mais séria. O caminho mais
-   barato é um Lambda authorizer com token no SSM; Cognito JWT é o correto para
-   produção e permite login no dashboard.
-2. **Hash do `device_id` e salt fora do código** (§8.3).
-3. **Restringir CORS** ao domínio do dashboard.
-4. **Estado remoto do Terraform** antes de mais alguém rodar `apply`.
-5. **Pré-agregação via DynamoDB Streams** quando o volume passar do que a
-   agregação em memória sustenta (§5.3).
-6. **Pipeline de CD.** Se um pipeline passar a chamar
-   `aws ecs update-service --task-definition`, adicionar
-   `ignore_changes = [task_definition]` no service — hoje está sem, de propósito,
-   porque o deploy é pelo próprio Terraform.
-7. **Política de retenção e anonimização** acordada com quem cuida de
-   privacidade. O TTL de 90 dias é um começo, não uma política.
