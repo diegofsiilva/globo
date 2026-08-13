@@ -290,74 +290,249 @@ Custo aceito: o website endpoint do S3 é HTTP puro, sem TLS. O caminho para HTT
 
 ## 6. Como executar
 
-### Local
+O ponto que confunde quem chega agora: **o `.env` não é o primeiro passo, é uma
+consequência do último.** As duas URLs que ele guarda são geradas pelo API
+Gateway no primeiro `terraform apply` — antes disso não existe valor para
+preencher, e copiar o `.env.example` só produz um arquivo de chaves vazias. A
+ordem real é:
+
+```
+credenciais do lab  →  terraform apply  →  make env  →  deploy  →  URL do dashboard
+```
+
+Quem só quer inspecionar o código não precisa de nada disso: `make install &&
+make test` roda as duas suítes contra um DynamoDB falso (moto), sem conta AWS.
+
+### 6.1 Pré-requisitos
+
+| Ferramenta | Para quê | Conferir com |
+|---|---|---|
+| Python 3.12+ | backend, worker e tools | `python3 --version` |
+| [uv](https://docs.astral.sh/uv/) | monta os ambientes Python pelo `pyproject.toml` | `uv --version` |
+| Node.js 20+ | build do dashboard e execução da coleção Postman | `node --version` |
+| Docker | imagem ARM64 do worker | `docker info` |
+| Terraform 1.x | toda a infraestrutura | `terraform version` |
+| AWS CLI v2 | credenciais, `s3 sync`, logs e DLQ | `aws --version` |
 
 ```bash
-git clone <repo> && cd g04
-cp .env.example .env          # preencha com os terraform output
-make install                  # ambientes Python do backend e do worker
-make test                     # 58 testes do worker + 72 do backend
-make frontend-install
-make frontend-dev             # dashboard local contra a API publicada
+git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git && cd g04
 ```
+
+### 6.2 Conectar o Terraform ao AWS Academy Learner Lab
+
+O `providers.tf` não tem `access_key` nem `profile` de propósito: o provider AWS
+lê a cadeia de credenciais padrão do SDK. Configurar o ambiente é, portanto, todo
+o trabalho de autenticação — e nenhum segredo chega perto do repositório.
+
+**1. Iniciar o laboratório.** No AWS Academy, abra o módulo do Learner Lab e
+clique em **Start Lab**. Espere o indicador ao lado de **AWS** ficar verde; com
+ele amarelo a conta ainda está sendo provisionada e as credenciais não funcionam.
+
+**2. Copiar as credenciais.** Clique em **AWS Details**, no topo do painel, e
+depois em **Show**, ao lado de *AWS CLI*. Aparece um bloco assim:
+
+```ini
+[default]
+aws_access_key_id=ASIA...
+aws_secret_access_key=...
+aws_session_token=...
+```
+
+São credenciais temporárias (STS). O `aws_session_token` é parte obrigatória
+delas — sem ele a AWS recusa a chamada — e **os três valores mudam a cada
+reinício do lab**.
+
+**3. Gravar num profile nomeado.** Cole o bloco em `~/.aws/credentials`,
+trocando `[default]` por `[g4]`. O profile nomeado evita sobrescrever credenciais
+de outra conta que você já tenha na máquina:
+
+```ini
+# ~/.aws/credentials
+[g4]
+aws_access_key_id=ASIA...
+aws_secret_access_key=...
+aws_session_token=...
+```
+
+```ini
+# ~/.aws/config
+[profile g4]
+region=us-east-1
+output=json
+```
+
+Aponte o ambiente para ele e confirme **antes de aplicar qualquer coisa**:
+
+```bash
+export AWS_PROFILE=g4
+aws sts get-caller-identity
+```
+
+A resposta traz o número da conta e um `Arn` terminando em `user/voclabs` — é
+assim que se sabe que é a conta do lab, e não outra. `ExpiredToken` ou
+`InvalidClientTokenId` significa lab parado ou credencial de uma sessão anterior:
+volte ao passo 1.
+
+**4. Escrever o `terraform.tfvars`.** O lab exige duas concessões, ambas por
+variável, nenhuma delas bifurcando o código:
+
+```bash
+cd apps/basica/infra
+cp terraform.tfvars.example terraform.tfvars
+```
+
+Descomente o bloco `AWS Academy` do arquivo e preencha o ARN da `LabRole`. Para
+montar o ARN sem abrir o console:
+
+```bash
+echo "arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/LabRole"
+```
+
+O conteúdo mínimo para o lab é:
+
+```hcl
+region      = "us-east-1"
+environment = "dev"
+
+# O lab nega iam:CreateRole e obriga a reusar a LabRole, que já confia em
+# apigateway.amazonaws.com e ecs-tasks.amazonaws.com — os dois papéis de que
+# este fluxo precisa. Numa conta normal, create_iam_roles = true dá permissão
+# mínima a cada componente.
+create_iam_roles  = false
+existing_role_arn = "arn:aws:iam::<sua-conta>:role/LabRole"
+
+# O lab não provisiona a chave gerenciada aws/dynamodb, e sem esta linha o
+# CreateTable falha com "KMS validation error ... does not exist". A tabela
+# continua criptografada em repouso: a flag só troca a chave gerenciada pela
+# AWS-owned, que é a padrão.
+dynamodb_kms_managed_key = false
+
+assign_public_ip = true
+gsi1_shards      = 10
+```
+
+`terraform.tfvars` está no `.gitignore`, porque guarda o número da conta.
+
+### 6.3 Primeira subida, do zero até a URL
+
+```bash
+# 0. ambientes Python do backend e do worker
+make install
+
+# 1. empacotar a API de leitura ANTES do primeiro plan
+make lambda-build
+```
+
+O passo 1 não é opcional e não pode vir depois: o Terraform calcula
+`filebase64sha256` do zip da Lambda para decidir se a função mudou, e isso
+acontece no **plan**. Sem o arquivo, o primeiro `terraform apply` aborta antes de
+criar qualquer recurso.
+
+```bash
+# 2. criar a infraestrutura com o worker desligado
+cd apps/basica/infra
+terraform init
+terraform apply -var="worker_desired_count=0"
+```
+
+O `-var` existe porque o ECR nasce vazio: subir o service ECS antes da primeira
+imagem existir o deixa em crash loop. Não quebra nada, mas assusta e polui o log.
+
+```bash
+# 3. construir a imagem ARM64 do worker e publicá-la no ECR
+cd ../../..
+make worker-deploy
+
+# 4. ligar o worker
+cd apps/basica/infra && terraform apply -var="worker_desired_count=1"
+cd ../../..
+```
+
+```bash
+# 5. gerar o .env com as URLs que acabaram de nascer
+make env
+```
+
+`make env` lê `terraform output` e escreve as quatro chaves do `.env.example`
+já preenchidas — é o que substitui o `cp .env.example .env` feito à mão. Ele se
+recusa a sobrescrever um `.env` existente, então apague o arquivo antes de
+regerar. Se a infraestrutura ainda não tiver sido aplicada, o arquivo nasce com
+os valores vazios: apague e repita depois do passo 2. O `AWS_PROFILE` gravado é o
+que estiver no shell, então exporte `g4` antes (passo 3 de §6.2).
+
+```bash
+# 6. publicar o dashboard
+make frontend-install
+make frontend-deploy
+```
+
+O `frontend-deploy` injeta `ARGUS_API_URL` no bundle em tempo de build, sincroniza
+o export estático no bucket e **imprime o endereço público do dashboard ao final**
+— é esse o link que vai no relatório e no vídeo.
+
+```bash
+# 7. verificar
+make smoke      # confere as rotas da API publicada
+make postman    # roda as 17 requisições da coleção (§4)
+make count      # conta os eventos armazenados
+```
+
+Nos deploys seguintes nada disso se repete: `make deploy` testa, empacota,
+aplica e roda o smoke num comando só.
+
+### 6.4 De onde vem cada URL
+
+Todo endereço do sistema é um output do Terraform. Nenhum é versionado (§7), e é
+por isso que o `.env.example` traz as chaves sem valor.
+
+```bash
+cd apps/basica/infra && terraform output
+```
+
+| Output | O que é | Quem consome |
+|---|---|---|
+| `read_api_url` | base da API de leitura | `.env` → `ARGUS_API_URL`; entra no bundle do dashboard |
+| `ingest_url` | endpoint do `POST` de eventos | `.env` → `ARGUS_INGEST_URL`; `make replay` e a coleção Postman |
+| `frontend_url` | endereço público do dashboard | o link do relatório e do vídeo |
+| `table_name` · `dlq_url` · `log_group_worker` | nomes de recurso | `make count`, `make dlq`, `make logs-worker` |
+
+Para um valor isolado, `-raw` devolve a string limpa, sem aspas:
+
+```bash
+terraform output -raw read_api_url
+```
+
+O environment do Postman segue a mesma regra: `make postman-env` o gera a partir
+do `.env`, e o arquivo com as URLs reais fica fora do repositório.
+
+### 6.5 Rodar local
+
+```bash
+make test                     # 58 testes do worker + 72 do backend, sem AWS
+make api                      # API de leitura na porta 5000, contra o DynamoDB real
+make frontend-install
+make frontend-dev             # dashboard na porta 3000, contra a API publicada
+```
+
+`make test` e `make lint` não precisam de credencial nenhuma. `make api`,
+`make frontend-dev` e os alvos de operação precisam do `.env` preenchido.
 
 O backend também sobe sozinho com `python apps/basica/backend/run.py`, ou pelo
 **Run and Debug** do VS Code (configuração `Backend Flask`, em
 `apps/basica/backend/.vscode/`).
 
-### AWS
+### 6.6 Quando o lab reinicia
 
-```bash
-cd apps/basica/infra
-terraform init && terraform apply
+A infraestrutura, o estado do Terraform e as URLs sobrevivem — foi exatamente por
+isso que o dashboard foi para o S3 e a API de leitura para a Lambda (§5). O que
+morre é a credencial: refaça os passos 1 a 3 de §6.2 com o token novo e siga de
+onde parou, sem reaplicar nada.
 
-cd ../../..
-make deploy            # empacota e publica a API de leitura
-make worker-deploy     # publica a imagem do worker
-make frontend-deploy   # build do dashboard e sync no S3
-make smoke             # verifica a API publicada
-make postman           # roda a coleção de testes
-```
+Se um comando falhar com `ExpiredToken` no meio de um `apply`, o remédio é o
+mesmo: renove a credencial e rode de novo, porque o Terraform retoma a partir do
+estado. Se o worker não estiver consumindo a fila depois do reinício,
+`make resume` recria a task e o consumo retoma de onde parou — a fila retém as
+mensagens por 4 dias.
 
-O lab exige duas concessões, ambas por variável: `create_iam_roles = false` (o
-ambiente nega `iam:CreateRole` e obriga a usar a `LabRole`) e
-`dynamodb_kms_managed_key = false` (a chave `aws/dynamodb` não existe ali). A
-segunda não deixa a tabela sem criptografia — o DynamoDB sempre criptografa em
-repouso, a flag só escolhe qual chave.
 
----
 
-## 7. Limitações conhecidas
-
-Registradas porque escondê-las não as resolve.
-
-**As duas APIs são públicas.** Nenhuma tem autenticação: `authorizationType=NONE`
-em todas as rotas, verificado na infraestrutura. Qualquer pessoa com a URL lê
-todos os eventos e pode publicar eventos falsos. Isso não atende o **RNF09**, e é
-a lacuna mais séria do sistema hoje.
-
-**Publicar o dashboard tornou a URL da API descobrível.** A URL entra no bundle
-JavaScript em tempo de build, e o bundle está num bucket público. Até aqui a
-política do repositório era não versionar a URL, tratando-a como barreira de
-acesso — mas ela nunca foi controle de acesso, e agora isso é demonstrável. A
-conclusão prática: **autenticação na API deixou de ser opcional.** O caminho mais
-barato é um Lambda authorizer com token no SSM; Cognito é o correto para produção
-e permite login no dashboard.
-
-**Outras pendências**, em ordem de risco: `device_id` sai em claro (é dado pessoal
-sob LGPD por ser persistente); o salt da pseudonimização tem valor padrão conhecido
-e precisa vir do Secrets Manager; CORS está em `*` nas duas APIs; o estado do
-Terraform é local, o que impede dois `apply` simultâneos com segurança.
-
-**Sobre os dados de teste:** a execução da coleção deixa 10 eventos sintéticos na
-base, identificáveis por `session_id` começando com `postman-`, e as mensagens
-correspondentes na DLQ. Eles expiram sozinhos pelo TTL de 90 dias.
-
----
-
-## Referências
-
-- [`arquitetura.md`](arquitetura.md) — decisões de arquitetura e trade-offs
-- [`requisitos.md`](requisitos.md) — RF e RNF referenciados aqui
-- [`postman/argus.postman_collection.json`](postman/argus.postman_collection.json) — a coleção executada
-- [`assets/der-dynamodb.drawio`](assets/der-dynamodb.drawio) — fonte editável dos diagramas
