@@ -83,55 +83,80 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 ### Pré-requisitos
 
-- _[Python 3.x]_
-- _[Node.js 20+]_
-- _[Docker (opcional)]_
-- Credenciais AWS do AWS Academy configuradas (`~/.aws/credentials`)
+- Python 3.12 ou superior
+- [uv](https://docs.astral.sh/uv/), que monta os ambientes a partir do `pyproject.toml` de cada app
+- Docker (para construir a imagem do worker)
+- Terraform 1.x (para a infraestrutura)
+- Node.js 20+ (para o dashboard)
+- Credenciais AWS configuradas (`aws sts get-caller-identity` deve responder)
 
 ### Passos
 
 ```bash
 # 1. clonar o repositório
 git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
-cd g04/apps/basica
+cd g04
 
-# 2. configurar variáveis de ambiente
-cp .env.example .env
-# preencher AWS_REGION, SQS_QUEUE_URL, DYNAMO_TABLE, ...
+# 2. configurar as variáveis de ambiente
+cp .env.example .env      # ou: make env, que lê os endpoints do Terraform
 
-# 3. instalar dependências
-_[comando]_
+# 3. instalar as dependências dos dois apps Python
+make install
 
-# 4. subir os serviços
-_[comando]_
+# 4. rodar a suíte de testes
+make test
+
+# 5. subir a API de leitura local, apontando para o DynamoDB
+make api
 ```
 
-| Serviço | Porta local |
-|---------|-------------|
-| API de ingestão | _[porta]_ |
-| API de consulta | _[porta]_ |
-| Frontend | _[porta]_ |
+| Serviço | Porta local | Como subir |
+|---------|-------------|------------|
+| API de leitura | 5000 | `make api` |
+| Dashboard | 3000 | `cd apps/frontend && npm run dev` |
 
-> **GitHub Codespaces / VS Code:** o repositório inclui _[devcontainer / tasks.json]_, bastando acionar **Run** para iniciar o sistema.
+O worker não é executado localmente contra a fila real: use `make worker-image` para construir a imagem e `make replay` para reenviar os eventos de exemplo à API de ingestão publicada.
+
+> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam no `.env`, que está no `.gitignore`. Enquanto as APIs não tiverem autenticação, a URL é a única barreira de acesso aos dados.
+
+Outros alvos úteis: `make lint`, `make check`, `make smoke` (verifica a API publicada), `make dlq` (mostra os eventos rejeitados com o motivo), `make pause` / `make resume` (desliga e religa o worker sem destruir a infraestrutura).
 
 ---
 
 ## Execução na AWS
 
-| Serviço | Configuração | Endpoint |
-|---------|-------------|----------|
-| EC2 | _[tipo da instância, AMI, security group e portas liberadas]_ | _[IP ou DNS público]_ |
-| SQS | _[nome da fila e visibility timeout]_ | _[URL da fila]_ |
-| DynamoDB | Tabela `telemetry_signals` (PK/SK) | _[região]_ |
-| S3 | _[nome do bucket do site estático]_ | _[URL do site]_ |
+Toda a infraestrutura é provisionada por Terraform em [`apps/infra`](apps/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado (~US$ 14/mês para 1 milhão de eventos/mês).
+
+| Recurso | Configuração |
+|---------|--------------|
+| API Gateway (ingestão) | HTTP API com integração direta `SQS-SendMessage` |
+| SQS | Fila `argus-events-<ambiente>` com DLQ e redrive de 5 tentativas |
+| ECS Fargate | 0.25 vCPU / 0.5 GB, ARM64, subnet pública sem regra de entrada |
+| DynamoDB | Tabela única `argus-events-<ambiente>`, com GSI1, GSI2 e TTL |
+| Lambda + API Gateway | API de leitura, empacotada por `scripts/build_lambda.sh` |
+| CloudWatch | Namespace `Argus/Ingestion` com 5 alarmes |
 
 ### Passos de implantação
 
-1. _[Provisionar a instância EC2 no lab do AWS Academy]_
-2. _[Criar a fila SQS e a tabela DynamoDB]_
-3. _[Clonar o repositório na instância e configurar as variáveis de ambiente]_
-4. _[Iniciar a API de ingestão, a API de consulta e o worker]_
-5. _[Publicar o frontend no bucket S3 com hospedagem de site estático habilitada]_
+```bash
+cd apps/infra
+cp terraform.tfvars.example terraform.tfvars
+
+# 1. cria a infraestrutura sem o worker (o ECR nasce vazio)
+terraform init
+terraform apply -var="worker_desired_count=0"
+
+# 2. publica a imagem do worker no ECR
+terraform output -raw docker_push_commands   # imprime a sequência pronta
+
+# 3. liga o worker
+terraform apply -var="worker_desired_count=1"
+
+# 4. publica a API de leitura
+cd ../.. && make deploy
+```
+
+Validação: `make smoke` verifica a API publicada ponta a ponta e `make count` conta os eventos armazenados.
 
 ---
 
@@ -139,17 +164,23 @@ _[comando]_
 
 | Artefato | Descrição |
 |----------|-----------|
-| [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas |
-| [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, jornadas e decisões de experiência |
+| [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
+| [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
-| [MVP inicial](artefatos/mvp-inicial.md) | Arquitetura, modelo de dados e documentação do código do protótipo |
+| [Arquitetura](artefatos/arquitetura.md) | Fluxos, modelo de dados, decisões de projeto, segurança, custo e validação |
+| [API de leitura](apps/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
+| [Infraestrutura](apps/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
+
+A API também se documenta em tempo de execução: `GET /docs` serve a Swagger UI e `GET /openapi.json` a especificação OpenAPI 3.1.
 
 ---
 
 ## Padrões de contribuição
 
+- **Fluxo de branches:** branch de tema → `develop` → `main`. Nunca commitar direto em `main`.
+- **Commits:** Conventional Commits em português, no imperativo, distribuídos ao longo da sprint.
 - **Documentação de código:** docstrings (PEP 257) em Python e JSDoc em JavaScript. Todo módulo tem cabeçalho descritivo e toda função documenta parâmetros, retorno e comportamento.
-- **Commits:** mensagens descritivas, distribuídas ao longo da sprint.
+- **Qualidade:** `make check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
 - **Tags:** uma tag `SPRINTX` por entrega, criada na data de entrega da sprint.
 
 ---
