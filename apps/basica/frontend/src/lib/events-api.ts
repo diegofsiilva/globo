@@ -1,4 +1,21 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://ftuwf17gu4.execute-api.us-east-1.amazonaws.com";
+// A URL da API vem do ambiente de build e NUNCA fica escrita aqui. Enquanto as
+// APIs não tiverem autenticação (arquitetura.md §8.1), a URL é na prática a
+// única barreira entre os eventos e qualquer pessoa na internet -- commitá-la é
+// entregar o acesso junto com o código.
+//
+// Defina NEXT_PUBLIC_API_URL antes do build:
+//   cd apps/basica/infra && terraform output -raw read_api_url
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+if (!API_URL) {
+  // Falha barulhenta e cedo. Sem isso, o fetch iria para o próprio domínio do
+  // site estático, devolveria o HTML da página e quebraria no JSON.parse, com
+  // uma mensagem que não explica nada.
+  throw new Error(
+    "NEXT_PUBLIC_API_URL não definida. Rode `make frontend-build` ou exporte a " +
+      "variável antes de `next build`.",
+  );
+}
 
 export type ApiEvent = {
   action: string | null;

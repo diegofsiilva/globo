@@ -56,7 +56,7 @@ export function EventMonitor() {
   const clear=()=>{setPlatform("all");setManufacturer("all");setEventType("all");setStatus("all");setSearch("")};
 
   return <div className="dashboard-shell">
-    <div className="top-controls"><div className="live"><i/>{events.isFetching?"Atualizando":"Ao vivo"} · {now?.toLocaleTimeString("pt-BR")??"--:--:--"}</div><div className="period-picker">{(["15","30","180","1440"] as Period[]).map(v=><button key={v} aria-pressed={period===v} onClick={()=>selectPeriod(v)}>{v==="180"?"3 h":v==="1440"?"24 h":`${v} min`}</button>)}</div></div>
+    <div className="top-controls"><div className="live"><i/>{events.isFetching?"Atualizando":"Ao vivo"} · {now?.toLocaleTimeString("pt-BR")??"--:--:--"}</div><div className="period-picker">{(["15","30","180","1440","all"] as Period[]).map(v=><button key={v} aria-pressed={period===v} onClick={()=>selectPeriod(v)}>{periodLabel(v)}</button>)}</div></div>
     <div className="scope-bar">
       <span className="scope-label">Escopo</span>
       <Filter label="plataforma" value={platform} onChange={setPlatform} options={platforms}/>
@@ -102,4 +102,10 @@ function shorten(value:string){return value.length>12?`${value.slice(0,10)}…`:
 function unique(values:string[]){return [...new Set(values)].sort((a,b)=>a.localeCompare(b,"pt-BR"))}
 function isString(value:string|null):value is string{return Boolean(value)}
 function isPeriod(value:string|null):value is Period{return value==="15"||value==="30"||value==="180"||value==="1440"||value==="all"}
+function periodLabel(p:Period){return p==="all"?"tudo":p==="180"?"3 h":p==="1440"?"24 h":`${p} min`}
+// "tudo" não manda período nenhum, e aí quem decide o recorte é a janela padrão
+// da API (DEFAULT_WINDOW_HOURS, 7 dias). Existe porque a telemetria chega em
+// lote: sem ela, um recorte de minutos deixa a tela vazia logo depois de uma
+// carga histórica, e parece falha de integração quando é só ausência de evento
+// recente.
 function getPeriod(p:Period){if(p==="all")return{};const to=new Date();return{from:new Date(to.getTime()-Number(p)*60_000).toISOString(),to:to.toISOString()}}
