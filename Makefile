@@ -16,10 +16,10 @@ include .env
 export
 endif
 
-WORKER  := apps/worker
-BACKEND := apps/backend
-INFRA   := apps/infra
-TOOLS   := apps/tools
+WORKER  := apps/basica/worker
+BACKEND := apps/basica/backend
+INFRA   := apps/basica/infra
+TOOLS   := apps/basica/tools
 
 # Pasta com os CSVs de evento exportados do BI.
 EVENTS_SRC ?= $(HOME)/Downloads/Events
@@ -116,7 +116,7 @@ docs: ## Abre a documentação Swagger da API publicada
 	@open "$(ARGUS_API_URL)/docs" 2>/dev/null || echo "Acesse: $$ARGUS_API_URL/docs"
 
 .PHONY: openapi
-openapi: ## Salva a especificação OpenAPI em apps/backend/openapi.json
+openapi: ## Salva a especificação OpenAPI em apps/basica/backend/openapi.json
 	@$(call require_env,ARGUS_API_URL)
 	curl -s "$(ARGUS_API_URL)/openapi.json" -o $(BACKEND)/openapi.json
 	@echo "gravado em $(BACKEND)/openapi.json"

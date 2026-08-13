@@ -3,7 +3,7 @@
 O notebook e montado programaticamente para manter a numeracao das secoes, o
 estilo dos graficos e o texto das conclusoes sob controle de versao. Rode:
 
-    python apps/tools/build_notebook.py && \
+    python apps/basica/tools/build_notebook.py && \
         jupyter nbconvert --execute --inplace notebooks/eda_argus.ipynb
 """
 
@@ -78,7 +78,7 @@ consultas rodam em DuckDB sobre esses arquivos. Isso mantém o notebook
 reexecutável em segundos, sem carregar 4 GB de SQL na memória:
 
 ```bash
-python apps/tools/etl_dump.py --dump argus_dump.sql --out data/parquet
+python apps/basica/tools/etl_dump.py --dump argus_dump.sql --out data/parquet
 ```
 """
 )
@@ -104,7 +104,7 @@ ROOT = Path.cwd()
 while not (ROOT / "data" / "parquet").exists() and ROOT != ROOT.parent:
     ROOT = ROOT.parent
 PQ = ROOT / "data" / "parquet"
-assert PQ.exists(), f"rode apps/tools/etl_dump.py antes: {PQ} nao existe"
+assert PQ.exists(), f"rode apps/basica/tools/etl_dump.py antes: {PQ} nao existe"
 
 MANIFEST = json.loads((PQ / "_manifest.json").read_text())
 SCHEMA = json.loads((PQ / "_schema.json").read_text())
@@ -2818,12 +2818,12 @@ md(
     """
 ---
 
-*Notebook gerado por `apps/tools/build_notebook.py` a partir de `data/parquet/`,
-produzido por `apps/tools/etl_dump.py` sobre `argus_dump.sql`. Para reproduzir:*
+*Notebook gerado por `apps/basica/tools/build_notebook.py` a partir de `data/parquet/`,
+produzido por `apps/basica/tools/etl_dump.py` sobre `argus_dump.sql`. Para reproduzir:*
 
 ```bash
-python apps/tools/etl_dump.py --dump argus_dump.sql --out data/parquet
-python apps/tools/build_notebook.py
+python apps/basica/tools/etl_dump.py --dump argus_dump.sql --out data/parquet
+python apps/basica/tools/build_notebook.py
 jupyter nbconvert --execute --inplace notebooks/eda_argus.ipynb
 ```
 """

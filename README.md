@@ -20,7 +20,7 @@ telemetria de TVs, aplicações web e dispositivos móveis.
 Requer Docker com Compose:
 
 ```bash
-docker compose -f apps/backend/compose.yaml up --build
+docker compose -f apps/basica/backend/compose.yaml up --build
 ```
 
 A API estará disponível em `http://localhost:5000`. O Compose inicia PostgreSQL,
@@ -41,17 +41,17 @@ momento, essa página é uma resposta JSON, não uma interface gráfica.
 Em Linux, macOS ou Codespaces:
 
 ```bash
-sh ./apps/backend/scripts/dev.sh
+sh ./apps/basica/backend/scripts/dev.sh
 ```
 
 O script cria `.venv`, instala as dependências e inicia a API com SQLite. Copie
-`apps/backend/.env.example` para `apps/backend/.env` se desejar personalizar a configuração.
+`apps/basica/backend/.env.example` para `apps/basica/backend/.env` se desejar personalizar a configuração.
 
 Depois que as dependências estiverem instaladas, toda a aplicação é iniciada por um
 único arquivo:
 
 ```bash
-python apps/backend/run.py
+python apps/basica/backend/run.py
 ```
 
 Esse ponto de entrada carrega o ambiente, cria a aplicação Flask, prepara o banco
@@ -59,10 +59,10 @@ SQLite automaticamente e inicia o servidor HTTP. Na primeira execução, se Flas
 as demais dependências ainda não estiverem disponíveis, o próprio arquivo instala o
 projeto usando o interpretador Python selecionado e então continua a inicialização.
 
-No VS Code, abra `apps/backend` como workspace, acesse **Run and Debug**, selecione
+No VS Code, abra `apps/basica/backend` como workspace, acesse **Run and Debug**, selecione
 **Backend Flask** e clique em **Run**. Essa configuração executa o mesmo `run.py`.
-O Dev Container específico do serviço está em `apps/backend/.devcontainer`; abra a
-pasta `apps/backend` como workspace para utilizá-lo.
+O Dev Container específico do serviço está em `apps/basica/backend/.devcontainer`; abra a
+pasta `apps/basica/backend` como workspace para utilizá-lo.
 
 ## Exemplos da API
 
@@ -147,7 +147,7 @@ factory da aplicação. As regras de negócio e os casos de uso permanecem inalt
 
 ## Qualidade
 
-Dentro de `apps/backend`:
+Dentro de `apps/basica/backend`:
 
 ```bash
 python -m pytest --cov=telemetry

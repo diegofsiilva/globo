@@ -5,7 +5,7 @@ linha de `VALUES` e parseada e as linhas sao despejadas em row groups de Parquet
 sem nunca materializar a tabela inteira em memoria.
 
 Uso:
-    python apps/tools/etl_dump.py [--dump argus_dump.sql] [--out data/parquet]
+    python apps/basica/tools/etl_dump.py [--dump argus_dump.sql] [--out data/parquet]
 """
 
 from __future__ import annotations

@@ -8,12 +8,12 @@ Uso:
     # descobre a URL pelo output do Terraform
     URL=$(terraform -chdir=infra output -raw ingest_url)
 
-    python apps/tools/replay_events.py --url "$URL" --src ~/Downloads/Events
-    python apps/tools/replay_events.py --url "$URL" --src worker/tests/fixtures --batch
-    python apps/tools/replay_events.py --url "$URL" --src ~/Downloads/Events --repeat 100 --rate 20
+    python apps/basica/tools/replay_events.py --url "$URL" --src ~/Downloads/Events
+    python apps/basica/tools/replay_events.py --url "$URL" --src worker/tests/fixtures --batch
+    python apps/basica/tools/replay_events.py --url "$URL" --src ~/Downloads/Events --repeat 100 --rate 20
 
     # so imprime o que enviaria
-    python apps/tools/replay_events.py --dry-run --src ~/Downloads/Events
+    python apps/basica/tools/replay_events.py --dry-run --src ~/Downloads/Events
 """
 
 from __future__ import annotations

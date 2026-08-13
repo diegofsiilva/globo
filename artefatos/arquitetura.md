@@ -107,7 +107,7 @@ O BI renderiza em `America/Sao_Paulo` e omite o fuso. Tratar como UTC deslocaria
 silenciosamente todo dashboard de horário em 3 horas — o tipo de erro que
 ninguém percebe até perguntarem por que o pico de audiência é de madrugada.
 
-**Decisão:** `apps/tools/events_csv_to_json.py` assume `America/Sao_Paulo` e
+**Decisão:** `apps/basica/tools/events_csv_to_json.py` assume `America/Sao_Paulo` e
 converte para UTC. A API espera ISO-8601; timestamp sem fuso é tratado como UTC.
 
 ### 2.2 Formato do payload
