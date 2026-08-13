@@ -92,12 +92,12 @@
 | US02 | Must | Como Engenheiro de Observabilidade, eu quero filtrar e comparar eventos de dispositivos modernos e legados, para incluir equipamentos com menor cobertura nas investigações. | Rafael Santos | Parte do parque de dispositivos fica fora das análises por limitações de instrumentação ou coleta. | A interface permite filtrar por plataforma, fabricante, modelo e versão quando esses dados estiverem disponíveis; dispositivos modernos e legados aparecem nos mesmos resultados; o recorte aplicado permanece visível durante a navegação. |
 | US03 | Should | Como Engenheiro de Observabilidade, eu quero visualizar a cobertura de instrumentação por dispositivo e componente, para identificar objetivamente onde ainda existem pontos cegos. | Rafael Santos | Não há um meio claro de reconhecer dispositivos ou componentes mal cobertos antes que um incidente revele a lacuna. | O painel apresenta o volume recebido e o volume esperado de eventos por dispositivo e componente; recortes abaixo do limite de cobertura definido são identificados textualmente e podem ser abertos para investigação. |
 | US04 | Could | Como Engenheiro de Observabilidade, eu quero acompanhar indicadores de integridade da ingestão durante picos de tráfego, para avaliar se os dados consultados estão completos e livres de duplicações indevidas. | Rafael Santos | Perdas, duplicações ou atrasos no pipeline podem distorcer as métricas justamente nos momentos de maior audiência. | O painel informa a atualidade dos dados, o atraso de ingestão e as quantidades de eventos recebidos, descartados e deduplicados; desvios dos limites operacionais são destacados com texto e estado visual; o usuário consegue consultar a fonte e o período afetados. |
-| US05 | Should | Como Engenheiro de Observabilidade, eu quero acompanhar SLIs e SLOs do front-end ao longo do tempo, para reconhecer quando uma meta de confiabilidade foi ultrapassada. | Rafael Santos | As equipes não dispõem de visibilidade consolidada sobre metas de confiabilidade do front-end. | O dashboard apresenta o valor atual, o objetivo e o histórico de cada indicador; identifica textualmente quando o objetivo é violado; e permite comparar o período atual com uma referência histórica. |
+| US05 | Must | Como Engenheiro de Observabilidade, eu quero comparar os indicadores atuais com referências históricas, para distinguir uma anomalia de uma variação sazonal esperada. | Rafael Santos | Sem uma referência adequada, variações sazonais podem ser interpretadas como incidentes, gerando falsos positivos e priorização inadequada. | A interface permite selecionar uma referência histórica; apresenta os valores atuais e de referência; destaca os pontos fora do envelope esperado; e informa os eventos ocorridos entre as janelas comparadas. |
 | US06 | Should | Como Analista de Suporte, eu quero consultar a timeline de eventos de um usuário específico, para entender o que aconteceu na sessão sem depender de relatos subjetivos como "o vídeo não abre". | Mariana Souza | O diagnóstico inicial depende de relatos subjetivos, o que dificulta o encaminhamento do chamado. | É possível localizar uma sessão e visualizar seus eventos em ordem cronológica; a timeline apresenta ao menos os eventos `session`, `screen_view`, `video_view` e `error`, com horário e origem. |
 | US07 | Must | Como Analista de Suporte, eu quero filtrar eventos de erro por modelo de dispositivo e região, para identificar se um problema reportado é um caso isolado ou um padrão concentrado em um recorte específico. | Mariana Souza | Erros concentrados em dispositivos legados ou regiões específicas ficam mascarados pelas métricas nacionais agregadas. | A interface permite combinar filtros de modelo e região; apresenta o volume e a taxa de erros do recorte em relação ao total; e mantém os filtros aplicados ao navegar entre as telas do fluxo. |
 | US08 | Must | Como Analista de Suporte, eu quero verificar quais eventos estão sendo coletados em um dispositivo legado, para confirmar se existem evidências suficientes antes de encaminhar o chamado. | Mariana Souza | A ausência de dispositivos legados nos logs e nas métricas obriga a investigação manual em outras ferramentas. | A interface exibe os dispositivos legados junto aos demais; ao abrir um recorte, o usuário visualiza os registros recebidos com modelo, versão, horário e tipo de evento. |
 
-&emsp; As quatro histórias classificadas como **Must** sustentam os fluxos centrais do protótipo. A US01 orienta a consulta integrada e a correlação de fontes no Fluxo 1; as US02, US07 e US08 orientam a segmentação por dispositivo e região no Fluxo 2. O Fluxo 3 antecipa parte da US05, classificada como **Should**, ao comparar indicadores com referências históricas. As demais histórias delimitam incrementos planejados e aparecem como lacunas rastreáveis na seção 5.7.
+&emsp; As cinco histórias classificadas como **Must** sustentam os fluxos centrais do protótipo. A US01 orienta a consulta integrada e a correlação de fontes no Fluxo 1; as US02, US07 e US08 orientam a segmentação por dispositivo e região no Fluxo 2; e a US05 orienta a comparação com referências históricas no Fluxo 3. As demais histórias delimitam incrementos planejados e aparecem como lacunas rastreáveis na seção 5.7.
 
 ## 5. Protótipo de Front-End
 
@@ -325,7 +325,7 @@
 
 #### 5.4.3 Fluxo 3 — Distinguir anomalia de sazonalidade esperada
 
-&emsp; Persona: Rafael Santos. User Story relacionada: **US05 (Should)**. Percurso: **01 Agora → 03 Comparar**.
+&emsp; Persona: Rafael Santos. User Story principal: **US05 (Must)**. Percurso: **01 Agora → 03 Comparar**.
 
 | # | Ação do usuário | Tela | O que o sistema apresenta |
 |---|---|---|---|
@@ -347,12 +347,12 @@
 | US02 — Comparar dispositivos modernos e legados | Must | Rafael | Explorar (Fig. 8) e Recorte (Fig. 12), Fluxo 2: dispositivos legados e modernos nos mesmos filtros, tabelas e mapa de calor | Integral |
 | US03 — Visualizar cobertura de instrumentação | Should | Rafael | Explorar (Fig. 8): volume de eventos por modelo e por tipo | Parcial — falta comparar o volume recebido com o volume esperado e identificar explicitamente os recortes abaixo do limite |
 | US04 — Acompanhar a integridade da ingestão | Could | Rafael | Explorar (Fig. 8): indicador de atualidade do dado ("atualizado há 4s") | Parcial — faltam atraso de ingestão e quantidades de eventos descartados e deduplicados por fonte e período |
-| US05 — Acompanhar SLIs e SLOs do front-end | Should | Rafael | Agora (Fig. 7) e Comparar (Fig. 9), Fluxo 3: baseline por métrica, envelope histórico e significância estatística | Parcial — faltam o objetivo explícito de cada SLO e o estado de cumprimento ou violação |
+| US05 — Comparar indicadores com referências históricas | Must | Rafael | Agora (Fig. 7) e Comparar (Fig. 9), Fluxo 3: seleção da referência, comparação entre valores, envelope histórico, significância estatística e eventos ocorridos entre as janelas | Integral |
 | US06 — Consultar a timeline de uma sessão | Should | Mariana | Recorte (Fig. 12): amostra de sessões com evento, horário e erro por dispositivo | Parcial — falta localizar uma sessão e abrir seu detalhamento cronológico individual |
 | US07 — Filtrar erros por modelo e região | Must | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12), Fluxo 2: filtros cumulativos e mapa de calor por dispositivo e região | Integral |
 | US08 — Verificar eventos de dispositivos legados | Must | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12), Fluxo 2: eventos recebidos por modelo legado, com horário, versão e tipo | Integral |
 
-&emsp; As quatro histórias **Must** estão integralmente representadas. As quatro histórias **Should** ou **Could** possuem cobertura parcial e constituem incrementos planejados para as próximas iterações, conforme as lacunas descritas na subseção 5.7.
+&emsp; As cinco histórias **Must** estão integralmente representadas. As três histórias **Should** ou **Could** possuem cobertura parcial e constituem incrementos planejados para as próximas iterações, conforme as lacunas descritas na subseção 5.7.
 
 ### 5.6 Avaliação heurística
 
@@ -373,15 +373,14 @@
 
 ### 5.7 Lacunas identificadas e próximos passos
 
-&emsp; A inspeção do protótipo e o cruzamento com as User Stories evidenciaram sete pontos a endereçar nas próximas iterações, registrados aqui por constituírem parte do resultado da avaliação.
+&emsp; A inspeção do protótipo e o cruzamento com as User Stories evidenciaram seis pontos a endereçar nas próximas iterações, registrados aqui por constituírem parte do resultado da avaliação.
 
 1. **Estados de carregamento, ausência de dados e erro.** O protótipo representa apenas o cenário em que há telemetria. Faltam estados de carregamento, falha de consulta e coletor interrompido, acompanhados da causa e de uma ação de recuperação. Sem essa distinção, a ausência de sinal pode ser interpretada equivocadamente como ausência de problema.
 2. **Detalhamento de sessão individual.** A US06 pressupõe a reconstrução cronológica dos eventos de uma sessão específica. O protótipo chega ao nível do evento na amostra do recorte, mas não oferece o detalhamento de uma sessão isolada.
-3. **Metas explícitas de confiabilidade.** A US05 requer a visualização do objetivo de cada SLO e de seu estado de cumprimento. O protótipo apresenta baseline e envelope histórico, mas ainda não distingue essas referências de uma meta formal de confiabilidade.
-4. **Cobertura esperada por dispositivo.** A US03 pede a identificação de dispositivos com volume de eventos abaixo do esperado para o tráfego estimado, o que exige exibir a razão entre volume recebido e volume previsto, ainda ausente.
-5. **Integridade da ingestão.** A US04 é representada apenas pela atualidade do dado. Ainda faltam atraso de ingestão, eventos descartados e eventos deduplicados, com detalhamento por fonte e período.
-6. **Glossário de termos técnicos.** Expressões como significância em desvios-padrão, envelope histórico e camada de erro pressupõem familiaridade com o domínio. Um glossário acessível na interface reduziria a barreira de entrada, especialmente para o perfil de suporte.
-7. **Validação de acessibilidade e interação.** A próxima iteração deve medir o contraste dos textos e estados, verificar que a cor não seja o único meio de diferenciação e testar foco visível, ordem de navegação por teclado e mensagens de feedback.
+3. **Cobertura esperada por dispositivo.** A US03 pede a identificação de dispositivos com volume de eventos abaixo do esperado para o tráfego estimado, o que exige exibir a razão entre volume recebido e volume previsto, ainda ausente.
+4. **Integridade da ingestão.** A US04 é representada apenas pela atualidade do dado. Ainda faltam atraso de ingestão, eventos descartados e eventos deduplicados, com detalhamento por fonte e período.
+5. **Glossário de termos técnicos.** Expressões como significância em desvios-padrão, envelope histórico e camada de erro pressupõem familiaridade com o domínio. Um glossário acessível na interface reduziria a barreira de entrada, especialmente para o perfil de suporte.
+6. **Validação de acessibilidade e interação.** A próxima iteração deve medir o contraste dos textos e estados, verificar que a cor não seja o único meio de diferenciação e testar foco visível, ordem de navegação por teclado e mensagens de feedback.
 
 ### 5.8 Conclusão
 
