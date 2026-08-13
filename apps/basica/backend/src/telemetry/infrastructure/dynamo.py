@@ -136,6 +136,7 @@ class DynamoEventRepository:
         default_window_hours: int = 168,
         max_workers: int = 16,
         table_factory: Callable[[], Any] | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         """Inicializa o repositório de leitura.
 
@@ -154,6 +155,12 @@ class DynamoEventRepository:
             max_workers (int, optional): Teto de queries paralelas. Padrão é 16.
             table_factory (Callable[[], Any] | None, optional): Fábrica de tabela
                 por thread; sem ela, o recurso do boto3 é compartilhado.
+            clock (Callable[[], datetime] | None, optional): Fonte do "agora"
+                usada para fechar a janela de uma consulta sem período. Existe
+                para o teste poder fixar a data: com o relógio real, um teste
+                sobre dado de data fixa passa hoje e falha quando o dado sai do
+                recorte de `max_days_fanout` — falha por passagem do tempo, não
+                por regressão. Padrão é `datetime.now(UTC)`.
         """
         self._table = table
         self._shards = max(1, gsi1_shards)
@@ -163,6 +170,7 @@ class DynamoEventRepository:
         self._default_window = timedelta(hours=default_window_hours)
         self._max_workers = max(1, max_workers)
         self._table_factory = table_factory
+        self._clock = clock or (lambda: datetime.now(UTC))
         self._local = threading.local()
 
     # ------------------------------------------------------------------ #
@@ -684,7 +692,7 @@ class DynamoEventRepository:
         Returns:
             tuple[datetime, datetime]: Par (início, fim) da janela.
         """
-        end = filters.occurred_to or datetime.now(UTC)
+        end = filters.occurred_to or self._clock()
         start = filters.occurred_from or (end - self._default_window)
         return start, end
 
