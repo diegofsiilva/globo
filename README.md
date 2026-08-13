@@ -27,26 +27,35 @@ Turma T15 · 2026-2A · Parceiro: **Grupo Globo**
 
 ## Descrição do projeto
 
-A cadeia de entrega do Globoplay (player, CDN, backend, identidade, catálogo) é monitorada em silos: cada área tem seu próprio painel e vocabulário de métricas, o que faz com que a triagem de um incidente consuma mais tempo para descobrir *quem* conserta do que para de fato consertar — e degradações que não geram erro (buffer alto, tempo de início ruim) sequer acendem os alertas atuais. A solução é um sistema distribuído de telemetria com API única de ingestão, normalização dos eventos sob vocabulário comum, pipeline assíncrono de alta escala e camada de consulta que devolve uma linha do tempo única do incidente com o recorte afetado explícito, permitindo identificar a causa provável em minutos e sem depender de um especialista por componente.
+A cadeia de entrega do Globoplay (player, CDN, backend, identidade, catálogo) é monitorada em silos: cada área tem seu próprio painel e vocabulário de métricas, o que faz com que a triagem de um incidente consuma mais tempo para descobrir *quem* conserta do que para de fato consertar. Além disso, degradações que não geram erro (buffer alto, tempo de início ruim) sequer acendem os alertas atuais. A solução é um sistema distribuído de telemetria com API única de ingestão, normalização dos eventos sob vocabulário comum, pipeline assíncrono de alta escala e camada de consulta que devolve uma linha do tempo única do incidente com o recorte afetado explícito, permitindo identificar a causa provável em minutos e sem depender de um especialista por componente.
+
+O sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `video_view`, `vitals` e `error`) e ainda aceita tipos novos sem alteração de código, porque o parque de TVs atualiza devagar e um schema estrito viraria perda de dados em massa.
 
 ---
 
 ## Arquitetura
 
+São dois fluxos independentes ligados por um banco em comum: **ingestão** (aceita na borda, enfileira, valida de forma assíncrona e grava) e **leitura** (consulta, agrega e serve o dashboard).
+
 ```
-signal_point ──> loader ──> API de ingestão (Flask) ──> SQS ──> worker ──> DynamoDB ──> API de consulta (Flask) ──> dashboard
+App de TV ──> API Gateway ──> SQS ──> ECS Fargate ──> DynamoDB ──> Lambda ──> API Gateway ──> Dashboard
+             (ingestão)       │        (worker)                   (API de     (leitura)      (Next.js
+                              ▼                                   leitura)                    estático)
+                            SQS DLQ
 ```
 
 | Camada | Responsabilidade | Serviço AWS |
 |--------|------------------|-------------|
-| API de ingestão | Recebe eventos via HTTP (`POST /events`), valida e publica na fila | EC2 |
-| Fila de mensagens | Absorve picos de requisições e desacopla ingestão do processamento | SQS |
-| Worker | Consome a fila e grava os eventos como itens no banco | EC2 |
-| Banco de dados | Armazenamento não relacional dos sinais (`telemetry_signals`) | DynamoDB |
-| API de consulta | Filtragem e ordenação dos sinais (`GET /events`) | EC2 |
-| Dashboard | Visualização final | S3 (site estático) |
+| API de ingestão | Recebe os eventos e publica na fila por integração direta, sem Lambda no caminho | API Gateway (HTTP API) |
+| Fila de mensagens | Absorve picos e garante a entrega; payload inválido vai para a DLQ com o motivo | SQS + DLQ |
+| Worker | Consome a fila por long polling, valida, deduplica e grava em lote | ECS Fargate (ARM64) |
+| Banco de dados | Tabela única com GSI1 (tipo + dia, com shard) e GSI2 (aparelho), TTL nativo | DynamoDB |
+| API de leitura | Filtros cumulativos, agregações, paginação por cursor e redação de dado pessoal | AWS Lambda (Flask) + API Gateway |
+| Dashboard | Visualização e investigação de incidentes | S3 + CloudFront (site estático) |
 
-Detalhamento completo em [`/artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura.md`](artefatos/arquitetura.md).
+
+> **Estado:** os fluxos de ingestão e leitura estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O dashboard está em desenvolvimento na branch `feat/frontend-inicial`.
 
 ---
 
@@ -54,11 +63,17 @@ Detalhamento completo em [`/artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md)
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-| `/artefatos` | Documentação das sprints — entendimento de negócio, UX, requisitos e documentação técnica do MVP |
-| `/apps` | Código das aplicações, organizado em subpastas |
-| `/apps/basica` | Aplicação do MVP inicial: `api-ingestao`, `api-consulta`, `worker`, `loader` e `frontend` |
-| `/slides` | Apresentações das sprints |
-| `/assets` | Imagens e recursos usados na documentação |
+| `/apps/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
+| `/apps/worker` | Worker de ingestão, que consome o SQS e grava no DynamoDB |
+| `/apps/infra` | Terraform de toda a infraestrutura AWS |
+| `/apps/tools` | Conversão dos CSVs de evento, replay para a API e ETL do dump |
+| `/apps/notebooks` | Análise exploratória do dataset do parceiro |
+| `/apps/frontend` | Dashboard Next.js *(em desenvolvimento)* |
+| `/artefatos` | Documentação das sprints: negócio, UX, requisitos e arquitetura |
+| `/artefatos/assets` | Imagens usadas nos artefatos |
+| `/assets` | Logos usados neste README |
+| `Makefile` | Comandos do projeto; `make` sozinho lista os alvos |
+| `.env.example` | Chaves de configuração; os valores ficam no `.env`, fora do repositório |
 | `README.md` | Este arquivo |
 | `.gitignore` | Arquivos e pastas ignorados pelo controle de versão |
 
