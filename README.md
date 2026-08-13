@@ -101,7 +101,8 @@ git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
 cd g04
 
 # 2. configurar as variáveis de ambiente
-cp .env.example .env      # ou: make env, que lê os endpoints do Terraform
+make env                  # lê os endpoints do Terraform e escreve o .env
+                          # (só funciona depois do primeiro apply — ver abaixo)
 
 # 3. instalar as dependências dos dois apps Python
 make install
@@ -158,26 +159,37 @@ Toda a infraestrutura é provisionada por Terraform em [`apps/basica/infra`](app
 
 ### Passos de implantação
 
+Credenciais primeiro: [`artefatos/mvp-inicial.md` §6.2](artefatos/mvp-inicial.md#62-conectar-o-terraform-ao-aws-academy-learner-lab)
+mostra como pegar as credenciais do AWS Academy Learner Lab em **AWS Details →
+AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`. Com
+`aws sts get-caller-identity` respondendo a conta certa:
+
 ```bash
+# 1. empacota a API de leitura — o Terraform precisa do zip já no plan
+make install
+make lambda-build
+
+# 2. cria a infraestrutura sem o worker (o ECR nasce vazio)
 cd apps/basica/infra
 cp terraform.tfvars.example terraform.tfvars
-
-# 1. cria a infraestrutura sem o worker (o ECR nasce vazio)
 terraform init
 terraform apply -var="worker_desired_count=0"
 
-# 2. publica a imagem do worker no ECR
+# 3. publica a imagem do worker no ECR
 cd ../../.. && make worker-deploy
 
-# 3. liga o worker
+# 4. liga o worker
 cd apps/basica/infra && terraform apply -var="worker_desired_count=1"
 
-# 4. gera o .env a partir dos outputs e publica a API e o dashboard
+# 5. gera o .env a partir dos outputs e publica o dashboard
 cd ../../..
 make env
-make deploy
-make frontend-deploy
+make frontend-install
+make frontend-deploy      # imprime o endereço público do dashboard
 ```
+
+Nos deploys seguintes, `make deploy` testa, empacota, aplica e roda o smoke num
+comando só.
 
 Verificação:
 

@@ -1,7 +1,28 @@
 # Copie para terraform.tfvars e ajuste. terraform.tfvars esta no .gitignore.
+#
+# O passo a passo do primeiro apply esta em artefatos/mvp-inicial.md §6.
 
 region      = "us-east-1"
 environment = "dev"
+
+# --- AWS Academy / Learner Lab ----------------------------------------------
+# Descomente as tres linhas abaixo se estiver aplicando num Learner Lab. Sao as
+# duas unicas concessoes que o ambiente exige; numa conta normal, deixe como
+# esta (roles dedicadas com permissao minima e chave KMS gerenciada).
+#
+# O lab nega iam:CreateRole e obriga a reusar a LabRole, que ja confia em
+# apigateway.amazonaws.com e ecs-tasks.amazonaws.com. Monte o ARN com:
+#
+#   echo "arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/LabRole"
+#
+# create_iam_roles  = false
+# existing_role_arn = "arn:aws:iam::<sua-conta>:role/LabRole"
+#
+# O lab nao provisiona a chave gerenciada aws/dynamodb e o CreateTable falha com
+# "KMS validation error ... does not exist". Com false a tabela usa a chave
+# AWS-owned -- continua criptografada em repouso.
+#
+# dynamodb_kms_managed_key = false
 
 # --- Rede -------------------------------------------------------------------
 # Vazio usa a VPC/subnets default da conta.
