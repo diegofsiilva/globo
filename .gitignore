@@ -37,3 +37,6 @@ apps/basica/backend/instance/
 .env
 .env.*
 !.env.example
+
+# Environment do Postman com as URLs reais. O .example mostra as chaves.
+artefatos/postman/environment.json

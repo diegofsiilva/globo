@@ -1,0 +1,34 @@
+{
+  "name": "Argus — exemplo (preencha e NAO versione)",
+  "_comment": [
+    "Copie para environment.json e preencha os dois valores. O environment.json",
+    "esta no .gitignore.",
+    "",
+    "Nenhuma URL real de API pode ser commitada. Enquanto as duas APIs nao",
+    "tiverem autenticacao (arquitetura.md secao 8.1), a URL e na pratica a unica",
+    "barreira entre os eventos e qualquer pessoa na internet.",
+    "",
+    "Pegue os valores do Terraform:",
+    "  cd apps/basica/infra",
+    "  terraform output -raw read_api_url    -> read_url",
+    "  terraform output -raw ingest_url      -> ingest_url",
+    "",
+    "Ou, se o .env da raiz ja estiver preenchido:",
+    "  make postman-env"
+  ],
+  "values": [
+    {
+      "key": "read_url",
+      "value": "https://SEU-ID-DE-LEITURA.execute-api.us-east-1.amazonaws.com",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "ingest_url",
+      "value": "https://SEU-ID-DE-INGESTAO.execute-api.us-east-1.amazonaws.com/v1/events",
+      "type": "default",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}
