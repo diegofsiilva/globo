@@ -12,7 +12,7 @@
 
 &emsp; **Solução proposta pelo grupo.** Sistema distribuído proprietário de telemetria, com API única de ingestão que aceita protocolos modernos e legados, normalização dos eventos sob vocabulário comum (`request`, `vitals`, `screen_view`, `video_view`, `session`, `error`), pipeline de alta escala sem perdas e camada agêntica de correlação, que devolve uma linha do tempo única do incidente e uma hipótese de causa provável ranqueada, com o recorte afetado explícito.
 
-&emsp; **Escopo avaliado.** A matriz compara a solução-alvo, e não o recorte entregue no módulo. O MVP implementa o caminho de ingestão, processamento assíncrono, armazenamento e consulta, consumindo eventos já normalizados na tabela `signal_point`. A normalização das fontes é hoje executada por um script do próprio parceiro, e ainda não está definido se ele será reaproveitado ou reescrito pelo grupo — dependência registrada como R17 na seção 2. A camada de correlação e inferência está prevista na Fase 5 do investimento, conforme 4.3. Os atributos 1, 2 e 5 descrevem, portanto, capacidade projetada, e sua verificação depende dessas definições.
+&emsp; **Escopo avaliado.** A matriz compara a solução-alvo, e não o recorte entregue no módulo. O MVP implementa o caminho de ingestão, processamento assíncrono, armazenamento e consulta: os eventos são enviados pelas aplicações à API de ingestão, enfileirados, gravados sem transformação e expostos por uma API de leitura, conforme `arquitetura.md`. A validação é permissiva por decisão de projeto, para não descartar tipos de evento ainda não previstos. A camada de correlação e inferência está prevista na Fase 5 do investimento, conforme 4.3, e os atributos 1 e 2 descrevem, portanto, capacidade projetada.
 
 &emsp; A matriz avalia as abordagens de solução, e não o Globoplay. Características do produto e da audiência entram como justificativa do valor de cada atributo, não como objeto de avaliação.
 
@@ -33,9 +33,9 @@
 | Atributo de valor para o Grupo Globo                       | Prática atual (silos + triagem humana) | Suíte de observabilidade de mercado | Solução proposta pelo grupo | Justificativa das notas                                                                                                                                                                                                                                                                                                                                                                             |
 | ---------------------------------------------------------- | -------------------------------------: | ----------------------------------: | --------------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Tempo até a hipótese de causa provável                  |                                      1 |                                   3 |                           5 | Hoje o tempo de resolução é a soma das filas: gasta-se mais para descobrir quem conserta do que para consertar. A suíte comercial encurta o caminho ao reunir sinais em um painel, mas ainda entrega gráficos que alguém precisa interpretar. Só a solução proposta tem como produto final uma hipótese ranqueada, e não um conjunto de séries temporais.                                           |
-| 2. Correlação ponta a ponta em uma linha do tempo única    |                                      1 |                                   3 |                           5 | A experiência do assinante é ponta a ponta, mas a observabilidade não é: nenhum painel atual acompanha a jornada inteira do play. A suíte comercial resolve isso quando todas as fontes são de fato integradas, o que raramente se completa numa cadeia com oito fontes heterogêneas. A solução proposta faz o agrupamento por filtros, que proporciona o olhar de uma linha do tempo única. |
+| 2. Correlação ponta a ponta em uma linha do tempo única    |                                      1 |                                   3 |                           5 | A experiência do assinante é ponta a ponta, mas a observabilidade não é: nenhum painel atual acompanha a jornada inteira do play. A suíte comercial resolve isso quando todas as fontes são de fato integradas, o que raramente se completa numa cadeia com mais de treze fontes heterogêneas. A solução proposta faz o agrupamento por filtros, que proporciona o olhar de uma linha do tempo única. |
 | 3. Detecção de degradação que não gera erro                |                                      2 |                                   3 |                           5 | Buffer alto e tempo de início ruim não produzem taxa de erro, e o painel tradicional não acende. Ferramentas de mercado detectam anomalia, mas sobre métricas agregadas, em que a degradação de um recorte se dilui. A solução proposta parte de eventos de QoE coletados no cliente, em que o sintoma percebido pelo assinante é o próprio dado primário.                                          |
-| 4. Granularidade nos recortes de investigação              |                                      2 |                                   2 |                           5 | Uma falha que atinge meio por cento das sessões pode ser a totalidade das sessões de um modelo de TV numa região. A prática atual dilui isso na média nacional. A suíte comercial é penalizada pelo próprio modelo de cobrança: cada dimensão adicional vira custo e empurra o time de volta ao agregado. Na solução proposta, a granularidade é decidida pela necessidade analítica.               |
+| 4. Granularidade nos recortes de investigação              |                                      2 |                                   2 |                           5 | Uma falha que atinge meio por cento das sessões pode ser a totalidade das sessões de um modelo de TV numa região. A prática atual dilui isso na média nacional. A suíte comercial é penalizada pelo próprio modelo de cobrança: cada dimensão adicional vira custo e empurra o time de volta ao agregado. Na solução proposta, o evento é gravado sem agregação prévia, e a granularidade passa a ser decidida na consulta e não pelo preço de observar mais uma dimensão. O preço dessa escolha aparece do lado da leitura: recortes fora das chaves de partição são resolvidos por filtro sobre o conjunto lido.               |
 | 5. Cobertura da base real de dispositivos e protocolos     |                                      2 |                                   2 |                           5 | Sete plataformas e centenas de modelos convivem no parque, e parte relevante deles não suporta os padrões modernos de coleta que as plataformas de mercado assumem. Nem a prática atual nem a suíte resolvem isso, porque a limitação está na borda e não no backend. A API única multiprotocolo ataca a causa do ponto cego.                                                                       |
 | 6. Independência de especialista e custo humano da triagem |                                      1 |                                   3 |                           4 | Hoje o diagnóstico vira reunião: como nenhum time enxerga o todo, a correlação exige uma sala de especialistas, o recurso mais caro da casa gasto em triagem. Um painel unificado reduz parte disso. A nota 4 da solução proposta reconhece que a hipótese automática ainda dependerá de validação humana enquanto não houver histórico suficiente para calibrar sua confiabilidade.                |
 | 7. Sustentação sob pico de evento ao vivo                  |                                      3 |                                   4 |                           3 | Aqui a solução proposta não é superior. A prática atual, embora lenta, sobrevive a picos porque não depende de infraestrutura nova. As suítes comerciais operam infraestrutura endurecida por anos de produção. A solução proposta precisa demonstrar ingestão sem perdas em cenários de milhões de sessões simultâneas, e essa capacidade ainda é hipótese de engenharia.                          |
@@ -72,7 +72,7 @@
 
 ### 1.6. Evidências que reforçam a comparação
 
-&emsp; **Contexto do produto.** O Globoplay reúne cerca de 30 milhões de usuários ativos mensais (EXAME, 2026), com picos que chegam a 4,1 milhões de sessões em um único evento ao vivo. O produto é entregue em sete plataformas, sobre centenas de modelos de dispositivo, distribuídos por 27 unidades federativas e dezenas de provedores de acesso. A cadeia de entrega envolve ao menos oito fontes de dados, produzidas por áreas diferentes, com formatos e janelas de agregação diferentes, e todas precisam ser lidas em conjunto para explicar um único play que deu errado. É esse espaço de busca que torna a varredura manual inviável em plantão.
+&emsp; **Contexto do produto.** O Globoplay reúne cerca de 30 milhões de usuários ativos mensais (EXAME, 2026), com picos que chegam a 4,1 milhões de sessões em um único evento ao vivo. O produto é entregue em sete plataformas, sobre centenas de modelos de dispositivo, distribuídos por 27 unidades federativas e dezenas de provedores de acesso. A cadeia de entrega envolve mais de treze fontes de dados, produzidas por áreas diferentes, com formatos e janelas de agregação diferentes, e todas precisam ser lidas em conjunto para explicar um único play que deu errado. É esse espaço de busca que torna a varredura manual inviável em plantão.
 
 &emsp; **Impacto econômico da degradação silenciosa.** O estudo de Krishnan e Sitaraman (2012), conduzido sobre 23 milhões de visualizações na rede da Akamai e apresentado no Internet Measurement Conference, mostrou que o abandono começa quando o vídeo demora mais de cerca de 2 segundos para iniciar, com aumento aproximado de 5,8 pontos percentuais na taxa de abandono a cada segundo adicional. Travamentos equivalentes a 1% da duração reduzem em cerca de 5% o tempo assistido, e quem sofre falha de reprodução tem probabilidade cerca de 2,3% menor de voltar na mesma semana. O resultado sustenta o atributo 3: a degradação que não gera erro é justamente a que destrói engajamento.
 
@@ -94,7 +94,7 @@
 
 #### Aumentar
 
-- A resolução da análise, até o nível de modelo, firmware, UF, operadora e versão de aplicação.
+- A resolução da análise, com sessão, tipo de evento e aparelho como chaves de consulta, e modelo, versão, UF e operadora como filtros aplicados sobre o conjunto recuperado.
 - A cobertura efetiva da base instalada, incluindo aparelhos antigos e redes instáveis.
 - A autonomia do time de atendimento, medida pelo quanto a primeira linha conclui sem escalar.
 
@@ -134,7 +134,7 @@
 |---|---|---|---|---|
 | **R01: Concentração de conhecimento técnico** | Pessoas | **Risco alto** - Probabilidade: 70%; Impacto: muito alto | O risco ocorre quando apenas um integrante domina componentes críticos da solução, como a API de ingestão, o processamento dos eventos, o banco de dados, a infraestrutura AWS ou o dashboard. A ausência ou indisponibilidade desse integrante pode bloquear tarefas, comprometer o cronograma e dificultar a manutenção da aplicação. | Realizar revisões cruzadas de código, programação em pares nos componentes críticos, rodízio de responsabilidades e documentação técnica contínua. Registrar decisões arquiteturais e compartilhar atualizações durante os rituais Scrum. |
 | **R02: Distribuição desigual de tarefas e atrasos** | Gestão do projeto | **Risco moderado** - Probabilidade: 70%; Impacto: moderado | A concentração de atividades complexas em poucos integrantes pode provocar sobrecarga, redução da qualidade das entregas, desmotivação e atrasos. Ao mesmo tempo, integrantes com tarefas menores podem não desenvolver conhecimento suficiente sobre os componentes centrais do sistema. | Dividir as entregas em tarefas menores, definir responsáveis e revisores, acompanhar semanalmente a carga de trabalho e redistribuir atividades quando forem identificados bloqueios ou desequilíbrios. |
-| **R03: Violação de privacidade e confidencialidade** | Segurança e privacidade | **Risco alto** - Probabilidade: 30%; Impacto: muito alto | Os eventos de telemetria podem conter identificadores de usuário e dispositivo, cabeçalhos de autenticação ou outras informações sensíveis. Além das exigências da LGPD, os documentos do parceiro determinam que os dados e desafios do projeto não sejam compartilhados com terceiros. A exposição pode ocorrer em repositórios públicos, protótipos, vídeos, capturas de tela ou ferramentas externas. | Aplicar minimização, anonimização ou pseudonimização dos dados, remover tokens e cabeçalhos sensíveis, utilizar controles de acesso e criptografia, definir políticas de retenção e empregar dados sintéticos em protótipos, testes públicos e demonstrações. |
+| **R03: Violação de privacidade e confidencialidade** | Segurança e privacidade | **Risco alto** - Probabilidade: 30%; Impacto: muito alto | Os eventos de telemetria podem conter identificadores de usuário e dispositivo, cabeçalhos de autenticação ou outras informações sensíveis. Além das exigências da LGPD, os documentos do parceiro determinam que os dados e desafios do projeto não sejam compartilhados com terceiros. A exposição pode ocorrer em repositórios públicos, protótipos, vídeos, capturas de tela ou ferramentas externas. | Aplicar a redação dos identificadores e cabeçalhos sensíveis na resposta da API de leitura, conforme a arquitetura vigente, mantendo o evento cru no banco sob TTL, criptografia em repouso e controle de acesso. Definir políticas de retenção, restringir quem consulta a base diretamente e empregar dados sintéticos em protótipos, testes públicos e demonstrações. |
 | **R04: Baixo desempenho da ingestão e do processamento em escala** | Desempenho | **Risco alto** - Probabilidade: 70%; Impacto: alto | A API de ingestão e os componentes de processamento podem não suportar o volume médio ou os picos de eventos gerados pelos dispositivos, provocando aumento de latência, acúmulo de mensagens, rejeição de requisições ou indisponibilidade parcial da plataforma. | Definir metas mensuráveis de eventos por segundo, latência, taxa de erro e disponibilidade. Executar testes progressivos de carga, pico e resistência, monitorar gargalos e permitir escalabilidade horizontal dos componentes críticos. |
 | **R05: Dependências técnicas e organizacionais não planejadas** | Gestão do projeto | **Risco moderado** - Probabilidade: 50%; Impacto: moderado | Algumas atividades podem depender de schemas, APIs, dados, ambientes AWS, decisões arquiteturais ou respostas do parceiro que ainda não estejam disponíveis. Isso pode deixar integrantes bloqueados e comprometer a sequência planejada das entregas. | Mapear as dependências durante o planejamento das sprints, priorizar contratos de API e schemas, criar mocks para componentes indisponíveis e registrar responsáveis e prazos para a resolução de cada dependência. |
 | **R06: Dados de teste pouco representativos** | Dados | **Risco baixo** - Probabilidade: 70%; Impacto: moderado | Os dados sintéticos ou exemplos fornecidos podem não representar adequadamente a diversidade de dispositivos, sistemas operacionais, condições de conectividade, formatos de evento e picos de utilização do Globoplay. Isso pode levar à validação de uma arquitetura inadequada e à definição incorreta de requisitos de desempenho. | Solicitar ao parceiro amostras anonimizadas e estatísticas agregadas. Desenvolver um gerador de eventos capaz de simular diferentes dispositivos, versões, condições de rede, tipos de erro, volumes e padrões de utilização. |
@@ -222,14 +222,12 @@
 
 | # | Produto ou serviço | Atende a |
 |---|---|---|
-| P1 | Normalização das fontes para o vocabulário comum (`signal_point`) | J1, J3 |
+| P1 | Contrato de eventos em vocabulário comum | J1, J3 |
 | P2 | API única de ingestão | J1, J4 |
 | P3 | Fila de mensagens e worker de processamento | J1, J2 |
-| P4 | Armazenamento com recorte por dimensão | J2, J3 |
+| P4 | Armazenamento com índices por tipo de evento e por aparelho | J2, J3 |
 | P5 | Motor de correlação e causa provável | J3, J5, J6 |
 | P6 | Dashboard e API de consulta | J2, J4, J5 |
-
-&emsp; A titularidade de P1 é a principal indefinição do escopo: o parceiro já opera um script de normalização, e ainda não foi decidido se o grupo o reutiliza ou constrói o seu. Enquanto isso não estiver resolvido, P1 é premissa e não entrega, o que afeta diretamente a justificativa do atributo 5 em 1.3.
 
 &emsp; P5 é o componente que diferencia a proposta das alternativas comparadas em 1.3. Sem ele, os demais produtos entregam dados, e não inferência, e a solução se aproxima da suíte de mercado avaliada na matriz. Seu custo de construção está estimado na Fase 5 do investimento inicial, em 4.3.
 
@@ -239,7 +237,7 @@
 
 | # | Dor (*Pain*) | Severidade | Aliviador correspondente (*Pain Reliever*) |
 |---|---|---|---|
-| D1 | Dispositivos legados invisíveis | Alta | Coleta própria de telemetria |
+| D1 | Dispositivos legados invisíveis | Alta | Ingestão própria, sem intermediário de mercado |
 | D2 | Telemetria fragmentada | Média | Normalização de eventos |
 | D3 | Perda de contexto entre equipes | Alta | Encaminhamento baseado em evidências |
 | D4 | Alto tempo de resolução | Alta | Correlação inteligente de eventos; detecção precoce de degradações |
@@ -257,7 +255,7 @@
 | G4 | Melhor priorização dos incidentes | Média | Classificação por impacto |
 | G5 | Cumprimento dos SLAs | Média | Redução do tempo de resposta |
 
-&emsp; O encaixe demonstrado acima delimita a proposta. A solução é baseada em ingestão própria: os eventos das fontes de telemetria, normalizados na tabela `signal_point`, são recebidos por uma API única na infraestrutura da AWS, processados de forma assíncrona, armazenados, correlacionados e apresentados em dashboard. Dentro do escopo do MVP e conforme o rollout, ela substitui parte das funcionalidades hoje desempenhadas por ferramentas de observabilidade de mercado, e não a totalidade delas. Essa proporção é tratada como premissa B3 na análise financeira, em 4.2. O valor central permanece a ampliação da visibilidade necessária para investigar incidentes, reduzir o tempo perdido entre filas e equipes, apoiar o cumprimento dos SLAs e diminuir o impacto das falhas percebidas pelos assinantes do Globoplay.
+&emsp; O encaixe demonstrado acima delimita a proposta. A solução é baseada em ingestão própria: os eventos emitidos pelas aplicações são recebidos por uma API única na infraestrutura da AWS, enfileirados, gravados sem transformação, correlacionados e apresentados em dashboard. Dentro do escopo do MVP e conforme o rollout, ela substitui parte das funcionalidades hoje desempenhadas por ferramentas de observabilidade de mercado, e não a totalidade delas. Essa proporção é tratada como premissa B3 na análise financeira, em 4.2. O valor central permanece a ampliação da visibilidade necessária para investigar incidentes, reduzir o tempo perdido entre filas e equipes, apoiar o cumprimento dos SLAs e diminuir o impacto das falhas percebidas pelos assinantes do Globoplay.
 
 ## 4. Análise Financeira do Projeto
 
@@ -354,28 +352,39 @@
 
 &emsp; Uma plataforma proprietária transfere o custo da licença para a operação interna. Esses custos são o principal contrapeso do benefício.
 
-**Derivação da infraestrutura de produção (cenário base, B4 = 40%):**
+**Derivação da infraestrutura de produção (cenário base, B4 = 40%).** O dimensionamento segue as etapas da arquitetura descrita em `arquitetura.md`, com preços de tabela da região US East (AMAZON WEB SERVICES, 2026) convertidos por B2. O volume é de ~1,44 bi eventos/mês (C9 × B4), com item médio de ~500 bytes.
 
-| Etapa | Cálculo | Resultado |
-|---|---|---|
-| Volume em rollout total (C9) | 30 mi × 8 sessões × 15 eventos | ~3,6 bi eventos/mês |
-| Volume no cenário base | 3,6 bi × 40% (B4) | ~1,44 bi eventos/mês |
-| Dados brutos | 1,44 bi × ~500 bytes | ~720 GB/mês |
-| Dados armazenados | compressão colunar ~10:1 | ~72 GB/mês |
-| Recursos em regime permanente | fila + banco colunar + object storage + API autoescalada | ~35–40 vCPU |
-| Custo mensal | nuvem com redundância (AMAZON WEB SERVICES, 2026; UPTRACE, 2026) | **~R$ 25.000/mês** |
+| Etapa da arquitetura | Dimensionamento | US$/mês |
+|---|---|---:|
+| API Gateway (ingestão) | 1,44 bi requisições; US$ 1,00/milhão até 300 mi e US$ 0,90/milhão acima | 1.326 |
+| SQS | `SendMessage` por evento, recebimento e exclusão em lotes de 10; US$ 0,40/milhão | 691 |
+| ECS Fargate (worker) | ~6 tarefas de 0,5 vCPU e 1 GB em ARM, 24/7; US$ 0,03238/vCPU-hora | 87 |
+| DynamoDB — escrita | 3 unidades por evento (tabela + GSI1 + GSI2); US$ 0,625/milhão | 2.700 |
+| DynamoDB — armazenamento | ~1,5 TB com TTL de 30 dias; US$ 0,25/GB | 375 |
+| DynamoDB — leitura | consultas do dashboard; US$ 0,125/milhão | 6 |
+| Lambda (API de leitura) | ~5 mi de invocações, 512 MB, ~1,5 s | 65 |
+| API Gateway (leitura) | ~5 mi de requisições | 5 |
+| CloudWatch Logs e métricas EMF | log por ciclo do worker e cinco alarmes | 40 |
+| S3 e CloudFront | dashboard Next.js exportado como estático | 5 |
+| Transferência de dados | respostas da API de leitura | 10 |
+| **Total** | | **~5.310** |
+| **Equivalente em reais** | B2 = R$ 5,08 | **~R$ 27.000** |
+
+&emsp; O ambiente de laboratório descrito em `arquitetura.md` opera na ordem de 1 milhão de eventos por mês e custa cerca de US$ 14 mensais. A diferença de três ordens de grandeza para a tabela acima é de volume, não de arquitetura: os mesmos componentes, cobrados por requisição e por unidade de escrita, escalam de forma praticamente linear.
+
+&emsp; Dois itens respondem por 95% da conta. O DynamoDB pesa 58% porque **cada GSI multiplica a escrita**: o mesmo evento é gravado três vezes, na tabela e nos dois índices. Reduzir para um GSI cortaria cerca de US$ 900/mês, ao custo de perder um dos caminhos de consulta. A borda de ingestão — API Gateway e SQS — responde por 38%, e é consequência de cobrar por requisição um fluxo de um evento por chamada; agrupar eventos no cliente antes do `POST` é a alavanca mais direta sobre esse valor. O NAT Gateway, que seria o maior item isolado, não aparece porque a arquitetura atribui IP público à tarefa.
 
 | Item | Anual (R$) | Premissa |
 |---|---|---|
-| Infraestrutura de produção (nuvem) | 300.000 | R$ 25.000/mês; escala com B4 |
+| Infraestrutura de produção (nuvem) | 324.000 | R$ 27.000/mês; escala com B4 |
 | Sustentação e plantão (dev pleno, 50%) | 105.000 | C7: R$ 17.500 × 50% × 12 |
 | Evolução dos adaptadores e da API de ingestão (dev sênior, 30%) | 86.000 | C7: R$ 24.000 × 30% × 12 |
 | Suporte a engenharia e produto (~20h/mês) | 27.000 | C7: R$ 17.500 ÷ 160h × 20h × 12 |
-| **Total** | **518.000** | R$ 218.000 fixos + R$ 300.000 variáveis |
+| **Total** | **542.000** | R$ 218.000 fixos + R$ 324.000 variáveis |
 
 &emsp; A sustentação da camada de inferência (Fase 5) está contemplada no item de evolução, sem acréscimo de quadro no Ano 1 — simplificação que deve ser revista quando houver histórico de incidentes rotulados suficiente para recalibrar o modelo.
 
-&emsp; A parcela variável (R$ 750.000 × B4) é o item mais sensível do modelo e o único que a equipe controla por decisões de arquitetura: política de retenção, agregação de dados históricos, compressão e particionamento. Nenhum ganho de otimização foi incorporado ao modelo, por falta de premissa quantificável.
+&emsp; A parcela variável (R$ 810.000 × B4, sendo R$ 810.000 o custo em rollout total) é o item mais sensível do modelo e o único que a equipe controla por decisões de arquitetura: política de retenção, agregação de dados históricos, compressão e particionamento. Nenhum ganho de otimização foi incorporado ao modelo, por falta de premissa quantificável.
 
 ---
 
@@ -391,7 +400,7 @@
 
 &emsp; B3 mede a fração do escopo funcional que o MVP cobre — a solução própria não replica APM completo, tracing distribuído, integrações prontas e suporte contínuo. B4 mede a rampagem: o contrato só deixa de ser pago na proporção em que as aplicações e fontes migram para a nova ingestão.
 
-&emsp; **Nota metodológica.** (i) O benefício é custo evitado bruto; o custo de operar a plataforma própria é descontado em 4.6. (ii) O rollout parcial reduz simultaneamente benefício e custo de infraestrutura, por isso ambos são recalculados em conjunto na sensibilidade. (iii) No teto de B1 (US$ 2 mi/ano), o baseline e o ganho efetivo são multiplicados por 2,5, enquanto os custos permanecem inalterados; o benefício líquido do Ano 1 passa a R$ 1.514 mil, conforme a tabela da limitação 1 em 4.7.
+&emsp; **Nota metodológica.** (i) O benefício é custo evitado bruto; o custo de operar a plataforma própria é descontado em 4.6. (ii) O rollout parcial reduz simultaneamente benefício e custo de infraestrutura, por isso ambos são recalculados em conjunto na sensibilidade. (iii) No teto de B1 (US$ 2 mi/ano), o baseline e o ganho efetivo são multiplicados por 2,5, enquanto os custos permanecem inalterados; o benefício líquido do Ano 1 passa a R$ 1.490 mil, conforme a tabela da limitação 1 em 4.7.
 
 ---
 
@@ -407,20 +416,20 @@ Benefício Líquido = Ganhos estimados (1 ano) − Custos operacionais anuais
 | Componente | Valor | Origem |
 |---|---|---|
 | Investimento inicial | R$ 798.000 | 4.3 |
-| Custos operacionais anuais | R$ 518.000 | 4.4 |
+| Custos operacionais anuais | R$ 542.000 | 4.4 |
 | Ganho efetivo no Ano 1 | R$ 813.000 | 4.5 (B3 = 50%, B4 = 40%) |
-| **Benefício líquido** | **R$ 295.000** | R$ 813.000 − R$ 518.000 |
-| **ROI (Ano 1)** | **~37%** | R$ 295.000 ÷ R$ 798.000 |
+| **Benefício líquido** | **R$ 271.000** | R$ 813.000 − R$ 542.000 |
+| **ROI (Ano 1)** | **~34%** | R$ 271.000 ÷ R$ 798.000 |
 
 #### Análise de sensibilidade
 
-&emsp; B3 e B4 são os principais vetores de incerteza (ambos Baixa confiança). Os cenários variam os dois simultaneamente; a parcela variável dos custos (R$ 750.000 × B4) é recalculada em cada linha.
+&emsp; B3 e B4 são os principais vetores de incerteza (ambos Baixa confiança). Os cenários variam os dois simultaneamente; a parcela variável dos custos (R$ 810.000 × B4) é recalculada em cada linha.
 
 | Cenário | B3 | B4 | Ganho efetivo Y1 | Custos anuais | Benefício líquido | ROI |
 |---|---|---|---|---|---|---|
-| Pessimista | 30% | 20% | R$ 244 mil | R$ 368 mil | −R$ 124 mil | −16% |
-| Base | 50% | 40% | R$ 813 mil | R$ 518 mil | R$ 295 mil | 37% |
-| Otimista | 70% | 60% | R$ 1.707 mil | R$ 668 mil | R$ 1.039 mil | 130% |
+| Pessimista | 30% | 20% | R$ 244 mil | R$ 380 mil | −R$ 136 mil | −17% |
+| Base | 50% | 40% | R$ 813 mil | R$ 542 mil | R$ 271 mil | 34% |
+| Otimista | 70% | 60% | R$ 1.707 mil | R$ 704 mil | R$ 1.003 mil | 126% |
 
 &emsp; No cenário pessimista o resultado é negativo: o custo de operar a plataforma própria supera o contrato evitado. No cenário base o projeto recupera boa parte do investimento já no Ano 1.
 
@@ -434,20 +443,20 @@ Benefício Líquido = Ganhos estimados (1 ano) − Custos operacionais anuais
 |---|---|---|---|---|
 | **Contratar** — contrato integral | 4.064 | 4.064 | 4.064 | **12.192** |
 | Construir — investimento (4.3) | 798 | — | — | 798 |
-| Construir — operação (4.4) | 518 | 818 | 968 | 2.304 |
+| Construir — operação (4.4) | 542 | 866 | 1.028 | 2.436 |
 | Construir — contrato residual | 3.251 | 2.438 | 2.032 | 7.721 |
-| **Construir** — total | 4.567 | 3.256 | 3.000 | **10.823** |
-| **Diferença anual** | −503 | +808 | +1.064 | **+1.369** |
+| **Construir** — total | 4.591 | 3.304 | 3.060 | **10.956** |
+| **Diferença anual** | −527 | +760 | +1.004 | **+1.236** |
 
-&emsp; Construir custa R$ 503 mil **a mais** que contratar no Ano 1: paga-se a construção e o contrato ao mesmo tempo. A virada ocorre no Ano 2, com cruzamento acumulado por volta do mês 20. Em 3 anos, a economia é de R$ 1,37 milhão, ou ~11% do TCO.
+&emsp; Construir custa R$ 527 mil **a mais** que contratar no Ano 1: paga-se a construção e o contrato ao mesmo tempo. A virada ocorre no Ano 2, com cruzamento acumulado por volta do mês 20. Em 3 anos, a economia é de R$ 1,24 milhão, ou ~10% do TCO.
 
 &emsp; A mesma comparação sob os cenários de sensibilidade:
 
 | Cenário (B3; trajetória de B4) | TCO contratar | TCO construir | Diferença em 3 anos |
 |---|---|---|---|
-| Pessimista (30%; 20→40→60%) | 12.192 | 13.081 | **−889** (construir é mais caro) |
-| Base (50%; 40→80→100%) | 12.192 | 10.823 | **+1.369** |
-| Otimista (70%; 60→90→100%) | 12.192 | 8.407 | **+3.785** |
+| Pessimista (30%; 20→40→60%) | 12.192 | 13.153 | **−961** (construir é mais caro) |
+| Base (50%; 40→80→100%) | 12.192 | 10.956 | **+1.236** |
+| Otimista (70%; 60→90→100%) | 12.192 | 8.557 | **+3.635** |
 
 &emsp; O intervalo é largo o bastante para inverter a decisão: no cenário pessimista, contratar é a escolha economicamente correta ao longo de todo o horizonte.
 
@@ -457,13 +466,13 @@ Benefício Líquido = Ganhos estimados (1 ano) − Custos operacionais anuais
 
 #### Viabilidade financeira
 
-&emsp; No cenário base, construir é economicamente preferível a contratar, com economia de ~11% do TCO em 3 anos e virada no mês ~20.
+&emsp; No cenário base, construir é economicamente preferível a contratar, com economia de ~10% do TCO em 3 anos e virada no mês ~20.
 
 | Referência | Valor | Proporção |
 |---|---|---|
 | Investimento inicial | R$ 798 mil | ~20% de um ano de contrato de mercado (baseline B1) |
-| Operação anual em regime permanente | R$ 968 mil | ~24% do baseline |
-| Custo operacional / ganho bruto (Ano 1) | R$ 518 mil / R$ 813 mil | 64% |
+| Operação anual em regime permanente | R$ 1.028 mil | ~25% do baseline |
+| Custo operacional / ganho bruto (Ano 1) | R$ 542 mil / R$ 813 mil | 67% |
 
 &emsp; O denominador correto é o gasto com observabilidade, e não o resultado do grupo: comparar R$ 798 mil ao lucro consolidado produz um percentual sem significado decisório. A decisão não se sustenta pelo Ano 1, e sim pela trajetória — o benefício cresce com o rollout, enquanto o investimento é pago uma única vez.
 
@@ -471,21 +480,21 @@ Benefício Líquido = Ganhos estimados (1 ano) − Custos operacionais anuais
 
 &emsp; Três fatores limitam o ROI do Ano 1:
 
-- **Rampagem (B4 = 40%).** O contrato de mercado continua sendo pago na fração não migrada. Em regime permanente (B4 = 100%, B3 = 50%), o benefício líquido anual seria de ~R$ 1,06 milhão.
+- **Rampagem (B4 = 40%).** O contrato de mercado continua sendo pago na fração não migrada. Em regime permanente (B4 = 100%, B3 = 50%), o benefício líquido anual seria de ~R$ 1,00 milhão.
 - **Substituição parcial (B3 = 50%).** Enquanto houver escopo residual, o contrato é reduzido de tier, não cancelado — e contratos com volume mínimo podem não permitir nem isso dentro do ciclo vigente.
-- **Custo operacional próprio elevado (64% do ganho bruto no Ano 1).** Característico de projetos de construir em vez de comprar: parte do que se paga a um fornecedor é infraestrutura, que apenas muda de dono.
+- **Custo operacional próprio elevado (67% do ganho bruto no Ano 1).** Característico de projetos de construir em vez de comprar: parte do que se paga a um fornecedor é infraestrutura, que apenas muda de dono.
 
 #### Ponto de equilíbrio
 
 &emsp; Com B3 = 50%, o benefício bruto iguala os custos operacionais quando:
 
 ```
-R$ 2.032.000 × B4 = R$ 218.000 + R$ 750.000 × B4  →  B4 ≈ 17%
+R$ 2.032.000 × B4 = R$ 218.000 + R$ 810.000 × B4  →  B4 ≈ 18%
 ```
 
 | Marco | Condição |
 |---|---|
-| Sustentabilidade operacional (benefício = custos anuais) | B4 ≈ 17% |
+| Sustentabilidade operacional (benefício = custos anuais) | B4 ≈ 18% |
 | Virada do TCO acumulado (construir passa a ser mais barato) | mês ~20 |
 | Recuperação integral do investimento via TCO | Ano 3 |
 
@@ -505,14 +514,14 @@ R$ 2.032.000 × B4 = R$ 218.000 + R$ 750.000 × B4  →  B4 ≈ 17%
 |---|---|---|---|
 | B1 | US$ 300 mil/ano | US$ 800 mil/ano | US$ 2 mi/ano |
 | Baseline anual | R$ 1.524 mil | R$ 4.064 mil | R$ 10.160 mil |
-| Benefício líquido Ano 1 | −R$ 213 mil | R$ 295 mil | R$ 1.514 mil |
-| Diferença de TCO em 3 anos | −R$ 1.426 mil | +R$ 1.369 mil | +R$ 8.074 mil |
+| Benefício líquido Ano 1 | −R$ 237 mil | R$ 271 mil | R$ 1.490 mil |
+| Diferença de TCO em 3 anos | −R$ 1.558 mil | +R$ 1.236 mil | +R$ 7.942 mil |
 
 &emsp; Com B1 em US$ 300 mil/ano, construir é mais caro que contratar em todos os três anos. Este é o primeiro dado a solicitar ao parceiro; enquanto não houver o valor real do contrato do Globoplay, a conclusão de viabilidade permanece condicional.
 
-**2. B3 e B4 não foram validados.** Sem plano de rollout acordado nem inventário de escopo funcional. A amplitude entre cenários vai de −R$ 889 mil a +R$ 3.785 mil de diferença de TCO — larga o bastante para inverter a decisão.
+**2. B3 e B4 não foram validados.** Sem plano de rollout acordado nem inventário de escopo funcional. A amplitude entre cenários vai de −R$ 961 mil a +R$ 3.635 mil de diferença de TCO — larga o bastante para inverter a decisão.
 
-**3. Custo de infraestrutura é derivado, não cotado.** Um erro de fator 2 em C9 altera o custo operacional em ~R$ 300 mil/ano, suficiente para inverter o sinal do benefício. A métrica de custo por evento corrige essa premissa no primeiro trimestre de operação.
+**3. Custo de infraestrutura é derivado, não cotado.** O modelo usa preço de tabela por etapa da arquitetura, sem desconto negociado nem Savings Plans. Um erro de fator 2 em C9 altera o custo operacional em ~R$ 324 mil/ano, suficiente para inverter o sinal do benefício. A métrica de custo por evento corrige essa premissa no primeiro trimestre de operação.
 
 **4. Contrato residual tratado como proporcional.** O modelo assume que o contrato de mercado é reduzido na exata proporção do escopo substituído. Compromissos anuais de volume mínimo e ciclos de renovação podem atrasar essa redução em um ano inteiro, empurrando a virada do TCO para o Ano 3.
 
@@ -850,8 +859,8 @@ R$ 2.032.000 × B4 = R$ 218.000 + R$ 750.000 × B4  →  B4 ≈ 17%
 
 - priorizar a compatibilidade com dispositivos legados;
 - definir políticas de retenção e descarte de dados;
-- aplicar anonimização ou pseudonimização de identificadores;
-- remover tokens e informações sensíveis dos eventos;
+- aplicar redação de identificadores e cabeçalhos sensíveis na saída da API de leitura;
+- manter o evento cru sob TTL, criptografia em repouso e controle de acesso restrito;
 - armazenar apenas campos necessários para a análise;
 - agregar dados históricos para reduzir volume;
 - acompanhar custo e utilização dos serviços de nuvem;
@@ -870,7 +879,7 @@ R$ 2.032.000 × B4 = R$ 218.000 + R$ 750.000 × B4  →  B4 ≈ 17%
 
 ## 6. Referências bibliográficas
 
-AMAZON WEB SERVICES. Pricing de serviços de computação e armazenamento. Seattle: AWS, 2026. Disponível em: https://aws.amazon.com/pricing/. Acesso em: 4 ago. 2026.
+AMAZON WEB SERVICES. Pricing: API Gateway, DynamoDB on-demand, Fargate, Lambda e SQS. Seattle: AWS, 2026. Disponível em: https://aws.amazon.com/api-gateway/pricing/; https://aws.amazon.com/dynamodb/pricing/on-demand/; https://aws.amazon.com/fargate/pricing/; https://aws.amazon.com/lambda/pricing/; https://aws.amazon.com/sqs/pricing/. Acesso em: 13 ago. 2026.
 
 BRASIL. _Lei nº 13.709, de 14 de agosto de 2018_ (Lei Geral de Proteção de Dados Pessoais).
 
@@ -900,4 +909,4 @@ UPTRACE. Observability Tools Pricing Comparison [2026]. 7 fev. 2026. Por Vladimi
 
 VENDORBENCHMARK. Observability Platform Pricing Benchmarks 2026: The Complete Enterprise Guide. 2 abr. 2026, atualizado em 26 abr. 2026. Por Fredrik Filipsson. Disponível em: https://vendorbenchmark.com/blog/observability-platform-pricing-benchmark-comparison. Acesso em: 4 ago. 2026.
 
-*Nota: as URLs de AWS, Investing.com e Robert Half apontam para páginas genéricas — não há permalink para a cotação de fechamento nem para a faixa salarial específica citadas em B2, D3 e D4.*
+*Nota: as URLs de Investing.com e Robert Half apontam para páginas genéricas — não há permalink para a cotação de fechamento nem para a faixa salarial específica citadas em B2, D3 e D4.*
