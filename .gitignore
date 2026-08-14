@@ -42,3 +42,5 @@ apps/basica/backend/instance/
 artefatos/postman/environment.json
 
 apps/basica/backend/src/telemetry_backend.egg-info/
+
+.DS_Store
