@@ -1,5 +1,7 @@
 ## 1. Contexto e escopo do projeto
 
+&emsp; Essa primeira versão do docuemnto teve como foco principal o desenvolvimento de um entendimento do usuário e elaboração de um protótipo de alta fidelidade, não possuindo um grande enfoque na elaboração dos wireframes de baixa fidelidade. O objetivo do protótipo é permitir a validação das User Stories e dos fluxos de navegação planejados, antes de qualquer decisão de implementação.
+
 &emsp; O projeto consiste no desenvolvimento de uma plataforma que atua como ponto central para o recebimento, o processamento e a consulta de eventos de telemetria das aplicações de front-end do Globoplay. Esses eventos são produzidos por diferentes fontes e componentes, como login, player de vídeo e CDN, e podem chegar a partir de dispositivos modernos ou legados.
 
 &emsp; No cenário atual, os eventos ficam distribuídos entre componentes e ferramentas de monitoração diferentes. Essa fragmentação dificulta a reconstrução do que aconteceu em uma sessão, a comparação entre dados relacionados e a identificação de padrões de falha. O problema se torna mais evidente em dispositivos antigos e versões legadas das aplicações, cuja cobertura de telemetria pode ser menor e gerar pontos cegos para as equipes técnicas.
