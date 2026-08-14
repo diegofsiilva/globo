@@ -73,8 +73,8 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
 | `/artefatos/postman` | Coleção Postman de teste das duas APIs |
 | `/assets` | Logos usados neste README |
-| `Makefile` | Comandos do projeto; `make` sozinho lista os alvos |
-| `.env.example` | Chaves de configuração; os valores ficam no `.env`, fora do repositório |
+| `/apps/basica/Makefile` | Comandos do projeto; `make -C apps/basica` lista os alvos |
+| `/apps/basica/.env.example` | Chaves de configuração; os valores ficam em `/apps/basica/.env`, fora do repositório |
 | `README.md` | Este arquivo |
 | `.gitignore` | Arquivos e pastas ignorados pelo controle de versão |
 
@@ -100,28 +100,28 @@ Em Codespaces ou VS Code, tudo o que segue funciona sem configuração adicional
 git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
 cd g04
 
-# 2. configurar as variáveis de ambiente
-make env                  # lê os endpoints do Terraform e escreve o .env
-                          # (só funciona depois do primeiro apply — ver abaixo)
+# 2. instalar as dependências dos dois apps Python
+make -C apps/basica install
 
-# 3. instalar as dependências dos dois apps Python
-make install
+# 3. rodar a suíte de testes (58 do worker + 72 do backend)
+make -C apps/basica test
 
-# 4. rodar a suíte de testes (58 do worker + 72 do backend)
-make test
+# 4. para usar serviços publicados, gerar as variáveis após o primeiro
+#    terraform apply descrito na seção "Execução na AWS"
+make -C apps/basica env
 
-# 5. subir a API de leitura local, apontando para o DynamoDB
-make api
+# 5. subir a API de leitura local, apontando para o DynamoDB publicado
+make -C apps/basica api
 
 # 6. subir o dashboard contra a API publicada
-make frontend-install
-make frontend-dev
+make -C apps/basica frontend-install
+make -C apps/basica frontend-dev
 ```
 
 | Serviço | Porta local | Como subir |
 |---------|-------------|------------|
-| API de leitura | 5000 | `make api` |
-| Dashboard | 3000 | `make frontend-dev` |
+| API de leitura | 5000 | `make -C apps/basica api` |
+| Dashboard | 3000 | `make -C apps/basica frontend-dev` |
 
 O backend também sobe por um único arquivo, sem `make`:
 
@@ -129,17 +129,17 @@ O backend também sobe por um único arquivo, sem `make`:
 python apps/basica/backend/run.py
 ```
 
-Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask** — é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`.
+Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask** — é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`. Para apenas instalar, testar e analisar o código, não é necessário gerar o `.env` nem possuir credenciais AWS.
 
-O worker não é executado localmente contra a fila real: use `make worker-image` para construir a imagem e `make replay` para reenviar os eventos de exemplo à API de ingestão publicada.
+O worker não é executado localmente contra a fila real: use `make -C apps/basica worker-image` para construir a imagem e `make -C apps/basica replay` para reenviar os eventos de exemplo à API de ingestão publicada.
 
 ### Sem credenciais AWS
 
-Os testes rodam contra um DynamoDB falso (moto), então `make test` e `make lint` funcionam sem nenhuma configuração de nuvem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
+Os testes rodam contra um DynamoDB falso (moto), então os alvos `test` e `lint` funcionam sem nenhuma configuração de nuvem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
 
-> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam no `.env`, que está no `.gitignore` — o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). Enquanto as APIs não tiverem autenticação, a URL é a única barreira de acesso aos dados.
+> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore` — o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). Enquanto as APIs não tiverem autenticação, a URL é a única barreira de acesso aos dados.
 
-Outros alvos úteis: `make lint`, `make check`, `make smoke` (verifica a API publicada), `make dlq` (mostra os eventos rejeitados com o motivo), `make pause` / `make resume` (desliga e religa o worker sem destruir a infraestrutura).
+Outros alvos úteis, todos com o prefixo `make -C apps/basica`: `lint`, `check`, `smoke`, `dlq`, `pause` e `resume`.
 
 ---
 
@@ -166,8 +166,8 @@ AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`. Com
 
 ```bash
 # 1. empacota a API de leitura — o Terraform precisa do zip já no plan
-make install
-make lambda-build
+make -C apps/basica install
+make -C apps/basica lambda-build
 
 # 2. cria a infraestrutura sem o worker (o ECR nasce vazio)
 cd apps/basica/infra
@@ -176,31 +176,31 @@ terraform init
 terraform apply -var="worker_desired_count=0"
 
 # 3. publica a imagem do worker no ECR
-cd ../../.. && make worker-deploy
+cd ../../.. && make -C apps/basica worker-deploy
 
 # 4. liga o worker
 cd apps/basica/infra && terraform apply -var="worker_desired_count=1"
 
 # 5. gera o .env a partir dos outputs e publica o dashboard
 cd ../../..
-make env
-make frontend-install
-make frontend-deploy      # imprime o endereço público do dashboard
+make -C apps/basica env
+make -C apps/basica frontend-install
+make -C apps/basica frontend-deploy      # imprime o endereço público do dashboard
 ```
 
-Nos deploys seguintes, `make deploy` testa, empacota, aplica e roda o smoke num
+Nos deploys seguintes, `make -C apps/basica deploy` testa, empacota, aplica e roda o smoke num
 comando só.
 
 Verificação:
 
 ```bash
-make smoke      # confere as rotas da API publicada
-make postman    # roda a coleção Postman contra as duas APIs
-make count      # conta os eventos armazenados
-make dlq        # mostra os eventos rejeitados, com o motivo
+make -C apps/basica smoke      # confere as rotas da API publicada
+make -C apps/basica postman    # roda a coleção Postman contra as duas APIs
+make -C apps/basica count      # conta os eventos armazenados
+make -C apps/basica dlq        # mostra os eventos rejeitados, com o motivo
 ```
 
-Para economizar crédito do lab, `make pause` desliga o worker sem destruir nada e `make resume` religa.
+Para economizar crédito do lab, os alvos `pause` e `resume` desligam e religam o worker sem destruir nada.
 
 ---
 
@@ -225,7 +225,7 @@ A API também se documenta em tempo de execução: `GET /docs` serve a Swagger U
 - **Fluxo de branches:** branch de tema → `develop` → `main`. Nunca commitar direto em `main`.
 - **Commits:** Conventional Commits em português, no imperativo, distribuídos ao longo da sprint.
 - **Documentação de código:** docstrings (PEP 257) em Python e JSDoc em JavaScript. Todo módulo tem cabeçalho descritivo e toda função documenta parâmetros, retorno e comportamento.
-- **Qualidade:** `make check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
+- **Qualidade:** `make -C apps/basica check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
 - **Tags:** uma tag `SPRINTX` por entrega, criada na data de entrega da sprint.
 
 ---

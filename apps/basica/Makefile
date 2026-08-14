@@ -16,12 +16,12 @@ include .env
 export
 endif
 
-WORKER   := apps/basica/worker
-BACKEND  := apps/basica/backend
-INFRA    := apps/basica/infra
-TOOLS    := apps/basica/tools
-FRONTEND := apps/basica/frontend
-POSTMAN  := artefatos/postman
+WORKER   := worker
+BACKEND  := backend
+INFRA    := infra
+TOOLS    := tools
+FRONTEND := frontend
+POSTMAN  := ../../artefatos/postman
 
 # Pasta com os CSVs de evento exportados do BI.
 EVENTS_SRC ?= $(HOME)/Downloads/Events
@@ -118,7 +118,7 @@ docs: ## Abre a documentação Swagger da API publicada
 	@open "$(ARGUS_API_URL)/docs" 2>/dev/null || echo "Acesse: $$ARGUS_API_URL/docs"
 
 .PHONY: openapi
-openapi: ## Salva a especificação OpenAPI em apps/basica/backend/openapi.json
+openapi: ## Salva a especificação OpenAPI em backend/openapi.json
 	@$(call require_env,ARGUS_API_URL)
 	curl -s "$(ARGUS_API_URL)/openapi.json" -o $(BACKEND)/openapi.json
 	@echo "gravado em $(BACKEND)/openapi.json"
@@ -297,9 +297,9 @@ resume: ## Religa o worker
 .PHONY: clean
 clean: ## Remove artefatos de build e caches
 	rm -rf $(BACKEND)/dist $(BACKEND)/openapi.json
-	find apps -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
-	find apps -type d -name '.pytest_cache' -prune -exec rm -rf {} + 2>/dev/null || true
-	find apps -type d -name '.ruff_cache' -prune -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name '.pytest_cache' -prune -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name '.ruff_cache' -prune -exec rm -rf {} + 2>/dev/null || true
 
 # --------------------------------------------------------------------------- #
 # Auxiliar

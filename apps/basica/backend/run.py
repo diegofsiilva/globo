@@ -37,7 +37,7 @@ def load_local_environment(path: Path) -> None:
         os.environ.setdefault(key, value.strip().strip("'\""))
 
 
-load_local_environment(BACKEND_ROOT / ".env")
+load_local_environment(BACKEND_ROOT.parent / ".env")
 
 
 def ensure_runtime_dependencies() -> None:

@@ -1,4 +1,6 @@
+/** Layout raiz: configura metadados, tipografia e provedores globais. */
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Archivo } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -14,7 +16,12 @@ export const metadata: Metadata = {
   description: "Análise de eventos de telemetria do Globoplay",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+/**
+ * Monta o documento HTML compartilhado por todas as páginas.
+ * @param children Conteúdo da rota renderizada pelo Next.js.
+ * @returns Estrutura raiz da aplicação com seus provedores.
+ */
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="pt-BR"

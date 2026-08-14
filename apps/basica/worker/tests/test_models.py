@@ -1,3 +1,5 @@
+"""Testes de validação, tipagem e normalização dos eventos."""
+
 from __future__ import annotations
 
 from datetime import UTC

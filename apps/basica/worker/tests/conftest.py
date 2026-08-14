@@ -1,3 +1,5 @@
+"""Fixtures compartilhadas pelos testes do worker de ingestão."""
+
 from __future__ import annotations
 
 import json

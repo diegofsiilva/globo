@@ -1,5 +1,7 @@
+/** Página inicial do dashboard de telemetria. */
 import { EventMonitor } from "@/components/event-monitor";
 
+/** @returns Página principal com cabeçalho e monitor de eventos. */
 export default function Home() {
   return (
     <main className="app-shell">

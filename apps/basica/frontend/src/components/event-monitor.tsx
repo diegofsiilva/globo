@@ -1,5 +1,7 @@
 "use client";
 
+/** Dashboard interativo para consulta e inspeção de eventos de telemetria. */
+
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEvents, type ApiEvent } from "@/lib/events-api";
@@ -7,6 +9,7 @@ import { fetchEvents, type ApiEvent } from "@/lib/events-api";
 type Period = "15" | "30" | "180" | "1440" | "all";
 type Status = "all" | "attention" | "normal";
 
+/** @returns Monitor com atualização periódica, filtros, lista e detalhes. */
 export function EventMonitor() {
   const [period,setPeriod]=useState<Period>("30");
   const [now,setNow]=useState<Date|null>(null);
@@ -82,30 +85,46 @@ export function EventMonitor() {
   </div>;
 }
 
+/** Renderiza um seletor de filtro e comunica o novo valor ao callback. */
 function Filter({label,value,onChange,options,labels={}}:{label:string;value:string;onChange:(v:string)=>void;options:string[];labels?:Record<string,string>}){return <label className="scope-select"><span>{label}</span><select value={value} onChange={e=>onChange(e.target.value)}><option value="all">todos</option>{options.map(o=><option key={o} value={o}>{labels[o]??o}</option>)}</select></label>}
 
+/** Renderiza o destaque do evento selecionado e a quantidade do recorte. */
 function Hero({event,count}:{event:ApiEvent|null;count:number}){
   if(!event)return <section className="incident-hero empty-hero"><p className="incident-kicker">Monitor de telemetria</p><h1>Nenhum evento no recorte</h1><p>Ajuste os filtros ou aguarde a próxima atualização.</p></section>;
   const attention=needsAttention(event);
   return <section className="incident-hero"><p className={`incident-kicker ${attention?"":"normal"}`}><i/>{attention?"Evento requer atenção":"Evento normal"}<span>{formatDate(event.occurred_at)}</span></p><h1>{event.event_name}{event.action&&<><br/>{event.action}</>}</h1><div className="incident-stats"><Metric value={String(count)} label="eventos no recorte"/><Metric value={event.device_manufacturer??"—"} label="fabricante"/><Metric value={platformName(event)} label="plataforma"/><Metric value={duration(event)} label="duração"/></div></section>
 }
 
+/** Renderiza uma métrica composta por valor e rótulo. */
 function Metric({value,label}:{value:string;label:string}){return <div className="metric"><strong>{value}</strong><span>{label}</span></div>}
+/** Renderiza uma linha selecionável e chama onSelect ao ser acionada. */
 function EventRow({event,selected,onSelect}:{event:ApiEvent;selected:boolean;onSelect:()=>void}){const attention=needsAttention(event);return <button className={`signal-row ${selected?"selected":""}`} onClick={onSelect}><span className="signal-name"><i className={attention?"attention":""}/><b>{event.event_name}{event.action?` · ${event.action}`:""}</b></span><span>{[event.device_manufacturer,event.device_model,event.route_path].filter(Boolean).join(" · ")||"não informado"}</span><strong>{new Date(event.occurred_at).toLocaleTimeString("pt-BR")}</strong><span>{duration(event)}</span><b className={attention?"critical":"muted"}>{attention?"atenção":"normal"}</b><span>{event.app_version??"—"}</span><strong title={event.session_id}>{shorten(event.session_id)}</strong></button>}
+/** Renderiza os campos e atributos completos do evento selecionado. */
 function EventDetails({event}:{event:ApiEvent}){return <section className="event-details"><p>Evento selecionado</p><div><Detail label="ID" value={event.event_id}/><Detail label="Data" value={formatDate(event.occurred_at)}/><Detail label="Dispositivo" value={[event.device_manufacturer,event.device_model,event.device_model_year].filter(Boolean).join(" · ")||"não informado"}/><Detail label="Sistema" value={platformName(event)}/><Detail label="Rota" value={event.route_path??"não informada"}/><Detail label="Versão" value={event.app_version??"não informada"}/></div><details><summary>Ver atributos recebidos</summary><pre>{JSON.stringify(event.attributes,null,2)}</pre></details></section>}
+/** Renderiza um campo rotulado de detalhe. */
 function Detail({label,value}:{label:string;value:string}){return <span><small>{label}</small><b>{value}</b></span>}
+/** Retorna se um erro ou congelamento exige atenção operacional. */
 function needsAttention(e:ApiEvent){return e.event_name==="error"||(e.event_name==="vitals"&&e.action==="frozen")}
+/** Retorna o nome legível da plataforma do evento. */
 function platformName(e:ApiEvent){return [e.device_os,e.device_os_version].filter(v=>v&&v!=="unknown").join(" ")||"não informada"}
+/** Retorna a duração formatada em milissegundos. */
 function duration(e:ApiEvent){return e.duration_ms==null?"—":`${e.duration_ms.toLocaleString("pt-BR")} ms`}
+/** Converte uma data ISO em data e hora no locale brasileiro. */
 function formatDate(value:string){return new Date(value).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"medium"})}
+/** Encurta identificadores longos preservando seu prefixo. */
 function shorten(value:string){return value.length>12?`${value.slice(0,10)}…`:value}
+/** Remove duplicatas e ordena valores segundo o locale brasileiro. */
 function unique(values:string[]){return [...new Set(values)].sort((a,b)=>a.localeCompare(b,"pt-BR"))}
+/** Refina valores opcionais para strings não vazias. */
 function isString(value:string|null):value is string{return Boolean(value)}
+/** Valida valores restaurados como períodos aceitos pelo monitor. */
 function isPeriod(value:string|null):value is Period{return value==="15"||value==="30"||value==="180"||value==="1440"||value==="all"}
+/** Retorna o rótulo compacto correspondente ao período. */
 function periodLabel(p:Period){return p==="all"?"tudo":p==="180"?"3 h":p==="1440"?"24 h":`${p} min`}
 // "tudo" não manda período nenhum, e aí quem decide o recorte é a janela padrão
 // da API (DEFAULT_WINDOW_HOURS, 7 dias). Existe porque a telemetria chega em
 // lote: sem ela, um recorte de minutos deixa a tela vazia logo depois de uma
 // carga histórica, e parece falha de integração quando é só ausência de evento
 // recente.
+/** Retorna o intervalo ISO do período ou nenhum filtro para todo o histórico. */
 function getPeriod(p:Period){if(p==="all")return{};const to=new Date();return{from:new Date(to.getTime()-Number(p)*60_000).toISOString(),to:to.toISOString()}}

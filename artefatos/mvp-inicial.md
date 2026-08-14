@@ -195,7 +195,7 @@ até os eventos aparecerem, com teto de 20 tentativas.
 Execução por linha de comando, para que o resultado seja reproduzível:
 
 ```bash
-make postman
+make -C apps/basica postman
 ```
 
 ### 4.2 Resultados
@@ -293,15 +293,15 @@ Custo aceito: o website endpoint do S3 é HTTP puro, sem TLS. O caminho para HTT
 O ponto que confunde quem chega agora: **o `.env` não é o primeiro passo, é uma
 consequência do último.** As duas URLs que ele guarda são geradas pelo API
 Gateway no primeiro `terraform apply` — antes disso não existe valor para
-preencher, e copiar o `.env.example` só produz um arquivo de chaves vazias. A
+preencher, e copiar o `apps/basica/.env.example` só produz um arquivo de chaves vazias. A
 ordem real é:
 
 ```
-credenciais do lab  →  terraform apply  →  make env  →  deploy  →  URL do dashboard
+credenciais do lab  →  terraform apply  →  make -C apps/basica env  →  deploy  →  URL do dashboard
 ```
 
-Quem só quer inspecionar o código não precisa de nada disso: `make install &&
-make test` roda as duas suítes contra um DynamoDB falso (moto), sem conta AWS.
+Quem só quer inspecionar o código não precisa de nada disso: `make -C apps/basica install &&
+make -C apps/basica test` roda as duas suítes contra um DynamoDB falso (moto), sem conta AWS.
 
 ### 6.1 Pré-requisitos
 
@@ -417,10 +417,10 @@ gsi1_shards      = 10
 
 ```bash
 # 0. ambientes Python do backend e do worker
-make install
+make -C apps/basica install
 
 # 1. empacotar a API de leitura ANTES do primeiro plan
-make lambda-build
+make -C apps/basica lambda-build
 ```
 
 O passo 1 não é opcional e não pode vir depois: o Terraform calcula
@@ -441,7 +441,7 @@ imagem existir o deixa em crash loop. Não quebra nada, mas assusta e polui o lo
 ```bash
 # 3. construir a imagem ARM64 do worker e publicá-la no ECR
 cd ../../..
-make worker-deploy
+make -C apps/basica worker-deploy
 
 # 4. ligar o worker
 cd apps/basica/infra && terraform apply -var="worker_desired_count=1"
@@ -450,11 +450,12 @@ cd ../../..
 
 ```bash
 # 5. gerar o .env com as URLs que acabaram de nascer
-make env
+make -C apps/basica env
 ```
 
-`make env` lê `terraform output` e escreve as quatro chaves do `.env.example`
-já preenchidas — é o que substitui o `cp .env.example .env` feito à mão. Ele se
+`make -C apps/basica env` lê `terraform output` e escreve as quatro chaves em
+`apps/basica/.env` já preenchidas — é o que substitui o
+`cp apps/basica/.env.example apps/basica/.env` feito à mão. Ele se
 recusa a sobrescrever um `.env` existente, então apague o arquivo antes de
 regerar. Se a infraestrutura ainda não tiver sido aplicada, o arquivo nasce com
 os valores vazios: apague e repita depois do passo 2. O `AWS_PROFILE` gravado é o
@@ -462,8 +463,8 @@ que estiver no shell, então exporte `g4` antes (passo 3 de §6.2).
 
 ```bash
 # 6. publicar o dashboard
-make frontend-install
-make frontend-deploy
+make -C apps/basica frontend-install
+make -C apps/basica frontend-deploy
 ```
 
 O `frontend-deploy` injeta `ARGUS_API_URL` no bundle em tempo de build, sincroniza
@@ -472,18 +473,18 @@ o export estático no bucket e **imprime o endereço público do dashboard ao fi
 
 ```bash
 # 7. verificar
-make smoke      # confere as rotas da API publicada
-make postman    # roda as 17 requisições da coleção (§4)
-make count      # conta os eventos armazenados
+make -C apps/basica smoke      # confere as rotas da API publicada
+make -C apps/basica postman    # roda as 17 requisições da coleção (§4)
+make -C apps/basica count      # conta os eventos armazenados
 ```
 
-Nos deploys seguintes nada disso se repete: `make deploy` testa, empacota,
+Nos deploys seguintes nada disso se repete: `make -C apps/basica deploy` testa, empacota,
 aplica e roda o smoke num comando só.
 
 ### 6.4 De onde vem cada URL
 
 Todo endereço do sistema é um output do Terraform. Nenhum é versionado (§7), e é
-por isso que o `.env.example` traz as chaves sem valor.
+por isso que o `apps/basica/.env.example` traz as chaves sem valor.
 
 ```bash
 cd apps/basica/infra && terraform output
@@ -492,9 +493,9 @@ cd apps/basica/infra && terraform output
 | Output | O que é | Quem consome |
 |---|---|---|
 | `read_api_url` | base da API de leitura | `.env` → `ARGUS_API_URL`; entra no bundle do dashboard |
-| `ingest_url` | endpoint do `POST` de eventos | `.env` → `ARGUS_INGEST_URL`; `make replay` e a coleção Postman |
+| `ingest_url` | endpoint do `POST` de eventos | `.env` → `ARGUS_INGEST_URL`; `make -C apps/basica replay` e a coleção Postman |
 | `frontend_url` | endereço público do dashboard | o link do relatório e do vídeo |
-| `table_name` · `dlq_url` · `log_group_worker` | nomes de recurso | `make count`, `make dlq`, `make logs-worker` |
+| `table_name` · `dlq_url` · `log_group_worker` | nomes de recurso | `make -C apps/basica count`, `make -C apps/basica dlq`, `make -C apps/basica logs-worker` |
 
 Para um valor isolado, `-raw` devolve a string limpa, sem aspas:
 
@@ -502,20 +503,20 @@ Para um valor isolado, `-raw` devolve a string limpa, sem aspas:
 terraform output -raw read_api_url
 ```
 
-O environment do Postman segue a mesma regra: `make postman-env` o gera a partir
+O environment do Postman segue a mesma regra: `make -C apps/basica postman-env` o gera a partir
 do `.env`, e o arquivo com as URLs reais fica fora do repositório.
 
 ### 6.5 Rodar local
 
 ```bash
-make test                     # 58 testes do worker + 72 do backend, sem AWS
-make api                      # API de leitura na porta 5000, contra o DynamoDB real
-make frontend-install
-make frontend-dev             # dashboard na porta 3000, contra a API publicada
+make -C apps/basica test                     # 58 testes do worker + 72 do backend, sem AWS
+make -C apps/basica api                      # API de leitura na porta 5000, contra o DynamoDB real
+make -C apps/basica frontend-install
+make -C apps/basica frontend-dev             # dashboard na porta 3000, contra a API publicada
 ```
 
-`make test` e `make lint` não precisam de credencial nenhuma. `make api`,
-`make frontend-dev` e os alvos de operação precisam do `.env` preenchido.
+`make -C apps/basica test` e `make -C apps/basica lint` não precisam de credencial nenhuma. `make -C apps/basica api`,
+`make -C apps/basica frontend-dev` e os alvos de operação precisam do `.env` preenchido.
 
 O backend também sobe sozinho com `python apps/basica/backend/run.py`, ou pelo
 **Run and Debug** do VS Code (configuração `Backend Flask`, em
@@ -531,8 +532,7 @@ onde parou, sem reaplicar nada.
 Se um comando falhar com `ExpiredToken` no meio de um `apply`, o remédio é o
 mesmo: renove a credencial e rode de novo, porque o Terraform retoma a partir do
 estado. Se o worker não estiver consumindo a fila depois do reinício,
-`make resume` recria a task e o consumo retoma de onde parou — a fila retém as
+`make -C apps/basica resume` recria a task e o consumo retoma de onde parou — a fila retém as
 mensagens por 4 dias.
-
 
 

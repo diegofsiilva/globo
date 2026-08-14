@@ -416,14 +416,14 @@ Tudo pelo `make` na raiz. `make` sozinho lista os alvos.
 
 | Alvo | O que faz |
 |---|---|
-| `make install` | prepara os ambientes Python |
-| `make test` · `make lint` · `make check` | qualidade |
-| `make api` | sobe a API local contra o DynamoDB real |
-| `make deploy` | testa, empacota e publica a API de leitura |
-| `make worker-deploy` | publica a imagem do worker |
-| `make smoke` | verifica a API publicada |
-| `make dlq` | mostra os eventos rejeitados, com o motivo |
-| `make pause` · `make resume` | desliga e religa o worker |
+| `make -C apps/basica install` | prepara os ambientes Python |
+| `make -C apps/basica test` · `make -C apps/basica lint` · `make -C apps/basica check` | qualidade |
+| `make -C apps/basica api` | sobe a API local contra o DynamoDB real |
+| `make -C apps/basica deploy` | testa, empacota e publica a API de leitura |
+| `make -C apps/basica worker-deploy` | publica a imagem do worker |
+| `make -C apps/basica smoke` | verifica a API publicada |
+| `make -C apps/basica dlq` | mostra os eventos rejeitados, com o motivo |
+| `make -C apps/basica pause` · `make -C apps/basica resume` | desliga e religa o worker |
 
 ### 9.2 Custo estimado (~1 M eventos/mês)
 
@@ -457,8 +457,8 @@ atrasada, worker fora do ar, 5xx na borda, throttle de escrita.
 ### 9.4 Endpoints e segredos
 
 **Nenhuma URL de API ou ID de conta é versionado.** Os valores vivem no `.env`
-local (gitignored); o `.env.example` mostra as chaves e como obtê-las via
-`terraform output`. `make env` gera o arquivo.
+local (gitignored); o `apps/basica/.env.example` mostra as chaves e como obtê-las via
+`terraform output`. `make -C apps/basica env` gera o arquivo.
 
 Enquanto as APIs não tiverem autenticação, a URL é o que separa os dados de
 qualquer pessoa na internet — publicá-la no repositório é entregar o acesso
@@ -546,18 +546,20 @@ Todos com teste de regressão.
 
 ```
 apps/
-  backend/    API de leitura (Flask em Lambda)
-    src/telemetry/
-      domain/          entidade alinhada ao que o worker grava
-      ports/           contrato de leitura
-      infrastructure/  adaptador DynamoDB
-      application/     casos de uso e redação de dado pessoal
-      interfaces/      rotas Flask e OpenAPI
-  worker/     worker de ingestão (SQS → DynamoDB)
-  infra/      Terraform de tudo
-  tools/      conversão de CSV, replay de eventos, ETL do dump
-  frontend/   dashboard Next.js
+  basica/
+    backend/    API de leitura (Flask em Lambda)
+      src/telemetry/
+        domain/          entidade alinhada ao que o worker grava
+        ports/           contrato de leitura
+        infrastructure/  adaptador DynamoDB
+        application/     casos de uso e redação de dado pessoal
+        interfaces/      rotas Flask e OpenAPI
+    worker/     worker de ingestão (SQS → DynamoDB)
+    infra/      Terraform de tudo
+    tools/      conversão de CSV, replay de eventos, ETL do dump
+    frontend/   dashboard Next.js
+    Makefile    comandos de desenvolvimento e operação
 artefatos/    documentação do projeto
-Makefile      comandos
+assets/       logos institucionais
+slides/       apresentações das sprints
 ```
-
