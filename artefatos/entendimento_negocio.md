@@ -263,9 +263,9 @@
 
 &emsp; Esta seção apresenta a análise financeira preliminar da solução de telemetria distribuída para monitoração de frontends multiplataforma do Globoplay. O objetivo é avaliar a viabilidade econômica da proposta, tratando o benefício como custo evitado, com premissas justificadas. A análise é conduzida em dois horizontes: o ROI (*Return on Investment*) do primeiro ano, em 4.6, e o custo total de propriedade em três anos, na mesma subseção, por ser a métrica adequada a uma decisão de infraestrutura que substitui uma despesa por outra.
 
-&emsp; O parceiro não disponibilizou orçamento fechado para a implementação. Os valores apresentados são estimativas baseadas em premissas justificadas e fontes públicas. Quando uma estimativa é assumida pelo grupo, isso é explicitado.
+&emsp; O parceiro não disponibilizou orçamento fechado para a implementação. Os valores apresentados são estimativas baseadas em premissas justificadas e fontes públicas. Quando uma estimativa é assumida, isso é explicitado.
 
-&emsp; **Nota metodológica.** O parceiro não forneceu dados financeiros próprios. Todas as premissas vêm de fontes públicas (balanços, imprensa especializada, guias salariais, benchmarks de mercado) ou são estimativas da equipe, sempre sinalizadas na coluna "Confiança". Ajuste os números marcados como *Baixa* confiança assim que houver dado real do parceiro — eles são o principal risco do modelo.
+&emsp; **Nota metodológica.** O parceiro não forneceu dados financeiros próprios. Todas as premissas vêm de fontes públicas (balanços, imprensa especializada, guias salariais, benchmarks de mercado) ou são estimativas da equipe, sempre sinalizadas na coluna "Confiança".
 
 &emsp; **Nota sobre simplificações didáticas.** Para fins didáticos, esta análise adota quatro simplificações que, em um estudo de viabilidade corporativo, seriam tratadas de forma mais granular: (i) o CAPEX é amortizado integralmente no Ano 1, sem distribuição plurianual; (ii) não se aplica taxa de desconto (WACC) ao fluxo de caixa do período, dado o horizonte de apenas 12 meses; (iii) o benefício é modelado exclusivamente como custo evitado com ferramenta de mercado, sem monetizar ganhos indiretos de retenção, SLA ou churn; (iv) o custo de infraestrutura de produção é derivado de um modelo de volume da própria equipe, e não de pricing negociado. Essas escolhas tornam o modelo mais transparente na leitura do resultado, sem comprometer a validade da conclusão qualitativa.
 
@@ -300,7 +300,7 @@
 
 | # | Premissa | Valor | Confiança | Fonte |
 |---|---|---|---|---|
-| C1 | Equipe do projeto (custo de mercado) | 5 devs (2 sênior + 3 pleno) | Baixa | Equipe típica de projeto Inteli |
+| C1 | Equipe do projeto (custo de mercado) | 5 devs (2 sênior + 3 pleno) | Baixa | Equipe típica de projeto |
 | C2 | Duração do módulo acadêmico (MVP) | 10 semanas | Alta | Cronograma do módulo |
 | C3 | Salário — Dev Back-End Sênior (SP) | R$ 12.250–20.600/mês | Alta | ROBERT HALF (2026) |
 | C4 | Salário — Dev Full-Stack Pleno (SP) | R$ 9.550–15.900/mês | Alta | ROBERT HALF (2026) |
@@ -323,7 +323,7 @@
 
 ### 4.3. Investimento inicial
 
-&emsp; Estimativa do custo que o Globoplay incorreria para levar a solução a produção, não do custo do projeto acadêmico. A Fase 1 corresponde ao escopo do módulo (C2); as Fases 2 a 5 cobrem o que separa o MVP de um sistema em produção sob carga real.
+&emsp; A Fase 1 corresponde ao escopo do módulo (C2); as Fases 2 a 5 cobrem o que separa o MVP de um sistema em produção sob carga real.
 
 | Fase | Escopo | Duração | Custo (R$) |
 |---|---|---|---|
