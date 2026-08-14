@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-07-13T23:04:44Z",
+  "app_bucket": "GCP",
+  "app_env": "production",
+  "app_target": "dom-samsung-tizen-2017",
+  "app_version": "2026.3.0",
+  "device_id": "OS4JPGCDNN2EB",
+  "device_manufacturer": "Samsung",
+  "device_model": "UN49MU6100",
+  "device_model_year": 2017,
+  "device_os": "Tizen",
+  "device_os_version": "3.0",
+  "duration": 0.033,
+  "event_name": "request",
+  "request_headers": {
+    "x-client-version": "2026.3.0",
+    "x-device-id": "big-screen-slim",
+    "x-platform-id": "dom-samsung-tizen-2017",
+    "x-tenant-id": "globo-play",
+    "x-country-code": "BR",
+    "x-user-id": "***",
+    "authorization": "***",
+    "accept": "application/json; charset=utf-8"
+  },
+  "request_method": "GET",
+  "request_status": 200,
+  "request_status_text": "OK",
+  "request_url": "http://multicloud-jarvis.globo.com/graphql?operationName=Broadcasts&extensions={\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"6a38cbf4fdd8ceb499ca19762971932d58e3e0427282d4deeaee4ee8bd96749a\"}}&variables={\"affiliate_code\":\"TAU\"}",
+  "response_headers": {
+    "date": "Mon, 13 Jul 2026 23;04;44 GMT",
+    "content-encoding": "gzip",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "etag": "W/\"328-j8vAvFRxrJ38cLpUHd7gVvIo944\"",
+    "vary": "Accept-Encoding, x-tenant-id, x-country-code, x-profile-type",
+    "content-type": "application/json; charset=utf-8",
+    "access-control-allow-origin": "*",
+    "cache-control": "max-age=600, public",
+    "x-xss-protection": "1; mode=block",
+    "x-request-id": "d7b023c4b9a88367b5ac7e459a03e166"
+  },
+  "route_params": {
+    "id": "14376206",
+    "resume_at": 179776
+  },
+  "route_path": "vod",
+  "session_id": "a76030a3-c429-438b-8a18-15e19d6d5a81",
+  "user_id": "3d509436-a79c-4424-acd2-e5a8bf2ab81c"
+}

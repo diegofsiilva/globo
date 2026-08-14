@@ -1,93 +1,254 @@
-# G04
+# Inteli - Instituto de Tecnologia e Liderança
 
+<p align="center">
+  <img src="assets/inteli-logo.png" alt="Inteli" width="260"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/grupoglobo.png" alt="Grupo Globo" width="260"/>
+</p>
 
+## G04 - Vale a Pena Ver de Novo
 
-## Getting started
+**Sistema distribuído de telemetria para diagnóstico de degradação de streaming**
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Turma T15 · 2026-2A · Parceiro: **Grupo Globo**
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### Integrantes
 
-## Add your files
+- [Christian Gandra](https://www.linkedin.com/in/christian-gandra/)
+- [Diego Figueiredo](https://www.linkedin.com/in/diegofigueiredos/)
+- [Gabriel Bartmanovicz](https://www.linkedin.com/in/gabriel-bartmanovicz/)
+- [Livia Saboia Tavares](https://www.linkedin.com/in/livia-saboia-tavares/)
+- [Lorenzo Ferrari Aggio](https://www.linkedin.com/in/lorenzo-ferrari-aggio/)
+- [Luiz Gustavo](https://www.linkedin.com/in/luiz-gustavo-0b33b62b7/)
+- [Nicole Riedla](https://www.linkedin.com/in/nicoleriedla/)
+- [Vinicius Cadena](https://github.com/ViniCadena1405)
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+---
+
+## Descrição do projeto
+
+A cadeia de entrega do Globoplay (player, CDN, backend, identidade, catálogo) é monitorada em silos: cada área tem seu próprio painel e vocabulário de métricas, o que faz com que a triagem de um incidente consuma mais tempo para descobrir *quem* conserta do que para de fato consertar. Além disso, degradações que não geram erro (buffer alto, tempo de início ruim) sequer acendem os alertas atuais. A solução é um sistema distribuído de telemetria com API única de ingestão, normalização dos eventos sob vocabulário comum, pipeline assíncrono de alta escala e camada de consulta que devolve uma linha do tempo única do incidente com o recorte afetado explícito, permitindo identificar a causa provável em minutos e sem depender de um especialista por componente.
+
+O sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `video_view`, `vitals` e `error`) e ainda aceita tipos novos sem alteração de código, porque o parque de TVs atualiza devagar e um schema estrito viraria perda de dados em massa.
+
+---
+
+## Arquitetura
+
+São dois fluxos independentes ligados por um banco em comum: **ingestão** (aceita na borda, enfileira, valida de forma assíncrona e grava) e **leitura** (consulta, agrega e serve o dashboard).
 
 ```
-cd existing_repo
-git remote add origin https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
-git branch -M main
-git push -uf origin main
+App de TV ──> API Gateway ──> SQS ──> ECS Fargate ──> DynamoDB ──> Lambda ──> API Gateway ──> Dashboard
+             (ingestão)       │        (worker)                   (API de     (leitura)      (Next.js
+                              ▼                                   leitura)                    estático)
+                            SQS DLQ
 ```
 
-## Integrate with your tools
+| Camada | Responsabilidade | Serviço AWS |
+|--------|------------------|-------------|
+| API de ingestão | Recebe os eventos e publica na fila por integração direta, sem Lambda no caminho | API Gateway (HTTP API) |
+| Fila de mensagens | Absorve picos e garante a entrega; payload inválido vai para a DLQ com o motivo | SQS + DLQ |
+| Worker | Consome a fila por long polling, valida, deduplica e grava em lote | ECS Fargate (ARM64) |
+| Banco de dados | Tabela única com GSI1 (tipo + dia, com shard) e GSI2 (aparelho), TTL nativo | DynamoDB |
+| API de leitura | Filtros cumulativos, agregações, paginação por cursor e redação de dado pessoal | AWS Lambda (Flask) + API Gateway |
+| Dashboard | Visualização e investigação de incidentes | S3 (site estático) |
 
-- [ ] [Set up project integrations](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/settings/integrations)
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura.md`](artefatos/arquitetura.md).
 
-## Collaborate with your team
+> **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+---
 
-## Test and Deploy
+## Estrutura de pastas
 
-Use the built-in continuous integration in GitLab.
+| Pasta / Arquivo | Conteúdo |
+|-----------------|----------|
+| `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
+| `/apps/basica/worker` | Worker de ingestão, que consome o SQS e grava no DynamoDB |
+| `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
+| `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
+| `/apps/basica/tools` | Conversão dos CSVs de evento, replay para a API e ETL do dump |
+| `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
+| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, arquitetura e MVP |
+| `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
+| `/artefatos/postman` | Coleção Postman de teste das duas APIs |
+| `/assets` | Logos usados neste README |
+| `/apps/basica/Makefile` | Comandos do projeto; `make -C apps/basica` lista os alvos |
+| `/apps/basica/.env.example` | Chaves de configuração; os valores ficam em `/apps/basica/.env`, fora do repositório |
+| `README.md` | Este arquivo |
+| `.gitignore` | Arquivos e pastas ignorados pelo controle de versão |
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+---
 
-***
+## Execução local
 
-# Editing this README
+### Pré-requisitos
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- Python 3.12 ou superior
+- [uv](https://docs.astral.sh/uv/), que monta os ambientes a partir do `pyproject.toml` de cada app
+- Node.js 20+ (para o dashboard)
+- Docker (para construir a imagem do worker)
+- Terraform 1.x (para a infraestrutura)
+- Credenciais AWS configuradas (`aws sts get-caller-identity` deve responder)
 
-## Suggestions for a good README
+Em Codespaces ou VS Code, tudo o que segue funciona sem configuração adicional.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### Passos
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+# 1. clonar o repositório
+git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
+cd g04
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# 2. instalar as dependências dos dois apps Python
+make -C apps/basica install
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+# 3. rodar a suíte de testes (58 do worker + 72 do backend)
+make -C apps/basica test
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+# 4. para usar serviços publicados, gerar as variáveis após o primeiro
+#    terraform apply descrito na seção "Execução na AWS"
+make -C apps/basica env
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+# 5. subir a API de leitura local, apontando para o DynamoDB publicado
+make -C apps/basica api
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# 6. subir o dashboard contra a API publicada
+make -C apps/basica frontend-install
+make -C apps/basica frontend-dev
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+| Serviço | Porta local | Como subir |
+|---------|-------------|------------|
+| API de leitura | 5000 | `make -C apps/basica api` |
+| Dashboard | 3000 | `make -C apps/basica frontend-dev` |
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+O backend também sobe por um único arquivo, sem `make`:
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```bash
+python apps/basica/backend/run.py
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask** — é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`. Para apenas instalar, testar e analisar o código, não é necessário gerar o `.env` nem possuir credenciais AWS.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+O worker não é executado localmente contra a fila real: use `make -C apps/basica worker-image` para construir a imagem e `make -C apps/basica replay` para reenviar os eventos de exemplo à API de ingestão publicada.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### Sem credenciais AWS
 
-## License
-For open source projects, say how it is licensed.
+Os testes rodam contra um DynamoDB falso (moto), então os alvos `test` e `lint` funcionam sem nenhuma configuração de nuvem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore` — o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). Enquanto as APIs não tiverem autenticação, a URL é a única barreira de acesso aos dados.
+
+Outros alvos úteis, todos com o prefixo `make -C apps/basica`: `lint`, `check`, `smoke`, `dlq`, `pause` e `resume`.
+
+---
+
+## Execução na AWS
+
+Toda a infraestrutura é provisionada por Terraform em [`apps/basica/infra`](apps/basica/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado (~US$ 14/mês para 1 milhão de eventos/mês).
+
+| Recurso | Configuração |
+|---------|--------------|
+| API Gateway (ingestão) | HTTP API com integração direta `SQS-SendMessage` |
+| SQS | Fila `argus-events-<ambiente>` com DLQ e redrive de 5 tentativas |
+| ECS Fargate | 0.25 vCPU / 0.5 GB, ARM64, subnet pública sem regra de entrada |
+| DynamoDB | Tabela única `argus-events-<ambiente>`, com GSI1, GSI2 e TTL |
+| Lambda + API Gateway | API de leitura, empacotada por `scripts/build_lambda.sh` |
+| S3 | Bucket com website hosting, que serve o export estático do dashboard |
+| CloudWatch | Namespace `Argus/Ingestion` com 5 alarmes |
+
+### Passos de implantação
+
+Credenciais primeiro: [`artefatos/mvp-inicial.md` §6.2](artefatos/mvp-inicial.md#62-conectar-o-terraform-ao-aws-academy-learner-lab)
+mostra como pegar as credenciais do AWS Academy Learner Lab em **AWS Details →
+AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`. Com
+`aws sts get-caller-identity` respondendo a conta certa:
+
+```bash
+# 1. empacota a API de leitura — o Terraform precisa do zip já no plan
+make -C apps/basica install
+make -C apps/basica lambda-build
+
+# 2. cria a infraestrutura sem o worker (o ECR nasce vazio)
+cd apps/basica/infra
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply -var="worker_desired_count=0"
+
+# 3. publica a imagem do worker no ECR
+cd ../../.. && make -C apps/basica worker-deploy
+
+# 4. liga o worker
+cd apps/basica/infra && terraform apply -var="worker_desired_count=1"
+
+# 5. gera o .env a partir dos outputs e publica o dashboard
+cd ../../..
+make -C apps/basica env
+make -C apps/basica frontend-install
+make -C apps/basica frontend-deploy      # imprime o endereço público do dashboard
+```
+
+Nos deploys seguintes, `make -C apps/basica deploy` testa, empacota, aplica e roda o smoke num
+comando só.
+
+Verificação:
+
+```bash
+make -C apps/basica smoke      # confere as rotas da API publicada
+make -C apps/basica postman    # roda a coleção Postman contra as duas APIs
+make -C apps/basica count      # conta os eventos armazenados
+make -C apps/basica dlq        # mostra os eventos rejeitados, com o motivo
+```
+
+Para economizar crédito do lab, os alvos `pause` e `resume` desligam e religam o worker sem destruir nada.
+
+---
+
+## Documentação
+
+| Artefato | Descrição |
+|----------|-----------|
+| [MVP inicial](artefatos/mvp-inicial.md) | O que está implantado, modelo de dados e relatório de testes |
+| [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
+| [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
+| [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
+| [Arquitetura](artefatos/arquitetura.md) | Fluxos, modelo de dados, decisões de projeto, segurança, custo e validação |
+| [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
+| [Infraestrutura](apps/basica/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
+
+A API também se documenta em tempo de execução: `GET /docs` serve a Swagger UI e `GET /openapi.json` a especificação OpenAPI 3.1.
+
+---
+
+## Padrões de contribuição
+
+- **Fluxo de branches:** branch de tema → `develop` → `main`. Nunca commitar direto em `main`.
+- **Commits:** Conventional Commits em português, no imperativo, distribuídos ao longo da sprint.
+- **Documentação de código:** docstrings (PEP 257) em Python e JSDoc em JavaScript. Todo módulo tem cabeçalho descritivo e toda função documenta parâmetros, retorno e comportamento.
+- **Qualidade:** `make -C apps/basica check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
+- **Tags:** uma tag `SPRINTX` por entrega, criada na data de entrega da sprint.
+
+---
+
+## Licença
+
+<p>
+  <img style="height:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/cc.svg?ref=chooser-v1" alt="Creative Commons">
+  <img style="height:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/by.svg?ref=chooser-v1" alt="Attribution">
+</p>
+
+<p xmlns:cc="http://creativecommons.org/ns#" xmlns:dct="http://purl.org/dc/terms/">
+  <a property="dct:title" rel="cc:attributionURL" href="https://git.inteli.edu.br/graduacao/2026-2a/t15/g04">Aplicação Escalável em Sistemas Distribuídos - Globo</a>
+  by
+  <a rel="cc:attributionURL dct:creator" property="cc:attributionName" href="https://www.inteli.edu.br/">Inteli</a>,
+  Christian Vinícius Gandra dos Santos,
+  Diego Figueiredo Silva,
+  Gabriel Willian Bartmanovicz,
+  Lívia Sabóia Tavares,
+  Lorenzo Ferrari Aggio,
+  Luiz Gustavo Borges Oliveira,
+  Nicole Riedla Paiva Neves e
+  Vinícius de Castro Cadena
+  is licensed under
+  <a href="https://creativecommons.org/licenses/by/4.0/?ref=chooser-v1" target="_blank" rel="license noopener noreferrer" style="display:inline-block;">Attribution 4.0 International</a>.
+</p>

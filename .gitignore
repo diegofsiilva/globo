@@ -1,0 +1,46 @@
+# Dump bruto cedido pelo parceiro — 4 GB, nao redistribuir (DATASET.md §11)
+argus_dump.sql
+
+# Artefatos gerados por tools/etl_dump.py a partir do dump
+data/parquet/
+
+# Ambiente Python
+.venv/
+__pycache__/
+*.pyc
+
+# Checkpoints do Jupyter
+.ipynb_checkpoints/
+
+# Terraform: state guarda ARN e pode guardar valor sensivel; tfvars guarda
+# config da conta. O .terraform.lock.hcl VAI versionado de proposito, e o que
+# garante a mesma versao de provider para todo mundo.
+apps/basica/infra/.terraform/
+apps/basica/infra/*.tfstate
+apps/basica/infra/*.tfstate.*
+apps/basica/infra/*.tfvars
+!apps/basica/infra/*.tfvars.example
+apps/basica/infra/backend.tf
+apps/basica/infra/tfplan
+crash.log
+
+# Cache de ferramentas Python
+.pytest_cache/
+.ruff_cache/
+
+# Pacote de deploy da Lambda, gerado por scripts/build_lambda.sh
+apps/basica/backend/dist/
+apps/basica/backend/instance/
+
+# Endpoints, IDs de conta e segredos. O .env.example mostra as chaves, nunca
+# os valores.
+.env
+.env.*
+!.env.example
+
+# Environment do Postman com as URLs reais. O .example mostra as chaves.
+artefatos/postman/environment.json
+
+apps/basica/backend/src/telemetry_backend.egg-info/
+
+.DS_Store

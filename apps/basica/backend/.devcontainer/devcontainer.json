@@ -1,0 +1,19 @@
+{
+  "name": "G04 Telemetry",
+  "dockerComposeFile": "../compose.yaml",
+  "service": "api",
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "overrideCommand": true,
+  "forwardPorts": [5000, 5432],
+  "postCreateCommand": "pip install -e '.[dev]'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.debugpy",
+        "charliermarsh.ruff"
+      ]
+    }
+  }
+}

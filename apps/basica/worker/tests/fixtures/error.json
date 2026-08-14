@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-07-13T23:04:11Z",
+  "app_bucket": "S3",
+  "app_env": "production",
+  "app_target": "dom-philco-netrange-2021",
+  "app_version": "2026.3.0",
+  "device_id": "F4Ed5f8a0cff",
+  "device_manufacturer": "Philco",
+  "device_model": "BTV32D10N5SKH",
+  "device_model_year": 2021,
+  "device_os": "NetRange",
+  "device_os_version": "unknown",
+  "error_message": "Para assistir, tente carregar novamente",
+  "error_name": "Erro ao reproduzir vídeo",
+  "error_stack": "dash_shaka_playback:6_6002",
+  "event_name": "error",
+  "route_params": {
+    "id": "8345402",
+    "resume_at": 3001321
+  },
+  "route_path": "vod",
+  "session_id": "0e04ba2e-c2df-4ec0-9c1b-a752caf2e7fa",
+  "user_id": "dd7fb599-b1f0-4748-a5cd-2d5215a248c9"
+}

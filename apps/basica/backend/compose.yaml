@@ -1,0 +1,44 @@
+# A API le o DynamoDB, entao nao ha banco para subir junto: em desenvolvimento
+# ela aponta para a tabela real na AWS usando as credenciais do seu profile.
+#
+#   AWS_PROFILE=g4 docker compose up --build
+#
+# Para trabalhar offline, suba um DynamoDB local e aponte o endpoint:
+#
+#   docker run -p 8000:8000 amazon/dynamodb-local
+#   DYNAMODB_ENDPOINT_URL=http://host.docker.internal:8000 docker compose up
+#
+# (a tabela e os indices precisam existir; ver apps/basica/backend/tests/conftest.py
+# para o schema exato que o worker usa)
+
+services:
+  api:
+    build:
+      context: .
+    environment:
+      EVENTS_TABLE_NAME: ${EVENTS_TABLE_NAME:-argus-events-dev}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      # Precisa bater com var.gsi1_shards do Terraform e GSI1_SHARDS do worker.
+      GSI1_SHARDS: ${GSI1_SHARDS:-10}
+      USER_ID_HASH_SALT: ${USER_ID_HASH_SALT:-local-compose-only}
+      DEFAULT_WINDOW_HOURS: ${DEFAULT_WINDOW_HOURS:-168}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      DYNAMODB_ENDPOINT_URL: ${DYNAMODB_ENDPOINT_URL:-}
+      AWS_PROFILE: ${AWS_PROFILE:-}
+    volumes:
+      # Credenciais do host em modo leitura: evita copiar chave para dentro
+      # da imagem.
+      - ~/.aws:/home/app/.aws:ro
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5000/health/live')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
