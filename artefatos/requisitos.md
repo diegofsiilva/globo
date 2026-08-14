@@ -110,7 +110,7 @@
 | Requisito não funcional | Descrição | Aspecto de qualidade relacionado à ISO 25010 | Fonte da evidência |
 |---|---|---|---|
 | RNF01 | A API de ingestão deve processar, inicialmente, pelo menos 1.000 requisições por minuto em condições normais de operação. | Eficiência de desempenho - capacidade | Definição inicial da equipe |
-| RNF02 | Consultas simples realizadas no dashboard sobre dados já processados devem apresentar o resultado em até 3 segundos. | Eficiência de desempenho - comportamento em relação ao tempo | Definição inicial da equipe |
+| RNF02 | Consultas simples realizadas no dashboard sobre dados já processados devem apresentar o resultado em até 5 segundos. | Eficiência de desempenho - comportamento em relação ao tempo | Definição inicial da equipe |
 | RNF03 | A solução deve permitir o aumento gradual de sua capacidade de ingestão e processamento sem alterar a forma como os sistemas enviam eventos. | Flexibilidade - escalabilidade | TAPI |
 | RNF04 | Um evento inválido não deve impedir o recebimento dos eventos válidos seguintes, e sua falha deve ser identificável. | Confiabilidade - tolerância a falhas | TAPI e elicitação com o parceiro |
 | RNF05 | Após uma falha temporária, o sistema deve voltar a receber e processar novos eventos sem perder silenciosamente os eventos que já tenham sido aceitos. | Confiabilidade - recuperabilidade | TAPI |
@@ -185,7 +185,7 @@
 - **Objetivo:** Avaliar se os principais recursos de consulta podem ser utilizados de forma compreensível.
 - **Ação:** Convidar representantes dos perfis de engenharia, observabilidade ou produto para localizar erros de um período, aplicar dois filtros e identificar o grupo com mais ocorrências.
 - **Critérios de aceite:**
-  - A maioria dos participantes conclui as três tarefas sem ajuda direta.
+  - ≥80% dos participantes concluir as três tarefas sem ajuda direta.
   - Os participantes conseguem explicar o significado dos principais gráficos apresentados.
   - Dificuldades recorrentes são registradas para melhoria da interface.
 
