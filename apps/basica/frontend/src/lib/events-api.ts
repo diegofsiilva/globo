@@ -1,3 +1,5 @@
+/** Cliente tipado da API de leitura de eventos. */
+
 // A URL da API vem do ambiente de build e NUNCA fica escrita aqui. Enquanto as
 // APIs não tiverem autenticação (arquitetura.md §8.1), a URL é na prática a
 // única barreira entre os eventos e qualquer pessoa na internet -- commitá-la é
@@ -54,6 +56,13 @@ export type EventFilters = {
   to?: string;
 };
 
+/**
+ * Consulta eventos aplicando somente os filtros preenchidos.
+ * @param filters Filtros opcionais enviados como query string.
+ * @param signal Sinal opcional para cancelar a requisição HTTP.
+ * @returns Eventos e metadados de paginação fornecidos pela API.
+ * @throws Error quando a API responde com um status HTTP não bem-sucedido.
+ */
 export async function fetchEvents(filters: EventFilters, signal?: AbortSignal): Promise<EventsResponse> {
   const params = new URLSearchParams({ limit: "100" });
   if (filters.eventName) params.set("event_name", filters.eventName);

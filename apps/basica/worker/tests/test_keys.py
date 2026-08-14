@@ -1,3 +1,5 @@
+"""Testes da geração de identificadores e chaves do DynamoDB."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
