@@ -9,6 +9,8 @@
 # o link do relatorio e do video entre a gravacao e a correcao. O endereco do
 # bucket e estavel e atravessa o ciclo do lab.
 #
+# Video demonstrativo: https://youtu.be/Vhd8BgToZF4
+#
 # O nome do bucket precisa ser unico no mundo inteiro, dai o sufixo com o id da
 # conta -- sem ele, um `apply` numa conta nova colide com a nossa.
 

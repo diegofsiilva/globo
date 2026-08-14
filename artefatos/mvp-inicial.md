@@ -498,7 +498,11 @@ endereço do bucket é estável e atravessa o ciclo do lab. O deploy também vir
 Custo aceito: o website endpoint do S3 é HTTP puro, sem TLS. O caminho para HTTPS
 é CloudFront na frente, registrado como evolução.
 
-> **Vídeo de demonstração:** `<INSERIR O LINK AQUI>`
+<div style="float:right; margin:0 0 1rem 1rem; max-width:360px;">
+  <iframe width="360" height="203" src="https://www.youtube.com/embed/Vhd8BgToZF4" title="Vídeo demonstrativo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+</div>
+
+**Vídeo de demonstração (2–3 min):** https://youtu.be/Vhd8BgToZF4
 
 ---
 
