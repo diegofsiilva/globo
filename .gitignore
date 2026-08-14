@@ -40,3 +40,5 @@ apps/basica/backend/instance/
 
 # Environment do Postman com as URLs reais. O .example mostra as chaves.
 artefatos/postman/environment.json
+
+apps/basica/backend/src/telemetry_backend.egg-info/
