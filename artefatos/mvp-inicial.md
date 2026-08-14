@@ -246,7 +246,7 @@ Custo estimado para ~1 milhão de eventos/mês:
 | **Total** | **~US$ 14/mês** |
 
 
-### 1.9 Estrutura do repositório
+### 1.8 Estrutura do repositório
 
 ```
 apps/basica/
