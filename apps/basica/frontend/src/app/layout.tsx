@@ -2,8 +2,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Archivo } from "next/font/google";
+import { AppProviders } from "@/providers/app-providers";
 import "./globals.css";
-import { Providers } from "./providers";
 
 const archivo = Archivo({
   variable: "--font-archivo",
@@ -23,11 +23,10 @@ export const metadata: Metadata = {
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="pt-BR"
-      className={`${archivo.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col"><Providers>{children}</Providers></body>
+    <html lang="pt-BR" className={`${archivo.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col">
+        <AppProviders>{children}</AppProviders>
+      </body>
     </html>
   );
 }

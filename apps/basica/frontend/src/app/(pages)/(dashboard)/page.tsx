@@ -1,0 +1,315 @@
+"use client";
+
+/** Página raiz do dashboard de telemetria. */
+
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { DetailField } from "@/components/detail-field";
+import { EventRow } from "@/components/event-row";
+import { FilterSelect } from "@/components/filter-select";
+import { Metric } from "@/components/metric";
+import { SummaryItem } from "@/components/summary-item";
+import { fetchEvents } from "@/lib/events/api";
+import {
+  PERIODS,
+  filterEvents,
+  formatDate,
+  formatDuration,
+  getPeriodQuery,
+  isNonEmptyString,
+  isPeriod,
+  needsAttention,
+  periodLabel,
+  platformName,
+  unique,
+  type EventStatus,
+  type Period,
+} from "@/lib/events/monitor";
+
+/** Renderiza e controla a página principal de monitoração. */
+export default function DashboardPage() {
+  const [period, setPeriod] = useState<Period>("30");
+  const [now, setNow] = useState<Date | null>(null);
+  const [platform, setPlatform] = useState("all");
+  const [manufacturer, setManufacturer] = useState("all");
+  const [eventType, setEventType] = useState("all");
+  const [status, setStatus] = useState<EventStatus>("all");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const restoreTimer = window.setTimeout(() => {
+      const savedPeriod = window.localStorage.getItem("event-monitor-period");
+
+      if (isPeriod(savedPeriod)) setPeriod(savedPeriod);
+      setNow(new Date());
+    }, 0);
+    const clockTimer = window.setInterval(() => setNow(new Date()), 1_000);
+
+    return () => {
+      window.clearTimeout(restoreTimer);
+      window.clearInterval(clockTimer);
+    };
+  }, []);
+
+  const eventsQuery = useQuery({
+    queryKey: ["events", period],
+    queryFn: ({ signal }) => fetchEvents(getPeriodQuery(period), signal),
+    refetchInterval: 30_000,
+  });
+
+  const allEvents = useMemo(() => eventsQuery.data?.items ?? [], [eventsQuery.data]);
+  const options = useMemo(
+    () => ({
+      eventTypes: unique(allEvents.map((event) => event.event_name)),
+      manufacturers: unique(
+        allEvents.map((event) => event.device_manufacturer).filter(isNonEmptyString),
+      ),
+      platforms: unique(allEvents.map(platformName)),
+    }),
+    [allEvents],
+  );
+  const filteredEvents = useMemo(
+    () =>
+      filterEvents(allEvents, {
+        eventType,
+        manufacturer,
+        platform,
+        search,
+        status,
+      }),
+    [allEvents, eventType, manufacturer, platform, search, status],
+  );
+
+  const selectedEvent =
+    filteredEvents.find((event) => event.event_id === selectedId) ??
+    filteredEvents[0] ??
+    null;
+  const alertCount = filteredEvents.filter(needsAttention).length;
+  const selectedDevice = selectedEvent
+    ? [
+        selectedEvent.device_manufacturer,
+        selectedEvent.device_model,
+        selectedEvent.device_model_year,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
+  function selectPeriod(value: Period) {
+    setPeriod(value);
+    window.localStorage.setItem("event-monitor-period", value);
+  }
+
+  function clearFilters() {
+    setPlatform("all");
+    setManufacturer("all");
+    setEventType("all");
+    setStatus("all");
+    setSearch("");
+  }
+
+  return (
+    <div className="dashboard-shell">
+      <div className="top-controls">
+        <div className="live">
+          <i />
+          {eventsQuery.isFetching ? "Atualizando" : "Ao vivo"} ·{" "}
+          {now?.toLocaleTimeString("pt-BR") ?? "--:--:--"}
+        </div>
+        <div className="period-picker">
+          {PERIODS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={period === value}
+              onClick={() => selectPeriod(value)}
+            >
+              {periodLabel(value)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="scope-bar">
+        <span className="scope-label">Escopo</span>
+        <FilterSelect
+          label="plataforma"
+          value={platform}
+          onChange={setPlatform}
+          options={options.platforms}
+        />
+        <FilterSelect
+          label="fabricante"
+          value={manufacturer}
+          onChange={setManufacturer}
+          options={options.manufacturers}
+        />
+        <FilterSelect
+          label="evento"
+          value={eventType}
+          onChange={setEventType}
+          options={options.eventTypes}
+        />
+        <FilterSelect
+          label="status"
+          value={status}
+          onChange={(value) => setStatus(value as EventStatus)}
+          options={["attention", "normal"]}
+          labels={{ attention: "atenção", normal: "normal" }}
+        />
+        <input
+          className="event-search"
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="buscar evento…"
+          aria-label="Buscar eventos"
+        />
+        <p>
+          {filteredEvents.length} de {allEvents.length} eventos · {alertCount}{" "}
+          requerem atenção
+        </p>
+        <button className="clear-filter" type="button" onClick={clearFilters}>
+          limpar
+        </button>
+      </div>
+
+      <div className="dashboard-body">
+        <aside className="side-nav" aria-label="Resumo da consulta">
+          <SummaryItem index="01" value={allEvents.length} label="coletados" />
+          <SummaryItem
+            index="02"
+            value={filteredEvents.length}
+            label="no recorte"
+          />
+          <SummaryItem
+            index="03"
+            value={alertCount}
+            label="atenção"
+            critical
+          />
+        </aside>
+
+        <main className="analysis-area">
+          {selectedEvent ? (
+            <section className="incident-hero">
+              <p
+                className={`incident-kicker ${
+                  needsAttention(selectedEvent) ? "" : "normal"
+                }`}
+              >
+                <i />
+                {needsAttention(selectedEvent)
+                  ? "Evento requer atenção"
+                  : "Evento normal"}
+                <span>{formatDate(selectedEvent.occurred_at)}</span>
+              </p>
+              <h1>
+                {selectedEvent.event_name}
+                {selectedEvent.action && (
+                  <>
+                    <br />
+                    {selectedEvent.action}
+                  </>
+                )}
+              </h1>
+              <div className="incident-stats">
+                <Metric
+                  value={String(filteredEvents.length)}
+                  label="eventos no recorte"
+                />
+                <Metric
+                  value={selectedEvent.device_manufacturer ?? "—"}
+                  label="fabricante"
+                />
+                <Metric value={platformName(selectedEvent)} label="plataforma" />
+                <Metric value={formatDuration(selectedEvent)} label="duração" />
+              </div>
+            </section>
+          ) : (
+            <section className="incident-hero empty-hero">
+              <p className="incident-kicker">Monitor de telemetria</p>
+              <h1>Nenhum evento no recorte</h1>
+              <p>Ajuste os filtros ou aguarde a próxima atualização.</p>
+            </section>
+          )}
+
+          <section className="signals-section">
+            <header>
+              <h2>Eventos coletados pela API</h2>
+              <p>ordenados do mais recente para o mais antigo</p>
+            </header>
+            <div className="signal-table">
+              <div className="signal-head">
+                <span>evento</span>
+                <span>dispositivo / rota</span>
+                <span>horário</span>
+                <span>duração</span>
+                <span>status</span>
+                <span>aplicativo</span>
+                <span>sessão</span>
+              </div>
+              {filteredEvents.map((event) => (
+                <EventRow
+                  key={event.event_id}
+                  event={event}
+                  selected={event.event_id === selectedEvent?.event_id}
+                  onSelect={() => setSelectedId(event.event_id)}
+                />
+              ))}
+            </div>
+            {eventsQuery.isLoading && (
+              <p className="empty-state">Consultando eventos na API…</p>
+            )}
+            {eventsQuery.isError && (
+              <p className="empty-state error">
+                Não foi possível consultar a API. Tente novamente.
+              </p>
+            )}
+            {!eventsQuery.isLoading &&
+              !eventsQuery.isError &&
+              filteredEvents.length === 0 && (
+                <p className="empty-state">
+                  Nenhum evento corresponde aos filtros selecionados.
+                </p>
+              )}
+          </section>
+
+          {selectedEvent && (
+            <section className="event-details">
+              <p>Evento selecionado</p>
+              <div>
+                <DetailField label="ID" value={selectedEvent.event_id} />
+                <DetailField
+                  label="Data"
+                  value={formatDate(selectedEvent.occurred_at)}
+                />
+                <DetailField
+                  label="Dispositivo"
+                  value={selectedDevice || "não informado"}
+                />
+                <DetailField
+                  label="Sistema"
+                  value={platformName(selectedEvent)}
+                />
+                <DetailField
+                  label="Rota"
+                  value={selectedEvent.route_path ?? "não informada"}
+                />
+                <DetailField
+                  label="Versão"
+                  value={selectedEvent.app_version ?? "não informada"}
+                />
+              </div>
+              <details>
+                <summary>Ver atributos recebidos</summary>
+                <pre>{JSON.stringify(selectedEvent.attributes, null, 2)}</pre>
+              </details>
+            </section>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
