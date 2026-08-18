@@ -32,5 +32,5 @@ export default async function SectionPage({
 
   if (!isSection(section)) notFound();
 
-  return <DashboardPage />;
+  return <DashboardPage section={section} />;
 }

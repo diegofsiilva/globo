@@ -32,3 +32,40 @@
 @media(max-width:560px){.top-controls{position:static;height:40px;padding:0 12px;justify-content:flex-end;border-bottom:1px solid var(--line)}.dashboard-body{min-height:calc(100vh - 137px)}}
 
 @media(prefers-reduced-motion:reduce){.sidebar-link,.sidebar-link::before,.sidebar-link::after{transition:none}}
+
+/* Tela 04 — Hipóteses. Mestre-detalhe: a lista ranqueada à esquerda, a
+   decomposição do score da hipótese selecionada à direita. */
+.hypotheses-header{padding:22px 4px 14px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.hypotheses-header h1{margin:0;font-size:20px;letter-spacing:-.3px;font-weight:600}.hypotheses-header p{margin:0;color:var(--muted);font-size:10px}
+.hypotheses-layout{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);align-items:start;gap:26px;padding-bottom:40px}
+.hypotheses-list ol{margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+.hypothesis-item{width:100%;padding:16px 14px 15px 12px;display:grid;grid-template-columns:64px minmax(0,1fr);align-items:start;gap:12px;border-bottom:1px solid var(--line-soft);background:transparent;text-align:left;cursor:pointer;transition:background-color 160ms ease}
+.hypothesis-item:hover{background:rgba(255,255,255,.5)}.hypothesis-item:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+/* A seleção usa traço à esquerda e sublinha, e não só cor: o score já é
+   vermelho por ser o maior, e duas marcas vermelhas se confundiriam. */
+.hypothesis-item.selected{box-shadow:inset 3px 0 var(--red);background:rgba(255,255,255,.65);border-bottom-color:var(--line)}
+.hypothesis-score{font-size:30px;line-height:.9;text-align:right;font-variant-numeric:tabular-nums}.hypothesis-item.selected .hypothesis-score{color:var(--red)}
+.hypothesis-body{min-width:0;display:flex;flex-direction:column;gap:5px}
+.hypothesis-kicker{color:var(--soft);font-size:8px;font-weight:600;letter-spacing:.75px;text-transform:uppercase}
+.hypothesis-title{font-size:15px;line-height:1.2;letter-spacing:-.2px;font-weight:600}
+.factor-strip{margin-top:6px;display:flex;gap:3px;height:6px}.factor-strip i{height:100%;min-width:2px}
+.discarded-section{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}.discarded-section>p{margin:0 0 10px;color:var(--soft);font-size:9px;font-weight:600;letter-spacing:.7px;text-transform:uppercase}
+.discarded-section ul{margin:0;padding:0;list-style:none}.discarded-section li{padding:8px 0;display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;align-items:baseline;border-bottom:1px solid var(--line-soft)}
+.discarded-section b{color:var(--soft);font-size:10px;font-variant-numeric:tabular-nums}.discarded-section span{color:var(--muted);font-size:11px;line-height:1.45}.discarded-section strong{color:var(--ink);font-size:11px}
+.score-panel{position:sticky;top:14px;padding-top:16px;border-top:1px solid var(--line)}
+.panel-kicker{margin:0 0 8px;color:var(--soft);font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase}
+.score-panel h2{margin:0 0 18px;font-size:16px;line-height:1.25;letter-spacing:-.2px;font-weight:600}
+.panel-score{margin:0 0 22px;display:flex;align-items:baseline;gap:14px}.panel-score strong{color:var(--red);font-size:32px;line-height:1;font-variant-numeric:tabular-nums}.panel-score span{color:var(--muted);font-size:11px}
+.factor-list{margin:0 0 26px;padding:0;list-style:none}.factor-list li{padding:12px 0 14px;border-top:1px solid var(--line-soft)}.factor-list li:first-child{border-top:0}
+.factor-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px}.factor-head strong{font-size:11px}.factor-head span{flex:none;color:var(--soft);font-size:9px;font-variant-numeric:tabular-nums}
+/* A barra mostra a força do fator (contribuição ÷ peso), não a contribuição:
+   um fator pode contribuir pouco por ser fraco ou por pesar pouco, e é a
+   primeira leitura que sustenta ou derruba a hipótese. */
+.factor-meter{margin:7px 0 8px;height:5px;background:var(--surface)}.factor-meter i{display:block;height:100%;background:var(--red)}
+.factor-list p{margin:0;color:var(--muted);font-size:10px;line-height:1.5}
+.evidence-list{margin:0 0 24px;padding:0;list-style:none}.evidence-list li{padding:9px 0;display:flex;align-items:baseline;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line-soft);font-size:10px}.evidence-list b{font-weight:400}.evidence-list span{color:var(--muted);text-align:right}
+.panel-actions{display:flex;gap:10px;flex-wrap:wrap}.panel-actions .action{height:36px;padding:0 17px;display:inline-flex;align-items:center;border:1px solid rgba(32,30,29,.4);color:var(--ink);font-size:11px;font-weight:600;text-decoration:none}.panel-actions .action:hover{background:var(--surface)}.panel-actions .action.primary{border-color:var(--red);background:var(--red);color:#fff}.panel-actions .action.primary:hover{background:var(--dark-red);border-color:var(--dark-red)}.panel-actions .action:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+/* Abaixo disso o painel não cabe ao lado da lista sem espremer as duas
+   colunas; ele desce para baixo dela, mantendo a ordem de leitura. */
+@media(max-width:1100px){.hypotheses-layout{grid-template-columns:1fr;gap:30px}.score-panel{position:static}}
+@media(max-width:700px){.hypothesis-item{grid-template-columns:48px minmax(0,1fr);padding:14px 4px}.hypothesis-score{font-size:24px}.hypothesis-title{font-size:14px}.evidence-list li{flex-direction:column;gap:3px}.evidence-list span{text-align:left}}
+@media(prefers-reduced-motion:reduce){.hypothesis-item{transition:none}}
