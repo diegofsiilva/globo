@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEvents, type ApiEvent } from "@/lib/events-api";
+import { Sidebar } from "@/components/sidebar";
 
 type Period = "15" | "30" | "180" | "1440" | "all";
 type Status = "all" | "attention" | "normal";
@@ -70,7 +71,7 @@ export function EventMonitor() {
       <p>{filtered.length} de {allEvents.length} eventos · {alertCount} requerem atenção</p><button className="clear-filter" onClick={clear}>limpar</button>
     </div>
     <div className="dashboard-body">
-      <aside className="side-nav" aria-label="Resumo da consulta"><div><span>01</span><b>{allEvents.length}</b><small>coletados</small></div><div><span>02</span><b>{filtered.length}</b><small>no recorte</small></div><div><span>03</span><b className="critical">{alertCount}</b><small>atenção</small></div></aside>
+      <Sidebar />
       <main className="analysis-area">
         <Hero event={selected} count={filtered.length}/>
         <section className="signals-section"><header><h2>Eventos coletados pela API</h2><p>ordenados do mais recente para o mais antigo</p></header>
