@@ -191,7 +191,7 @@ export default function DashboardPage() {
           />
         </aside>
 
-        <main className="analysis-area">
+        <main className="analysis-area" id="main-content">
           {selectedEvent ? (
             <section className="incident-hero">
               <p
