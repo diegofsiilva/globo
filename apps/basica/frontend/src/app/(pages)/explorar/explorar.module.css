@@ -436,6 +436,203 @@
   scrollbar-width: thin;
 }
 
+.timeNavigator {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 174px minmax(220px, 1fr);
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid var(--explore-line);
+}
+
+.navigatorSummary {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navigatorSummary > span {
+  color: var(--explore-soft);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.navigatorSummary output {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.navigatorSummary strong {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.navigatorSummary small {
+  overflow: hidden;
+  color: var(--explore-muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigatorBody {
+  min-width: 0;
+}
+
+.timeRangeControl {
+  position: relative;
+  height: 40px;
+}
+
+.navigatorPreview {
+  position: absolute;
+  inset: 5px 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(34, 32, 31, 0.35);
+}
+
+.navigatorPreview i {
+  height: var(--preview-height);
+  min-width: 1px;
+  flex: 1;
+  display: block;
+  background: rgba(34, 32, 31, 0.38);
+}
+
+.rangeSelection {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: var(--range-start);
+  z-index: 1;
+  width: calc(var(--range-end) - var(--range-start));
+  border-top: 2px solid var(--explore-ink);
+  border-bottom: 2px solid var(--explore-ink);
+  background: rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+
+.rangeShade {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  z-index: 2;
+  display: block;
+  background: rgba(244, 243, 242, 0.76);
+  pointer-events: none;
+}
+
+.rangeShadeStart {
+  left: 0;
+  width: var(--range-start);
+}
+
+.rangeShadeEnd {
+  right: 0;
+  left: var(--range-end);
+}
+
+.rangeInput {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 40px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.rangeStart {
+  z-index: 4;
+}
+
+.rangeInput::-webkit-slider-runnable-track {
+  height: 40px;
+  background: transparent;
+}
+
+.rangeInput::-webkit-slider-thumb {
+  width: 16px;
+  height: 32px;
+  margin-top: 4px;
+  appearance: none;
+  border: 3px solid var(--explore-paper);
+  border-radius: 0;
+  background: var(--explore-ink);
+  box-shadow: 0 0 0 1px var(--explore-ink);
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
+.rangeEnd::-webkit-slider-thumb {
+  background: var(--explore-red);
+  box-shadow: 0 0 0 1px var(--explore-red-dark);
+}
+
+.rangeInput::-moz-range-track {
+  height: 40px;
+  border: 0;
+  background: transparent;
+}
+
+.rangeInput::-moz-range-thumb {
+  width: 10px;
+  height: 26px;
+  border: 3px solid var(--explore-paper);
+  border-radius: 0;
+  background: var(--explore-ink);
+  box-shadow: 0 0 0 1px var(--explore-ink);
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
+.rangeEnd::-moz-range-thumb {
+  background: var(--explore-red);
+  box-shadow: 0 0 0 1px var(--explore-red-dark);
+}
+
+.rangeInput:focus-visible {
+  outline: 0;
+}
+
+.rangeInput:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--explore-ink);
+  outline-offset: 3px;
+}
+
+.rangeInput:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--explore-ink);
+  outline-offset: 3px;
+}
+
+.rangeScale {
+  min-height: 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 12px;
+  color: var(--explore-muted);
+  font-size: 8px;
+}
+
+.rangeScale small {
+  justify-self: center;
+  color: var(--explore-soft);
+  font-size: 8px;
+  text-align: center;
+}
+
 .chart {
   min-width: 700px;
 }
@@ -1002,6 +1199,53 @@
   .sectionHeading > strong {
     grid-column: 2;
     white-space: normal;
+  }
+
+  .timeNavigator {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+    padding: 10px 0;
+  }
+
+  .navigatorSummary {
+    gap: 2px;
+  }
+
+  .navigatorSummary output {
+    justify-content: space-between;
+  }
+
+  .timeRangeControl,
+  .rangeInput,
+  .rangeInput::-webkit-slider-runnable-track,
+  .rangeInput::-moz-range-track {
+    height: 52px;
+  }
+
+  .navigatorPreview,
+  .rangeShade {
+    top: 8px;
+    bottom: 8px;
+  }
+
+  .rangeSelection {
+    top: 7px;
+    bottom: 7px;
+  }
+
+  .rangeInput::-webkit-slider-thumb {
+    width: 26px;
+    height: 40px;
+    margin-top: 6px;
+  }
+
+  .rangeInput::-moz-range-thumb {
+    width: 20px;
+    height: 34px;
+  }
+
+  .rangeScale small {
+    display: none;
   }
 
   .groupBar {

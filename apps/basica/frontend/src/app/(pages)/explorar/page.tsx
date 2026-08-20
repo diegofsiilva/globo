@@ -11,18 +11,20 @@ import {
 } from "@/mocks/explorar";
 import styles from "./explorar.module.css";
 
-const periods = ["15 min", "30 min", "3 h", "24 h"] as const;
+const periodPresets = [
+  { label: "15 min", minutes: 15 },
+  { label: "30 min", minutes: 30 },
+  { label: "3 h", minutes: 180 },
+  { label: "24 h", minutes: 1_440 },
+] as const;
 const groupOptions: GroupBy[] = ["Modelo", "UF", "ISP", "Versão", "Rota"];
-
-const periodSettings: Record<
-  (typeof periods)[number],
-  { labels: string[]; points: number }
-> = {
-  "15 min": { labels: ["19:56", "20:00", "20:04", "20:08", "20:11"], points: 12 },
-  "30 min": { labels: ["19:41", "19:49", "19:56", "20:04", "20:11"], points: 24 },
-  "3 h": { labels: ["17:11", "17:56", "18:41", "19:26", "20:11"], points: 36 },
-  "24 h": { labels: ["ontem 20h", "02h", "08h", "14h", "hoje 20h"], points: 36 },
-};
+const historyMinutes = 1_440;
+const historyStepMinutes = 5;
+const historyPointCount = historyMinutes / historyStepMinutes + 1;
+const historyLastIndex = historyPointCount - 1;
+const minimumRangeSteps = 15 / historyStepMinutes;
+const defaultRangeSteps = 30 / historyStepMinutes;
+const mockEndMinute = 20 * 60 + 11;
 
 const eventProfiles: Record<
   string,
@@ -47,9 +49,105 @@ function formatEvents(value: number) {
   return new Intl.NumberFormat("pt-BR").format(value);
 }
 
+function createHistoryTimeline() {
+  return Array.from({ length: historyPointCount }, (_, index) => {
+    const sourcePosition =
+      (index / historyLastIndex) * Math.max(0, timeline.length - 1);
+    const sourceStart = Math.floor(sourcePosition);
+    const sourceEnd = Math.min(timeline.length - 1, sourceStart + 1);
+    const progress = sourcePosition - sourceStart;
+    const start = timeline[sourceStart];
+    const end = timeline[sourceEnd];
+    const variation = 1 + Math.sin(index * 1.7) * 0.035;
+
+    return {
+      errors: Math.max(
+        1,
+        Math.round((start.errors + (end.errors - start.errors) * progress) * variation),
+      ),
+      events: Math.max(
+        8,
+        Math.round((start.events + (end.events - start.events) * progress) * variation),
+      ),
+    };
+  });
+}
+
+function condenseTimeline<T extends { errors: number; events: number }>(
+  points: T[],
+  maximumBars = 56,
+) {
+  if (points.length <= maximumBars) return points;
+
+  const bucketSize = Math.ceil(points.length / maximumBars);
+
+  return Array.from(
+    { length: Math.ceil(points.length / bucketSize) },
+    (_, bucketIndex) => {
+      const bucket = points.slice(
+        bucketIndex * bucketSize,
+        (bucketIndex + 1) * bucketSize,
+      );
+
+      return {
+        errors: Math.round(
+          bucket.reduce((total, point) => total + point.errors, 0) /
+            bucket.length,
+        ),
+        events: Math.round(
+          bucket.reduce((total, point) => total + point.events, 0) /
+            bucket.length,
+        ),
+      };
+    },
+  );
+}
+
+function formatDuration(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  return remainingMinutes ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
+}
+
+function formatTimelinePoint(index: number, includeDay = false) {
+  const absoluteMinute = mockEndMinute - historyMinutes + index * historyStepMinutes;
+  const isYesterday = absoluteMinute < 0;
+  const minuteOfDay = ((absoluteMinute % 1_440) + 1_440) % 1_440;
+  const hours = Math.floor(minuteOfDay / 60).toString().padStart(2, "0");
+  const minutes = (minuteOfDay % 60).toString().padStart(2, "0");
+  const day = isYesterday ? "ontem" : "hoje";
+
+  return `${includeDay || isYesterday ? `${day} · ` : ""}${hours}:${minutes}`;
+}
+
+function createAxisLabels(start: number, end: number) {
+  const tickCount = Math.min(5, end - start + 1);
+
+  return Array.from({ length: tickCount }, (_, index) => {
+    const pointIndex = Math.round(
+      start + ((end - start) * index) / Math.max(1, tickCount - 1),
+    );
+
+    return {
+      index: pointIndex,
+      label: formatTimelinePoint(pointIndex),
+    };
+  }).filter(
+    (item, index, items) =>
+      index === 0 || item.index !== items[index - 1]?.index,
+  );
+}
+
+const historyTimeline = createHistoryTimeline();
+const previewMaximum = Math.max(
+  ...timeline.map((point) => point.events + point.errors),
+);
+
 /** Visão de exploração baseada em um snapshot estático de telemetria. */
 export default function ExplorarPage() {
-  const [period, setPeriod] = useState<(typeof periods)[number]>("30 min");
   const [clock, setClock] = useState("20:11:04");
   const [activeEvent, setActiveEvent] = useState("error");
   const [groupBy, setGroupBy] = useState<GroupBy>("Modelo");
@@ -59,6 +157,10 @@ export default function ExplorarPage() {
   const [showGuide, setShowGuide] = useState(true);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [search, setSearch] = useState("");
+  const [windowStart, setWindowStart] = useState(
+    historyLastIndex - defaultRangeSteps,
+  );
+  const [windowEnd, setWindowEnd] = useState(historyLastIndex);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -85,11 +187,32 @@ export default function ExplorarPage() {
   const eventProfile = eventProfiles[selectedEvent.id];
   const errorEventCount = eventKinds.find((event) => event.id === "error")?.count ?? 512_000;
   const eventScale = selectedEvent.count / errorEventCount;
-  const periodSetting = periodSettings[period];
-  const visibleTimeline = timeline.slice(-periodSetting.points).map((bar) => ({
+  const eventTimeline = historyTimeline.map((bar) => ({
     errors: Math.max(1, Math.round(bar.errors * eventProfile.errorHeight)),
     events: Math.max(8, Math.round(bar.events * eventProfile.eventHeight)),
   }));
+  const selectedTimeline = eventTimeline.slice(windowStart, windowEnd + 1);
+  const visibleTimeline = condenseTimeline(selectedTimeline);
+  const selectedMinutes = (windowEnd - windowStart) * historyStepMinutes;
+  const selectedDuration = formatDuration(selectedMinutes);
+  const windowStartLabel = formatTimelinePoint(windowStart, true);
+  const windowEndLabel = formatTimelinePoint(windowEnd, true);
+  const activePreset = windowEnd === historyLastIndex
+    ? periodPresets.find((preset) => preset.minutes === selectedMinutes)?.label
+    : undefined;
+  const axisLabels = createAxisLabels(windowStart, windowEnd);
+  const firstVisibleError = selectedTimeline[0]?.errors ?? 0;
+  const lastVisibleError = selectedTimeline.at(-1)?.errors ?? 0;
+  const errorTrend =
+    lastVisibleError > firstVisibleError * 1.25
+      ? "aceleram no trecho final"
+      : lastVisibleError < firstVisibleError * 0.75
+        ? "recuam no trecho final"
+        : "permanecem estáveis";
+  const rangeStyle = {
+    "--range-start": `${(windowStart / historyLastIndex) * 100}%`,
+    "--range-end": `${(windowEnd / historyLastIndex) * 100}%`,
+  } as CSSProperties;
   const rows = explorationGroups[groupBy].map((row) => ({
     ...row,
     errorRate: Math.max(0.1, row.errorRate * eventProfile.rate),
@@ -112,6 +235,13 @@ export default function ExplorarPage() {
     setShowFilterMenu(false);
   }
 
+  function selectPreset(minutes: number) {
+    const rangeSteps = minutes / historyStepMinutes;
+
+    setWindowStart(historyLastIndex - rangeSteps);
+    setWindowEnd(historyLastIndex);
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.topControls} aria-label="Atualização e período">
@@ -119,15 +249,15 @@ export default function ExplorarPage() {
           <span aria-hidden="true" />
           Ao vivo · {clock}
         </p>
-        <div className={styles.periods} aria-label="Período analisado">
-          {periods.map((value) => (
+        <div className={styles.periods} aria-label="Atalhos de período">
+          {periodPresets.map((preset) => (
             <button
-              key={value}
+              key={preset.label}
               type="button"
-              aria-pressed={period === value}
-              onClick={() => setPeriod(value)}
+              aria-pressed={activePreset === preset.label}
+              onClick={() => selectPreset(preset.minutes)}
             >
-              {value}
+              {preset.label}
             </button>
           ))}
         </div>
@@ -266,16 +396,18 @@ export default function ExplorarPage() {
               <span className={styles.stepIndex}>02</span>
               <div>
                 <h2 id="timeline-title">Veja quando o comportamento mudou</h2>
-                <p>Barras vermelhas mostram a parcela com erro em cada intervalo.</p>
+                <p>
+                  Use os atalhos ou ajuste livremente a janela nas últimas 24 horas.
+                </p>
               </div>
-              <strong>Últimos {period} · atualizado há 4s</strong>
+              <strong>Recorte: {selectedDuration} · atualizado há 4s</strong>
             </header>
 
             <div
               className={styles.chartScroller}
               tabIndex={0}
               role="region"
-              aria-label={`Gráfico de ${selectedEvent.name} nos últimos ${period}. A parcela de erros cresce no trecho final.`}
+              aria-label={`Gráfico de ${selectedEvent.name} entre ${windowStartLabel} e ${windowEndLabel}.`}
             >
               <div className={styles.chart}>
                 <div className={styles.bars}>
@@ -299,7 +431,92 @@ export default function ExplorarPage() {
                   })}
                 </div>
                 <div className={styles.axisLabels} aria-hidden="true">
-                  {periodSetting.labels.map((label) => <span key={label}>{label}</span>)}
+                  {axisLabels.map(({ index, label }) => (
+                    <span key={index}>{label}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div
+              className={styles.timeNavigator}
+              style={rangeStyle}
+              role="group"
+              aria-label="Selecionar uma janela dentro das últimas 24 horas"
+            >
+              <div className={styles.navigatorSummary}>
+                <span>Janela exibida</span>
+                <output aria-live="polite">
+                  <strong>{selectedDuration}</strong>
+                  <small>{windowStartLabel} — {windowEndLabel}</small>
+                </output>
+              </div>
+
+              <div className={styles.navigatorBody}>
+                <div className={styles.timeRangeControl}>
+                  <div className={styles.navigatorPreview} aria-hidden="true">
+                    {timeline.map((point, index) => (
+                      <i
+                        key={`${point.events}-${point.errors}-${index}`}
+                        style={{
+                          "--preview-height": `${Math.max(
+                            3,
+                            Math.round(
+                              ((point.events + point.errors) / previewMaximum) * 28,
+                            ),
+                          )}px`,
+                        } as CSSProperties}
+                      />
+                    ))}
+                  </div>
+                  <span className={styles.rangeSelection} aria-hidden="true" />
+                  <span
+                    className={`${styles.rangeShade} ${styles.rangeShadeStart}`}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={`${styles.rangeShade} ${styles.rangeShadeEnd}`}
+                    aria-hidden="true"
+                  />
+                  <input
+                    className={`${styles.rangeInput} ${styles.rangeStart}`}
+                    type="range"
+                    min={0}
+                    max={historyLastIndex}
+                    value={windowStart}
+                    aria-label="Início da janela temporal"
+                    aria-valuetext={windowStartLabel}
+                    onChange={(event) =>
+                      setWindowStart(
+                        Math.min(
+                          Number(event.target.value),
+                          windowEnd - minimumRangeSteps,
+                        ),
+                      )
+                    }
+                  />
+                  <input
+                    className={`${styles.rangeInput} ${styles.rangeEnd}`}
+                    type="range"
+                    min={0}
+                    max={historyLastIndex}
+                    value={windowEnd}
+                    aria-label="Fim da janela temporal"
+                    aria-valuetext={windowEndLabel}
+                    onChange={(event) =>
+                      setWindowEnd(
+                        Math.max(
+                          Number(event.target.value),
+                          windowStart + minimumRangeSteps,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+                <div className={styles.rangeScale} aria-hidden="true">
+                  <span>24 h atrás</span>
+                  <small>Arraste as duas alças · mínimo de 15 min</small>
+                  <span>agora</span>
                 </div>
               </div>
             </div>
@@ -313,7 +530,9 @@ export default function ExplorarPage() {
           <aside className={styles.quickRead} aria-live="polite">
             <span>Leitura rápida</span>
             <p>
-              <strong>Os erros aceleram no trecho final.</strong>{" "}
+              <strong>
+                Entre {windowStartLabel} e {windowEndLabel}, os erros {errorTrend}.
+              </strong>{" "}
               Em {groupBy.toLocaleLowerCase("pt-BR")}, <b>{leadingRow.label}</b>{" "}
               lidera com {leadingRow.errorRate.toLocaleString("pt-BR", {
                 maximumFractionDigits: 1,
