@@ -14,6 +14,28 @@ import styles from "./explorar.module.css";
 const periods = ["15 min", "30 min", "3 h", "24 h"] as const;
 const groupOptions: GroupBy[] = ["Modelo", "UF", "ISP", "Versão", "Rota"];
 
+const periodSettings: Record<
+  (typeof periods)[number],
+  { labels: string[]; points: number }
+> = {
+  "15 min": { labels: ["19:56", "20:00", "20:04", "20:08", "20:11"], points: 12 },
+  "30 min": { labels: ["19:41", "19:49", "19:56", "20:04", "20:11"], points: 24 },
+  "3 h": { labels: ["17:11", "17:56", "18:41", "19:26", "20:11"], points: 36 },
+  "24 h": { labels: ["ontem 20h", "02h", "08h", "14h", "hoje 20h"], points: 36 },
+};
+
+const eventProfiles: Record<
+  string,
+  { errorHeight: number; eventHeight: number; rate: number }
+> = {
+  request: { errorHeight: 0.18, eventHeight: 1.08, rate: 0.18 },
+  "screen-view": { errorHeight: 0.12, eventHeight: 0.9, rate: 0.12 },
+  "video-view": { errorHeight: 0.48, eventHeight: 0.96, rate: 0.48 },
+  session: { errorHeight: 0.24, eventHeight: 0.82, rate: 0.24 },
+  vitals: { errorHeight: 0.1, eventHeight: 0.7, rate: 0.1 },
+  error: { errorHeight: 1, eventHeight: 1, rate: 1 },
+};
+
 const scopeFilters = [
   { id: "platform", label: "plataforma", value: "webOS 3.x" },
   { id: "manufacturer", label: "fabricante", value: "LG" },
@@ -34,6 +56,7 @@ export default function ExplorarPage() {
   const [activeFilters, setActiveFilters] = useState<string[]>(
     scopeFilters.map((filter) => filter.id),
   );
+  const [showGuide, setShowGuide] = useState(true);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -57,8 +80,25 @@ export default function ExplorarPage() {
       error.name.toLocaleLowerCase("pt-BR").includes(normalizedSearch),
     );
   }, [search]);
-  const rows = explorationGroups[groupBy];
+  const selectedEvent =
+    eventKinds.find((event) => event.id === activeEvent) ?? eventKinds[5];
+  const eventProfile = eventProfiles[selectedEvent.id];
+  const errorEventCount = eventKinds.find((event) => event.id === "error")?.count ?? 512_000;
+  const eventScale = selectedEvent.count / errorEventCount;
+  const periodSetting = periodSettings[period];
+  const visibleTimeline = timeline.slice(-periodSetting.points).map((bar) => ({
+    errors: Math.max(1, Math.round(bar.errors * eventProfile.errorHeight)),
+    events: Math.max(8, Math.round(bar.events * eventProfile.eventHeight)),
+  }));
+  const rows = explorationGroups[groupBy].map((row) => ({
+    ...row,
+    errorRate: Math.max(0.1, row.errorRate * eventProfile.rate),
+    events: Math.round(row.events * eventScale),
+  }));
   const maxEvents = Math.max(...rows.map((row) => row.events));
+  const leadingRow = rows.reduce((leading, row) =>
+    row.errorRate > leading.errorRate ? row : leading,
+  );
   const scopeSummary = activeFilters.length === scopeFilters.length
     ? "41.209 sessões · 3,1% do tráfego · 6 fontes cruzadas"
     : `${Math.max(74_000, 402_110 - activeFilters.length * 77_725).toLocaleString("pt-BR")} sessões · escopo ampliado`;
@@ -157,11 +197,56 @@ export default function ExplorarPage() {
 
         <main className={styles.content} id="main-content">
           <header className={styles.intro}>
-            <h1>Explorar eventos</h1>
-            <p>Os filtros do escopo já estão aplicados. Tudo abaixo é cumulativo.</p>
+            <div>
+              <span className={styles.contextLabel}>Investigação do recorte</span>
+              <h1>Explorar eventos</h1>
+              <p>
+                Descubra quando o comportamento mudou, onde ele se concentra e
+                qual erro explica o sinal.
+              </p>
+            </div>
+            <button
+              className={styles.guideToggle}
+              type="button"
+              aria-expanded={showGuide}
+              aria-controls="exploration-guide"
+              onClick={() => setShowGuide((current) => !current)}
+            >
+              {showGuide ? "Ocultar guia" : "Como usar"}
+            </button>
           </header>
 
-          <section className={styles.eventSummary} aria-label="Tipos de evento">
+          {showGuide && (
+            <section
+              className={styles.guide}
+              id="exploration-guide"
+              aria-label="Como usar esta página"
+            >
+              <div>
+                <span>1</span>
+                <p><strong>Escolha o sinal</strong>O cartão escuro define o evento analisado.</p>
+              </div>
+              <div>
+                <span>2</span>
+                <p><strong>Ache a virada</strong>O vermelho mostra quando os erros cresceram.</p>
+              </div>
+              <div>
+                <span>3</span>
+                <p><strong>Encontre a concentração</strong>Troque a dimensão para localizar a origem.</p>
+              </div>
+            </section>
+          )}
+
+          <section className={styles.eventPicker} aria-labelledby="event-picker-title">
+            <header className={styles.sectionHeading}>
+              <span className={styles.stepIndex}>01</span>
+              <div>
+                <h2 id="event-picker-title">Escolha o tipo de evento</h2>
+                <p>Este será o ponto de partida para o restante da análise.</p>
+              </div>
+              <strong>{selectedEvent.value} no recorte</strong>
+            </header>
+            <div className={styles.eventSummary}>
             {eventKinds.map((event) => (
               <button
                 type="button"
@@ -169,39 +254,32 @@ export default function ExplorarPage() {
                 aria-pressed={activeEvent === event.id}
                 onClick={() => setActiveEvent(event.id)}
               >
-                <strong>{event.label}</strong>
-                <span>{event.value}</span>
+                <strong>{event.name}</strong>
+                <span>{event.label} · {event.value}</span>
               </button>
             ))}
+            </div>
           </section>
 
           <section className={styles.timelineSection} aria-labelledby="timeline-title">
-            <div className={styles.groupBar}>
-              <p id="timeline-title">Agrupar por</p>
-              <div aria-label="Dimensão do agrupamento">
-                {groupOptions.map((option) => (
-                  <button
-                    type="button"
-                    key={option}
-                    aria-pressed={groupBy === option}
-                    onClick={() => setGroupBy(option)}
-                  >
-                    {option}
-                  </button>
-                ))}
+            <header className={styles.sectionHeading}>
+              <span className={styles.stepIndex}>02</span>
+              <div>
+                <h2 id="timeline-title">Veja quando o comportamento mudou</h2>
+                <p>Barras vermelhas mostram a parcela com erro em cada intervalo.</p>
               </div>
-              <span>512.402 eventos · 8 grupos · atualizado há 4s</span>
-            </div>
+              <strong>Últimos {period} · atualizado há 4s</strong>
+            </header>
 
             <div
               className={styles.chartScroller}
               tabIndex={0}
               role="region"
-              aria-label="Eventos e erros entre 19:11 e 20:11"
+              aria-label={`Gráfico de ${selectedEvent.name} nos últimos ${period}. A parcela de erros cresce no trecho final.`}
             >
               <div className={styles.chart}>
                 <div className={styles.bars}>
-                  {timeline.map((bar, index) => {
+                  {visibleTimeline.map((bar, index) => {
                     const barStyle = {
                       "--event-height": `${bar.events}px`,
                       "--error-height": `${bar.errors}px`,
@@ -212,7 +290,7 @@ export default function ExplorarPage() {
                         className={styles.bar}
                         style={barStyle}
                         key={`${bar.events}-${bar.errors}-${index}`}
-                        title={`${bar.events + bar.errors} mil eventos; ${bar.errors} mil com erro`}
+                        title={`Índice de volume ${bar.events + bar.errors}; índice de erro ${bar.errors}`}
                       >
                         <i className={styles.errorBar} />
                         <i className={styles.eventBar} />
@@ -221,11 +299,7 @@ export default function ExplorarPage() {
                   })}
                 </div>
                 <div className={styles.axisLabels} aria-hidden="true">
-                  <span>19:11</span>
-                  <span>19:30</span>
-                  <span>19:45</span>
-                  <span>20:00</span>
-                  <span>20:11</span>
+                  {periodSetting.labels.map((label) => <span key={label}>{label}</span>)}
                 </div>
               </div>
             </div>
@@ -236,66 +310,140 @@ export default function ExplorarPage() {
             </div>
           </section>
 
-          <section className={styles.results} aria-label="Distribuição e erros">
-            <div className={styles.distribution}>
-              <div className={styles.tableHead}>
-                <span>{groupBy}</span>
-                <span>Eventos</span>
-                <span>Erro %</span>
-                <span>Distribuição</span>
-                <span>Δ vs ontem</span>
-              </div>
-              <div className={styles.tableBody}>
-                {rows.map((row) => {
-                  const critical = row.errorRate >= 10;
-                  const width = Math.max(12, (row.events / maxEvents) * 96);
+          <aside className={styles.quickRead} aria-live="polite">
+            <span>Leitura rápida</span>
+            <p>
+              <strong>Os erros aceleram no trecho final.</strong>{" "}
+              Em {groupBy.toLocaleLowerCase("pt-BR")}, <b>{leadingRow.label}</b>{" "}
+              lidera com {leadingRow.errorRate.toLocaleString("pt-BR", {
+                maximumFractionDigits: 1,
+                minimumFractionDigits: 1,
+              })}% de erro.
+            </p>
+            <small>Agora troque a dimensão abaixo para testar onde o sinal se concentra.</small>
+          </aside>
 
-                  return (
-                    <div className={styles.dataRow} key={row.label}>
-                      <strong title={row.label}>{row.label}</strong>
-                      <span>{formatEvents(row.events)}</span>
-                      <span className={critical ? styles.errorValue : undefined}>
-                        {row.errorRate.toLocaleString("pt-BR", {
-                          minimumFractionDigits: 1,
-                        })}%
-                      </span>
-                      <span className={styles.distributionBar} aria-hidden="true">
-                        <i
-                          className={critical ? styles.criticalFill : undefined}
-                          style={{ width: `${width}%` }}
-                        />
-                      </span>
-                      <span className={critical ? styles.errorValue : undefined}>
-                        {row.delta}
-                      </span>
-                    </div>
-                  );
-                })}
+          <section className={styles.breakdownSection} aria-labelledby="breakdown-title">
+            <header className={styles.breakdownHeader}>
+              <div className={styles.sectionHeading}>
+                <span className={styles.stepIndex}>03</span>
+                <div>
+                  <h2 id="breakdown-title">Descubra onde o sinal se concentra</h2>
+                  <p>A tabela muda conforme a dimensão escolhida.</p>
+                </div>
               </div>
+              <div className={styles.groupBar} aria-label="Quebrar resultado por">
+                <span>Quebrar por</span>
+                <div>
+                  {groupOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option}
+                      aria-pressed={groupBy === option}
+                      onClick={() => setGroupBy(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </header>
+
+            <div className={styles.results}>
+              <div
+                className={styles.distribution}
+                tabIndex={0}
+                role="region"
+                aria-label={`Concentração de ${selectedEvent.name} por ${groupBy}`}
+              >
+                <table className={styles.distributionTable}>
+                  <caption>
+                    Eventos de {selectedEvent.name} agrupados por {groupBy}
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">{groupBy}</th>
+                      <th scope="col">Eventos</th>
+                      <th scope="col" title="Percentual de eventos que apresentaram erro">
+                        Taxa de erro
+                      </th>
+                      <th scope="col" title="Volume relativo dentro deste agrupamento">
+                        Volume relativo
+                      </th>
+                      <th scope="col">vs. ontem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => {
+                      const critical = row.errorRate >= 10;
+                      const width = Math.max(12, (row.events / maxEvents) * 96);
+
+                      return (
+                        <tr key={row.label}>
+                          <th scope="row" title={row.label}>{row.label}</th>
+                          <td>{formatEvents(row.events)}</td>
+                          <td className={critical ? styles.errorValue : undefined}>
+                            {row.errorRate.toLocaleString("pt-BR", {
+                              maximumFractionDigits: 1,
+                              minimumFractionDigits: 1,
+                            })}%
+                            {critical && <small>alto</small>}
+                          </td>
+                          <td>
+                            <span
+                              className={styles.distributionBar}
+                              role="img"
+                              aria-label={`${Math.round(width)}% do maior volume deste grupo`}
+                            >
+                              <i
+                                className={critical ? styles.criticalFill : undefined}
+                                style={{ width: `${width}%` }}
+                              />
+                            </span>
+                          </td>
+                          <td className={critical ? styles.errorValue : undefined}>
+                            {row.delta}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <aside className={styles.errorsPanel} aria-labelledby="errors-title">
+                <header className={styles.errorsHeader}>
+                  <span className={styles.stepIndex}>04</span>
+                  <div>
+                    <h2 id="errors-title">Entenda o que falhou</h2>
+                    <p>Veja quais mensagens explicam o recorte selecionado.</p>
+                  </div>
+                </header>
+                <label htmlFor="error-search">Filtrar erros pelo nome</label>
+                <input
+                  id="error-search"
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Ex.: playback, timeout..."
+                />
+                <small className={styles.searchHint}>
+                  Procure por parte do nome técnico do erro.
+                </small>
+                <h3>Erros mais frequentes</h3>
+                <div className={styles.errorList}>
+                  {filteredErrors.map((error) => (
+                    <article key={error.id}>
+                      <strong>{error.name}</strong>
+                      <span>{error.count} · {error.share}</span>
+                    </article>
+                  ))}
+                  {filteredErrors.length === 0 && (
+                    <p className={styles.emptySearch}>Nenhum erro encontrado.</p>
+                  )}
+                </div>
+              </aside>
             </div>
-
-            <aside className={styles.errorsPanel} aria-labelledby="errors-title">
-              <label htmlFor="error-search">Buscar em atributos</label>
-              <input
-                id="error-search"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="error_name, url, modelo..."
-              />
-              <h2 id="errors-title">Erros mais frequentes</h2>
-              <div className={styles.errorList}>
-                {filteredErrors.map((error) => (
-                  <article key={error.id}>
-                    <strong>{error.name}</strong>
-                    <span>{error.count} · {error.share}</span>
-                  </article>
-                ))}
-                {filteredErrors.length === 0 && (
-                  <p className={styles.emptySearch}>Nenhum erro encontrado.</p>
-                )}
-              </div>
-            </aside>
           </section>
         </main>
       </div>

@@ -1,6 +1,8 @@
 export type EventKind = {
+  count: number;
   id: string;
   label: string;
+  name: string;
   value: string;
 };
 
@@ -21,12 +23,12 @@ export type FrequentError = {
 };
 
 export const eventKinds: EventKind[] = [
-  { id: "request", label: "request", value: "42,8 M" },
-  { id: "screen-view", label: "screen_view", value: "9,1 M" },
-  { id: "video-view", label: "video_view", value: "6,4 M" },
-  { id: "session", label: "session", value: "3,2 M" },
-  { id: "vitals", label: "vitals", value: "1,8 M" },
-  { id: "error", label: "error", value: "512 k" },
+  { id: "request", label: "request", name: "Requisições", value: "42,8 M", count: 42_800_000 },
+  { id: "screen-view", label: "screen_view", name: "Telas exibidas", value: "9,1 M", count: 9_100_000 },
+  { id: "video-view", label: "video_view", name: "Vídeos iniciados", value: "6,4 M", count: 6_400_000 },
+  { id: "session", label: "session", name: "Sessões", value: "3,2 M", count: 3_200_000 },
+  { id: "vitals", label: "vitals", name: "Sinais de qualidade", value: "1,8 M", count: 1_800_000 },
+  { id: "error", label: "error", name: "Erros", value: "512 k", count: 512_000 },
 ];
 
 export const timeline = [
