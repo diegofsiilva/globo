@@ -657,3 +657,39 @@ devem ser usadas na avaliação, sem participar do score online.
 &emsp;O horário de abertura de um ticket não é necessariamente o início do
 incidente. Avaliações de lead time devem considerar essa imprecisão.
 
+## 14. Rastreabilidade mínima
+
+&emsp;Cada resultado de correlação deve permitir recuperar:
+
+- `run_id` do detector;
+- `sim_now` utilizado;
+- anomalias que iniciaram a análise;
+- janela temporal avaliada;
+- fontes e entidades consultadas;
+- registros usados como evidência;
+- disponibilidade de cada evidência;
+- valores das features;
+- pesos e contribuições;
+- versão das regras;
+- evidências contrárias;
+- dados indisponíveis;
+- feedback humano posterior.
+
+## 15. Validação da metodologia
+
+&emsp;O conjunto de rótulos disponível é pequeno e temporalmente limitado. Por
+isso, a avaliação não deve utilizar acurácia global. As métricas recomendadas
+são:
+
+- `precision@k` das hipóteses mais bem ranqueadas;
+- quantidade de falsos positivos por dia simulado;
+- tempo entre a primeira anomalia e a hipótese;
+- lead time em relação aos incidentes disponíveis;
+- concordância humana por família;
+- cobertura média;
+- estabilidade do ranking entre execuções;
+- impacto de fontes atrasadas ou indisponíveis.
+
+&emsp;Divisões de treino e avaliação devem ser temporais. Dados futuros não podem
+participar da construção de baselines ou da calibração de execuções passadas.
+
