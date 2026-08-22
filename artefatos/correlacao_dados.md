@@ -264,3 +264,84 @@ existência do evento não descarta um incidente se erros e QoE também piorarem
 - a origem está normal enquanto a hipótese aponta falha de origem;
 - o canário indica que a fonte parou de atualizar.
 
+## 7. Features explicáveis
+
+&emsp;Cada regra transforma suas evidências em features normalizadas entre zero e
+um. Features não aplicáveis devem ser retiradas do cálculo; features aplicáveis
+mas indisponíveis reduzem a cobertura.
+
+### 7.1 Força da anomalia (`A`)
+
+&emsp;Representa a distância entre o valor observado e o baseline. Deve vir da
+execução do detector, preservando direção, valor observado, valor esperado e
+score original.
+
+&emsp;A direção depende da métrica:
+
+- aumento de erro, latência, buffering ou stalls costuma ser degradação;
+- redução de Apdex pode ser degradação;
+- redução de sessões pode indicar falha de player;
+- redução de latência normalmente não representa incidente.
+
+### 7.2 Proximidade temporal (`T`)
+
+&emsp;Para uma causa candidata anterior ao efeito:
+
+```text
+T(delta) = 2 ^ (-delta_minutos / meia_vida_minutos)
+```
+
+&emsp;Com meia-vida de 15 minutos:
+
+| Distância | `T` |
+|---:|---:|
+| 0 min | 1,00 |
+| 6 min | 0,76 |
+| 15 min | 0,50 |
+| 30 min | 0,25 |
+| 45 min | 0,125 |
+
+&emsp;A meia-vida e a janela máxima devem ser configuradas por família. Se não
+existir evento causal identificável, `T` é `not_applicable` e não penaliza a
+hipótese.
+
+### 7.3 Corroboração (`C`)
+
+&emsp;Representa a concordância entre fontes ou sinais independentes. Deve
+considerar:
+
+- quantidade de fontes independentes;
+- qualidade de cada fonte;
+- compatibilidade temporal;
+- coerência de direção;
+- posição dos sinais na cadeia de dependência.
+
+### 7.4 Especificidade (`E`)
+
+&emsp;Representa quanto o problema está isolado em um recorte. Um lift próximo de
+um indica comportamento proporcional ao tráfego. Valores maiores indicam
+concentração.
+
+### 7.5 Impacto (`I`)
+
+&emsp;Representa a materialidade operacional. Pode utilizar:
+
+- sessões ou sessões ativas afetadas;
+- participação na audiência;
+- volume de requisições;
+- quantidade de entidades afetadas;
+- importância do canal ou PoP;
+- duração da degradação.
+
+### 7.6 Qualidade (`Q`)
+
+&emsp;Representa saúde, atualidade e completude das fontes. Deve ser derivada do
+canário e dos metadados de execução dos coletores. Fonte atrasada, incompleta ou
+divergente não deve sustentar uma causa operacional sem ressalva.
+
+### 7.7 Contradição (`X`)
+
+&emsp;Representa a força das evidências contrárias observadas. Dado ausente não
+contribui para `X`. Uma contradição forte pode descartar o candidato mesmo que a
+proximidade temporal seja alta.
+
