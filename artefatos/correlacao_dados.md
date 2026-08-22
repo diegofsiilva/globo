@@ -345,3 +345,59 @@ divergente não deve sustentar uma causa operacional sem ressalva.
 contribui para `X`. Uma contradição forte pode descartar o candidato mesmo que a
 proximidade temporal seja alta.
 
+## 8. Score, cobertura e confiança
+
+### 8.1 Score
+
+&emsp;Quando todas as features estiverem disponíveis, uma combinação heurística
+inicial pode ser:
+
+```text
+score = 100 × (
+    0,25A +
+    0,20T +
+    0,20C +
+    0,15E +
+    0,15I +
+    0,05Q
+) - 30X
+```
+
+&emsp;Os pesos são uma configuração inicial para discussão com especialistas. O
+score não é uma probabilidade. Um score igual a 80 não significa 80% de chance
+de a causa estar correta.
+
+&emsp;Na execução geral, o score-base deve ser normalizado apenas pelos pesos das
+features disponíveis:
+
+```text
+             soma(w_i × f_i), para features disponíveis
+score-base = -------------------------------------------- × 100
+             soma(w_i), para features disponíveis
+
+score = limitar(score-base - 30X, mínimo=0, máximo=100)
+```
+
+&emsp;Features `not_applicable` são retiradas do cálculo e da cobertura. Quando uma
+feature aplicável estiver indisponível, sua ausência reduz cobertura e
+confiança, mas não deve ser convertida silenciosamente em valor zero.
+
+### 8.2 Cobertura
+
+```text
+            soma dos pesos das evidências disponíveis
+cobertura = ------------------------------------------
+            soma dos pesos das evidências aplicáveis
+```
+
+### 8.3 Confiança
+
+&emsp;A confiança considera score, cobertura, qualidade e força das contradições.
+Um ponto de partida configurável é:
+
+| Confiança | Condição inicial |
+|---|---|
+| Alta | `score >= 80`, `coverage >= 0,80`, `Q >= 0,70` e sem contradição forte. |
+| Média | `score >= 60`, `coverage >= 0,60` e sem contradição determinante. |
+| Baixa | Demais resultados avaliáveis. |
+
