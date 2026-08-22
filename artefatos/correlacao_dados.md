@@ -592,3 +592,68 @@ Estado: generated
 alternativas avaliadas, essa explicação possui evidências fortes e deve ser
 investigada primeiro.
 
+## 12. Estados do resultado
+
+| Estado | Significado |
+|---|---|
+| `candidate` | A assinatura inicial da regra foi encontrada. |
+| `generated` | Existem evidências mínimas para apresentar a hipótese. |
+| `insufficient_evidence` | Faltam dados necessários para avaliar a causa. |
+| `discarded` | Evidências observadas contradizem a hipótese. |
+| `confirmed` | Uma pessoa confirmou a hipótese. |
+| `partially_confirmed` | Parte da causa ou do escopo foi confirmada. |
+| `rejected` | Uma pessoa rejeitou a hipótese. |
+
+## 13. Proteções contra falsos positivos
+
+### 13.1 RPaaS amostrado
+
+&emsp;Como os logs são amostrados, a correlação deve priorizar taxas, como
+`5xx / requests_total`, em vez de contagens absolutas. Buckets de baixo volume
+não devem sustentar proporções elevadas.
+
+### 13.2 4xx estrutural
+
+&emsp;Taxa elevada de 4xx é normal em alguns vhosts. A hipótese de playback só
+deve usar 4xx nos vhosts e fluxos configurados como relevantes.
+
+### 13.3 Zeros das fontes CDN
+
+&emsp;Zero em fontes CDN pode significar que o sinal não passou pelos gates de
+materialidade, não necessariamente ausência comprovada de erro. Esses zeros não
+devem funcionar como contradição forte sem contexto.
+
+### 13.4 Fontes atrasadas
+
+&emsp;Dados NPAW/Youbora possuem atraso estrutural e não devem aparecer
+retroativamente em uma hipótese online. Quando ficarem disponíveis, podem
+produzir uma revisão posterior, preservando a execução original.
+
+### 13.5 Fonte parada
+
+&emsp;Antes de interpretar queda ou desaparecimento, a correlação deve consultar o
+canário e os metadados do coletor. Coletor parado é problema de dados, não prova
+de incidente na produção.
+
+### 13.6 Categorias desconhecidas
+
+&emsp;Valores como `"(desconhecido)"` ou `"?"` representam informação ausente. Não
+devem originar uma hipótese sobre um segmento chamado “desconhecido”.
+
+### 13.7 Evento ao vivo
+
+&emsp;A existência de jogo ou programa de grande audiência contextualiza o volume,
+mas não elimina incidentes simultâneos. O contexto só reduz falsos positivos
+quando o crescimento é proporcional e a experiência permanece saudável.
+
+### 13.8 Ground truth circular
+
+&emsp;Rótulos derivados do próprio detector não devem ser usados como verdade
+independente para avaliar a mesma lógica. Janelas de incidente e correspondências
+devem ser usadas na avaliação, sem participar do score online.
+
+### 13.9 Timestamp do ticket
+
+&emsp;O horário de abertura de um ticket não é necessariamente o início do
+incidente. Avaliações de lead time devem considerar essa imprecisão.
+
