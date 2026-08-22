@@ -401,3 +401,119 @@ Um ponto de partida configurável é:
 | Média | `score >= 60`, `coverage >= 0,60` e sem contradição determinante. |
 | Baixa | Demais resultados avaliáveis. |
 
+## 9. Padrões de correlação por família
+
+### 9.1 Possível regressão após deploy
+
+| Elemento | Definição |
+|---|---|
+| Causa candidata | Evento `app.deploy`. |
+| Efeito | Anomalia em aplicação, API, borda ou experiência relacionada. |
+| Relação temporal | Deploy anterior ao efeito e dentro da janela configurada. |
+| Relação semântica | Alvo do deploy igual ou relacionado à entidade afetada. |
+| Evidências favoráveis | Erro ou latência surgindo depois do deploy, queda de Apdex, downstreams afetados. |
+| Contradições | Problema anterior ao deploy, alvo sem relação ou causa externa mais específica. |
+
+&emsp;O evento `autoscale.run` não representa necessariamente escala provocada por
+carga. Ele não deve ser interpretado automaticamente como causa de saturação.
+
+### 9.2 Possível falha interna de backend ou API
+
+| Fonte | Features relevantes |
+|---|---|
+| New Relic | `error_rate_pct`, tempo de resposta, throughput e queda de Apdex. |
+| Apollo | taxa de erro, RPM e percentis de latência por operação ou campo. |
+| Prometheus | CPU, réplicas, circuit breaker, erros HTTP, rede e Redis. |
+| RPaaS | taxa de 5xx e percentis de latência. |
+
+&emsp;A assinatura ganha força quando os sinais se propagam de um componente
+upstream para seus dependentes. A raiz candidata deve ser o ponto mais a
+montante compatível com a ordem temporal observada.
+
+### 9.3 Possível falha de playback ou autorização
+
+&emsp;A correlação pode combinar:
+
+- aumento de 4xx nos vhosts conhecidos de playback;
+- atribuição `playback_api` na classificação de erro;
+- categoria semântica de acesso;
+- crescimento de `startup_errors`;
+- falha em operação relacionada à resolução do vídeo.
+
+&emsp;Taxa alta de 4xx fora do catálogo de playback pode ser comportamento
+estrutural e não deve, isoladamente, gerar hipótese.
+
+### 9.4 Possível degradação de CDN
+
+&emsp;A assinatura mais forte combina erro de CDN e degradação de QoE no mesmo
+canal:
+
+```text
+cdn_live_errors.err_rate aumenta
+    + mesmo sinal/canal
+jointime, stalls ou bufferratio aumentam
+```
+
+&emsp;A importância do canal ou PoP participa do impacto. Uma entidade de alto
+volume deve ter prioridade maior que uma entidade de baixo volume.
+
+### 9.5 Possível falha de origem ou encoding
+
+&emsp;A correlação utiliza erro de origem, categoria semântica de origem e piora de
+QoE no mesmo canal. Se a origem degrada antes da CDN e do usuário, ela é uma
+causa mais específica que a hipótese genérica de entrega.
+
+### 9.6 Possível falha regional, ISP ou last-mile
+
+&emsp;A assinatura procura concentração em estado e operadora:
+
+```text
+taxa de erro elevada em uma UF + ISP
+    + volume mínimo
+    + demais operadoras próximas do baseline
+    + ausência de degradação global equivalente
+```
+
+&emsp;A atribuição `edge_isp` reforça essa família. O volume de sessões deve ser
+considerado para evitar lift elevado produzido por amostra pequena.
+
+### 9.7 Possível ataque ou bloqueio de WAF
+
+&emsp;A hipótese relaciona aumento de requisições bloqueadas no Cloud Armor com
+anomalias posteriores ou simultâneas na aplicação protegida. Pode explicar
+crescimento de tráfego e CPU sem regressão interna.
+
+### 9.8 Possível regressão de player ou dispositivo
+
+&emsp;A assinatura procura erro, queda de sessões ou piora de QoE concentrada em
+um player ou modelo, enquanto os demais segmentos permanecem próximos do
+baseline. É necessário volume mínimo por segmento.
+
+### 9.9 Possível degradação de QoE sem erro explícito
+
+&emsp;Taxa de erro normal não descarta degradação. A hipótese pode ser sustentada
+por aumento de:
+
+- tempo para início (`jointime`);
+- proporção de buffering;
+- stalls;
+- latência percebida;
+- frames perdidos.
+
+### 9.10 Pico esperado por evento ao vivo
+
+&emsp;A janela de evento ao vivo funciona como contexto, não como causa automática
+de incidente.
+
+| Comportamento | Interpretação |
+|---|---|
+| Audiência sobe e QoE permanece normal | Pico esperado; reduzir peso de hipóteses baseadas apenas em volume. |
+| Audiência sobe e erros/QoE pioram | Manter hipóteses de falha e aumentar impacto. |
+| Evento existe, mas canal não é compatível | Não utilizar como explicação do recorte. |
+
+### 9.11 Possível falha ou atraso de fonte
+
+&emsp;Quando o canário ou os metadados indicarem atraso, ausência ou divergência,
+o desaparecimento do sinal não deve ser interpretado como incidente de produção.
+O padrão correto é uma hipótese de qualidade de dados.
+
