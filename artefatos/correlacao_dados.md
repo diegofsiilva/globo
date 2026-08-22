@@ -109,3 +109,72 @@ tempo, no escopo ou no comportamento. Causalidade exige evidência de que um fat
 produziu o outro. O sistema trabalha com correlação explicável para apoiar a
 investigação humana; não declara causalidade automaticamente.
 
+## 4. Dados utilizados na arquitetura atual
+
+&emsp;A correlação utiliza as saídas já produzidas pelas camadas atuais.
+
+| Dado lógico | Papel na correlação |
+|---|---|
+| Sinais canônicos da camada silver | Preservam fonte, entidade, métrica, valor e disponibilidade. |
+| Buckets da camada gold | Alinham sinais no tempo e oferecem as features analisadas pelo detector. |
+| Estado do baseline | Permite explicar por que um valor foi considerado anômalo. |
+| Anomalias por `run_id` | São o ponto de partida obrigatório de cada hipótese. |
+| Relógio virtual `sim.now` | Define quais registros podem participar da execução. |
+| Canário de qualidade | Informa atraso, ausência, divergência e saúde das fontes. |
+| Janela de evento ao vivo | Oferece contexto exógeno para interpretar picos de audiência. |
+| Janela de incidente e correspondências | Servem para avaliação posterior, não como causa online. |
+| Views condicionadas por `available_at` | Impedem que consultas utilizem informações futuras. |
+
+&emsp;A correlação deve acontecer depois da conclusão de uma execução do detector.
+O frontend não inicia o cálculo: ele consulta resultados associados a uma
+execução concluída.
+
+## 5. Invariantes temporais
+
+### 5.1 Nenhum dado futuro
+
+&emsp;Toda evidência consultada deve satisfazer:
+
+```text
+evidence.available_at <= run.sim_now
+```
+
+&emsp;Um fato pode ter ocorrido antes da anomalia e ainda assim não estar
+disponível. Nesse caso, ele não participa da execução atual e deve ser registrado
+como indisponível quando aplicável.
+
+### 5.2 Causa candidata anterior ao efeito
+
+&emsp;Para hipóteses que possuem evento causal identificável:
+
+```text
+cause.event_at <= effect.event_at
+```
+
+&emsp;Um deploy posterior ao começo da degradação não pode explicar o início do
+problema, mesmo que esteja próximo no tempo.
+
+### 5.3 Baseline causal
+
+&emsp;O valor de um bucket deve ser comparado somente com observações anteriores e
+disponíveis. Reprocessamentos não devem substituir silenciosamente as evidências
+que estavam visíveis em uma execução histórica.
+
+### 5.4 UTC, BRT e sazonalidade
+
+&emsp;Timestamps operacionais permanecem em UTC. A conversão para BRT é utilizada
+para features de hora do dia, dia da semana e horário nobre. O período de 20h a
+23h BRT atravessa a meia-noite UTC, portanto agrupamentos diários de audiência
+não devem usar diretamente o dia UTC.
+
+### 5.5 Granularidade
+
+| Fonte | Granularidade típica | Tratamento |
+|---|---:|---|
+| Prometheus | 1 minuto | Agregar para 15 minutos. |
+| New Relic | 5 minutos ou 1 hora | Detectar a cadência antes de correlacionar. |
+| RPaaS | 15 minutos | Alinhamento direto com o bucket padrão. |
+| Sessões concorrentes ao vivo | 15 minutos | Alinhamento direto com o bucket padrão. |
+| NPAW/Youbora | 1 hora | Correlacionar por sobreposição de janela, sem precisão artificial. |
+| Deploy, incidente e evento editorial | Evento ou intervalo | Comparar início, fim e janela máxima da regra. |
+
