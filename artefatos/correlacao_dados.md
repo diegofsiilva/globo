@@ -178,3 +178,89 @@ não devem usar diretamente o dia UTC.
 | NPAW/Youbora | 1 hora | Correlacionar por sobreposição de janela, sem precisão artificial. |
 | Deploy, incidente e evento editorial | Evento ou intervalo | Comparar início, fim e janela máxima da regra. |
 
+## 6. Tipos de correlação
+
+### 6.1 Correlação temporal
+
+&emsp;Mede a proximidade entre uma causa candidata anterior e o início do efeito.
+É necessária em hipóteses como regressão após deploy, bloqueio de WAF ou falha
+upstream, mas não é suficiente para confirmar nenhuma delas.
+
+### 6.2 Correlação semântica
+
+&emsp;Verifica se os registros se referem ao mesmo domínio ou a componentes
+relacionados. A comparação deve considerar a semântica da fonte.
+
+Exemplos:
+
+- `tsuru_event.target_value` relacionado à aplicação do New Relic;
+- serviço do Prometheus relacionado ao mesmo backend;
+- vhost do RPaaS relacionado ao fluxo de playback;
+- `sinal` do NPAW igual à entidade das fontes CDN e origem;
+- dispositivo ou player afetado comparado aos demais segmentos.
+
+&emsp;O relacionamento entre nomes de entidades pode ser mantido como configuração
+do processamento. Isso é uma regra de domínio e não exige alteração da
+arquitetura física.
+
+### 6.3 Correlação por propagação
+
+&emsp;Procura uma sequência compatível ao longo da cadeia de entrega.
+
+```text
+causa upstream
+    ↓
+backend ou API degrada
+    ↓
+borda ou CDN apresenta erro
+    ↓
+experiência do usuário piora
+```
+
+&emsp;A ordem ajuda a diferenciar a raiz de componentes que apenas sofreram o
+efeito. Uma anomalia presente em toda a cadeia sugere causa mais a montante. Uma
+anomalia presente somente na experiência do usuário pode indicar player,
+dispositivo, ISP ou last-mile.
+
+### 6.4 Correlação entre fontes
+
+&emsp;Mede a concordância entre fontes independentes. Por exemplo, erro no New
+Relic, latência no Prometheus e 5xx no RPaaS formam uma corroboração mais forte
+que três métricas derivadas do mesmo coletor.
+
+### 6.5 Correlação por concentração
+
+&emsp;Identifica se a degradação está desproporcionalmente concentrada em um
+segmento. Pode ser medida por lift:
+
+```text
+       participação do recorte nos erros
+lift = ----------------------------------
+       participação do recorte no tráfego
+```
+
+&emsp;Aplicações típicas:
+
+- player;
+- modelo de dispositivo;
+- estado e operadora;
+- canal;
+- vhost;
+- versão ou serviço.
+
+### 6.6 Correlação com contexto exógeno
+
+&emsp;Eventos editoriais, como jogos, ajudam a interpretar aumento de audiência.
+Um pico de volume durante um evento ao vivo pode ser esperado. Entretanto, a
+existência do evento não descarta um incidente se erros e QoE também piorarem.
+
+### 6.7 Correlação contrária
+
+&emsp;Procura informações incompatíveis com a hipótese. Exemplos:
+
+- a degradação começou antes do deploy;
+- o deploy atingiu um serviço sem relação com o recorte afetado;
+- somente uma operadora está degradada enquanto a hipótese aponta falha global;
+- a origem está normal enquanto a hipótese aponta falha de origem;
+- o canário indica que a fonte parou de atualizar.
+
