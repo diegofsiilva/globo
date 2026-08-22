@@ -517,3 +517,78 @@ de incidente.
 o desaparecimento do sinal não deve ser interpretado como incidente de produção.
 O padrão correto é uma hipótese de qualidade de dados.
 
+## 10. Processo lógico da correlação
+
+&emsp;Para cada execução concluída do detector:
+
+1. recuperar o `run_id`, `sim_now`, baseline e anomalias produzidas;
+2. descartar qualquer registro que não estivesse disponível em `sim_now`;
+3. agrupar anomalias temporalmente compatíveis;
+4. preservar `source + entity + metric` ao interpretar cada sinal;
+5. selecionar famílias de hipótese compatíveis com as métricas observadas;
+6. buscar causas e contextos dentro da janela temporal da família;
+7. validar relacionamento semântico entre as entidades;
+8. calcular `A`, `T`, `C`, `E`, `I`, `Q` e `X`;
+9. registrar evidências favoráveis, contrárias e indisponíveis;
+10. calcular score, cobertura e confiança;
+11. classificar o candidato;
+12. ordenar hipóteses para investigação humana.
+
+### 10.1 Pseudocódigo
+
+```text
+para cada anomalia do run:
+    validar qualidade e disponibilidade da fonte
+    encontrar regras compatíveis com source + entity + metric
+
+    para cada regra:
+        buscar contexto disponível dentro da janela da regra
+        validar relação temporal
+        validar relação semântica
+        coletar corroborações e contradições
+        calcular features aplicáveis
+        calcular score, cobertura e confiança
+        registrar resultado e evidências
+
+ordenar resultados por prioridade de investigação
+```
+
+## 11. Exemplo: deploy e aumento de erros
+
+### 11.1 Linha temporal
+
+```text
+19:58 — deploy no serviço de playback
+20:00 — início do bucket analítico
+20:04 — taxa de erros aumenta
+20:05 — RPaaS registra aumento de 5xx
+20:07 — latência interna aumenta
+20:15 — detector conclui a análise do bucket
+```
+
+### 11.2 Evidências
+
+| Feature | Valor ilustrativo | Explicação |
+|---|---:|---|
+| `A` | 0,92 | O erro está muito acima do baseline. |
+| `T` | 0,76 | O deploy ocorreu seis minutos antes do início do efeito. |
+| `C` | 0,85 | New Relic, RPaaS e sinal interno corroboram. |
+| `E` | 0,90 | A degradação está concentrada no fluxo de playback. |
+| `I` | 0,70 | O serviço possui volume relevante no período. |
+| `Q` | 0,95 | As fontes utilizadas estão atualizadas e completas. |
+| `X` | 0,00 | Nenhuma contradição determinante foi encontrada. |
+
+### 11.3 Resultado
+
+```text
+Título: Possível regressão após deploy no serviço de playback
+Score: 84
+Cobertura: 100%
+Confiança: alta
+Estado: generated
+```
+
+&emsp;Esse resultado não confirma o deploy como causa. Ele indica que, entre as
+alternativas avaliadas, essa explicação possui evidências fortes e deve ser
+investigada primeiro.
+
