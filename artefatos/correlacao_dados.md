@@ -693,3 +693,53 @@ são:
 &emsp;Divisões de treino e avaliação devem ser temporais. Dados futuros não podem
 participar da construção de baselines ou da calibração de execuções passadas.
 
+## 16. Critérios de aceite conceituais
+
+1. Toda hipótese parte de pelo menos uma anomalia detectada.
+2. Nenhuma correlação utiliza dado com `available_at > run.sim_now`.
+3. Uma causa temporal ocorre antes do efeito.
+4. Fontes com granularidades diferentes são alinhadas corretamente.
+5. A semântica `source + entity + metric` é preservada.
+6. Coincidência temporal sem relação semântica não gera hipótese forte.
+7. Ausência de dado é diferente de evidência contrária.
+8. Qualidade da fonte participa da avaliação.
+9. Score, cobertura e confiança são conceitos separados.
+10. O score não é apresentado como probabilidade.
+11. Evidências e contribuições são auditáveis.
+12. Eventos ao vivo são contexto, não rótulo automático de normalidade.
+13. Dados atrasados podem gerar revisão sem modificar o histórico.
+14. Ground truth não participa do score online.
+15. A decisão final permanece humana.
+
+## 17. Decisões que exigem validação
+
+- meia-vida e janela máxima por família de hipótese;
+- pesos iniciais das features;
+- limite mínimo de volume por fonte e métrica;
+- normalização da força da anomalia;
+- critério para considerar fontes independentes;
+- mapeamento entre entidades de fontes diferentes;
+- catálogo de vhosts e operações de playback;
+- limites de score e cobertura para cada confiança;
+- política de revisão quando chegam dados atrasados;
+- responsáveis pela confirmação humana.
+
+## 18. Rastreabilidade com os requisitos
+
+| Requisito | Relação com a correlação |
+|---|---|
+| RF14 | Compara o comportamento atual com baselines e períodos anteriores. |
+| RF15 | Usa anomalias para identificar aumentos ou quedas relevantes. |
+| RF16 | Organiza contexto, impacto, recortes e evidências para investigação. |
+| RF17 | Produz hipóteses ordenadas por relevância e acompanhadas de evidências. |
+| RNF02 | Trabalha sobre resultados processados, sem cálculo extenso na consulta do dashboard. |
+| RNF08 | Expõe os dados e métricas que justificam cada relação sugerida. |
+| RNF10 | Mantém apenas referências necessárias e respeita a proteção de dados. |
+| RNF11 | Preserva `run_id`, evidências, versões e informações suficientes para auditoria. |
+
+## 19. Referências internas
+
+- Arquitetura de Geração de Hipóteses, material de definição fornecido pela equipe.
+- Argus — Documentação do Dataset, versão 1.0.
+- [Requisitos funcionais e não funcionais](./requisitos.md).
+- [MVP inicial](./mvp-inicial.md).
