@@ -1,0 +1,339 @@
+/* Cabeçalho da aplicação*/
+
+.cabecalho {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+    border-style: solid;
+}
+
+.cabecalhoEsquerda {
+    text-align: left;
+    flex-direction: row;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.aoVivo {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.quadrado {
+    width: 20px;
+    height: 20px;
+    background-color: red;
+}
+
+.texto-vermelho {
+    color: red;
+}
+
+.botao {
+    color: black;
+    background-color: white;
+}
+
+.botao.ativado {
+    color: white;
+    background-color: black;
+}
+
+/* Parte do escopo */
+
+.escopo {
+    background-color: gainsboro;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+    border-style: solid;
+}
+
+.escopoEsquerda {
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.limpar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+}
+
+input {
+    width: 100px;
+    height: 20px;
+    box-sizing: border-box;
+}
+
+.conteudoPrincipal {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Opções do menu */
+
+.menu {
+    display: flex;
+    flex-direction: column;
+    width: 160px;
+    height: auto;
+}
+
+.menuBotao {
+    height: 40px;
+    width: 160px;
+    background-color: white;
+    border-style: solid;
+    padding: 10px 20px;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.menuBotao.ativo {
+    background-color: gainsboro;
+    height: 40px;
+    width: 160px;
+}
+
+.menuBotao.ativo::before {
+    content: "";
+    position: absolute;
+    width: 75px;
+    height: 2px;
+    background-color: red;
+    bottom: 0;
+    left: 0;
+
+}
+
+.menuBotao.ativo::after {
+    content: "";
+    position: absolute;
+    width: 2px;
+    height: 42px;
+    background: red;
+    bottom: 0;
+    left: 0;
+}
+
+/* Tela de hipóteses */
+
+.hipoteses {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px;
+}
+
+.colunaTexto {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+
+    flex: 1;
+    min-width: 0;
+}
+
+.colunaTexto h2 {
+    margin: 0;
+    font-size: 12px;
+
+    white-space: nowrap;
+
+    font-weight: bold;
+}
+
+.textoBotao.selecionado {
+    color: red;
+}
+
+.textoBotao {
+    color: black;
+}
+
+.hipotesesBotao {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+
+    width: 100%;
+    max-width: 650px;
+    min-width: 0;
+    height: 50px;
+
+    background-color: white;
+    padding: 0 15px;
+    box-sizing: border-box;
+
+    position: relative;
+    gap: 13px;
+    border: none;
+}
+
+.hipotesesBotao.selecionado {
+    background-color: gainsboro;
+}
+
+.hipotesesBotao.selecionado::before {
+    content: "";
+    position: absolute;
+    width: 250px;
+    height: 2px;
+    background-color: red;
+    bottom: 0;
+    left: 0;
+}
+
+.hipotesesBotao.selecionado::after {
+    content: "";
+    position: absolute;
+    width: 2px;
+    height: 50px;
+    background: red;
+    bottom: 0;
+    left: 0;
+}
+
+.barra {
+    height: 4px;
+    width: 100%;
+
+    background: linear-gradient(
+        to right,
+        black 0%,
+        black 40%,
+        dimgray 40%,
+        dimgray 70%,
+        slategrey 70%,
+        slategrey 85%,
+        darkgray 85%,
+        darkgray 100%
+    );
+}
+
+.linha {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    font-size: 8px;
+    white-space: nowrap;
+}
+
+.linha h2 {
+    font-size: small;
+}
+
+.calculado {
+    display: flex;
+    flex-direction: column;
+
+    width: 100%;
+    box-sizing: border-box;
+
+    padding: 10px;
+
+    margin: 0;
+    overflow: hidden;
+
+    align-items: flex-start;
+}
+
+.separar {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-content: center;
+    width: 100%;
+}
+
+.separar h3 {
+    font-size: 14px;
+    margin: 0 0 10px;
+    color: black;
+}
+
+.calculado p {
+    font-size: 7px;
+    margin: 0 0 5px;
+    color: gray;
+    white-space: nowrap;
+    font-weight: bold;
+}
+
+.calculado > h3 {
+    font-size: 14px;
+    margin: 0 0 10px;
+    color: black;
+}
+
+.calculado > h3:not(:first-of-type) {
+    font-size: 12px;
+    margin: 10px 0 5px;
+}
+
+.calculadoLinha {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.calculadoLinha h1 {
+    margin: 0;
+    font-size: 32px;
+}
+
+.calculadoLinha span {
+    font-size: 11px;
+    color: gray;
+}
+
+.score {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.abrirTimeline {
+    background-color: red;
+    width: 100px;
+    height: 35px;
+    color: white;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.score h1 {
+    color: red;
+    font-size: 32px;
+    margin: 0;
+}
+
+.score span {
+    font-size: 12px;
+    color: gray;
+}
+
+.botaoDuplo {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+}
