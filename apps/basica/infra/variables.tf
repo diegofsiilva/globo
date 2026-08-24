@@ -93,63 +93,126 @@ variable "assign_public_ip" {
 }
 
 # --------------------------------------------------------------------------- #
-# DynamoDB
+# RDS PostgreSQL
 # --------------------------------------------------------------------------- #
 
-variable "dynamodb_billing_mode" {
-  description = "PAY_PER_REQUEST (sem planejar capacidade) ou PROVISIONED."
+variable "db_instance_class" {
+  description = <<-EOT
+    Classe da instancia RDS.
+
+    db.t3.medium por conta de storage, nao de CPU: bronze ~13 GB, silver ~6 GB
+    (signal_point duplicado), mais o change_log crescendo com o replay e o WAL.
+    Os 199 MB de Parquet expandem bastante porque o PostgreSQL nao comprime
+    heap -- prom_point sao 41,2 M x ~52 B ~ 2,1 GB de dados mais ~1,2 GB de
+    indice.
+
+    Se o laboratorio limitar a classe, db.t3.small ou micro seguem viaveis: as
+    telas leem gold.v_* e nunca bronze, entao o tamanho de prom_point nao entra
+    no caminho de leitura do dashboard.
+  EOT
   type        = string
-  default     = "PAY_PER_REQUEST"
-
-  validation {
-    condition     = contains(["PAY_PER_REQUEST", "PROVISIONED"], var.dynamodb_billing_mode)
-    error_message = "dynamodb_billing_mode deve ser PAY_PER_REQUEST ou PROVISIONED."
-  }
+  default     = "db.t3.medium"
 }
 
-variable "dynamodb_kms_managed_key" {
-  description = <<-EOT
-    `true` usa a chave KMS gerenciada (aws/dynamodb): auditavel no CloudTrail,
-    ~US$ 1/mes. `false` usa a chave AWS-owned, gratuita.
+variable "db_allocated_storage" {
+  description = "GB de gp3. Ver a conta de tamanho em db_instance_class."
+  type        = number
+  default     = 100
+}
 
-    Em nenhum dos dois casos a tabela fica sem criptografia -- o DynamoDB
-    criptografa em repouso sempre. Ambiente de laboratorio precisa de `false`,
-    porque nao consegue provisionar a chave gerenciada.
+variable "db_engine_version" {
+  description = <<-EOT
+    Versao do PostgreSQL. So o major: a AWS escolhe o minor mais recente
+    disponivel, e fixar o minor aqui faz o apply quebrar quando a AWS aposentar
+    aquele numero especifico.
+
+    As migrations foram validadas contra 16.15 em container local.
+  EOT
+  type        = string
+  default     = "16"
+}
+
+variable "db_name" {
+  description = "Nome do banco criado na instancia."
+  type        = string
+  default     = "argus"
+}
+
+variable "db_username" {
+  description = "Usuario mestre. `postgres` e reservado pela AWS em algumas versoes."
+  type        = string
+  default     = "argus"
+}
+
+variable "db_password_from_secrets_manager" {
+  description = <<-EOT
+    `true` (padrao, o correto numa conta normal) gera a senha com
+    `random_password` e guarda num `aws_secretsmanager_secret`.
+
+    `false` cai para `var.db_password`, porque o ambiente de laboratorio pode
+    negar o Secrets Manager. Em nenhum dos dois caminhos a senha entra em
+    arquivo versionado: no primeiro ela nunca sai do Secrets Manager, no
+    segundo vem do terraform.tfvars, que esta no .gitignore.
   EOT
   type        = bool
   default     = true
 }
 
-variable "dynamodb_point_in_time_recovery" {
-  description = "PITR: restaura para qualquer segundo dos ultimos 35 dias. Custa ~20% do storage."
-  type        = bool
-  default     = true
-}
-
-variable "retention_days" {
-  description = "Dias ate o TTL apagar o evento. Contado a partir da ingestao."
-  type        = number
-  default     = 90
-}
-
-variable "gsi1_shards" {
-  description = <<-EOT
-    Numero de shards da GSI1 (indice por tipo de evento e dia).
-
-    Sem sharding, todo evento de um mesmo tipo num mesmo dia cai na mesma
-    particao, e particao do DynamoDB satura em 1000 WCU -- o gargalo classico de
-    ingestao de serie temporal. A leitura vira fan-out de N queries.
-
-    Precisa ser igual a GSI1_SHARDS do worker: mudar aqui sem mudar la torna os
-    dados antigos invisiveis para a query nova.
-  EOT
-  type        = number
-  default     = 10
+variable "db_password" {
+  description = "Senha usada quando db_password_from_secrets_manager = false."
+  type        = string
+  default     = ""
+  sensitive   = true
 
   validation {
-    condition     = var.gsi1_shards >= 1 && var.gsi1_shards <= 100
-    error_message = "gsi1_shards deve estar entre 1 e 100."
+    condition     = var.db_password == "" || length(var.db_password) >= 16
+    error_message = "db_password precisa de ao menos 16 caracteres."
   }
+}
+
+variable "db_publicly_accessible" {
+  description = <<-EOT
+    Endereco publico na instancia.
+
+    `false` e a postura de producao e o padrao aqui. A alternativa (RDS privado
+    + Lambda dentro da VPC) custa cold start de ENI na Lambda e impede
+    inspecionar o banco sem bastion, entao o laboratorio liga com `true` no
+    tfvars -- o mesmo raciocinio que ja justifica o assign_public_ip do worker.
+
+    Ligar isto NAO abre o banco: quem abre e db_allowed_cidr, e sem ele o
+    security group nao tem regra de entrada nenhuma.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "db_allowed_cidr" {
+  description = <<-EOT
+    CIDR autorizado a conectar na porta 5432, alem dos servicos deste stack.
+
+    Vazio (padrao) nao cria regra de entrada externa nenhuma. Preencha com o
+    SEU IP em /32 para inspecionar o banco da sua maquina -- nunca 0.0.0.0/0,
+    que expoe a instancia para a internet inteira.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.db_allowed_cidr != "0.0.0.0/0"
+    error_message = "0.0.0.0/0 expoe o banco para a internet inteira. Use o seu IP em /32."
+  }
+}
+
+variable "db_backup_retention_days" {
+  description = "Dias de backup automatico. 0 desliga (e desliga o PITR junto)."
+  type        = number
+  default     = 1
+}
+
+variable "db_multi_az" {
+  description = "Multi-AZ dobra o custo. Falso fora de producao."
+  type        = bool
+  default     = false
 }
 
 # --------------------------------------------------------------------------- #
@@ -277,6 +340,157 @@ variable "log_retention_days" {
 }
 
 # --------------------------------------------------------------------------- #
+# Simulador
+# --------------------------------------------------------------------------- #
+
+variable "simulator_desired_count" {
+  description = <<-EOT
+    Quantos simuladores manter no ar. 0 ou 1 -- nunca mais.
+
+    Dois simuladores sao dois relogios competindo por `sim.clock`, e o tempo
+    virtual passaria a andar para tras e para a frente conforme cada um
+    reancorasse. Comece em 0: o simulador so faz sentido depois de a carga
+    inicial ter rodado.
+  EOT
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.simulator_desired_count >= 0 && var.simulator_desired_count <= 1
+    error_message = "simulator_desired_count so aceita 0 ou 1: dois relogios virtuais brigam pelo mesmo sim.clock."
+  }
+}
+
+variable "simulator_seed" {
+  description = <<-EOT
+    Semente da injecao de falhas.
+
+    Fixa de proposito: duas execucoes com a mesma seed produzem exatamente a
+    mesma sequencia de falhas, que e o que permite comparar dois detectores
+    sobre o mesmo cenario. Mudar a seed muda o cenario.
+  EOT
+  type        = number
+  default     = 20260821
+}
+
+variable "simulator_speed" {
+  description = "Tempo virtual por segundo de parede. 60 = 1 min/s (26 dias em ~10 h)."
+  type        = number
+  default     = 60
+}
+
+variable "simulator_t0" {
+  description = "Inicio da janela replicada, em ISO-8601. Primeiro instante do dump."
+  type        = string
+  default     = "2026-07-12T00:00:00Z"
+}
+
+variable "simulator_t1" {
+  description = "Fim da janela replicada, em ISO-8601. Ultimo instante do dump."
+  type        = string
+  default     = "2026-08-05T23:59:59Z"
+}
+
+variable "simulator_tick_seconds" {
+  description = "Intervalo de parede entre dois avancos do relogio virtual."
+  type        = number
+  default     = 5
+}
+
+variable "simulator_cpu" {
+  description = "Unidades de CPU da task do simulador."
+  type        = number
+  default     = 512
+}
+
+variable "simulator_memory" {
+  description = "MiB de memoria do simulador."
+  type        = number
+  default     = 1024
+}
+
+# --------------------------------------------------------------------------- #
+# Processamento (no-op por ora -- decisao 7)
+# --------------------------------------------------------------------------- #
+
+variable "processing_desired_count" {
+  description = <<-EOT
+    Tasks de processamento. 1 mantem a infraestrutura observavel mesmo com o
+    container no-op, que e o ponto de provisiona-la agora; 0 economiza credito
+    de laboratorio enquanto nao ha logica nenhuma la dentro.
+  EOT
+  type        = number
+  default     = 1
+}
+
+variable "processing_tick_seconds" {
+  description = "Intervalo do laco do container no-op entre dois heartbeats."
+  type        = number
+  default     = 30
+}
+
+variable "processing_cpu" {
+  description = "Unidades de CPU do processamento."
+  type        = number
+  default     = 512
+}
+
+variable "processing_memory" {
+  description = "MiB de memoria do processamento."
+  type        = number
+  default     = 1024
+}
+
+# --------------------------------------------------------------------------- #
+# Loader da carga inicial
+# --------------------------------------------------------------------------- #
+
+variable "loader_cpu" {
+  description = <<-EOT
+    Unidades de CPU do loader (1024 = 1 vCPU).
+
+    Bem acima dos workers porque o gargalo e descompactar Parquet e alimentar o
+    COPY, e o alvo sao 20 a 30 minutos para 68,7 M linhas -- precisa caber com
+    folga numa sessao do laboratorio.
+  EOT
+  type        = number
+  default     = 2048
+}
+
+variable "loader_memory" {
+  description = "MiB de memoria do loader."
+  type        = number
+  default     = 4096
+}
+
+# --------------------------------------------------------------------------- #
+# Ingestao de eventos
+# --------------------------------------------------------------------------- #
+
+variable "changes_visibility_timeout_seconds" {
+  description = <<-EOT
+    Visibility timeout da fila de change events.
+
+    Maior que o da fila de eventos porque o processamento aqui inclui um MERGE
+    contra tabela particionada, e nao um INSERT. Curto demais faz o SQS
+    reentregar uma mensagem que ainda esta sendo aplicada -- a regra do `_lsn`
+    absorve a repeticao sem corromper nada, mas o trabalho e refeito a toa.
+  EOT
+  type        = number
+  default     = 180
+}
+
+variable "max_clock_skew_days" {
+  description = <<-EOT
+    Desvio de relogio acima do qual o evento e marcado com clock_skew, mas
+    NUNCA descartado. Relogio de TV e notoriamente errado, e jogar o evento
+    fora perderia justamente o aparelho com problema.
+  EOT
+  type        = number
+  default     = 365
+}
+
+# --------------------------------------------------------------------------- #
 # Alarmes
 # --------------------------------------------------------------------------- #
 
@@ -375,5 +589,54 @@ variable "user_id_hash_salt" {
   EOT
   type        = string
   default     = "trocar-em-producao"
+  sensitive   = true
+}
+
+variable "alarm_lag_sim_wall_seconds" {
+  description = <<-EOT
+    Quanto tempo de PAREDE o pipeline pode ficar atras antes de alarmar.
+
+    O limiar do alarme e este valor multiplicado por `simulator_speed`, porque a
+    metrica `LagSimSeconds` e medida em tempo VIRTUAL.
+
+    A versao anterior fixava o limiar direto em 900 s virtuais, o que parecia
+    certo -- medir em tempo de parede nao faz sentido para uma metrica virtual --
+    mas era inatingivel na pratica. Com speed = 60, um unico minuto de parede
+    processando um lote vira 3600 s virtuais de defasagem: o alarme ficava
+    permanentemente disparado sem que nada estivesse errado.
+
+    O que o operador consegue julgar e "o pipeline pode ficar dois minutos para
+    tras". A conversao para tempo virtual e mecanica, e por isso e o Terraform
+    que faz, e nao a pessoa.
+  EOT
+  type        = number
+  default     = 120
+}
+
+variable "read_api_db_user" {
+  description = <<-EOT
+    Usuario que a Lambda de leitura usa. Criado pelas migrations, NAO pelo
+    Terraform:
+
+      python tools/migrate.py criar-leitor --usuario argus_api
+
+    Ele nao recebe permissao nenhuma diretamente: so herda `argus_reader`, que
+    so tem SELECT nas views v_*.
+  EOT
+  type        = string
+  default     = "argus_api"
+}
+
+variable "read_api_db_password" {
+  description = <<-EOT
+    Senha do usuario de leitura. Vem do terraform.tfvars (gitignored) ou de
+    TF_VAR_read_api_db_password, e precisa ser a mesma que voce passou em
+    DB_READER_PASSWORD ao rodar `criar-leitor`.
+
+    Nao e gerada aqui de proposito: o Terraform nao cria este usuario, entao
+    gerar a senha do lado dele deixaria os dois lados sem como concordar.
+  EOT
+  type        = string
+  default     = ""
   sensitive   = true
 }

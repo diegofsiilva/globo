@@ -33,13 +33,31 @@ resource "aws_lambda_function" "read_api" {
   memory_size = var.read_api_memory_mb
   timeout     = var.read_api_timeout_seconds
 
+  # A Lambda entra na VPC SEMPRE, mesmo com o RDS publico.
+  #
+  # A versao anterior disto so entrava quando `db_publicly_accessible = false`,
+  # para poupar o cold start de ENI. Nao funciona: uma Lambda fora da VPC sai
+  # por um IP publico arbitrario da AWS, que muda a cada invocacao. Nao ha o que
+  # colocar no security group do RDS -- e o resultado e a Lambda batendo no
+  # endpoint publico e sendo barrada, com `PoolTimeout` depois de 10 s em toda
+  # rota que toca o banco.
+  #
+  # Dentro da VPC ela usa o security group das tasks, que a regra
+  # `rds_from_tasks` ja autoriza. Nao precisa de NAT: o unico destino e o RDS, e
+  # o log vai pelo servico da Lambda, nao pela ENI.
+  vpc_config {
+    subnet_ids         = local.subnet_ids
+    security_group_ids = [aws_security_group.worker.id]
+  }
+
   environment {
     variables = {
-      EVENTS_TABLE_NAME = aws_dynamodb_table.events.name
-      # Precisa bater com var.gsi1_shards e com o GSI1_SHARDS do worker: os
-      # tres montam a mesma chave da GSI1. Divergir faz a leitura procurar numa
-      # particao onde a escrita nunca colocou nada -- devolve vazio, sem erro.
-      GSI1_SHARDS          = tostring(var.gsi1_shards)
+      # A Lambda conecta como `argus_api`, NAO como o usuario mestre. Esse
+      # usuario so herda o papel argus_reader, que so tem SELECT nas views v_*
+      # -- e o que impede a API de enxergar alem de sim.now() mesmo que alguem
+      # esqueca o filtro numa rota nova. Criado por:
+      #   python tools/migrate.py criar-leitor
+      DATABASE_URL         = local.read_api_database_url
       USER_ID_HASH_SALT    = var.user_id_hash_salt
       DEFAULT_WINDOW_HOURS = tostring(var.read_api_default_window_hours)
       MAX_ITEMS_SCANNED    = tostring(var.read_api_max_items_scanned)
@@ -83,18 +101,13 @@ resource "aws_iam_role" "read_api" {
 data "aws_iam_policy_document" "read_api" {
   count = var.create_iam_roles ? 1 : 0
 
-  statement {
-    sid    = "LerEventos"
-    effect = "Allow"
-    # Somente leitura, e sem GetItem: o acesso a um evento e sempre por Query
-    # dentro da particao da sessao. Nada de PutItem, UpdateItem ou DeleteItem
-    # -- a escrita pertence ao worker e o expurgo ao TTL.
-    actions = ["dynamodb:Query", "dynamodb:Scan", "dynamodb:DescribeTable"]
-    resources = [
-      aws_dynamodb_table.events.arn,
-      "${aws_dynamodb_table.events.arn}/index/*",
-    ]
-  }
+  # Nao ha statement de leitura de dado aqui, e isso e o desenho, nao um
+  # esquecimento. A autorizacao de leitura mudou de lugar: com o DynamoDB ela
+  # era IAM, agora e GRANT no PostgreSQL. A Lambda entra no banco como
+  # `argus_api`, que so enxerga as views v_* -- ver 009_views_v.sql.
+  #
+  # A vantagem pratica: o IAM nao sabe filtrar linha por available_at, e o
+  # GRANT do banco, combinado com a definicao da view, sabe.
 
   statement {
     sid       = "EscreverLogs"
