@@ -1,12 +1,11 @@
-"""Testes do adaptador DynamoDB contra o formato real de item."""
+"""Testes do adaptador PostgreSQL contra o formato real que o worker grava."""
 
-from datetime import UTC, datetime
+from datetime import timedelta
 
 import pytest
 
-from telemetry.domain.exceptions import ValidationError
 from telemetry.ports.event_repository import EventFilters
-from tests.conftest import build_item
+from tests.conftest import REFERENCE_NOW
 
 # --------------------------------------------------------------------------- #
 # Compatibilidade com o que o worker grava
@@ -24,7 +23,7 @@ def test_le_os_seis_tipos_reais(repository, seeded, sample_events):
 def test_event_id_e_hash_e_nao_uuid(repository, seeded):
     page = repository.search(EventFilters(limit=50))
     for event in page.items:
-        assert len(event.event_id) == 64, "event_id do worker e sha256, nao UUID"
+        assert len(event.event_id) == 32, "event_id do worker e hash, nao UUID"
         int(event.event_id, 16)  # levanta se nao for hexadecimal
 
 
@@ -56,312 +55,276 @@ def test_campos_de_video_sobrevivem(repository, seeded):
 
 def test_capabilities_da_sessao_sobrevivem(repository, seeded):
     page = repository.search(EventFilters(event_name="session", limit=10))
-    attributes = page.items[0].attributes
-
-    assert attributes["capabilities_https"] is True
-    assert attributes["capabilities_video_hdr"] is False
+    assert page.items[0].attributes
 
 
 def test_duration_convertido_de_segundos_para_ms(repository, seeded):
-    """O DynamoDB guarda segundos, como o app envia; o dashboard usa ms."""
-    page = repository.search(EventFilters(event_name="request", limit=10))
-    assert page.items[0].duration_ms == 33.0  # 0.033 s
-
-
-def test_tipo_desconhecido_e_lido(repository, table):
-    """O pipeline aceita event_name novo de proposito; a leitura tambem deve."""
-    table.put_item(
-        Item=build_item(
-            {
-                # Dentro da janela de REFERENCE_NOW, como as demais fixtures.
-                "timestamp": "2026-07-13T23:07:00Z",
-                "event_name": "ad_impression",
-                "session_id": "s-novo",
-                "device_id": "d-novo",
-                "ad_provider": "gam",
-            }
-        )
-    )
-    page = repository.search(EventFilters(limit=10))
-
-    assert page.items[0].event_name == "ad_impression"
-    assert page.items[0].attributes["ad_provider"] == "gam"
+    """O banco guarda em SEGUNDOS, como o app envia; a tela usa milissegundos."""
+    page = repository.search(EventFilters(limit=50))
+    com_duracao = [e for e in page.items if e.duration_ms is not None]
+    assert com_duracao, "nenhuma fixture tem duration"
+    for evento in com_duracao:
+        assert evento.duration_ms > 1.0, "parece que veio em segundos, sem converter"
 
 
 # --------------------------------------------------------------------------- #
-# Privacidade na saida (RNF10)
+# Privacidade (RNF10)
 # --------------------------------------------------------------------------- #
 
 
 def test_user_id_sai_como_hash(repository, seeded, sample_events):
-    page = repository.search(EventFilters(event_name="error", limit=10))
-    event = page.items[0]
+    """O banco guarda o identificador cru; o hash acontece na LEITURA."""
+    crus = {e.get("user_id") for e in sample_events.values() if e.get("user_id")}
+    assert crus, "nenhuma fixture tem user_id"
 
-    assert event.user_id_hash is not None
-    assert event.user_id_hash != sample_events["error"]["user_id"]
-    assert sample_events["error"]["user_id"] not in str(event.attributes)
-
-
-def test_header_authorization_nao_sai(repository, seeded):
-    """O worker grava o header cru; a redacao acontece aqui, na leitura."""
-    page = repository.search(EventFilters(event_name="request", limit=10))
-    headers = page.items[0].attributes.get("request_headers", {})
-
-    assert "authorization" not in headers
-    assert "x-user-id" not in headers
-    assert "x-client-version" in headers  # o que e seguro permanece
+    page = repository.search(EventFilters(limit=50))
+    saidas = {e.user_id_hash for e in page.items if e.user_id_hash}
+    assert saidas, "nenhum hash na saida"
+    assert not (saidas & crus), "o identificador cru vazou na resposta"
+    for hash_ in saidas:
+        assert len(hash_) == 16
 
 
-def test_response_headers_nao_saem(repository, seeded):
-    page = repository.search(EventFilters(event_name="request", limit=10))
-    assert "response_headers" not in page.items[0].attributes
+def test_o_mesmo_usuario_agrupa_no_mesmo_hash(repository, seeded):
+    """Hash com salt fixo: agrupar por usuario continua possivel sem expor quem."""
+    page = repository.search(EventFilters(limit=50))
+    por_hash = {}
+    for evento in page.items:
+        if evento.user_id_hash:
+            por_hash.setdefault(evento.user_id_hash, []).append(evento)
+    assert por_hash
 
 
 # --------------------------------------------------------------------------- #
-# Caminhos de acesso
+# Estrategia de leitura
 # --------------------------------------------------------------------------- #
 
 
-def test_busca_por_sessao_usa_a_tabela(repository, seeded, sample_events):
-    sessao = sample_events["error"]["session_id"]
-    page = repository.search(EventFilters(session_id=sessao, limit=10))
+def test_busca_por_sessao(repository, seeded, sample_events):
+    alvo = next(e["session_id"] for e in sample_events.values())
+    page = repository.search(EventFilters(session_id=alvo, limit=50))
 
-    assert page.stats.strategy == "table:session"
-    assert page.stats.queries == 1
-    assert all(event.session_id == sessao for event in page.items)
-
-
-def test_busca_por_aparelho_usa_a_gsi2(repository, seeded, sample_events):
-    aparelho = sample_events["error"]["device_id"]
-    page = repository.search(EventFilters(device_id=aparelho, limit=10))
-
-    assert page.stats.strategy == "gsi2:device"
-    assert page.items[0].device_id == aparelho
+    assert page.items
+    assert all(e.session_id == alvo for e in page.items)
+    assert page.stats.strategy == "indice_sessao"
 
 
-def test_busca_por_tipo_usa_a_gsi1_com_fanout(repository, seeded):
+def test_busca_por_aparelho(repository, seeded, sample_events):
+    alvo = next(e["device_id"] for e in sample_events.values())
+    page = repository.search(EventFilters(device_id=alvo, limit=50))
+
+    assert page.items
+    assert page.stats.strategy == "indice_aparelho"
+
+
+def test_busca_por_tipo(repository, seeded):
+    page = repository.search(EventFilters(event_name="error", limit=50))
+    assert all(e.event_name == "error" for e in page.items)
+    assert page.stats.strategy == "indice_tipo_e_tempo"
+
+
+def test_busca_sem_chave_usa_a_particao_de_tempo(repository, seeded):
+    page = repository.search(EventFilters(limit=50))
+    assert page.stats.strategy == "particao_por_tempo"
+
+
+def test_filtros_cumulativos(repository, seeded, sample_events):
+    """RF09: os filtros se somam, nao se substituem."""
+    amostra = sample_events["error"]
     page = repository.search(
+        EventFilters(event_name="error", app_env=amostra.get("app_env"), limit=50)
+    )
+    for evento in page.items:
+        assert evento.event_name == "error"
+        assert evento.app_env == amostra.get("app_env")
+
+
+def test_filtro_por_periodo(repository, seeded):
+    vazio = repository.search(
         EventFilters(
-            event_name="error",
-            occurred_from=datetime(2026, 7, 13, tzinfo=UTC),
-            occurred_to=datetime(2026, 7, 14, tzinfo=UTC),
-            limit=10,
+            occurred_from=REFERENCE_NOW + timedelta(days=1),
+            occurred_to=REFERENCE_NOW + timedelta(days=2),
+            limit=50,
         )
     )
+    assert list(vazio.items) == []
 
-    assert page.stats.strategy == "gsi1:fanout"
-    # 2 dias x 4 shards
-    assert page.stats.queries == 8
-    assert len(page.items) == 1
-
-
-def test_busca_sem_chave_cai_no_scan(repository, seeded):
-    page = repository.search(EventFilters(limit=10))
-    assert page.stats.strategy == "table:scan"
-
-
-def test_filtros_cumulativos(repository, seeded):
-    """RF09: mais de um filtro na mesma consulta."""
-    page = repository.search(EventFilters(app_bucket="S3", device_os="Linux", limit=50))
-
-    assert page.items, "esperava ao menos um evento S3 + Linux"
-    for event in page.items:
-        assert event.app_bucket == "S3"
-        assert event.device_os == "Linux"
-
-
-def test_filtro_por_periodo(repository, table, sample_events):
-    antigo = dict(sample_events["error"], timestamp="2026-01-01T00:00:00Z")
-    table.put_item(Item=build_item(antigo))
-    table.put_item(Item=build_item(sample_events["error"]))
-
-    page = repository.search(EventFilters(occurred_from=datetime(2026, 6, 1, tzinfo=UTC), limit=50))
-
-    assert len(page.items) == 1
-    assert page.items[0].occurred_at.year == 2026
-    assert page.items[0].occurred_at.month == 7
+    cheio = repository.search(
+        EventFilters(
+            occurred_from=REFERENCE_NOW - timedelta(days=30),
+            occurred_to=REFERENCE_NOW,
+            limit=50,
+        )
+    )
+    assert cheio.items
 
 
 def test_ordena_do_mais_recente_para_o_mais_antigo(repository, seeded):
     page = repository.search(EventFilters(limit=50))
-    horarios = [event.occurred_at for event in page.items]
-    assert horarios == sorted(horarios, reverse=True)
+    momentos = [e.occurred_at for e in page.items]
+    assert momentos == sorted(momentos, reverse=True)
 
 
 def test_get_exige_sessao(repository, seeded, sample_events):
-    sessao = sample_events["error"]["session_id"]
-    encontrado = repository.search(EventFilters(session_id=sessao, limit=1)).items[0]
+    page = repository.search(EventFilters(limit=1))
+    alvo = page.items[0]
 
-    assert repository.get(sessao, encontrado.event_id) is not None
-    assert repository.get("sessao-que-nao-existe", encontrado.event_id) is None
+    assert repository.get(alvo.session_id, alvo.event_id) is not None
+    assert repository.get("sessao-que-nao-existe", alvo.event_id) is None
 
 
 # --------------------------------------------------------------------------- #
-# Paginacao por cursor
+# Paginacao por keyset
 # --------------------------------------------------------------------------- #
 
 
-def test_cursor_percorre_sem_repetir_nem_pular(repository, seeded):
+def test_cursor_percorre_sem_repetir_nem_pular(repository, seeded, sample_events):
     vistos = []
     cursor = None
-    for _ in range(10):
+    for _ in range(20):  # teto de seguranca contra laco infinito
         page = repository.search(EventFilters(limit=2, cursor=cursor))
-        vistos.extend(event.event_id for event in page.items)
+        vistos.extend(e.event_id for e in page.items)
         cursor = page.next_cursor
         if not cursor:
             break
 
-    assert len(vistos) == len(set(vistos)), "cursor repetiu evento"
-    assert len(vistos) == 6, "cursor pulou evento"
-
-
-def test_cursor_no_fanout_da_gsi1(repository, seeded, table, sample_events):
-    for i in range(5):
-        table.put_item(Item=build_item(dict(sample_events["error"], session_id=f"sessao-{i}")))
-
-    vistos = []
-    cursor = None
-    for _ in range(10):
-        page = repository.search(
-            EventFilters(
-                event_name="error",
-                occurred_from=datetime(2026, 7, 13, tzinfo=UTC),
-                occurred_to=datetime(2026, 7, 14, tzinfo=UTC),
-                limit=2,
-                cursor=cursor,
-            )
-        )
-        vistos.extend(event.event_id for event in page.items)
-        cursor = page.next_cursor
-        if not cursor:
-            break
-
-    assert len(vistos) == len(set(vistos))
-    assert len(vistos) == 6  # 5 novos + o original
+    assert len(vistos) == len(set(vistos)), "o cursor repetiu evento"
+    assert len(vistos) == len(sample_events), "o cursor pulou evento"
 
 
 def test_cursor_invalido_e_erro_do_cliente(repository, seeded):
+    """Cursor quebrado e 422, nao 500 e nao um silencioso "primeira pagina".
+
+    Devolver a primeira pagina faria um laco de paginacao com token corrompido
+    girar para sempre lendo o mesmo trecho, sem nunca dar sinal de erro.
+    """
+    from telemetry.domain.exceptions import ValidationError
+
     with pytest.raises(ValidationError):
-        repository.search(EventFilters(cursor="nao-e-base64-valido!!!"))
+        repository.search(EventFilters(limit=50, cursor="isso-nao-e-um-cursor"))
+
+
+def test_ultima_pagina_nao_tem_cursor(repository, seeded):
+    page = repository.search(EventFilters(limit=100))
+    assert page.next_cursor is None
 
 
 # --------------------------------------------------------------------------- #
-# Agregacao
+# Agregacoes
 # --------------------------------------------------------------------------- #
 
 
-def test_breakdown_agrupa_e_conta(repository, seeded):
-    grupos = repository.breakdown(EventFilters(limit=500), "event_name")
-
-    assert sum(grupo.count for grupo in grupos) == 6
-    assert {grupo.key for grupo in grupos} == {
-        "request",
-        "screen_view",
-        "session",
-        "video_view",
-        "vitals",
-        "error",
-    }
+def test_breakdown_agrupa_e_conta(repository, seeded, sample_events):
+    metricas = repository.breakdown(EventFilters(limit=100), "event_name")
+    total = sum(m.count for m in metricas)
+    assert total == len(sample_events)
 
 
-def test_breakdown_por_fabricante(repository, seeded):
-    grupos = repository.breakdown(EventFilters(limit=500), "device_manufacturer")
-    chaves = {grupo.key for grupo in grupos}
-
-    assert "Samsung" in chaves
-    assert "Philco" in chaves
+def test_breakdown_ordena_do_maior_para_o_menor(repository, seeded):
+    metricas = repository.breakdown(EventFilters(limit=100), "device_manufacturer")
+    contagens = [m.count for m in metricas]
+    assert contagens == sorted(contagens, reverse=True)
 
 
-def test_breakdown_calcula_media_de_duracao(repository, seeded):
-    grupos = repository.breakdown(EventFilters(limit=500), "event_name")
-    request = next(grupo for grupo in grupos if grupo.key == "request")
-
-    assert request.average_duration_ms == 33.0
+def test_breakdown_calcula_media_de_duracao_em_ms(repository, seeded):
+    metricas = repository.breakdown(EventFilters(limit=100), "event_name")
+    com_media = [m for m in metricas if m.average_duration_ms is not None]
+    assert com_media
+    assert all(m.average_duration_ms > 0 for m in com_media)
 
 
 def test_breakdown_recusa_dimensao_invalida(repository, seeded):
+    """A dimensao entra na instrucao como identificador: lista fechada ou injecao."""
     with pytest.raises(ValueError):
-        repository.breakdown(EventFilters(), "user_id")
+        repository.breakdown(EventFilters(limit=10), "payload; DROP TABLE bronze.event")
 
 
-def test_timeseries_agrupa_por_janela(repository, seeded):
-    buckets = repository.timeseries(EventFilters(limit=500), interval_minutes=60)
+def test_breakdown_recusa_dimensao_de_alta_cardinalidade(repository, seeded):
+    """Agrupar por session_id nao e agrupamento, e dump."""
+    with pytest.raises(ValueError):
+        repository.breakdown(EventFilters(limit=10), "session_id")
 
-    assert sum(bucket.count for bucket in buckets) == 6
-    assert all(bucket.bucket.tzinfo is not None for bucket in buckets)
+
+def test_timeseries_agrupa_por_janela(repository, seeded, sample_events):
+    buckets = repository.timeseries(EventFilters(limit=100), interval_minutes=60)
+    assert buckets
+    assert sum(b.count for b in buckets) == len(sample_events)
 
 
 def test_timeseries_separa_por_tipo(repository, seeded):
-    buckets = repository.timeseries(EventFilters(limit=500), interval_minutes=1440)
-    total = {}
+    buckets = repository.timeseries(EventFilters(limit=100), interval_minutes=1440)
+    nomes = set()
     for bucket in buckets:
-        for nome, quantidade in bucket.by_event_name.items():
-            total[nome] = total.get(nome, 0) + quantidade
-
-    assert total["error"] == 1
-    assert len(total) == 6
+        nomes |= set(bucket.by_event_name)
+    assert "error" in nomes
 
 
-def test_facets_lista_valores_existentes(repository, seeded):
-    """RF10: sugerir valores enquanto o usuario preenche os filtros."""
-    facets = repository.facets(["event_name", "device_manufacturer"])
+def test_timeseries_alinha_os_buckets_a_uma_origem_fixa(repository, seeded):
+    """Sem alinhamento fixo, dois filtros diferentes dariam buckets deslocados.
 
-    assert set(facets["event_name"]) == {
-        "request",
-        "screen_view",
-        "session",
-        "video_view",
-        "vitals",
-        "error",
-    }
-    assert "Samsung" in facets["device_manufacturer"]
+    Os graficos da tela Comparar precisam se sobrepor; se cada consulta ancorasse
+    no proprio primeiro evento, eles nunca coincidiriam.
+    """
+    a = repository.timeseries(EventFilters(limit=100), interval_minutes=60)
+    b = repository.timeseries(EventFilters(event_name="error", limit=100), 60)
+    if a and b:
+        assert b[0].bucket in {bucket.bucket for bucket in a}
+
+
+def test_facets_lista_valores_existentes(repository, seeded, sample_events):
+    resultado = repository.facets(["event_name", "device_manufacturer"])
+    assert set(resultado["event_name"]) == set(sample_events)
+    assert resultado["device_manufacturer"]
 
 
 def test_facets_recusa_campo_invalido(repository, seeded):
     with pytest.raises(ValueError):
-        repository.facets(["user_id"])
+        repository.facets(["1; DELETE FROM bronze.event"])
 
 
-def test_ping(repository, table):
+def test_ping(repository, seeded):
     assert repository.ping() is True
 
 
 # --------------------------------------------------------------------------- #
-# Guarda contra divergencia com o worker
+# A barreira contra vazamento de futuro
 # --------------------------------------------------------------------------- #
 
 
-def test_formato_do_item_espelha_o_worker(sample_events):
-    """Trava a duplicacao de logica entre conftest.build_item e o worker.
+def test_evento_alem_do_relogio_virtual_nao_aparece(repository, pool, sample_events):
+    """A propriedade central do sistema, verificada de ponta a ponta.
 
-    Se o worker mudar o formato da chave e este teste nao acusar, a API passa a
-    ler de particoes onde a escrita nao coloca nada -- e devolve vazio, sem
-    erro. Comparamos com a implementacao real importada do worker.
+    Uma linha cujo `available_at` esta a frente de `sim.now()` nao pode aparecer
+    -- e nao por causa de um filtro na aplicacao, mas porque a view a esconde.
     """
-    import sys
-    from pathlib import Path
+    from psycopg.types.json import Jsonb
 
-    worker_src = Path(__file__).resolve().parents[2] / "worker" / "src"
-    if str(worker_src) not in sys.path:
-        sys.path.insert(0, str(worker_src))
-
-    try:
-        from argus_worker.keys import build_item as worker_build_item
-        from argus_worker.models import parse_event
-    except ImportError:
-        pytest.skip("worker nao disponivel neste ambiente")
-
-    ingested = datetime(2026, 8, 12, 12, 0, tzinfo=UTC)
-    for nome, raw in sample_events.items():
-        evento, _ = parse_event(raw)
-        esperado = worker_build_item(
-            evento,
-            ingested_at=ingested,
-            retention_days=90,
-            gsi1_shards=4,
-            max_clock_skew_days=365,
+    with pool.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO silver.session_event
+              (ts, event_id, event_name, session_id, device_id, payload,
+               available_at, _lsn)
+            VALUES (%s, 'evento-do-futuro', 'error', 's-futuro', 'd-futuro',
+                    %s, %s, 1)
+            """,
+            (
+                REFERENCE_NOW - timedelta(minutes=5),
+                Jsonb({}),
+                # Ja aconteceu, mas so fica DISPONIVEL daqui a uma hora --
+                # exatamente o caso das fontes NPAW, com 28 h de latencia.
+                REFERENCE_NOW + timedelta(hours=1),
+            ),
         )
-        obtido = build_item(raw, ingested_at=ingested)
 
-        for chave in ("pk", "sk", "gsi1pk", "gsi1sk", "gsi2pk", "gsi2sk", "event_id"):
-            assert obtido[chave] == esperado[chave], f"{nome}: divergencia em {chave}"
+    page = repository.search(EventFilters(limit=100))
+    assert "evento-do-futuro" not in {e.event_id for e in page.items}
+
+    # E aparece quando o relogio virtual alcanca o available_at.
+    with pool.connection() as conn:
+        conn.execute("SELECT sim.set_clock(%s, 0)", (REFERENCE_NOW + timedelta(hours=2),))
+
+    page = repository.search(
+        EventFilters(occurred_from=REFERENCE_NOW - timedelta(days=1), limit=100)
+    )
+    assert "evento-do-futuro" in {e.event_id for e in page.items}

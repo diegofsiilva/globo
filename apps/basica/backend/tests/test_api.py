@@ -2,8 +2,6 @@
 
 import pytest
 
-from tests.conftest import build_item
-
 # --------------------------------------------------------------------------- #
 # Busca (RF08, RF09)
 # --------------------------------------------------------------------------- #
@@ -14,7 +12,7 @@ def test_lista_eventos(client, seeded):
 
     assert response.status_code == 200
     assert len(response.json["items"]) == 6
-    assert response.json["query"]["strategy"] == "table:scan"
+    assert response.json["query"]["strategy"] == "particao_por_tempo"
 
 
 def test_resposta_expoe_o_custo_da_consulta(client, seeded):
@@ -34,7 +32,7 @@ def test_filtra_por_tipo(client, seeded):
 
     assert response.status_code == 200
     assert [item["event_name"] for item in response.json["items"]] == ["error"]
-    assert response.json["query"]["strategy"] == "gsi1:fanout"
+    assert response.json["query"]["strategy"] == "indice_tipo_e_tempo"
 
 
 def test_filtros_cumulativos(client, seeded):
@@ -98,7 +96,7 @@ def test_linha_do_tempo_da_sessao(client, seeded, sample_events):
 
     assert response.status_code == 200
     assert response.json["session_id"] == sessao
-    assert response.json["query"]["strategy"] == "table:session"
+    assert response.json["query"]["strategy"] == "indice_sessao"
 
     horarios = [item["occurred_at"] for item in response.json["events"]]
     assert horarios == sorted(horarios), "a linha do tempo deve ser cronologica"
@@ -134,7 +132,7 @@ def test_historico_do_aparelho(client, seeded, sample_events):
     response = client.get(f"/api/v1/devices/{aparelho}")
 
     assert response.status_code == 200
-    assert response.json["query"]["strategy"] == "gsi2:device"
+    assert response.json["query"]["strategy"] == "indice_aparelho"
     assert all(item["device_id"] == aparelho for item in response.json["items"])
 
 
@@ -183,10 +181,9 @@ def test_timeseries(client, seeded):
     assert response.json["buckets"]
 
 
-def test_timeseries_compara_com_periodo_anterior(client, seeded, table, sample_events):
+def test_timeseries_compara_com_periodo_anterior(client, seeded, inserir, sample_events):
     """RF14: comparar o periodo atual com o anterior de mesma duracao."""
-    antigo = dict(sample_events["error"], timestamp="2026-07-12T23:04:11Z")
-    table.put_item(Item=build_item(antigo))
+    inserir(dict(sample_events["error"], timestamp="2026-07-12T23:04:11Z"))
 
     response = client.get(
         "/api/v1/metrics/timeseries?from=2026-07-13T00:00:00Z&to=2026-07-14T00:00:00Z&compare=true"
@@ -258,21 +255,19 @@ def test_evento_serializado_traz_hash_e_nao_o_identificador(client, seeded):
 # --------------------------------------------------------------------------- #
 
 
-def test_tipo_novo_aparece_na_api(client, table):
+def test_tipo_novo_aparece_na_api(client, inserir):
     """O pipeline aceita event_name desconhecido de proposito; se a API o
     escondesse, o dado entraria no banco e sumiria da tela."""
-    table.put_item(
-        Item=build_item(
-            {
-                # Data fixa, dentro da janela de REFERENCE_NOW: com now() o teste
-                # dependia de o relogio estar perto das fixtures.
-                "timestamp": "2026-07-13T23:07:00Z",
-                "event_name": "ad_impression",
-                "session_id": "s-novo",
-                "device_id": "d-novo",
-                "ad_provider": "gam",
-            }
-        )
+    inserir(
+        {
+            # Data fixa, dentro da janela de REFERENCE_NOW: com o relogio real o
+            # teste dependia de estar perto da data das fixtures.
+            "timestamp": "2026-07-13T23:07:00Z",
+            "event_name": "ad_impression",
+            "session_id": "s-novo",
+            "device_id": "d-novo",
+            "ad_provider": "gam",
+        }
     )
 
     response = client.get("/api/v1/events?limit=10")

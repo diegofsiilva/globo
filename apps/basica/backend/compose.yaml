@@ -1,34 +1,55 @@
-# A API le o DynamoDB, entao nao ha banco para subir junto: em desenvolvimento
-# ela aponta para a tabela real na AWS usando as credenciais do seu profile.
+# API de leitura mais o PostgreSQL que ela consulta.
 #
-#   AWS_PROFILE=g4 docker compose up --build
+#   docker compose up --build
 #
-# Para trabalhar offline, suba um DynamoDB local e aponte o endpoint:
+# O banco sobe vazio: as migrations moram em ../db/migrations e sao aplicadas
+# por ../tools/migrate.py, que nao faz parte desta imagem. O caminho normal de
+# desenvolvimento e `make -C .. db-local`, que sobe o banco JA migrado na porta
+# 55432 -- este compose existe para quem quer a API containerizada tambem.
 #
-#   docker run -p 8000:8000 amazon/dynamodb-local
-#   DYNAMODB_ENDPOINT_URL=http://host.docker.internal:8000 docker compose up
+# Depois de subir:
 #
-# (a tabela e os indices precisam existir; ver apps/basica/backend/tests/conftest.py
-# para o schema exato que o worker usa)
+#   DATABASE_URL=postgresql://argus:argus@localhost:55433/argus \
+#     uv run --directory .. --project tools python tools/migrate.py aplicar
+#
+# Para apontar a API para um banco que ja existe (o RDS publicado, por exemplo),
+# passe a URL e ignore o servico `db`:
+#
+#   DATABASE_URL=postgresql://... docker compose up api
 
 services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: argus
+      POSTGRES_PASSWORD: argus
+      POSTGRES_DB: argus
+    ports:
+      # 55433 e nao 5432 para nao colidir nem com um PostgreSQL da maquina nem
+      # com o container do `make db-local`, que usa 55432.
+      - "55433:5432"
+    healthcheck:
+      # `pg_isready` responde durante o initdb, quando um servidor TEMPORARIO
+      # esta de pe e prestes a ser derrubado. Conectar por TCP so funciona
+      # quando o servidor definitivo assume.
+      test: ["CMD", "psql", "-h", "127.0.0.1", "-U", "argus", "-d", "argus", "-c", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   api:
     build:
       context: .
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      EVENTS_TABLE_NAME: ${EVENTS_TABLE_NAME:-argus-events-dev}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://argus:argus@db:5432/argus}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      # Precisa bater com var.gsi1_shards do Terraform e GSI1_SHARDS do worker.
-      GSI1_SHARDS: ${GSI1_SHARDS:-10}
       USER_ID_HASH_SALT: ${USER_ID_HASH_SALT:-local-compose-only}
       DEFAULT_WINDOW_HOURS: ${DEFAULT_WINDOW_HOURS:-168}
+      MAX_ITEMS_SCANNED: ${MAX_ITEMS_SCANNED:-20000}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      DYNAMODB_ENDPOINT_URL: ${DYNAMODB_ENDPOINT_URL:-}
-      AWS_PROFILE: ${AWS_PROFILE:-}
-    volumes:
-      # Credenciais do host em modo leitura: evita copiar chave para dentro
-      # da imagem.
-      - ~/.aws:/home/app/.aws:ro
     ports:
       - "5000:5000"
     healthcheck:
