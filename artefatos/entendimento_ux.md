@@ -40,7 +40,7 @@
 
 </div>
 
-&emsp; Rafael Santos, 30 anos, atua como engenheiro de observabilidade na Globo e usa dados de telemetria para investigar incidentes no front-end. No projeto, ele é o usuário técnico principal: precisa que eventos de diferentes fontes e dispositivos cheguem a um fluxo centralizado antes de iniciar análises mais profundas. O valor da plataforma para Rafael está na confiabilidade da base disponível para investigação. Com maior cobertura de dispositivos modernos e legados, e sem perdas ou duplicidades na ingestão, ele consegue formular hipóteses com mais segurança.
+&emsp; Rafael Santos, 30 anos, atua como engenheiro de observabilidade na Globo e usa dados de telemetria para investigar incidentes no front-end. No projeto, ele é o usuário técnico principal: precisa que eventos de diferentes fontes e dispositivos cheguem a um fluxo centralizado antes de iniciar análises mais profundas. O valor da plataforma para Rafael está na confiabilidade da base disponível para investigação. Com maior cobertura de dispositivos modernos e legados, e sem perdas ou duplicidades na ingestão, ele consegue formular hipóteses com mais segurança. Outra dor recorrente de Rafael é a dificuldade de distinguir, sem uma referência histórica adequada, se um desvio observado é uma anomalia real ou uma variação sazonal esperada, ambiguidade que gera falsos positivos e desvia o foco da investigação de incidentes genuínos.
 
 ### 3.2 Persona 2 - Mariana Souza, analista de suporte
 
@@ -76,7 +76,7 @@
 
 | Persona | Relação com a solução | Principais necessidades | Benefício esperado |
 |---|---|---|---|
-| Rafael Santos | Usuário direto | Consulta centralizada, filtros, cobertura de dispositivos legados e apoio à formulação de hipóteses | Redução do tempo de identificação e análise de falhas |
+| Rafael Santos | Usuário direto | Consulta centralizada, filtros, cobertura de dispositivos legados, comparação com referências históricas para distinguir anomalias de sazonalidade e apoio à formulação de hipóteses | Redução do tempo de identificação e análise de falhas |
 | Mariana Souza | Usuária direta (operacional) | Timeline unificada, filtros por dispositivo e região, visibilidade de dispositivos legados | Encaminhamento assertivo de chamados e redução do tempo de resolução |
 | Luísa Silva dos Santos | Usuária indireta | Estabilidade, compatibilidade e cobertura de eventos em dispositivos legados | Melhoria da experiência em dispositivos antigos |
 
@@ -98,8 +98,25 @@
 | US06 | Should | Como Analista de Suporte, eu quero consultar a timeline de eventos de um usuário específico, para entender o que aconteceu na sessão sem depender de relatos subjetivos como "o vídeo não abre". | Mariana Souza | O diagnóstico inicial depende de relatos subjetivos, o que dificulta o encaminhamento do chamado. | É possível localizar uma sessão e visualizar seus eventos em ordem cronológica; a timeline apresenta ao menos os eventos `session`, `screen_view`, `video_view` e `error`, com horário e origem. |
 | US07 | Must | Como Analista de Suporte, eu quero filtrar eventos de erro por modelo de dispositivo e região, para identificar se um problema reportado é um caso isolado ou um padrão concentrado em um recorte específico. | Mariana Souza | Erros concentrados em dispositivos legados ou regiões específicas ficam mascarados pelas métricas nacionais agregadas. | A interface permite combinar filtros de modelo e região; apresenta o volume e a taxa de erros do recorte em relação ao total; e mantém os filtros aplicados ao navegar entre as telas do fluxo. |
 | US08 | Must | Como Analista de Suporte, eu quero verificar quais eventos estão sendo coletados em um dispositivo legado, para confirmar se existem evidências suficientes antes de encaminhar o chamado. | Mariana Souza | A ausência de dispositivos legados nos logs e nas métricas obriga a investigação manual em outras ferramentas. | A interface exibe os dispositivos legados junto aos demais; ao abrir um recorte, o usuário visualiza os registros recebidos com modelo, versão, horário e tipo de evento. |
+| US09 | Should | Como Analista de Suporte, eu quero encaminhar o chamado já com o recorte identificado e as evidências reunidas na triagem, para que a equipe responsável receba o contexto completo sem precisar refazer a investigação. | Mariana Souza | Chamados são encaminhados sem o recorte e as evidências levantadas na triagem, obrigando as equipes técnicas a refazer parte da investigação já feita pelo suporte. | O sistema permite registrar ou anexar ao chamado o recorte aplicado (filtros e período) e as evidências consultadas (erros mais frequentes, amostra de sessões); a equipe destino visualiza esse contexto sem precisar repetir a consulta manualmente. |
 
-&emsp; As cinco histórias classificadas como **Must** sustentam os fluxos centrais do protótipo. A US01 orienta a consulta integrada e a correlação de fontes no Fluxo 1; as US02, US07 e US08 orientam a segmentação por dispositivo e região no Fluxo 2; e a US05 orienta a comparação com referências históricas no Fluxo 3. As demais histórias delimitam incrementos planejados e aparecem como lacunas rastreáveis na seção 5.7.
+&emsp; As cinco histórias classificadas como **Must** sustentam os fluxos centrais do protótipo. A US01 orienta a consulta integrada e a correlação de fontes no Fluxo 1; as US02, US07 e US08 orientam a segmentação por dispositivo e região no Fluxo 2; e a US05 orienta a comparação com referências históricas no Fluxo 3. As demais histórias delimitam incrementos planejados e aparecem como lacunas rastreáveis na seção 5.7, entre elas a US09, que registra explicitamente o encaminhamento de chamados apontado como benefício de Mariana na tabela 3.4.
+
+### 4.1 Verificação INVEST — Independente e Estimável
+
+&emsp; As colunas "Dor atendida" e "Critérios de aceite" da tabela 4 concentravam, na versão anterior, a verificação de todos os princípios INVEST em uma única célula, dificultando a auditoria isolada dos critérios Independente e Estimável. A tabela abaixo torna essa verificação explícita para cada história.
+
+| US | Independente | Estimável |
+|---|---|---|
+| US01 | Sim — não depende da conclusão de nenhuma outra história; consome diretamente os eventos já centralizados pela ingestão. | Sim — os critérios de aceite descrevem elementos de interface objetivos (origem, tipo, timestamp, linha do tempo unificada). |
+| US02 | Sim — o filtro por dispositivo é um componente autônomo, ainda que reutilize a mesma base de consulta da US01. | Sim — a lista de atributos de filtro (plataforma, fabricante, modelo, versão) é finita e conhecida. |
+| US03 | Parcial — depende de uma definição prévia de "volume esperado" por dispositivo e componente, ainda não especificada em nenhum outro artefato. | Parcial — a estimativa fica condicionada à definição do cálculo de volume esperado, hoje em aberto. |
+| US04 | Sim — o painel de integridade da ingestão é um componente isolado, independente das demais histórias de consulta. | Parcial — depende da definição dos limiares operacionais de atraso, descarte e deduplicação, ainda não detalhados. |
+| US05 | Sim — a comparação histórica não depende da conclusão de outra história para ser implementada. | Sim — os critérios de aceite especificam elementos concretos (seleção de referência, valores atual e de referência, destaque de desvio, eventos no intervalo). |
+| US06 | Sim — a consulta de timeline por sessão é uma funcionalidade autônoma de busca e visualização. | Sim — os critérios de aceite fixam os tipos de evento mínimos e a ordenação cronológica exigida. |
+| US07 | Sim — o filtro por modelo e região é um componente independente, análogo à US02. | Sim — os critérios de aceite descrevem combinação de filtros e cálculo de taxa de erro do recorte. |
+| US08 | Sim — a verificação de eventos por dispositivo legado não depende de outra história para existir. | Sim — os critérios de aceite especificam os campos exibidos por registro (modelo, versão, horário, tipo). |
+| US09 | Parcial — depende de um recorte já isolado (US02, US07 ou US08) para ter o que anexar ao chamado. | Parcial — depende da definição da integração com o sistema de chamados (ex.: ServiceNow), ainda não detalhada tecnicamente. |
 
 ## 5. Protótipo de Front-End
 
@@ -296,6 +313,8 @@
          └──────────────┘         └──────────────┘
 ```
 
+&emsp; O diagrama traz ainda uma transição direta de **06 Recorte** para **05 Timeline**, representada pela seta inferior. Essa passagem não constitui um quarto fluxo independente: é uma extensão do Fluxo 2, que funciona como ponte de handoff entre a triagem operacional e a investigação técnica. Depois de isolar o recorte afetado, Mariana pode abrir a mesma janela na Timeline para checar a sequência de eventos técnicos antes de encaminhar o chamado (US09), e Rafael pode chegar ao mesmo recorte partindo de uma investigação já aberta na Timeline.
+
 #### 5.4.1 Fluxo 1 — Diagnosticar a causa provável de uma degradação ativa
 
 &emsp; Persona: Rafael Santos. User Story principal: **US01 (Must)**. Percurso: **01 Agora → 04 Hipóteses → 05 Timeline**.
@@ -353,8 +372,9 @@
 | US06 — Consultar a timeline de uma sessão | Should | Mariana | Recorte (Fig. 12): amostra de sessões com evento, horário e erro por dispositivo | Parcial — falta localizar uma sessão e abrir seu detalhamento cronológico individual |
 | US07 — Filtrar erros por modelo e região | Must | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12), Fluxo 2: filtros cumulativos e mapa de calor por dispositivo e região | Integral |
 | US08 — Verificar eventos de dispositivos legados | Must | Mariana | Explorar (Fig. 8) e Recorte (Fig. 12), Fluxo 2: eventos recebidos por modelo legado, com horário, versão e tipo | Integral |
+| US09 — Encaminhar chamado com recorte e evidências | Should | Mariana | Recorte (Fig. 12), extensão do Fluxo 2 (ver 5.4) | Não representada — a ação de encaminhar o chamado ainda não foi desenhada, ver 5.7 |
 
-&emsp; As cinco histórias **Must** estão integralmente representadas. As três histórias **Should** ou **Could** possuem cobertura parcial e constituem incrementos planejados para as próximas iterações, conforme as lacunas descritas na subseção 5.7.
+&emsp; As cinco histórias **Must** estão integralmente representadas. As quatro histórias **Should** ou **Could** possuem cobertura parcial ou ainda não representada e constituem incrementos planejados para as próximas iterações, conforme as lacunas descritas na subseção 5.7.
 
 ### 5.6 Avaliação heurística
 
@@ -369,13 +389,13 @@
 | 5. Prevenção de erros | O painel de ajuste do recorte antecipa o efeito de cada ajuste sobre especificidade e cobertura antes da ação | Atendida |
 | 6. Reconhecimento em vez de memorização | Filtros sugerem os valores efetivamente recebidos, abas exibem seus volumes e o score é apresentado sempre acompanhado de sua decomposição | Atendida |
 | 7. Flexibilidade e eficiência | Seletor de janela temporal, troca de dimensão de agrupamento, quatro referências de comparação e atalhos contextuais entre telas | Atendida |
-| 8. Estética e design minimalista | Paleta monocromática com acento único, ausência de ornamento e ordenação por impacto operacional | Atendida |
+| 8. Estética e design minimalista | Paleta monocromática com acento único, ausência de ornamento e ordenação por impacto operacional | Parcialmente atendida — ver 5.7 |
 | 9. Reconhecer, diagnosticar e recuperar de erros | As telas apresentadas não incluem falha de coleta, erro de consulta, mensagem de causa ou ação de recuperação | Não demonstrada nesta iteração — ver 5.7 |
 | 10. Ajuda e documentação | Cada tela traz uma linha explicativa sob o título e os fatores do score são descritos textualmente | Parcialmente atendida — ver 5.7 |
 
 ### 5.7 Lacunas identificadas e próximos passos
 
-&emsp; A inspeção do protótipo e o cruzamento com as User Stories evidenciaram seis pontos a endereçar nas próximas iterações, registrados aqui por constituírem parte do resultado da avaliação.
+&emsp; A inspeção do protótipo e o cruzamento com as User Stories evidenciaram dez pontos a endereçar nas próximas iterações, registrados aqui por constituírem parte do resultado da avaliação.
 
 1. **Estados de carregamento, ausência de dados e erro.** O protótipo representa apenas o cenário em que há telemetria. Faltam estados de carregamento, falha de consulta e coletor interrompido, acompanhados da causa e de uma ação de recuperação. Sem essa distinção, a ausência de sinal pode ser interpretada equivocadamente como ausência de problema.
 2. **Detalhamento de sessão individual.** A US06 pressupõe a reconstrução cronológica dos eventos de uma sessão específica. O protótipo chega ao nível do evento na amostra do recorte, mas não oferece o detalhamento de uma sessão isolada.
@@ -383,6 +403,10 @@
 4. **Integridade da ingestão.** A US04 é representada apenas pela atualidade do dado. Ainda faltam atraso de ingestão, eventos descartados e eventos deduplicados, com detalhamento por fonte e período.
 5. **Glossário de termos técnicos.** Expressões como significância em desvios-padrão, envelope histórico e camada de erro pressupõem familiaridade com o domínio. Um glossário acessível na interface reduziria a barreira de entrada, especialmente para o perfil de suporte.
 6. **Validação de acessibilidade e interação.** A próxima iteração deve medir o contraste dos textos e estados, verificar que a cor não seja o único meio de diferenciação e testar foco visível, ordem de navegação por teclado e mensagens de feedback.
+7. **Estados intermediários e detalhamentos de navegação.** As seis telas representam apenas o estado final de cada etapa. Faltam os estados intermediários (abertura de painel de detalhe, expansão de linha da tabela, troca de filtro em andamento) que tornariam a lógica de navegação plenamente auditável para além das telas cheias já desenhadas.
+8. **Contraste da paleta cromática.** A paleta monocromática com acento único, embora consistente entre as telas, não garante leitura confortável em contextos de uso prolongado. É necessário revisar o contraste entre os estados de desvio e de baseline antes da implementação.
+9. **Padronização do viewport.** O protótipo foi entregue em um tamanho de viewport fora do padrão adotado, o que gera conteúdo com rolagem lateral e labels quebradas, principalmente nos gráficos. A próxima iteração deve redesenhar as telas no tamanho de viewport padrão e revisar a quebra de texto nesses pontos.
+10. **Encaminhamento de chamado (US09).** A tela de Recorte ainda não representa a ação de encaminhar o chamado com o recorte e as evidências anexadas — benefício já apontado para Mariana na tabela 3.4, mas ainda sem história desenhada no protótipo.
 
 ### 5.8 Conclusão
 
