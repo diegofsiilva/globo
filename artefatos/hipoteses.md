@@ -73,6 +73,77 @@ available_at <= sim.now
 
 &emsp;Fontes com disponibilidade tardia, como dados batch de experiência do usuário, não podem aparecer retroativamente em uma hipótese online como se estivessem disponíveis no momento do incidente. Elas podem gerar uma revisão posterior, identificada como nova tentativa ou nova versão da hipótese.
 
+### 3.1 O que o dump realmente fornece
+
+&emsp;A inspeção do `argus_dump.sql.gz` confirma que o dump possui os tempos de ocorrência ou de início dos buckets, mas não possui um timestamp universal de recebimento por registro. As principais correspondências são:
+
+| Tabela | Tempo do dado | Observação |
+|---|---|---|
+| `signal_point` | `ts` | Instante do ponto canônico. |
+| `signal_bucket` | `bts` | Início do bucket de 15 minutos. |
+| `service_overview` | `timestamp` | Instante da observação do New Relic. |
+| `operation_metrics` e `field_metrics` | `start_ts`, `end_ts` | Janela medida pelo Apollo. |
+| `prom_point` | `epoch_ms` | Instante do ponto do Prometheus. |
+| `rpaas_bucket` | `bucket_ts_ms` | Início do bucket; possui também `last_updated_at`. |
+| `ca_point` | `ts_ms` | Instante do ponto do Cloud Armor. |
+| `tsuru_event` | `start_time_ms`, `end_time_ms` | Início e fim do evento de plataforma. |
+| tabelas Youbora horárias | `hour_ts` | Início de uma janela de uma hora. |
+| `live_active_15min` | `bucket_ts` | Início de um bucket de 15 minutos. |
+| `live_event` | `start_ts`, `end_ts` | Janela de programação; possui `first_seen_ts` e `updated_at`. |
+| `incidents` | `opened_at`, `resolved_at`, `closed_at` | Tempos do ticket, não necessariamente do início real do incidente. |
+| `incident_label` | `ts_start`, `ts_end` | Janela rotulada do incidente. |
+
+&emsp;As tabelas `collector_run`, `apollo_run`, `nr_run`, `prom_run`, `rpaas_run` e `ca_run` possuem horários e intervalos das execuções de coleta. Elas ajudam a estimar quando um conjunto de dados poderia ter sido coletado, mas as tabelas de métricas não possuem uma chave estrangeira para o `run_id`. Portanto, em geral não é possível recuperar do dump o instante exato em que cada linha individual foi recebida.
+
+&emsp;Há exceções parciais, como `rpaas_bucket.last_updated_at`, `live_event.first_seen_ts`, `live_event.updated_at` e os metadados de `signal_meta`. Esses campos devem ser preservados, mas não formam um contrato temporal uniforme para todas as fontes.
+
+### 3.2 Política de disponibilidade simulada
+
+&emsp;Como o recebimento individual não está presente no dump, o simulador deve produzir explicitamente os metadados temporais do change event. O envelope mínimo recomendado é:
+
+```json
+{
+  "change_id": "change-001",
+  "source_table": "tsuru_event",
+  "operation": "insert",
+  "lsn": "0000000001042",
+  "event_at": "2026-08-20T19:58:00Z",
+  "source_available_at": "2026-08-20T19:58:00Z",
+  "captured_at": "2026-08-20T19:58:15Z",
+  "availability_origin": "simulated",
+  "before": null,
+  "after": {}
+}
+```
+
+&emsp;O campo `availability_origin` deve informar como `source_available_at` foi obtido:
+
+| Valor | Significado |
+|---|---|
+| `observed` | O dump possui um campo que representa diretamente a disponibilidade. |
+| `derived_from_run` | O horário foi associado a uma janela de uma tabela `*_run`. |
+| `simulated` | O horário foi calculado por uma política configurada da fonte. |
+
+&emsp;Quando não existir timestamp observado, uma política determinística pode calcular:
+
+```text
+source_available_at = event_at + atraso_da_fonte
+captured_at = primeiro tick do emissor após source_available_at
+```
+
+&emsp;O atraso e a frequência de emissão devem ser configurados por fonte e versionados. Fontes horárias devem ser liberadas somente após o fechamento de sua janela; fontes com atraso batch documentado devem preservar esse atraso. A seed da simulação, a versão da política e o relógio virtual precisam fazer parte da identificação do cenário para permitir reprodução.
+
+### 3.3 Tempo simulado e tempo real da AWS
+
+&emsp;Os tempos do domínio simulado não devem ser misturados aos tempos reais de execução da infraestrutura:
+
+```text
+event_at, source_available_at, captured_at, available_at → eixo simulado
+received_at_wall, sqs_sent_at_wall, merged_at_wall       → relógio real da AWS
+```
+
+&emsp;O API Gateway pode registrar o instante real de recebimento, a SQS disponibiliza `SentTimestamp` e o merge worker deve registrar consumo e persistência. Esses valores medem latência e saúde da plataforma, mas não devem ser comparados diretamente com `sim.now` para decidir se uma evidência existia no cenário simulado.
+
 ## 4. Responsabilidade de cada camada
 
 ### 4.1 Fonte imutável
@@ -808,4 +879,3 @@ O deploy ocorreu 6 minutos antes do início da anomalia. Com meia-vida de
 - Globo e Inteli. *Argus — Documentação do Dataset*, versão 1.0, 2026.
 - Globo e Inteli. *Anexo — Fontes de Dados: Monitoração Agêntica*, 2026.
 - Diagrama da arquitetura-alvo fornecido pela equipe.
-
