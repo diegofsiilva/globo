@@ -222,7 +222,7 @@
 
 .workspace {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
   min-height: calc(100dvh - 98px);
 }
 

@@ -4,11 +4,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { DetailField } from "@/components/detail-field";
-import { EventRow } from "@/components/event-row";
-import { FilterSelect } from "@/components/filter-select";
-import { Metric } from "@/components/metric";
-import { SummaryItem } from "@/components/summary-item";
+import { DetailField } from "./_components/detail-field";
+import { EventRow } from "./_components/event-row";
+import { FilterSelect } from "./_components/filter-select";
+import { Metric } from "./_components/metric";
+import { OperationsNavigation } from "@/components/operations-navigation";
 import { fetchEvents } from "@/lib/events/api";
 import {
   PERIODS,
@@ -176,20 +176,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="dashboard-body">
-        <aside className="side-nav" aria-label="Resumo da consulta">
-          <SummaryItem index="01" value={allEvents.length} label="coletados" />
-          <SummaryItem
-            index="02"
-            value={filteredEvents.length}
-            label="no recorte"
-          />
-          <SummaryItem
-            index="03"
-            value={alertCount}
-            label="atenção"
-            critical
-          />
-        </aside>
+        {/* A contagem que ficava aqui já aparece na barra de escopo; a coluna
+            é a navegação entre as telas, como nas demais páginas. */}
+        <OperationsNavigation />
 
         <main className="analysis-area" id="main-content">
           {selectedEvent ? (
