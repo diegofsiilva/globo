@@ -1,5 +1,11 @@
 # MVP inicial
 
+> **Este documento descreve a arquitetura da Sprint anterior (DynamoDB), que foi
+> substituída.** Ele fica como registro do que foi entregue e testado naquele
+> momento — as seções de modelo de dados e de resultado de testes se referem ao
+> DynamoDB, não ao banco atual. A arquitetura em vigor está em
+> [`plano-argus-v3.md`](plano-argus-v3.md) e no [README](../README.md).
+
 Primeiro protótipo funcional da plataforma de telemetria, implantado em AWS.
 
 O sistema recebe eventos emitidos pelo app de TV, valida e grava em escala, e os
