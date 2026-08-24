@@ -27,6 +27,8 @@ import pyarrow.parquet as pq
 RE_CREATE = re.compile(r"^CREATE TABLE `(\w+)` \($")
 RE_COLUMN = re.compile(r"^\s+`(\w+)` ([a-z]+)(?:\(([^)]*)\))?(.*)$")
 RE_KEY = re.compile(r"^\s+(PRIMARY KEY|UNIQUE KEY|KEY|CONSTRAINT)\b")
+RE_PK = re.compile(r"^\s+PRIMARY KEY \(([^)]*)\)")
+RE_PK_COL = re.compile(r"`(\w+)`")
 
 # tipo MySQL -> tipo Arrow
 ARROW_TYPE = {
@@ -53,9 +55,24 @@ INT_TYPES = {"bigint", "int", "tinyint", "smallint"}
 FLOAT_TYPES = {"double", "float", "decimal"}
 
 
-def parse_schema(dump_path: Path) -> dict:
-    """Le a secao DDL do dump e devolve {tabela: {coluna: tipo_mysql}}."""
+def parse_schema(dump_path: Path) -> tuple[dict, dict]:
+    """Le a secao DDL do dump.
+
+    A chave primaria e lida junto com as colunas porque ela e a identidade
+    natural da tabela na origem, e e ela que o MERGE do worker e o DDL do
+    PostgreSQL (tools/gen_ddl.py) precisam para ser idempotentes. Deduzir a
+    chave depois, olhando o Parquet, daria palpite; aqui e o que a origem
+    declarou.
+
+    Args:
+        dump_path (Path): Caminho para o arquivo SQL de dump.
+
+    Returns:
+        tuple[dict, dict]: `({tabela: {coluna: tipo_mysql}}, {tabela: [colunas
+            da PK]})`.
+    """
     schema: dict[str, dict[str, str]] = {}
+    keys: dict[str, list[str]] = {}
     table = None
     with dump_path.open("r", encoding="utf-8", errors="replace") as fh:
         for line in fh:
@@ -66,6 +83,7 @@ def parse_schema(dump_path: Path) -> dict:
             if m:
                 table = m.group(1)
                 schema[table] = {}
+                keys[table] = []
                 continue
             if table is None:
                 continue
@@ -73,11 +91,14 @@ def parse_schema(dump_path: Path) -> dict:
                 table = None
                 continue
             if RE_KEY.match(line):
+                m = RE_PK.match(line)
+                if m:
+                    keys[table] = RE_PK_COL.findall(m.group(1))
                 continue
             m = RE_COLUMN.match(line)
             if m:
                 schema[table][m.group(1)] = m.group(2)
-    return schema
+    return schema, keys
 
 
 # --------------------------------------------------------------------------- #
@@ -246,9 +267,10 @@ def run(dump_path: Path, out_dir: Path) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[1/2] lendo DDL de {dump_path.name} ...", flush=True)
-    schema = parse_schema(dump_path)
+    schema, keys = parse_schema(dump_path)
     print(f"      {len(schema)} tabelas no schema", flush=True)
     (out_dir / "_schema.json").write_text(json.dumps(schema, indent=2), encoding="utf-8")
+    (out_dir / "_keys.json").write_text(json.dumps(keys, indent=2), encoding="utf-8")
 
     writers: dict[str, TableWriter] = {}
     current: TableWriter | None = None
