@@ -1,7 +1,7 @@
 [project]
 name = "argus-processing"
 version = "0.1.0"
-description = "Servico de processamento do Argus: detector, canario e ETL (no-op por ora)"
+description = "Servico de processamento do Argus: ETL incremental bronze->silver e silver->gold; detector e canario seguem no-op"
 requires-python = ">=3.12"
 dependencies = ["argus-common"]
 
