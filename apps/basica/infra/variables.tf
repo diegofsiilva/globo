@@ -410,21 +410,22 @@ variable "simulator_memory" {
 }
 
 # --------------------------------------------------------------------------- #
-# Processamento (no-op por ora -- decisao 7)
+# Processamento (ETL incremental ligado; detector e canario seguem no-op --
+# decisao 7 parcial)
 # --------------------------------------------------------------------------- #
 
 variable "processing_desired_count" {
   description = <<-EOT
-    Tasks de processamento. 1 mantem a infraestrutura observavel mesmo com o
-    container no-op, que e o ponto de provisiona-la agora; 0 economiza credito
-    de laboratorio enquanto nao ha logica nenhuma la dentro.
+    Tasks de processamento. 1 mantem os dois workers de ETL (bronze->silver e
+    silver->gold, rodando como threads dentro do mesmo container -- ver
+    argus_processing/__main__.py) no ar; 0 economiza credito de laboratorio.
   EOT
   type        = number
   default     = 1
 }
 
 variable "processing_tick_seconds" {
-  description = "Intervalo do laco do container no-op entre dois heartbeats."
+  description = "Intervalo do laco principal (heartbeat/healthcheck) entre duas batidas."
   type        = number
   default     = 30
 }
@@ -439,6 +440,41 @@ variable "processing_memory" {
   description = "MiB de memoria do processamento."
   type        = number
   default     = 1024
+}
+
+variable "etl_bronze_silver_interval_seconds" {
+  description = <<-EOT
+    Cadencia do worker bronze->silver: quase linha-a-linha, por isso o padrao
+    e curto. Ver publicacao "Watermarks e workers de transicao de camada".
+  EOT
+  type        = number
+  default     = 60
+}
+
+variable "etl_bronze_silver_batch_size" {
+  description = "Teto de entradas do bronze.change_log processadas por chamada."
+  type        = number
+  default     = 5000
+}
+
+variable "etl_silver_gold_interval_seconds" {
+  description = <<-EOT
+    Cadencia do worker silver->gold: mais espacada, porque carrega uma janela
+    de recomputacao mais cara (EWMA circadiano, casamento com incident_window).
+  EOT
+  type        = number
+  default     = 900
+}
+
+variable "etl_silver_gold_janela_max_segundos" {
+  description = <<-EOT
+    Teto de tempo virtual absorvido por chamada do worker silver->gold.
+    PRECISA ser maior que etl.watermark_silver_gold.margem_seguranca (2h por
+    default no banco), senao etl.executar_silver_gold recusa rodar -- ver o
+    comentario da funcao em db/migrations/015_etl_incremental.sql.
+  EOT
+  type        = number
+  default     = 14400
 }
 
 # --------------------------------------------------------------------------- #

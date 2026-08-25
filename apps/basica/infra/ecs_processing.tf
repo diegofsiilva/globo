@@ -1,15 +1,19 @@
-# Servico de processamento: detector, canario de qualidade e ETL.
+# Servico de processamento: ETL incremental, detector e canario de qualidade.
 #
-# NO-OP por ora (decisao 7 do plano: processamento e deteccao seguem
-# embrionarios). O container sobe, escreve heartbeat, dorme em laco e respeita
-# SIGTERM. Nao ha logica de deteccao nenhuma dentro dele.
+# O ETL (bronze->silver e silver->gold) RODA -- ver "Watermarks e workers de
+# transicao de camada" e db/migrations/015_etl_incremental.sql. Os dois workers
+# sao duas threads dentro deste UNICO container (argus_processing/__main__.py),
+# cada uma dona do seu watermark e da sua cadencia -- e nao dois servicos ECS
+# separados, porque esta task definition, o log group e o alarme de
+# RunningTaskCount ja estavam provisionados para hospedar processamento (ver
+# comentario historico abaixo), e a atomicidade de cada ciclo mora no banco
+# (uma unica chamada SQL por ciclo), nao em memoria compartilhada entre elas.
 #
-# Ele existe agora, vazio, para que a infraestrutura esteja provisionada e
-# observavel quando a logica chegar: a task definition, o log group, o alarme de
-# RunningTaskCount e o DATABASE_URL ja ficam corretos, e a primeira versao do
-# detector entra sem tocar em Terraform. Retrofitar isso depois -- justamente na
-# sprint em que se quer atencao no modelo -- custaria um ciclo de apply e de
-# revisao de infra que nao tem nada a ver com o problema.
+# Detector e canario de qualidade CONTINUAM no-op (decisao 7 do plano, agora
+# parcial): dependem de logica que ainda nao existe (EWMA circadiano, cadencia
+# esperada por fonte). O container existe provisionado e observavel para eles
+# desde ja pelo mesmo motivo de sempre: a primeira versao do detector entra sem
+# tocar em Terraform.
 
 resource "aws_ecs_task_definition" "processing" {
   family                   = "${local.name}-processing"
@@ -35,6 +39,22 @@ resource "aws_ecs_task_definition" "processing" {
         { name = "SERVICE_NAME", value = "${local.name}-processing" },
         { name = "TICK_SECONDS", value = tostring(var.processing_tick_seconds) },
         { name = "HEARTBEAT_PATH", value = "/tmp/argus-heartbeat" },
+        {
+          name  = "ETL_BRONZE_SILVER_INTERVAL_SECONDS"
+          value = tostring(var.etl_bronze_silver_interval_seconds)
+        },
+        {
+          name  = "ETL_BRONZE_SILVER_BATCH_SIZE"
+          value = tostring(var.etl_bronze_silver_batch_size)
+        },
+        {
+          name  = "ETL_SILVER_GOLD_INTERVAL_SECONDS"
+          value = tostring(var.etl_silver_gold_interval_seconds)
+        },
+        {
+          name  = "ETL_SILVER_GOLD_JANELA_MAX_SECONDS"
+          value = tostring(var.etl_silver_gold_janela_max_segundos)
+        },
       ])
 
       logConfiguration = {
