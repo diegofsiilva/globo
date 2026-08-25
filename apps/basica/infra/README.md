@@ -94,7 +94,7 @@ São **quatro** imagens, não uma:
 |---|---|
 | `worker` | merge worker **e** event worker — a mesma imagem, `command` diferente |
 | `simulator` | relógio virtual e emissor de mudanças |
-| `processing` | processamento (hoje no-op) |
+| `processing` | ETL incremental (bronze->silver e silver->gold); detector e canário seguem no-op |
 | `loader` | carga inicial, task one-shot |
 
 O build tem contexto em `apps/basica/` e não na pasta de cada app, porque todas

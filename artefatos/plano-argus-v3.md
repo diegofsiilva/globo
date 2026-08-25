@@ -38,7 +38,7 @@ publica, materializa o estado corrente, e deriva as camadas analíticas a partir
 | 4 | Bronze otimizada para **mudar**, não para performance | O ETL ainda está em aprimoramento; o custo de errar tem que ser baixo |
 | 5 | Carga inicial via Parquet | `tools/etl_dump.py` já converte o dump e gera os 33 arquivos (199 MB) |
 | 6 | Não re-normalizar `signal_point` | A silver faz canonicalização de tipo e tempo, não normalização multi-fonte |
-| 7 | Processamento e detecção seguem embrionários | Worker no-op: infraestrutura provisionada e observável, container sem lógica |
+| 7 | Detecção segue embrionária; ETL deixou de ser no-op | Worker de processamento roda o ETL incremental (seção 12); detector e canário seguem no-op, infraestrutura provisionada e observável para quando chegarem |
 
 ### 1.2 Por que `prom_point` entra, apesar de ser 60% das linhas
 
@@ -161,17 +161,21 @@ iterar o DDL sem `terraform apply`.
 012_indice_de_observabilidade.sql  -- lag_sim sem varrer o change_log
 013_relogio_pausavel.sql           -- run pausado congela sim.now()
 014_catalogo_de_fontes.sql         -- /sources sem agregar 4,9 M buckets
+015_etl_incremental.sql            -- watermarks e os dois workers de ETL
 ```
 
-&emsp;As migrations `010`–`014` não estavam neste plano quando ele foi escrito; elas
+&emsp;As migrations `010`–`015` não estavam neste plano quando ele foi escrito; elas
 apareceram na implementação e na validação contra a carga real. O MERGE do change log e
 o `build_*` de cada camada precisavam existir como **função no banco**, e não como SQL
 montado em Python, por duas razões: o loader e o merge worker aplicam a mesma regra de
 idempotência (só sobrescreve quando o `_lsn` que chega é maior que o corrente) e duas
 cópias dela divergiriam; e `gold.rebuild_tudo()` precisa ser chamável de um `psql`
 avulso, sem subir aplicação nenhuma. As `011` e `012` corrigem planos de execução
-medidos já com 68,7 M linhas; a `013` torna a pausa do run e do relógio atômica; e a
-`014` substitui a agregação de 47,4 s de `/sources` por um catálogo derivado pequeno.
+medidos já com 68,7 M linhas; a `013` torna a pausa do run e do relógio atômica; a
+`014` substitui a agregação de 47,4 s de `/sources` por um catálogo derivado pequeno; e
+a `015` implementa a ETL incremental por watermark que a seção 12 documenta — até ali,
+o único caminho para popular silver/gold era `gold.rebuild_tudo()`, que varre as
+tabelas de origem inteiras a cada chamada.
 
 ### 4.1 `sim` — o relógio virtual
 
@@ -638,11 +642,13 @@ Reusa `models.py` inteiro.
 bronze/silver à frente do relógio virtual, aplica as falhas de `sim.fault` com a seed
 fixa da `sim.run`, e emite os change events em `POST /v1/changes` por HTTPS.
 
-**Processing worker** (`apps/basica/processing/`) — **no-op** (decisão 7). Sobe, escreve
-heartbeat, dorme em laço e respeita `SIGTERM`. Existe para que a infraestrutura esteja
-provisionada e observável quando a lógica chegar: a task definition, o log group, o
-alarme de `RunningTaskCount` e o `DATABASE_URL` já ficam corretos, e a primeira versão
-do detector entra sem tocar em Terraform.
+**Processing worker** (`apps/basica/processing/`) — decisão 7 agora **parcial**: o ETL
+incremental (bronze→silver e silver→gold, seção 12) roda dentro deste serviço; detector
+e canário de qualidade continuam **no-op**, pelo mesmo motivo de sempre — dependem de
+lógica que ainda não existe (EWMA circadiano, cadência esperada por fonte). O container
+segue provisionado e observável para os dois quando chegarem: a task definition, o log
+group, o alarme de `RunningTaskCount` e o `DATABASE_URL` já ficam corretos, e a primeira
+versão do detector entra sem tocar em Terraform — exatamente como o ETL entrou.
 
 ---
 
@@ -743,6 +749,80 @@ obrigatório executar `export AWS_PROFILE=g4 AWS_REGION=us-east-1` antes de `pla
 | Telas do dashboard | A justificativa de `prom_point` (§1.2) e o grain exigido pelas telas Explorar e Recorte (§4.4) |
 | EDA do dump (`notebooks/eda_argus.ipynb`) | Os nulos de `rpaas_bucket`, a exclusão mútua entre UF e ISP em `geo_hourly`, e a sobreposição fraca entre rótulos e telemetria |
 | `apps/basica/infra/` (arquitetura v2) | Os padrões mantidos: flag de Learner Lab, nada de facilidade em arquivo versionado, separação entre execution role e task role, alarmes por sintoma |
+
+---
+
+## 12. ETL incremental (watermarks)
+
+&emsp;Até a migration `015`, o único caminho para popular silver/gold era
+`gold.rebuild_tudo()` (seção 4, `010_merge_e_etl.sql`): um recompute completo das
+tabelas de origem a cada chamada, correto e idempotente (é o que sustenta o teste de
+rebuild da seção 9), mas que não escala para rodar a cada 1–5 min sobre 18 M linhas de
+`signal_point`. O desenho abaixo — registrado primeiro numa publicação interna de apoio
+("Watermarks e workers de transição de camada", 20/08/2026) e implementado na migration
+`015_etl_incremental.sql` — substitui isso por dois workers incrementais, cada um dono
+do seu watermark, sem tocar nas funções `build_*` existentes além de acrescentar
+parâmetros de faixa com `DEFAULT` (compatível com `gold.rebuild_tudo()`, que continua
+chamando sem argumento nenhum).
+
+| Worker | Watermark | Marcador | Cadência | Tabela de controle |
+|---|---|---|---|---|
+| bronze→silver | `etl.watermark_bronze_silver` | sequencial (`lsn`) | 60 s | `etl.execucoes` |
+| silver→gold | `etl.watermark_silver_gold` | temporal (`available_at`, com margem que sempre reabre) | 900 s | `etl.execucoes` |
+
+&emsp;Cada ciclo é **uma única chamada SQL** (`etl.executar_bronze_silver()` /
+`etl.executar_silver_gold()`): lê o watermark com `SELECT ... FOR UPDATE`, chama os
+`build_*` na faixa certa, grava o resultado em `etl.execucoes` e avança o watermark —
+tudo no mesmo commit, para que dado e watermark nunca fiquem inconsistentes entre si.
+
+### 12.1 Onde este desenho diverge da publicação original
+
+1. **Schema `etl`, não tabelas soltas.** A publicação original propunha
+   `etl_watermark_bronze_silver` como tabela solta; aqui viraram
+   `etl.watermark_bronze_silver` etc., num schema `etl` novo — consistente com a
+   separação por schema que já organiza `bronze`/`silver`/`gold`/`sim`/`detect` (seção 1).
+2. **`live_event_window` e `incident_window` continuam de tabela inteira** dentro do
+   ciclo silver→gold, em vez de também janelados por `available_at`. As origens
+   (`bronze.live_event`, `bronze.incidents`, `bronze.incident_label`) são pequenas —
+   centenas a poucos milhares de linhas — contra os quase 5 M de `signal_bucket`;
+   recomputá-las por inteiro a cada ciclo custa menos do que o esforço de as tornar
+   incrementais compraria. Só `gold.build_feature_bucket` ganhou janela.
+3. **Watermark `silver_gold` semeado em `2026-07-01`, não em epoch.** A publicação
+   original semeava `1970-01-01`. Como não há dado possível antes do limite inferior das
+   partições de silver/gold, semear em epoch faria o primeiro dreno percorrer ~56 anos em
+   janelas de minutos até achar a primeira linha real — correto, só que muito lento.
+4. **Dois workers, uma task ECS.** A publicação (e o `docs.md` histórico do pivot,
+   anterior a este plano) descrevia dois workers como unidades separadas, plausivelmente
+   dois `RunTask` do EventBridge Scheduler. O que existe hoje (`ecs_processing.tf`) é um
+   único serviço ECS sempre ativo, de laço próprio — não scheduler. Os dois workers viraram
+   **duas threads dentro do mesmo container** (`argus_processing/__main__.py`), cada uma
+   com seu laço, seu watermark e sua cadência, sem interferir uma na outra. Criar dois
+   serviços ECS novos exigiria Terraform novo para separar uma cadência que duas threads
+   já resolvem — a atomicidade de cada ciclo mora no banco (uma chamada SQL), não em
+   memória compartilhada, então threads bastam.
+5. **Guarda de configuração nova, não prevista na publicação original:**
+   `p_janela_max_segundos` (silver→gold) precisa ser **estritamente maior** que
+   `margem_seguranca`, senão o watermark não apenas trava — **regride** a cada chamada,
+   porque a margem é subtraída nas duas pontas do ciclo (na leitura e no novo watermark).
+   `etl.executar_silver_gold` agora falha alto (`RAISE EXCEPTION`) se essa condição não
+   for satisfeita, em vez de deixar o worker girar para trás silenciosamente até alguém
+   notar que a gold parou de crescer. Default em produção: `janela_max_segundos = 14400`
+   (4h) contra `margem_seguranca = 2h`, dando 2h de progresso real por ciclo com backlog.
+6. **Índice novo:** `silver.signal_bucket` não tinha índice em `available_at`
+   (`006_silver.sql` indexou `signal_point` e `session_event`, mas não `signal_bucket`) —
+   lacuna inofensiva enquanto o único leitor era o rebuild completo. O worker incremental
+   filtra por `available_at` a cada ciclo; a migration `015` acrescenta
+   `signal_bucket_disponivel`.
+
+### 12.2 Limitação conhecida, fora do escopo desta mudança
+
+&emsp;Nem `gold.rebuild_tudo()` nem os novos `build_*` incrementais removem de
+silver/gold uma linha cujo registro de origem foi apagado na bronze (`bronze.merge_do_log`
+processa `op = 'd'` fazendo `DELETE` na bronze corrente, mas os `build_*` são
+`INSERT ... ON CONFLICT DO UPDATE`, nunca `DELETE`). Não é uma regressão desta mudança —
+o comportamento já existia em `010_merge_e_etl.sql` — mas o desenho incremental o torna
+mais visível, por rodar em produção de verdade em vez de só em teste pontual. Registrado
+aqui como pendência para decisão futura, não corrigido nesta entrega.
 
 ---
 
