@@ -3,7 +3,7 @@
 /** Moldura compartilhada pelas telas operacionais. */
 
 import { useEffect, useState, type ReactNode } from "react";
-import styles from "./screen-frame.module.css";
+import { screenFrameStyles as styles } from "./screen-frame.styles";
 
 export const SCREEN_PERIODS = ["15 min", "30 min", "3 h", "24 h"] as const;
 

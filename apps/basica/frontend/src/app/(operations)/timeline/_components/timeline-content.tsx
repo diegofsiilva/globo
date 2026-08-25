@@ -6,7 +6,8 @@ import {
   timeAxis,
   timelineRows,
 } from "../_mocks/scenario";
-import styles from "../timeline.module.css";
+import clsx from "clsx";
+import { timelineStyles as styles } from "./timeline.styles";
 
 /** Reconstrói a sequência do incidente com as fontes que a originaram. */
 export function TimelineContent() {
@@ -32,7 +33,7 @@ export function TimelineContent() {
             </div>
             <div className={styles.track}>
               <div
-                className={`${styles.event} ${styles[row.kind]}`}
+                className={clsx(styles.event, styles[row.kind])}
                 style={{ left: `${row.start}%`, width: row.width ? `${row.width}%` : "auto" }}
               >
                 <strong>{row.event}</strong>
@@ -52,7 +53,7 @@ export function TimelineContent() {
           <h2>Cronologia reconstruída</h2>
           {chronology.map((entry) => (
             <div className={styles.chronologyRow} key={entry.hour}>
-              <time className={entry.accent ? styles.accent : undefined}>{entry.hour}</time>
+              <time className={clsx(entry.accent && styles.accent)}>{entry.hour}</time>
               <b>{entry.source}</b>
               <p>{entry.description}</p>
             </div>

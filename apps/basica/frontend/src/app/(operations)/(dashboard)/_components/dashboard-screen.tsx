@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import clsx from "clsx";
 import { DetailField } from "./detail-field";
 import { EventRow } from "./event-row";
 import { FilterSelect } from "./filter-select";
@@ -24,7 +25,7 @@ import {
   type EventStatus,
   type Period,
 } from "@/lib/events/monitor";
-import styles from "../dashboard.module.css";
+import { dashboardStyles as styles } from "./dashboard.styles";
 
 /** Renderiza e controla a página principal de monitoração. */
 export function DashboardScreen() {
@@ -182,9 +183,10 @@ export function DashboardScreen() {
           {selectedEvent ? (
             <section className={styles.incidentHero}>
               <p
-                className={`${styles.incidentKicker} ${
-                  needsAttention(selectedEvent) ? "" : styles.normal
-                }`}
+                className={clsx(
+                  styles.incidentKicker,
+                  !needsAttention(selectedEvent) && styles.normal,
+                )}
               >
                 <i />
                 {needsAttention(selectedEvent)
@@ -215,7 +217,7 @@ export function DashboardScreen() {
               </div>
             </section>
           ) : (
-            <section className={`${styles.incidentHero} ${styles.emptyHero}`}>
+            <section className={clsx(styles.incidentHero, styles.emptyHero)}>
               <p className={styles.incidentKicker}>Monitor de telemetria</p>
               <h1>Nenhum evento no recorte</h1>
               <p>Ajuste os filtros ou aguarde a próxima atualização.</p>
@@ -250,7 +252,7 @@ export function DashboardScreen() {
               <p className={styles.emptyState}>Consultando eventos na API…</p>
             )}
             {eventsQuery.isError && (
-              <p className={`${styles.emptyState} ${styles.error}`}>
+              <p className={clsx(styles.emptyState, styles.error)}>
                 Não foi possível consultar a API. Tente novamente.
               </p>
             )}

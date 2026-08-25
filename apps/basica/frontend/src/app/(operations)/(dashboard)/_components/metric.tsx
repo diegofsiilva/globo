@@ -1,4 +1,4 @@
-import styles from "../dashboard.module.css";
+import { dashboardStyles as styles } from "./dashboard.styles";
 
 type MetricProps = {
   label: string;

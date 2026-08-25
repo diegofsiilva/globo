@@ -3,6 +3,7 @@
 /** Tela 03 — Comparar: a janela atual contra uma referência histórica. */
 
 import { useMemo, useState } from "react";
+import clsx from "clsx";
 import {
   chart,
   changes,
@@ -10,7 +11,7 @@ import {
   references,
   type ReferenceId,
 } from "../_mocks/scenario";
-import styles from "../comparar.module.css";
+import { compararStyles as styles } from "./comparar.styles";
 
 /** A partir de quantos desvios-padrão o desvio deixa de ser variação normal. */
 const SIGNIFICANT_SIGMA = 2;
@@ -61,7 +62,7 @@ export function CompararContent() {
             {chart.map((bucket) => (
               <div className={styles.bucket} key={bucket.hour}>
                 <i
-                  className={`${styles.bar} ${bucket.outside ? styles.outside : ""}`}
+                  className={clsx(styles.bar, bucket.outside && styles.outside)}
                   style={{ height: `${(bucket.now / chartMax) * 100}%` }}
                   title={`${bucket.hour} · ${bucket.now.toLocaleString("pt-BR")}%`}
                 />
@@ -125,13 +126,13 @@ export function CompararContent() {
               <b>{metric.label}</b>
               <span>{metric.now}</span>
               <span>{comparison.value}</span>
-              <span className={`${styles.delta} ${significant ? styles.deltaHot : ""}`}>
+              <span className={clsx(styles.delta, significant && styles.deltaHot)}>
                 {comparison.delta}
               </span>
               <span className={styles.significance}>
                 <span className={styles.meter}>
                   <i
-                    className={significant ? styles.hot : undefined}
+                    className={clsx(significant && styles.hot)}
                     style={{ width: `${meterWidth(comparison.sigma, sigmaMax)}%` }}
                   />
                 </span>

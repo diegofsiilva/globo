@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { OperationsNavigation } from "./_components/operations-navigation";
-import styles from "./operations-layout.module.css";
+import { operationsLayoutStyles as styles } from "./_components/operations-layout.styles";
 
 /** Estrutura visual compartilhada por todas as páginas da aplicação. */
 export default function OperationsLayout({ children }: { children: ReactNode }) {

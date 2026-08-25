@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import clsx from "clsx";
 import {
   activeDegradation,
   agoraFilters,
   openDegradations,
   signalDeviations,
 } from "../_mocks/scenario";
-import styles from "../agora.module.css";
+import { agoraStyles as styles } from "./agora.styles";
 
 const periods = ["15 min", "30 min", "3 h", "24 h"] as const;
 
@@ -223,9 +224,7 @@ export function AgoraScreen() {
                       <tr key={signal.id}>
                         <th scope="row">
                           <span
-                            className={`${styles.statusMarker} ${
-                              styles[signal.severity]
-                            }`}
+                            className={clsx(styles.statusMarker, styles[signal.severity])}
                             aria-hidden="true"
                           />
                           <span className={styles.metricName}>{signal.title}</span>
@@ -235,9 +234,9 @@ export function AgoraScreen() {
                         </th>
                         <td>{signal.scope}</td>
                         <td
-                          className={
-                            signal.severity === "critical" ? styles.dangerCell : ""
-                          }
+                          className={clsx(
+                            signal.severity === "critical" && styles.dangerCell,
+                          )}
                         >
                           {signal.current}
                         </td>
@@ -252,12 +251,11 @@ export function AgoraScreen() {
                             {signal.trend.map((point, index) => (
                               <i
                                 key={`${signal.id}-${index}`}
-                                className={
+                                className={clsx(
                                   index >= signal.trend.length - hotBars &&
-                                  signal.severity !== "stable"
-                                    ? styles.hotBar
-                                    : undefined
-                                }
+                                    signal.severity !== "stable" &&
+                                    styles.hotBar,
+                                )}
                                 style={{ "--bar-height": `${point}px` } as CSSProperties}
                               />
                             ))}
@@ -281,11 +279,11 @@ export function AgoraScreen() {
               {openDegradations.map((degradation) => (
                 <article key={degradation.id}>
                   <strong
-                    className={
+                    className={clsx(
                       degradation.severity === "alto"
                         ? styles.highSeverity
-                        : styles.warningSeverity
-                    }
+                        : styles.warningSeverity,
+                    )}
                   >
                     {degradation.severity}
                   </strong>

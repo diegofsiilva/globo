@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import clsx from "clsx";
 import {
   ScreenFrame,
   type ScreenFilter,
@@ -17,7 +18,7 @@ import type {
   Hypothesis,
   HypothesesReport,
 } from "../_lib/types";
-import styles from "../hipoteses.module.css";
+import { hipotesesStyles as styles } from "./hipoteses.styles";
 
 /** Minutos de cada período, para converter o rótulo na janela consultada. */
 const periodMinutes: Record<ScreenPeriod, number> = {
@@ -63,7 +64,7 @@ export function HipotesesScreen() {
 
       {report.isLoading && <p className={styles.state}>Consultando o motor de hipóteses…</p>}
       {report.isError && (
-        <p className={`${styles.state} ${styles.error}`}>
+        <p className={clsx(styles.state, styles.error)}>
           Não foi possível carregar as hipóteses. Tente novamente.
         </p>
       )}
@@ -110,7 +111,7 @@ function HypothesisItem({
 }) {
   return (
     <button
-      className={`${styles.item} ${selected ? styles.selected : ""}`}
+      className={clsx(styles.item, selected && styles.selected)}
       type="button"
       onClick={onSelect}
       aria-current={selected ? "true" : undefined}
@@ -209,7 +210,7 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
           timeline e o recorte abram já centrados nela. */}
       <div className={styles.actions}>
         <Link
-          className={`${styles.action} ${styles.primary}`}
+          className={clsx(styles.action, styles.primary)}
           href={`/timeline?hipotese=${hypothesis.id}&t=${encodeURIComponent(hypothesis.timelineAnchor)}`}
         >
           Abrir na timeline

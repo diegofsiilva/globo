@@ -1,0 +1,22 @@
+/** Utilities Tailwind geradas a partir do CSS legado para preservar paridade visual. */
+export const timelineStyles = {
+  "neutral": "neutral",
+  "accent": "accent [color:var(--red)]!",
+  "axis": "axis [height:43px] [margin-left:150px] [padding-bottom:7px] [display:flex] [align-items:end] [justify-content:space-between] [color:var(--muted)] [font-size:9px]",
+  "band": "band [position:absolute] [z-index:0] [top:43px] [bottom:0] [left:63.4%] [width:14%] [background:#f6e3e0]",
+  "card": "card [align-self:start] [padding:22px_19px] [background:#ebe9e9] [&_small]:[color:var(--soft)] [&_small]:[font-size:9px] [&_small]:[font-weight:600] [&_small]:[letter-spacing:0.07em] [&_small]:[text-transform:uppercase] [&_h2]:[margin:8px_0_6px] [&_h2]:[font-size:25px] [&_h2]:[font-weight:600] [&_>_p]:[margin:0] [&_>_p]:[color:var(--muted)] [&_>_p]:[font-size:10px] [&_>_p]:[line-height:1.55] [&_hr]:[margin:10px_0_17px] [&_hr]:[border:0] [&_hr]:[border-top:1px_solid_var(--line)] max-[1100px]:[max-width:420px]",
+  "chart": "chart [position:relative] max-[760px]:[overflow-x:auto] max-[760px]:[&_>_*]:[min-width:760px]",
+  "chronology": "chronology [&_h2]:[margin:0_0_12px] [&_h2]:[color:var(--soft)] [&_h2]:[font-size:9px] [&_h2]:[font-weight:600] [&_h2]:[letter-spacing:0.08em] [&_h2]:[text-transform:uppercase]",
+  "chronologyRow": "chronologyRow [min-height:36px] [display:grid] [grid-template-columns:68px_113px_minmax(0,1fr)] [align-items:center] [border-bottom:1px_solid_var(--line-soft)] [font-size:10px] [&_time]:[color:var(--muted)] [&_time]:[font-weight:600] [&_b]:[color:var(--muted)] [&_b]:[font-size:9px] [&_b]:[letter-spacing:0.06em] [&_p]:[margin:0]",
+  "critical": "critical [color:var(--dark-red)] [&_i]:[background:var(--red)]",
+  "deploy": "deploy [color:var(--dark-red)] [&_i]:[background:var(--red)]",
+  "empty": "empty [color:var(--muted)]",
+  "event": "event [position:absolute] [top:10px] [display:flex] [flex-direction:column] [font-size:9px] [white-space:nowrap] [&_strong]:[font-size:10px] [&_span]:[color:var(--soft)] [&_span]:[font-size:8px] [&_i]:[height:9px] [&_i]:[margin-top:2px] [&_i]:[background:#c9c6c6]",
+  "heading": "heading [padding:22px_0_16px] [border-bottom:1px_solid_var(--line)] [&_h1]:[margin:0] [&_h1]:[font-size:17px] [&_h1]:[line-height:1.15] [&_h1]:[font-weight:600] [&_p]:[margin:5px_0_0] [&_p]:[color:var(--muted)] [&_p]:[font-size:10px]",
+  "lower": "lower [display:grid] [grid-template-columns:minmax(0,1fr)_320px] [gap:28px] [padding:24px_0_48px] max-[1100px]:[grid-template-columns:1fr]",
+  "metric": "metric [margin-top:15px] [display:flex] [justify-content:space-between] [color:var(--muted)] [font-size:10px] [&_strong]:[color:var(--ink)]",
+  "row": "row [height:66px] [position:relative] [z-index:1] [display:grid] [grid-template-columns:150px_1fr]",
+  "sectionLabel": "sectionLabel [margin:0_0_12px] [color:var(--soft)] [font-size:9px] [font-weight:600] [letter-spacing:0.08em] [text-transform:uppercase]",
+  "source": "source [display:flex] [flex-direction:column] [justify-content:center] [border-bottom:1px_solid_var(--line-soft)] [&_strong]:[font-size:11px] [&_span]:[margin-top:5px] [&_span]:[color:var(--soft)] [&_span]:[font-size:9px]",
+  "track": "track [position:relative] [border-bottom:1px_solid_var(--line-soft)] [border-left:1px_solid_var(--line-soft)]",
+} as const;

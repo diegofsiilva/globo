@@ -61,8 +61,8 @@ e composição e colocaliza seus detalhes privados:
 src/
 ├── app/
 │   └── (operations)/
-│       ├── (dashboard)/{page.tsx,_components/,dashboard.module.css}
-│       ├── _components/                 # navegação e ScreenFrame do grupo
+│       ├── (dashboard)/{page.tsx,_components/}
+│       ├── _components/                 # navegação, ScreenFrame e utilities
 │       ├── agora/{page.tsx,_components/,_mocks/}
 │       ├── comparar/{page.tsx,_components/,_mocks/}
 │       ├── explorar/{page.tsx,_components/,_lib/,_mocks/}
@@ -90,10 +90,11 @@ permanecem; a entrada `/` agora redireciona para `/agora`.
 Outras decisões coerentes com a estrutura do App Router:
 
 - os seis layouts intermediários sem responsabilidade foram removidos;
-- componentes e CSS compartilhados apenas pelo grupo operacional ficaram em
+- componentes e utilities compartilhados apenas pelo grupo operacional ficaram em
   `(operations)/_components`, não em uma pasta global genérica;
-- o CSS do dashboard migrou de `globals.css` para um CSS Module local;
-- `globals.css` reteve somente tokens, reset e regras globais;
+- os dez CSS Modules foram substituídos por utilities Tailwind privadas e
+  composição condicional com `clsx`;
+- `globals.css` reteve a entrada do Tailwind, `@theme`, animações, tokens e reset;
 - não existe mais `src/mocks` nem import de `@/mocks`.
 
 **Resumo Standards:** 4 achados originais, 4 tratados. O principal problema —
@@ -161,6 +162,7 @@ Executado em `apps/basica/frontend`:
 | build `api` sem `NEXT_PUBLIC_HYPOTHESES_API_URL` | **Reprovado como esperado**, com mensagem exigindo a URL |
 | busca por `"use client"` em `page.tsx` | **Aprovado**, nenhuma ocorrência |
 | busca por `@/mocks` e existência de `src/mocks` | **Aprovado**, nenhuma ocorrência e diretório ausente |
+| busca por `*.module.css` e `import styles` | **Aprovado**, nenhuma ocorrência |
 | `git diff --check` no escopo | **Aprovado** |
 
 Os dois builds válidos exportaram como conteúdo estático as sete rotas

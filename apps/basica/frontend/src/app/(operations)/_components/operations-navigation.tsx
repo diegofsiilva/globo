@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import styles from "./operations-navigation.module.css";
+import clsx from "clsx";
+import { navigationStyles as styles } from "./operations-navigation.styles";
 
 type NavigationItem = {
   badge?: string;
@@ -33,7 +34,7 @@ export function OperationsNavigation() {
           return (
             <li key={item.href}>
               <Link
-                className={`${styles.link} ${active ? styles.active : ""}`}
+                className={clsx(styles.link, active && styles.active)}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
               >

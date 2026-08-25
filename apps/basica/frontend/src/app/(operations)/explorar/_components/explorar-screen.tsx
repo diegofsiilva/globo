@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
+import clsx from "clsx";
 import {
   eventKinds,
   explorationGroups,
@@ -21,7 +22,7 @@ import {
   periodPresets,
   previewMaximum,
 } from "../_lib/timeline";
-import styles from "../explorar.module.css";
+import { explorarStyles as styles } from "./explorar.styles";
 import { ExplorationBreakdown } from "./exploration-breakdown";
 
 /** Visão de exploração baseada em um snapshot estático de telemetria. */
@@ -344,15 +345,15 @@ export function ExplorarScreen() {
                   </div>
                   <span className={styles.rangeSelection} aria-hidden="true" />
                   <span
-                    className={`${styles.rangeShade} ${styles.rangeShadeStart}`}
+                    className={clsx(styles.rangeShade, styles.rangeShadeStart)}
                     aria-hidden="true"
                   />
                   <span
-                    className={`${styles.rangeShade} ${styles.rangeShadeEnd}`}
+                    className={clsx(styles.rangeShade, styles.rangeShadeEnd)}
                     aria-hidden="true"
                   />
                   <input
-                    className={`${styles.rangeInput} ${styles.rangeStart}`}
+                    className={clsx(styles.rangeInput, styles.rangeStart)}
                     type="range"
                     min={0}
                     max={historyLastIndex}
@@ -369,7 +370,7 @@ export function ExplorarScreen() {
                     }
                   />
                   <input
-                    className={`${styles.rangeInput} ${styles.rangeEnd}`}
+                    className={clsx(styles.rangeInput, styles.rangeEnd)}
                     type="range"
                     min={0}
                     max={historyLastIndex}

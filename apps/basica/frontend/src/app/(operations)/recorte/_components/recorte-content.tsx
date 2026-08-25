@@ -8,7 +8,8 @@ import {
   sampleColumns,
   samples,
 } from "../_mocks/scenario";
-import styles from "../recorte.module.css";
+import clsx from "clsx";
+import { recorteStyles as styles } from "./recorte.styles";
 
 /** Índice da coluna e da linha que concentram o erro do cenário. */
 const hottest = { row: 0, column: 1 };
@@ -69,7 +70,7 @@ export function RecorteContent() {
           {adjustments.map((adjustment) => (
             <button className={styles.adjustment} type="button" key={adjustment.title}>
               <strong>{adjustment.title}</strong>
-              <span className={adjustment.critical ? styles.gain : undefined}>
+              <span className={clsx(adjustment.critical && styles.gain)}>
                 {adjustment.result}
               </span>
             </button>
@@ -87,7 +88,7 @@ export function RecorteContent() {
         {samples.map((row) => (
           <div className={styles.sampleRow} key={row.join("-")}>
             {row.map((cell, index) => (
-              <span key={cell} className={index === 4 ? styles.sampleError : undefined}>
+              <span key={cell} className={clsx(index === 4 && styles.sampleError)}>
                 {cell}
               </span>
             ))}
@@ -120,13 +121,14 @@ function HeatmapRow({
       {rates.map((rate, columnIndex) => (
         <span
           key={`${family}-${heatmapRegions[columnIndex]}`}
-          className={
-            rowIndex === hottest.row && columnIndex === hottest.column
-              ? styles.hottest
-              : rowIndex === hottest.row
-                ? styles.hot
-                : undefined
-          }
+          className={clsx(
+            rowIndex === hottest.row &&
+              columnIndex === hottest.column &&
+              styles.hottest,
+            rowIndex === hottest.row &&
+              columnIndex !== hottest.column &&
+              styles.hot,
+          )}
         >
           {rate}
         </span>

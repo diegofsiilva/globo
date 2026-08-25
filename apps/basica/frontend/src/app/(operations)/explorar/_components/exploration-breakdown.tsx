@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import clsx from "clsx";
 import {
   frequentErrors,
   type ExplorationRow,
   type GroupBy,
 } from "../_mocks/scenario";
 import { formatEvents, groupOptions } from "../_lib/exploration-config";
-import styles from "../explorar.module.css";
+import { explorarStyles as styles } from "./explorar.styles";
 
 type ExplorationBreakdownProps = {
   groupBy: GroupBy;
@@ -98,7 +99,7 @@ export function ExplorationBreakdown({
                       {row.label}
                     </th>
                     <td>{formatEvents(row.events)}</td>
-                    <td className={critical ? styles.errorValue : undefined}>
+                    <td className={clsx(critical && styles.errorValue)}>
                       {row.errorRate.toLocaleString("pt-BR", {
                         maximumFractionDigits: 1,
                         minimumFractionDigits: 1,
@@ -113,12 +114,12 @@ export function ExplorationBreakdown({
                         aria-label={`${Math.round(width)}% do maior volume deste grupo`}
                       >
                         <i
-                          className={critical ? styles.criticalFill : undefined}
+                          className={clsx(critical && styles.criticalFill)}
                           style={{ width: `${width}%` }}
                         />
                       </span>
                     </td>
-                    <td className={critical ? styles.errorValue : undefined}>
+                    <td className={clsx(critical && styles.errorValue)}>
                       {row.delta}
                     </td>
                   </tr>

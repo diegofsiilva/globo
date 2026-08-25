@@ -1,10 +1,11 @@
 import type { ApiEvent } from "@/lib/events/api";
+import clsx from "clsx";
 import {
   formatDuration,
   needsAttention,
   shorten,
 } from "@/lib/events/monitor";
-import styles from "../dashboard.module.css";
+import { dashboardStyles as styles } from "./dashboard.styles";
 
 type EventRowProps = {
   event: ApiEvent;
@@ -21,12 +22,12 @@ export function EventRow({ event, onSelect, selected }: EventRowProps) {
 
   return (
     <button
-      className={`${styles.signalRow} ${selected ? styles.selected : ""}`}
+      className={clsx(styles.signalRow, selected && styles.selected)}
       type="button"
       onClick={onSelect}
     >
       <span className={styles.signalName}>
-        <i className={attention ? styles.attention : ""} />
+        <i className={clsx(attention && styles.attention)} />
         <b>
           {event.event_name}
           {event.action ? ` · ${event.action}` : ""}
@@ -35,7 +36,7 @@ export function EventRow({ event, onSelect, selected }: EventRowProps) {
       <span>{context || "não informado"}</span>
       <strong>{new Date(event.occurred_at).toLocaleTimeString("pt-BR")}</strong>
       <span>{formatDuration(event)}</span>
-      <b className={attention ? styles.critical : styles.muted}>
+      <b className={clsx(attention ? styles.critical : styles.muted)}>
         {attention ? "atenção" : "normal"}
       </b>
       <span>{event.app_version ?? "—"}</span>
