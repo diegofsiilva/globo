@@ -6,10 +6,10 @@ e a mesma que roda com `flask run` ou gunicorn, sem nenhum `if lambda:` no
 codigo.
 
 O `create_app()` roda fora do handler de proposito. Esse trecho executa uma vez
-por container e fica em memoria entre invocacoes: e ali que o cliente boto3 e o
-pool de conexao sao criados. Construir dentro do handler pagaria a montagem do
-cliente a cada requisicao, que e justamente o custo que a Lambda permite
-amortizar.
+por container e fica em memoria entre invocacoes: e ali que o pool de conexao
+com o PostgreSQL e criado. Abrir conexao dentro do handler pagaria o handshake
+completo a cada requisicao -- e no PostgreSQL isso e caro de verdade, porque
+cada conexao vira um processo novo no servidor, e nao uma thread.
 """
 
 import os

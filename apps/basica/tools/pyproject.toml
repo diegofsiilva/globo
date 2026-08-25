@@ -1,0 +1,21 @@
+# Ambiente das ferramentas de linha de comando (ETL, gerador de DDL, migrations).
+#
+# Separado do worker e da API de proposito: estas ferramentas rodam na maquina
+# de quem desenvolve, nunca dentro de um container de producao, e arrastar
+# pyarrow (~100 MB) para a imagem do worker seria pagar por dependencia que ele
+# nao usa.
+[project]
+name = "argus-tools"
+version = "0.1.0"
+description = "Ferramentas de dados do Argus: dump -> Parquet, DDL e migrations"
+requires-python = ">=3.12"
+dependencies = [
+    "pyarrow>=17",
+    "psycopg[binary]>=3.2",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.6"]
+
+[tool.ruff]
+line-length = 90

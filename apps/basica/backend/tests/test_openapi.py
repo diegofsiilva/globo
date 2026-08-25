@@ -1,7 +1,6 @@
 """A spec precisa descrever a API que existe, nao a que foi planejada."""
 
-from telemetry.infrastructure.dynamo import BREAKDOWN_FIELDS, FACET_FIELDS
-from telemetry.interfaces.openapi import build_spec
+from telemetry.interfaces.openapi import BREAKDOWN_FIELDS, FACET_FIELDS, build_spec
 
 
 def test_spec_e_servida(client):

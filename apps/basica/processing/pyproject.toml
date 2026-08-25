@@ -1,0 +1,30 @@
+[project]
+name = "argus-processing"
+version = "0.1.0"
+description = "Servico de processamento do Argus: ETL incremental bronze->silver e silver->gold; detector e canario seguem no-op"
+requires-python = ">=3.12"
+dependencies = ["argus-common"]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.6"]
+
+[tool.uv.sources]
+argus-common = { path = "../common", editable = false }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/argus_processing"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 90
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

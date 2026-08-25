@@ -8,5 +8,11 @@ terraform {
       # herdar num terraform init de outra maquina.
       version = "~> 5.60"
     }
+
+    # Gera a senha do RDS quando ela vem do Secrets Manager.
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }

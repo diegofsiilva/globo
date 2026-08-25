@@ -130,6 +130,166 @@ def facets():
     return jsonify(GetFacets(repository()).execute(fields, limit))
 
 
+# ---------------------------------------------------------------------- #
+# Camada gold: o que as telas de serie consultam
+# ---------------------------------------------------------------------- #
+
+
+@api.get("/clock")
+def clock():
+    """Devolve o instante VIRTUAL, que e o "agora" de todas as telas.
+
+    Sem esta rota, o dashboard usaria o relogio do navegador como "agora" -- e
+    as telas apareceriam vazias sem explicar por que, porque o simulador pode
+    estar replicando uma janela de julho enquanto o navegador marca agosto.
+    """
+    agora = gold().clock()
+    return jsonify(
+        {
+            "sim_now": agora.sim_now.isoformat(),
+            "speed": agora.speed,
+            "updated_at": agora.updated_at.isoformat(),
+        }
+    )
+
+
+@api.get("/series")
+def series():
+    """Serie de telemetria em bucket de 15 min, vinda de gold.v_feature_bucket."""
+    pontos = gold().series(
+        source=request.args.get("source") or None,
+        entity=request.args.get("entity") or None,
+        metric=request.args.get("metric") or None,
+        desde=parse_datetime("from"),
+        ate=parse_datetime("to"),
+        janela_horas=parse_int("window_hours", default=24, minimum=1, maximum=8760),
+        limite=parse_int("limit", default=5000, minimum=1, maximum=20000),
+    )
+    return jsonify(
+        {
+            "items": [
+                {
+                    "bucket_ts": ponto["bucket_ts"].isoformat(),
+                    "source": ponto["source"],
+                    "entity": ponto["entity"],
+                    "metric": ponto["metric"],
+                    "value": ponto["value"],
+                    "hora_brt": ponto["hora_brt"],
+                    "dow": ponto["dow"],
+                    "tem_jogo": ponto["tem_jogo"],
+                }
+                for ponto in pontos
+            ],
+            "count": len(pontos),
+        }
+    )
+
+
+@api.get("/sources")
+def sources():
+    """Fontes disponiveis e quao recente esta cada uma."""
+    return jsonify(
+        {
+            "items": [
+                {
+                    "source": linha["source"],
+                    "entidades": linha["entidades"],
+                    "metricas": linha["metricas"],
+                    "ultimo_bucket": (
+                        linha["ultimo_bucket"].isoformat()
+                        if linha["ultimo_bucket"]
+                        else None
+                    ),
+                }
+                for linha in gold().sources()
+            ]
+        }
+    )
+
+
+@api.get("/incidents")
+def incidents():
+    """Janelas de incidente do ground truth.
+
+    Por padrao EXCLUI os rotulos `detector-derived`: sete dos vinte foram
+    criados olhando a saida do proprio Argus, e avaliar um detector novo contra
+    eles mede concordancia com o baseline, nao acuracia. Quem quiser inclui-los
+    precisa pedir com `?include_derived=true`, de forma explicita.
+    """
+    janelas = gold().incidents(
+        origem=request.args.get("origem") or None,
+        incluir_derivados=request.args.get("include_derived", "").lower()
+        in {"1", "true", "yes"},
+        limite=parse_int("limit", default=100, minimum=1, maximum=1000),
+    )
+    return jsonify(
+        {
+            "items": [
+                {
+                    "window_id": j["window_id"],
+                    "ts_start": j["ts_start"].isoformat(),
+                    "ts_end": j["ts_end"].isoformat(),
+                    "origem": j["origem"],
+                    "ref_id": j["ref_id"],
+                    "verdict": j["verdict"],
+                    "severity": j["severity"],
+                    "provenance": j["provenance"],
+                }
+                for j in janelas
+            ],
+            "count": len(janelas),
+        }
+    )
+
+
+@api.get("/live-events")
+def live_events():
+    """Calendario de transmissoes, com os feeds simultaneos agregados por confronto."""
+    eventos = gold().live_events(
+        limite=parse_int("limit", default=50, minimum=1, maximum=500)
+    )
+    return jsonify(
+        {
+            "items": [
+                {
+                    "event_key": e["event_key"],
+                    "ts_start": e["ts_start"].isoformat(),
+                    "ts_end": e["ts_end"].isoformat(),
+                    "competition": e["competition"],
+                    "team_home": e["team_home"],
+                    "team_away": e["team_away"],
+                    "feeds": e["feeds"],
+                }
+                for e in eventos
+            ],
+            "count": len(eventos),
+        }
+    )
+
+
+@api.get("/anomalies")
+def anomalies():
+    """Anomalias da execucao mais recente do detector.
+
+    Devolve lista vazia enquanto nao houver detector (decisao 7 do plano). A
+    rota existe desde ja para que o dashboard seja escrito contra o contrato
+    final, e nao precise mudar quando a deteccao chegar.
+    """
+    run_id = request.args.get("run_id")
+    itens = gold().anomalies(
+        run_id=int(run_id) if run_id and run_id.isdigit() else None,
+        limite=parse_int("limit", default=200, minimum=1, maximum=2000),
+    )
+    return jsonify(
+        {
+            "items": [
+                {**item, "bucket_ts": item["bucket_ts"].isoformat()} for item in itens
+            ],
+            "count": len(itens),
+        }
+    )
+
+
 @health.get("/health/live")
 def liveness():
     """Endpoint de verificação de liveness da aplicação para a infraestrutura de orquestração."""
@@ -230,3 +390,12 @@ def repository() -> Any:
         Any: Instância do repositório de eventos.
     """
     return current_app.extensions["event_repository"]
+
+
+def gold() -> Any:
+    """Obtém o repositório da camada gold (séries, janelas e relógio virtual).
+
+    Returns:
+        Any: Instância do repositório de gold.
+    """
+    return current_app.extensions["gold_repository"]
