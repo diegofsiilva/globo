@@ -155,7 +155,7 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-backend ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend ## Roda as suites que tem teste
 
 # TEST_DATABASE_URL aponta para o banco de teste local por padrao. Os testes que
 # precisam de banco sao PULADOS quando ele nao existe, em vez de quebrarem —
@@ -172,13 +172,17 @@ test-backend: ## Testes da API de leitura
 test-simulator: ## Testes do relogio e do emissor do simulador
 	cd $(SIMULATOR) && $(UV) pytest
 
+.PHONY: test-processing
+test-processing: ## Testes do ETL incremental (watermarks, workers)
+	cd $(PROCESSING) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-$(PG_TEST_URL)} $(UV) pytest
+
 .PHONY: lint
 lint: ## Verifica estilo sem alterar arquivos
 	cd $(TOOLS) && $(UV) ruff check . && $(UV) ruff format --check .
 	cd $(COMMON) && uv run --quiet --with ruff ruff check src
 	cd $(WORKER) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(SIMULATOR) && $(UV) ruff check src
-	cd $(PROCESSING) && $(UV) ruff check src
+	cd $(PROCESSING) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(LOADER) && $(UV) ruff check src
 	cd $(BACKEND) && $(UV) ruff check src tests
 	cd $(INFRA) && terraform fmt -check -recursive
@@ -191,7 +195,7 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(TOOLS) && ($(UV) ruff check --fix . || true) && $(UV) ruff format .
 	cd $(WORKER) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(SIMULATOR) && ($(UV) ruff check --fix src || true) && $(UV) ruff format src
-	cd $(PROCESSING) && ($(UV) ruff check --fix src || true) && $(UV) ruff format src
+	cd $(PROCESSING) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(LOADER) && ($(UV) ruff check --fix src || true) && $(UV) ruff format src
 	cd $(BACKEND) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(INFRA) && terraform fmt -recursive
@@ -309,9 +313,15 @@ load-local: ## Carrega os Parquet no banco LOCAL (util para desenvolver)
 	  $(UV) python -m argus_loader --local ../$(PARQUET_DIR)
 
 .PHONY: etl
-etl: ## Reconstroi silver e gold a partir da bronze
+etl: ## Reconstroi silver e gold a partir da bronze (recompute completo, idempotente)
 	@$(call require_env,DATABASE_URL)
 	@psql "$$DATABASE_URL" -c "SELECT * FROM gold.rebuild_tudo();"
+
+.PHONY: etl-incremental
+etl-incremental: ## Roda manualmente UM ciclo do ETL incremental (bronze->silver e silver->gold)
+	@$(call require_env,DATABASE_URL)
+	@psql "$$DATABASE_URL" -c "SELECT * FROM etl.executar_bronze_silver();"
+	@psql "$$DATABASE_URL" -c "SELECT * FROM etl.executar_silver_gold();"
 
 # --------------------------------------------------------------------------- #
 # Dashboard
