@@ -1,7 +1,8 @@
 # Frontend do Argus
 
-Dashboard estático em Next.js App Router. As URLs públicas são `/`, `/agora`,
-`/explorar`, `/comparar`, `/hipoteses`, `/timeline` e `/recorte`.
+Dashboard estático em Next.js App Router. A entrada `/` redireciona para
+`/agora`; as demais URLs públicas são `/explorar`, `/comparar`, `/hipoteses`,
+`/timeline` e `/recorte`.
 
 ## Organização
 
@@ -9,7 +10,7 @@ Dashboard estático em Next.js App Router. As URLs públicas são `/`, `/agora`,
 src/
 ├── app/
 │   ├── (operations)/
-│   │   ├── (dashboard)/
+│   │   ├── (dashboard)/        # entrada /, redirecionada para /agora
 │   │   ├── _components/        # moldura e navegação deste grupo
 │   │   ├── agora/
 │   │   ├── comparar/
@@ -28,7 +29,7 @@ Server Component de composição e metadata. Código específico de uma rota fic
 próximo dela em `_components`, `_lib` e `_mocks`; somente contratos ou adapters
 consumidos por mais de uma fronteira ficam em `src/lib`.
 
-O `QueryProvider` envolve apenas as páginas que executam consultas no cliente.
+O `QueryProvider` envolve apenas a página que executa consultas no cliente.
 As telas demonstrativas mantêm suas fixtures em `_mocks`, deixando explícito
 que esses dados não vieram da API de eventos.
 
