@@ -1,0 +1,116 @@
+.appShell {
+  min-height: 100vh;
+  position: relative;
+}
+
+.skipLink {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 10px 14px;
+  transform: translateY(-150%);
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.skipLink:focus {
+  transform: translateY(0);
+}
+
+.siteHeader {
+  height: 52px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-transform: uppercase;
+}
+
+.brandMark {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  background: var(--red);
+}
+
+.brand strong {
+  font-size: 12px;
+  letter-spacing: 1.08px;
+  white-space: nowrap;
+}
+
+.brand span {
+  color: var(--soft);
+  font-size: 12px;
+  letter-spacing: 0.72px;
+  white-space: nowrap;
+}
+
+.routeGrid {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: calc(100vh - 52px);
+}
+
+.navigationSlot {
+  min-width: 0;
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.routeGrid [data-operations-slot="controls"],
+.routeGrid [data-operations-slot="scope"] {
+  grid-column: 1 / -1;
+}
+
+.routeGrid [data-operations-slot="controls"] {
+  grid-row: 1;
+}
+
+.routeGrid [data-operations-slot="scope"] {
+  grid-row: 2;
+}
+
+.routeGrid [data-operations-slot="content"] {
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 3;
+}
+
+@media (max-width: 900px) {
+  .brand span {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .siteHeader {
+    padding: 0 12px;
+  }
+
+  .routeGrid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+
+  .navigationSlot {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .routeGrid [data-operations-slot="content"] {
+    grid-column: 1;
+    grid-row: 4;
+  }
+}

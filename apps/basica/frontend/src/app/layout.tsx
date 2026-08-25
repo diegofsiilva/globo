@@ -2,7 +2,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Archivo } from "next/font/google";
-import { AppProviders } from "@/providers/app-providers";
 import "./globals.css";
 
 const archivo = Archivo({
@@ -25,7 +24,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" className={`${archivo.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <AppProviders>{children}</AppProviders>
+        {children}
       </body>
     </html>
   );

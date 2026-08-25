@@ -1,0 +1,490 @@
+.dashboardShell {
+  display: contents;
+}
+
+.topControls {
+  position: absolute;
+  top: 0;
+  right: 20px;
+  z-index: 2;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.live {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dark-red);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.live i {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: var(--red);
+}
+
+.periodPicker {
+  display: flex;
+  flex: none;
+  border: 1px solid rgba(32, 30, 29, 0.4);
+}
+
+.periodPicker button {
+  height: 28px;
+  padding: 0 10px;
+  border-left: 1px solid var(--line-soft);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.periodPicker button:first-child {
+  border-left: 0;
+}
+
+.periodPicker button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--canvas);
+}
+
+.scopeBar {
+  height: 45px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.scopeLabel {
+  margin-right: 3px;
+  color: var(--soft);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.scopeBar p {
+  margin: 0 2px 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.scopeSelect {
+  height: 27px;
+  padding-left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(32, 30, 29, 0.4);
+  background: var(--canvas);
+}
+
+.scopeSelect span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.scopeSelect select {
+  height: 25px;
+  max-width: 145px;
+  border: 0;
+  background: transparent;
+  font: 600 10px var(--font-archivo), Arial, sans-serif;
+  outline: none;
+}
+
+.eventSearch {
+  width: 135px;
+  height: 27px;
+  padding: 0 8px;
+  border: 1px solid rgba(32, 30, 29, 0.4);
+  background: var(--canvas);
+  font: 10px var(--font-archivo), Arial, sans-serif;
+  outline: none;
+}
+
+.eventSearch:focus {
+  border-color: var(--red);
+}
+
+.clearFilter {
+  background: transparent;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.analysisArea {
+  min-width: 0;
+  padding: 0 30px 60px;
+}
+
+.incidentHero {
+  min-height: 164px;
+  position: relative;
+  padding: 29px 4px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.incidentKicker {
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dark-red);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.75px;
+  text-transform: uppercase;
+}
+
+.incidentKicker i {
+  width: 8px;
+  height: 8px;
+  background: var(--red);
+}
+
+.incidentKicker span {
+  color: var(--soft);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.incidentKicker.normal {
+  color: var(--muted);
+}
+
+.incidentKicker.normal i {
+  background: #bab6b6;
+}
+
+.incidentHero h1 {
+  margin: 0;
+  font-size: 29px;
+  line-height: 1.04;
+  letter-spacing: -0.7px;
+  font-weight: 600;
+}
+
+.incidentStats {
+  margin-top: 24px;
+  display: flex;
+  gap: 50px;
+}
+
+.metric {
+  min-width: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.metric span {
+  color: var(--soft);
+  font-size: 8px;
+  letter-spacing: 0.65px;
+  text-transform: uppercase;
+}
+
+.critical {
+  color: var(--red) !important;
+}
+
+.muted {
+  color: #bab6b6;
+}
+
+.emptyHero > p:last-child {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.signalsSection {
+  padding: 25px 0 0;
+}
+
+.signalsSection > header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.signalsSection h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.signalsSection header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.signalTable {
+  max-height: min(46vh, 520px);
+  margin-top: 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.signalHead,
+.signalRow {
+  display: grid;
+  grid-template-columns:
+    minmax(230px, 1.6fr) minmax(190px, 1.5fr) 90px 88px 84px 100px
+    100px;
+  gap: 14px;
+  align-items: center;
+}
+
+.signalHead {
+  height: 28px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+  color: var(--soft);
+  font-size: 8px;
+  letter-spacing: 0.65px;
+  text-transform: uppercase;
+}
+
+.signalHead span:nth-child(n + 3) {
+  text-align: right;
+}
+
+.signalRow {
+  width: 100%;
+  height: 49px;
+  border-top: 1px solid var(--line-soft);
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.signalRow:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.signalRow.selected {
+  box-shadow:
+    inset 3px 0 var(--red),
+    inset 0 0 0 1px rgba(32, 30, 29, 0.16);
+  background: var(--surface);
+}
+
+.signalRow > span:nth-child(2) {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signalRow > span:nth-child(n + 4),
+.signalRow > strong,
+.signalRow > b {
+  text-align: right;
+}
+
+.signalName {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.signalRow.selected .signalName {
+  padding-left: 16px;
+}
+
+.signalName i {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: #bab6b6;
+}
+
+.signalName i.attention {
+  background: var(--red);
+}
+
+.signalName b {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emptyState {
+  margin: 0;
+  padding: 30px 0;
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.emptyState.error {
+  color: var(--dark-red);
+}
+
+.eventDetails {
+  margin-top: 16px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+}
+
+.eventDetails > p {
+  margin: 0 0 12px;
+  color: var(--soft);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.eventDetails > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--line);
+}
+
+.eventDetails span {
+  min-width: 0;
+  padding: 12px;
+  border-right: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.eventDetails small {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--soft);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.eventDetails b {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
+
+.eventDetails details {
+  margin-top: 12px;
+  font-size: 10px;
+}
+
+.eventDetails summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.eventDetails pre {
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px;
+  background: var(--ink);
+  color: var(--canvas);
+  font: 10px/1.5 Consolas, monospace;
+}
+
+@media (max-width: 1000px) {
+  .scopeBar p,
+  .clearFilter {
+    display: none;
+  }
+
+  .signalTable {
+    overflow-x: auto;
+  }
+
+  .signalHead,
+  .signalRow {
+    min-width: 950px;
+  }
+
+  .analysisArea {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+}
+
+@media (max-width: 780px) {
+  .live {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .topControls {
+    right: 12px;
+  }
+
+  .scopeBar {
+    padding: 0 12px;
+    overflow-x: auto;
+  }
+
+  .incidentHero {
+    padding-top: 22px;
+  }
+
+  .incidentHero h1 {
+    font-size: 24px;
+  }
+
+  .incidentStats {
+    gap: 22px;
+    overflow-x: auto;
+  }
+
+  .signalsSection {
+    padding-top: 18px;
+  }
+
+  .eventDetails > div {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .signalTable {
+    max-height: 55vh;
+  }
+}
+
+@media (max-width: 560px) {
+  .topControls {
+    position: static;
+    height: 40px;
+    padding: 0 12px;
+    justify-content: flex-end;
+    border-bottom: 1px solid var(--line);
+  }
+}
