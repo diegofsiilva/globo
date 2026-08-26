@@ -234,6 +234,16 @@ ambiente publicado. Não registrar credenciais, tokens ou URLs privadas.
 
 ![Tela do frontend](./assets/prototipo_hipoteses.png "Tela do frontend")
 
+- As hipóteses são ranqueadas pelo score, junto com a lista das descartadas com a justificativa de cada
+
+- Como decisão do projeto, as hipóteses descartadas e as que não foram devem ser exibidas. Sem elas, o operador não tem como saber se a ausência de uma causa listada foi avaliada e rejeitada ou não foi considerada
+
+- O painel da direita mostra o score do item em quatro fatores ponderados com peso, contribuições em pontos, a justificativa e as fontes de evidência
+
+- Essa transparência torna o score utilizável em uma decisão técnica: o operador pode discordar de um fator sem descartar a hipótese.
+
+- As duas ações conduzem a timeline e ao recorte afetado, causando fluxos
+
 
 ## 10. Limitações e próximos passos
 
