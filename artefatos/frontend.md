@@ -38,26 +38,6 @@
 
 ### 2.1 Estrutura de pastas
 
-Branch atual (`docs/relatorio-frontend`):
-
-```text
-apps/basica/frontend/src/
-├── app/
-│   ├── globals.css              Estilos globais e variáveis do tema
-│   ├── layout.tsx               Layout raiz: metadados, tipografia (Archivo) e Providers
-│   ├── page.tsx                 Página inicial: renderiza DashboardPage
-│   ├── providers.tsx            QueryClientProvider com TanStack Query
-│   └── [section]/
-│       └── page.tsx             Rota dinâmica para as 6 seções de navegação
-├── components/
-│   ├── dashboard-page.tsx       Estrutura visual do dashboard (header + EventMonitor)
-│   ├── event-monitor.tsx        Monitor de eventos: filtros, tabela, hero e detalhes
-│   └── sidebar.tsx              Navegação lateral entre as 6 áreas de análise
-└── lib/
-    └── events-api.ts            Cliente HTTP tipado da API de eventos
-```
-
-Branch `feat/frontend-telas` (estrutura mais completa):
 
 ```text
 apps/basica/frontend/src/
@@ -92,7 +72,6 @@ apps/basica/frontend/src/
 - Funções, variáveis e hooks: `camelCase`, por exemplo `fetchEvents`, `needsAttention`, `useClock`, `periodLabel`.
 - Tipos e interfaces: `PascalCase`, por exemplo `ApiEvent`, `EventsResponse`, `EventFilters`, `ScreenPeriod`, `ScreenFilter`.
 - Estratégia de comentários: JSDoc em funções e componentes públicos (`@param`, `@returns`, `@throws`); comentários inline para decisões não triviais, como o motivo de `NEXT_PUBLIC_API_URL` nunca ser commitada, o comportamento do `useClock` durante a hidratação e a razão do período "tudo".
-- Ferramentas de qualidade: ESLint (0 erros), TypeScript em modo estrito (`--noEmit`), geração de tipos do App Router (`next typegen`), build de produção com Webpack.
 
 ### 2.3 Avaliação da qualidade do código
 
