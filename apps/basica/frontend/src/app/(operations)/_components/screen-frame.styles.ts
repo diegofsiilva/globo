@@ -5,10 +5,10 @@ export const screenFrameStyles = {
   filter:
     "grid min-h-10 grid-cols-[minmax(5.5rem,auto)_minmax(0,1fr)] items-center gap-2 border border-border bg-background pl-3 [&>span]:font-mono [&>span]:text-[12px] [&>span]:uppercase [&>span]:tracking-[0.06em] [&>span]:text-muted-foreground md:flex md:min-h-9 md:pl-2 md:[&>span]:text-[11px]",
   filterList: "grid w-full gap-3 md:flex md:w-max md:items-center md:gap-1.5",
-  mobileScope: "border-b border-border bg-surface/85 p-3 md:hidden",
+  mobileScope: "sticky top-24 z-[15] border-b border-border bg-surface/95 p-3 backdrop-blur-md md:hidden",
   page: "contents font-[variant-numeric:tabular-nums]",
   scopeBar:
-    "hidden min-h-12 w-full min-w-0 max-w-full items-center gap-2 overflow-hidden border-b border-border bg-surface/85 px-5 py-1.5 backdrop-blur-md md:flex",
+    "sticky top-12 z-[15] hidden min-h-12 w-full min-w-0 max-w-full items-center gap-2 overflow-hidden border-b border-border bg-surface/95 px-5 py-1.5 backdrop-blur-md md:flex",
   scopeControls:
     "flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:thin] [&>*]:shrink-0",
   scopeLabel:

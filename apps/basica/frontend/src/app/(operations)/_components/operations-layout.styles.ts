@@ -11,13 +11,13 @@ export const operationsLayoutStyles = {
   liveStatus:
     "m-0 flex items-center gap-2 whitespace-nowrap font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-primary md:text-[11px] [&>[data-live-dot]]:size-1.5 [&>[data-live-dot]]:shrink-0 [&>[data-live-dot]]:bg-primary [&>[data-live-dot]]:animate-agora-live-pulse motion-reduce:[&>[data-live-dot]]:animate-none",
   navigationSlot:
-    "col-start-1 row-start-2 hidden min-w-0 md:block",
+    "fixed bottom-0 left-0 top-24 z-10 hidden w-44 min-w-0 md:block",
   periods:
     "min-w-0 shrink bg-background [&_[data-slot=toggle-group-item]]:h-11 [&_[data-slot=toggle-group-item]]:min-h-11 [&_[data-slot=toggle-group-item]]:min-w-11 [&_[data-slot=toggle-group-item]]:px-2 sm:shrink-0 md:[&_[data-slot=toggle-group-item]]:h-8 md:[&_[data-slot=toggle-group-item]]:min-h-8",
   routeGrid:
-    "grid min-h-[calc(100dvh-96px)] grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [&_[data-operations-slot=scope]]:col-start-1 [&_[data-operations-slot=scope]]:row-start-1 [&_[data-operations-slot=content]]:col-start-1 [&_[data-operations-slot=content]]:row-start-2 [&_[data-operations-slot=content]]:min-w-0 md:min-h-[calc(100dvh-48px)] md:grid-cols-[176px_minmax(0,1fr)] md:[&_[data-operations-slot=scope]]:col-span-2 md:[&_[data-operations-slot=content]]:col-start-2",
+    "grid min-h-dvh scroll-mt-24 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] pt-24 [&_[data-operations-slot=scope]]:col-start-1 [&_[data-operations-slot=scope]]:row-start-1 [&_[data-operations-slot=content]]:col-start-1 [&_[data-operations-slot=content]]:row-start-2 [&_[data-operations-slot=content]]:min-w-0 md:scroll-mt-12 md:grid-cols-[176px_minmax(0,1fr)] md:pt-12 md:[&_[data-operations-slot=scope]]:col-span-2 md:[&_[data-operations-slot=content]]:col-start-2",
   siteHeader:
-    "relative z-20 grid min-h-24 grid-rows-2 border-b border-border bg-background/94 backdrop-blur-md md:h-12 md:min-h-12 md:grid-cols-[minmax(0,1fr)_auto] md:grid-rows-1 md:items-center md:gap-4 md:px-5",
+    "fixed inset-x-0 top-0 z-20 grid h-24 grid-rows-2 border-b border-border bg-background/94 backdrop-blur-md md:h-12 md:grid-cols-[minmax(0,1fr)_auto] md:grid-rows-1 md:items-center md:gap-4 md:px-5",
   skipLink:
     "fixed left-2 top-2 z-[100] -translate-y-[150%] border border-ring bg-foreground px-3.5 py-2.5 text-xs font-semibold text-background no-underline focus:translate-y-0",
 } as const;

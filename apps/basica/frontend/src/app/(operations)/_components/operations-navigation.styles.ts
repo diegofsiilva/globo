@@ -13,5 +13,5 @@ export const navigationStyles = {
   list: "m-0 list-none p-0",
   menuButton: "md:hidden",
   navigation:
-    "hidden min-h-full min-w-44 border-r border-border bg-surface/65 backdrop-blur-[6px] md:block",
+    "hidden h-full min-w-44 overflow-y-auto overscroll-contain border-r border-border bg-surface/65 backdrop-blur-[6px] md:block",
 } as const;
