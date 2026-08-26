@@ -230,14 +230,19 @@ ambiente publicado. Não registrar credenciais, tokens ou URLs privadas.
 > Antes da entrega, conferir se o link permite visualização sem solicitar acesso
 > individual e se o vídeo permanece entre 2 e 3 minutos.
 
-## 9. Limitações e próximos passos
+## 9. Frontend das hipóteses
+
+![Tela do frontend](../../assets/prototipo_hipoteses.png "Tela do frontend)
+
+
+## 10. Limitações e próximos passos
 
 - **PREENCHER:** limitações conhecidas da interface entregue;
 - **PREENCHER:** testes ainda não automatizados;
 - **PREENCHER:** melhorias de acessibilidade ou responsividade pendentes;
 - **PREENCHER:** funcionalidades planejadas para a próxima versão.
 
-## 10. Checklist da entrega
+## 11. Checklist da entrega
 
 - [ ] Todos os marcadores **PREENCHER** foram substituídos ou removidos.
 - [ ] Os resultados de validação de entradas incluem evidências reproduzíveis.
