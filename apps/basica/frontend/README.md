@@ -57,6 +57,23 @@ rótulos técnicos. O tema inicial segue o sistema; o seletor do cabeçalho
 persiste a escolha em `argus-theme` e aplica a classe no documento com
 `next-themes`.
 
+Há um único vocabulário de tokens de cor, o canônico do `@theme` (`--foreground`,
+`--muted-foreground`, `--subtle-foreground`, `--border`, `--border-soft`,
+`--border-strong`, `--surface`, `--surface-raised`, `--primary`, `--destructive`,
+`--warning`…). Os aliases globais (`--ink`, `--muted`, `--soft`, `--line`, `--red`,
+`--canvas`) e os forks por tela (`--agora-*`, `--explore-*`) foram removidos: eram
+indireção sem diferença visual. Cor fixa em `*.styles.ts` é bug — não responde ao
+tema. As duas exceções são o `meta[theme-color]` em `theme-toggle.tsx` e os gaps
+responsivos `--explore-section-gap` / `--explore-block-gap`, que são espaçamento.
+
+A tipografia tem seis degraus, declarados como tokens `--text-*` no `globals.css`:
+`text-micro` (12px, rótulos e legendas), `text-label` (13px), `text-body` (14px),
+`text-section` (16px, h2), `text-subhead` (20px, métricas de bloco) e
+`text-display` (28px, h1 de tela e métricas de destaque). O h1 de toda tela usa a
+constante `screenTitle` de `(operations)/_components/screen-frame.styles.ts`.
+Nenhum texto abaixo de 12px — a única exceção é `[font-size:16px]` nos inputs em
+telas estreitas, que existe para o iOS não dar zoom no foco.
+
 Estilos inline ficam restritos a valores calculados em runtime, como altura e
 posição de barras dos gráficos. Breakpoints, foco visível, redução de movimento
 e pseudo-elementos do seletor temporal são expressos por variantes Tailwind.

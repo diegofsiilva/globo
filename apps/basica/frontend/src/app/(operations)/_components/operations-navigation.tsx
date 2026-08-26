@@ -5,7 +5,6 @@ import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -76,11 +75,6 @@ function NavigationLinks({ pathname, onNavigate }: { pathname: string; onNavigat
             >
               <span className={styles.index}>{item.index}</span>
               <span className={styles.label}>{item.label}</span>
-              {item.badge && (
-                <Badge className={styles.badge} aria-label={`${item.badge} pendências`}>
-                  {item.badge}
-                </Badge>
-              )}
             </Link>
           </li>
         );

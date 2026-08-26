@@ -33,6 +33,18 @@
   --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-status-neutral: var(--status-neutral);
+  --color-border-soft: var(--border-soft);
+
+  /* Escala tipográfica única das telas. Seis degraus: abaixo de 12px o rótulo
+     deixa de ser legível em tela densa, e acima de 28px compete com o h1. */
+  --text-micro: 12px;      /* eyebrows, rótulos, legendas, eixos de gráfico */
+  --text-label: 13px;      /* texto de apoio, células de tabela */
+  --text-body: 14px;       /* corpo */
+  --text-section: 16px;    /* h2 de seção e títulos de item */
+  --text-subhead: 20px;    /* métricas de bloco */
+  --text-display: 28px;    /* h1 de tela e métricas de destaque */
 
   --animate-agora-live-pulse: live-pulse 2s ease-out infinite;
   --animate-agora-enter-content: enter-content 260ms ease-out both;
@@ -68,17 +80,10 @@
   --grid-line: rgb(23 23 25 / 3.5%);
   --status-neutral: #74727a;
 
-  --red: var(--primary);
-  --dark-red: var(--primary-hover);
-  --ink: var(--foreground);
-  --muted: var(--muted-foreground);
-  --soft: var(--subtle-foreground);
-  --canvas: var(--background);
-  --line: var(--border);
-  --line-soft: color-mix(in srgb, var(--border) 60%, transparent);
-  --nav-hover: var(--surface-raised);
-  --nav-selected: color-mix(in srgb, var(--primary) 9%, transparent);
-  --nav-selected-hover: color-mix(in srgb, var(--primary) 14%, transparent);
+  /* Borda de separação interna, mais leve que --border. Único token derivado
+     que sobrevive: os demais aliases (--ink, --muted, --line, --red…) foram
+     removidos porque só duplicavam nomes canônicos. */
+  --border-soft: color-mix(in srgb, var(--border) 62%, transparent);
 }
 
 .dark {

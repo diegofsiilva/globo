@@ -4,7 +4,7 @@ export const operationsLayoutStyles = {
   brand:
     "flex min-w-0 items-center gap-2.5 uppercase [&_strong]:truncate [&_strong]:text-[11px] [&_strong]:font-bold [&_strong]:tracking-[0.09em] [&_span]:hidden [&_span]:font-mono [&_span]:text-[10px] [&_span]:tracking-[0.12em] [&_span]:text-muted-foreground sm:[&_span]:inline",
   brandMark:
-    "size-3 shrink-0 bg-[linear-gradient(135deg,var(--primary),var(--warning))] shadow-[0_0_16px_color-mix(in_srgb,var(--primary)_34%,transparent)] [border-radius:3px]",
+    "size-3 shrink-0 bg-primary [border-radius:3px]",
   controlRow:
     "flex min-w-0 items-center justify-between gap-2 border-t border-border px-3 sm:justify-end md:border-0 md:px-0",
   identityRow: "flex min-w-0 items-center gap-2 px-3 md:px-0",

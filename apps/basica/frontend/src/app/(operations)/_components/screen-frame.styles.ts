@@ -16,3 +16,12 @@ export const screenFrameStyles = {
   scopeMeta:
     "ml-auto flex min-w-0 shrink-0 items-center gap-2 whitespace-nowrap font-mono text-[11px] text-muted-foreground [&>span]:hidden xl:[&>span]:block",
 } as const;
+
+/**
+ * Escala única do título (h1) de cada tela. Fica aqui, e não em cada rota,
+ * porque nenhuma das seis etapas é hierarquicamente superior às outras: um h1
+ * maior em uma delas sugeriria uma importância que não existe.
+ */
+export const screenTitle =
+  "[&_h1]:[margin:0] [&_h1]:text-display [&_h1]:[line-height:1.15] [&_h1]:font-semibold [&_h1]:[letter-spacing:-0.02em]";
+
