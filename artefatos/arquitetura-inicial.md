@@ -255,3 +255,83 @@ camada bruta.
 &emsp; **Proteção contra destruição.** `deletion_protection` e `skip_final_snapshot`
 seguem `var.environment == "prod"`. Em laboratório, `skip_final_snapshot = true` — um
 snapshot final de uma conta que vai deixar de existir é custo sem valor.
+
+---
+
+## 4. Plano de deploy detalhado com recursos AWS
+
+### 4.1 Inventário de mudanças no Terraform (`apps/basica/infra/`)
+
+&emsp; A tabela a seguir resume o que foi removido, criado e modificado em relação à
+arquitetura anterior (DynamoDB), servindo de checklist do que o `terraform plan`
+precisa mostrar.
+
+**Removido**
+
+| Arquivo | Motivo |
+|---|---|
+| `dynamodb.tf` | Toda a persistência migrou para o RDS PostgreSQL (seção 3.2) |
+
+**Novo**
+
+| Arquivo | Conteúdo |
+|---|---|
+| `rds.tf` | Subnet group, parameter group, security group, `aws_db_instance`, gestão de senha |
+| `s3_origem.tf` | Bucket `origem/` com versionamento, para o dump e o Parquet imutáveis |
+| `sqs_changes.tf` | Fila de change events e DLQ, espelhando `sqs.tf` |
+| `apigateway_changes.tf` | Rota `POST /v1/changes` → SQS, integração direta sem Lambda |
+| `ecs_simulator.tf` | Serviço do simulador (relógio, falhas com seed fixa, emissor) |
+| `ecs_processing.tf` | Serviço do worker de processamento (ETL incremental; detector/canário no-op) |
+| `ecs_loader.tf` | Task definition one-shot da carga inicial |
+
+**Modificado**
+
+| Arquivo | Mudança |
+|---|---|
+| `ecs.tf` | Workers de merge e evento passam a falar PostgreSQL (`DATABASE_URL` no lugar de `EVENTS_TABLE_NAME`); egress 5432 liberado para o security group do RDS |
+| `api_read.tf` | Lambda passa a ler as views (`DATABASE_URL` no lugar de `GSI1_SHARDS`) |
+| `iam.tf` | Sai `dynamodb:*`; entram `secretsmanager:GetSecretValue` e `s3:GetObject` restrito a `origem/` |
+| `observability.tf` | Sai o alarme de throttle do DynamoDB; entram alarmes de CPU, armazenamento e conexões do RDS, `lag_sim` e heartbeat por fonte |
+| `variables.tf`, `locals.tf`, `outputs.tf` | Bloco de variáveis do DynamoDB sai, entra o do RDS; outputs passam a expor o endpoint do RDS e a URL de `/v1/changes` |
+
+### 4.2 Carga inicial
+
+&emsp; A carga inicial segue a cadeia `argus_dump.sql.gz` (fonte de verdade) →
+`tools/etl_dump.py` → Parquet (199 MB, 33 tabelas, formato de transporte) → `aws s3
+sync` para `s3://<nome>-origem-<conta>/parquet/` → task ECS `loader` (one-shot), que lê
+os arquivos em batches via `pyarrow` e faz `COPY ... FROM STDIN` na corrente de bronze,
+gravando também `change_log` com `op = 'r'` (snapshot). Os requisitos não negociáveis
+dessa carga são: `COPY` por lote, nunca `INSERT` linha a linha; índices criados
+**depois** da carga de cada tabela; `ANALYZE` ao final; e validação obrigatória contra
+o `row_counts` do `_manifest.json` — divergência é falha, não aviso. O alvo de tempo é
+20 a 30 minutos para as 68,7 milhões de linhas, dimensionado para caber com folga numa
+sessão do Learner Lab.
+
+### 4.3 Ordem de execução
+
+| # | Passo |
+|---|---|
+| 1 | Migrations do schema (001 a 015) escritas e validadas contra PostgreSQL 16 local (Docker) |
+| 2 | `tools/migrate.py` aplica as migrations no ambiente alvo |
+| 3 | Terraform: `rds.tf` e `s3_origem.tf` primeiro, com `terraform plan` isolado |
+| 4 | Terraform: remoção do DynamoDB e ajuste de `iam.tf` / `observability.tf` / `api_read.tf` |
+| 5 | Loader e carga inicial; validação contra `_manifest.json` |
+| 6 | Serviços `merge_worker` e `event_worker` |
+| 7 | Serviço `simulator` |
+| 8 | Serviço `processing` (ETL incremental) |
+| 9 | Lambda de leitura sobre as views |
+
+&emsp; Os passos 1 e 2 são pré-condição para todo o resto. Os blocos 3–4 (Terraform de
+persistência) e a preparação do Parquet para o passo 5 são independentes entre si e
+podem ser tocados em paralelo por pessoas diferentes.
+
+### 4.4 Verificação pós-deploy
+
+&emsp; Antes de considerar o deploy concluído, quatro verificações fecham o ciclo:
+(1) `sim.now()` avança sozinho e as views ignoram linhas com `available_at` no futuro
+do relógio virtual; (2) o rebuild funciona — truncar silver e gold e reprocessar o
+`change_log` reproduz as mesmas contagens, a propriedade que sustenta a decisão da
+seção 3.2; (3) `terraform plan` não mostra nenhuma destruição fora do escopo esperado
+(DynamoDB e IAM associado); (4) um change event sintético enviado a `POST /v1/changes`
+aparece em `bronze.change_log`, é mesclado na corrente, processado pelo ETL, e só fica
+visível em `gold.v_*` quando `sim.now()` ultrapassa o `available_at` do registro.
