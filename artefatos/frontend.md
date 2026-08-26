@@ -28,7 +28,7 @@
 | React | Construção dos componentes da interface | 19.2.8 |
 | TypeScript | Tipagem e manutenção do código | ^5 |
 | Tailwind CSS | Estilização base e utilitários de layout | ^4 |
-| CSS Modules | Estilos encapsulados por componente/página | não aplicável |
+| Tailwind CSS e arquivos de estilos por tela | Utilitários de estilo e regras específicas de cada tela | ^4 |
 | TanStack Query | Consulta, cache, refetch automático e estados das requisições ao back-end | ^5.101.4 |
 | ESLint | Análise estática de qualidade e padronização | ^9 |
 
@@ -84,37 +84,37 @@
 
 ```text
 apps/basica/frontend/src/
-├── app/(pages)/
-│   ├── (dashboard)/
-│   │   ├── _components/         Componentes privados do dashboard (detail-field, event-row, filter-select, metric)
-│   │   └── page.tsx             Monitor de eventos conectado à API real
-│   ├── agora/                   Visão operacional em tempo real (mock)
-│   ├── explorar/                Exploração por evento, período e dimensão (mock)
-│   ├── comparar/                Comparação com referências históricas (mock)
-│   ├── hipoteses/               Hipóteses de causa raiz (mock)
-│   ├── timeline/                Correlação cronológica de eventos (mock)
-│   ├── recorte/                 Delimitação da população afetada (mock)
-│   └── layout.tsx               Layout compartilhado das páginas operacionais
-├── components/
-│   ├── operations-navigation.tsx  Navegação primária reutilizável com contadores de notificação
-│   └── screen-frame.tsx           Moldura compartilhada: período, filtros, escopo
+├── app/
+│   ├── (operations)/
+│   │   ├── (dashboard)/         Rota raiz do monitor conectado à API de eventos
+│   │   ├── _components/         Navegação, moldura, tema e estado operacional compartilhados
+│   │   ├── agora/               Visão operacional com cenário sintético privado da rota
+│   │   ├── explorar/            Exploração temporal, agrupamentos e cenário sintético
+│   │   ├── comparar/            Comparação com referências históricas simuladas
+│   │   ├── hipoteses/           Hipóteses, adaptadores de fonte e cenário simulado
+│   │   ├── timeline/            Correlação cronológica simulada
+│   │   ├── recorte/             Delimitação da população afetada simulada
+│   │   └── layout.tsx           Layout compartilhado das páginas operacionais
+│   ├── globals.css              Tokens e estilos globais
+│   └── layout.tsx               Layout-base, fontes e metadados da aplicação
+├── components/ui/               Componentes de interface reutilizáveis
 ├── lib/
-│   ├── events/api.ts            Cliente HTTP tipado da API
-│   ├── events/monitor.ts        Regras de monitoração e filtro
-│   └── hypotheses/api.ts        Cliente para API de hipóteses
-├── mocks/                       Snapshots sintéticos (agora, explorar, comparar, hipoteses, recorte, timeline)
+│   ├── events/api.ts            Cliente HTTP tipado da API de eventos
+│   ├── events/monitor.ts        Regras de monitoração e filtros
+│   └── operational-state.ts     Estados de carregamento, ausência e falha
 └── providers/
-    └── app-providers.tsx        Provedores compartilhados do React Query
+    ├── query-provider.tsx       Configuração compartilhada do TanStack Query
+    └── theme-provider.tsx       Configuração de tema da aplicação
 ```
 
-&emsp; A separação em `(pages)/` com route groups, `_components/` privados, `lib/` para lógica de negócio e `mocks/` para dados sintéticos demonstra organização modular e alinhada às convenções do Next.js App Router.
+&emsp; A separação em `(operations)`, com componentes, bibliotecas e cenários privados de cada rota, preserva perto de cada tela aquilo que só ela utiliza. Componentes de interface, integrações HTTP e provedores compartilhados permanecem em diretórios próprios, em alinhamento com as convenções do Next.js App Router.
 
 ### 2.2 Convenções adotadas
 
-- Componentes React: `PascalCase`, por exemplo `DashboardPage`, `EventMonitor`, `ScreenFrame`, `OperationsNavigation`.
-- Funções, variáveis e hooks: `camelCase`, por exemplo `fetchEvents`, `needsAttention`, `useClock`, `periodLabel`.
-- Tipos e interfaces: `PascalCase`, por exemplo `ApiEvent`, `EventsResponse`, `EventFilters`, `ScreenPeriod`, `ScreenFilter`.
-- Estratégia de comentários: JSDoc em funções e componentes públicos (`@param`, `@returns`, `@throws`); comentários inline para decisões não triviais, como o motivo de `NEXT_PUBLIC_API_URL` nunca ser commitada, o comportamento do `useClock` durante a hidratação e a razão do período "tudo".
+- Componentes React: `PascalCase`, por exemplo `DashboardScreen`, `AgoraScreen`, `ScreenFrame` e `OperationsNavigation`.
+- Funções, variáveis e hooks: `camelCase`, por exemplo `fetchEvents`, `hrefWithDemoState`, `removeFilter` e `restoreFilter`.
+- Tipos e interfaces: `PascalCase`, por exemplo `ApiEvent`, `EventsResponse`, `ScreenPeriod`, `ScreenFilter` e `OperationalPresentation`.
+- Estratégia de comentários: JSDoc em componentes e funções públicas; comentários inline para decisões não triviais, como a origem escolhida para hipóteses, a sincronização do tema após a hidratação e as regras de intervalo temporal.
 - Ferramentas de qualidade: ESLint (0 erros), TypeScript em modo estrito (`--noEmit`), geração de tipos do App Router (`next typegen`), build de produção com Webpack.
 
 ### 2.3 Avaliação da qualidade do código
@@ -122,14 +122,14 @@ apps/basica/frontend/src/
 | Aspecto | Evidência observada | Avaliação |
 |---|---|---|
 | Modularidade | Páginas, componentes, cliente HTTP, regras de monitoramento, mocks e providers em diretórios separados | Ponto positivo |
-| Nomenclatura | Tipos e funções descrevem o domínio: `Period`, `MonitorFilters`, `filterEvents`, `getPeriodQuery` | Ponto positivo |
+| Nomenclatura | Tipos e funções descrevem o domínio: `ScreenPeriod`, `ScreenFilter`, `OperationalPresentation`, `hrefWithDemoState` | Ponto positivo |
 | Tipagem | Eventos, filtros, períodos e respostas da API com tipos explícitos em TypeScript | Ponto positivo |
 | Comentários | JSDoc em funções e componentes; decisões não triviais explicadas | Ponto positivo |
 | Qualidade estática | ESLint, geração de tipos, TypeScript e build de produção aprovados | Ponto positivo |
-| Componentização | `ScreenFrame` como moldura compartilhada; `OperationsNavigation` reutilizável; `_components/` privados por página | Ponto positivo |
+| Componentização | `ScreenFrame` como moldura compartilhada; `OperationsNavigation` reutilizável; `_components/` privados por rota | Ponto positivo |
 | Testabilidade | Não existe suíte automatizada nem script `test` no `package.json` | Limitação |
-| Tamanho das páginas | `agora/page.tsx` e `explorar/page.tsx` concentram muitas regras e marcação | Limitação |
-| Integração com API | A rota `/` possui cliente real; Agora e Explorar usam mocks | Cobertura parcial |
+| Tamanho das telas | A marcação e o estado das telas permanecem concentrados em componentes como `AgoraScreen` e `ExplorarScreen` | Limitação |
+| Integração com API | A rota raiz possui cliente real; as demais telas operacionais usam cenários sintéticos, exceto Hipóteses, que possui adaptadores para fonte mockada ou HTTP | Cobertura parcial |
 
 ## 3. Acessibilidade e responsividade
 
@@ -153,9 +153,9 @@ apps/basica/frontend/src/
 | Verificação | Método | Resultado | Evidência |
 |---|---|---|---|
 | Idioma e landmarks | Inspeção estática do código | `lang="pt-BR"`, `nav`, `main`, `aside` presentes | [layout.tsx](../apps/basica/frontend/src/app/layout.tsx) |
-| Nomes e estados ARIA | Inspeção estática do código | `aria-label`, `aria-current`, `aria-pressed`, `aria-expanded`, `aria-valuetext` presentes | [event-monitor.tsx](../apps/basica/frontend/src/components/event-monitor.tsx), [sidebar.tsx](../apps/basica/frontend/src/components/sidebar.tsx) |
-| Foco visível | Inspeção do CSS | Regras `:focus-visible` definidas | [globals.css](../apps/basica/frontend/src/app/globals.css) |
-| Movimento reduzido | Inspeção do CSS | `prefers-reduced-motion: reduce` remove transições | [globals.css](../apps/basica/frontend/src/app/globals.css) |
+| Nomes e estados ARIA | Inspeção estática do código | `aria-label`, `aria-current`, `aria-pressed`, `aria-expanded` e `aria-valuetext` presentes | Componentes de navegação, moldura e telas operacionais |
+| Foco visível | Inspeção dos estilos por tela | Regras `focus-visible` definidas nos controles operacionais | Estilos de navegação, moldura, Agora e Explorar |
+| Movimento reduzido | Inspeção dos estilos por tela | A variante `motion-reduce` reduz transições nos controles aplicáveis | Estilos das telas operacionais |
 | Navegação por teclado | Não exercitado em navegador | Controles HTML nativos (select, button, input[search]) são acessíveis por padrão | Pendente de validação em navegador |
 | Contraste | Não medido | Estados críticos usam cor + texto (não dependem exclusivamente da cor) | Pendente de medição com ferramenta |
 
@@ -165,14 +165,14 @@ apps/basica/frontend/src/
 
 | Elemento da interface | Risco de acessibilidade identificado | Tratamento recomendado |
 |---|---|---|
-| Chips de escopo removíveis (etiquetas de filtro com botão "×"; plataforma, fabricante, região, app) | Botão "×" sem rótulo textual | Adicionar `aria-label="Remover filtro {dimensão}: {valor}"` a cada botão de remoção |
+| Chips de escopo removíveis (etiquetas de filtro com botão "×"; plataforma, fabricante, região, app) | A remoção precisa anunciar qual filtro será removido | Implementado em Explorar com `aria-label="Remover filtro {dimensão}: {valor}"`; validar a leitura em navegador |
 | Relógio "AO VIVO" atualizado a cada segundo | Atualização contínua pode gerar leitura excessiva em leitores de tela | Usar `aria-live="off"` no relógio e expor o horário da última atualização em elemento separado com `aria-live="polite"` |
 | Abas de tipo de evento (Explorar: request, screen_view, video_view, session, vitals, error) | Marcação apenas visual, sem padrão de abas | Implementar `role="tablist"`/`role="tab"`/`role="tabpanel"` com navegação por setas |
 | Pastilhas de seleção (agrupar por dimensão, janela de comparação, hipótese selecionada) | `<div>` clicável sem foco por teclado nem estado de seleção anunciado | Usar `<button>` com `aria-pressed`/`aria-selected` e ordem de tabulação lógica |
 | Minigráficos de tendência na tabela "Sinais em desvio agora" | Gráfico de barras decorativo sem alternativa textual | Adicionar `aria-hidden="true"` ao gráfico; os valores de Agora, Baseline e Δ já presentes na linha servem de alternativa |
 | Mapa de calor "Taxa de erro por família de dispositivo × região" (tela Recorte) | Codifica intensidade por cor, além do valor numérico | Manter o percentual em texto em cada célula e garantir contraste mínimo mesmo nas células de menor opacidade |
 | Timeline por raias (Deploy, Player QoE, CDN, Backend, Identidade, Incidentes) | Representação espacial complexa, difícil de navegar sem mouse | Manter a lista "Cronologia reconstruída" como alternativa textual equivalente, associada à raia correspondente com `aria-describedby` |
-| Alternância de tema claro/escuro | Estado atual não é anunciado a leitores de tela | Adicionar `aria-pressed` e `aria-label="Alternar para modo {claro\|escuro}"` |
+| Alternância de tema claro/escuro | A ação deve comunicar o tema que será aplicado | Implementado com `aria-label="Usar modo {claro\|escuro}"`; validar a comunicação do estado em leitor de tela |
 
 ### 3.2 Responsividade
 
@@ -280,7 +280,7 @@ Observações: O teste TF-08 (limite de tamanho) é parcial porque, embora os se
 | RF12 | Exibir gráficos e indicadores | Métricas no bloco de destaque do monitor; degradações e sinais em `/agora`; cada área operacional tem visualização própria: minigráficos de tendência por sinal (Agora), gráfico de eventos × erros (Explorar), gráfico com envelope histórico e significância σ (Comparar), mapa de calor (Recorte) e timeline por raias com seis fontes (Timeline) | TF-01, TF-06, TF-17 | Parcial | Visualizações implementadas sobre snapshots nas seis áreas operacionais |
 | RF13 | Consultar falhas críticas | Degradação ativa, sinais de desvio, busca de erros e status "atenção"; a tela Agora lista "Sinais em desvio agora" (com Agora, baseline e Δ) e "Outras degradações abertas" com severidade (ALTO/ATENÇÃO) | TF-06, TF-07 | Parcial | Implementado com filtro de status `attention`; tabela de sinais e lista de degradações abertas na tela Agora |
 | RF14 | Comparar período atual e anterior | Tela Comparar com quatro janelas de referência (ontem no mesmo horário, semana passada, última janela estável, pico ao vivo anterior), gráfico com envelope histórico e tabela com significância estatística (σ) por métrica | TF-17 | Parcial | Rota `/comparar` com layout e mock implementados |
-| RF15 | Destacar aumentos relevantes | Sinais em desvio e tendência de erros na tela Agora; indicador `needsAttention()` no monitor; os desvios relevantes são destacados por cor, símbolo Δ e barra de significância σ na tela Comparar | TF-06, TF-17 | Parcial | Destaques visuais existem; critério calculado sobre dados reais apenas na raiz |
+| RF15 | Destacar aumentos relevantes | Sinais em desvio e tendência de erros na tela Agora; os desvios relevantes são destacados por cor, símbolo Δ e barra de significância σ na tela Comparar | TF-06, TF-17 | Parcial | Destaques visuais existem; critério calculado sobre dados reais apenas na rota raiz |
 | RF16 | Exibir contexto para investigação | Detalhes do evento: ID, data, dispositivo, sistema, rota, versão, atributos JSON; a tela Recorte detalha o recorte afetado com amostra de sessões e a tela Timeline reconstrói a cronologia do incidente cruzando seis fontes de dados | TF-04, TF-06 | Atendido | Componente `EventDetails` exibe todos os campos e atributos; contexto ampliado nas telas Recorte e Timeline |
 | RF17 | Apresentar hipóteses de causa raiz | Tela Hipóteses em que cada hipótese recebe um score de 0 a 100, quatro fatores ponderados com justificativa textual, lista de hipóteses descartadas com motivo e lista de evidências consultadas | TF-18 | Parcial | Rota `/hipoteses` com layout, mock e cliente de API |
 
@@ -296,7 +296,7 @@ Observações: O teste TF-08 (limite de tamanho) é parcial porque, embora os se
 
 ## 6. Integração com o back-end
 
-&emsp;O front-end consome a API de leitura de eventos por meio de um cliente HTTP tipado em [`events-api.ts`](../apps/basica/frontend/src/lib/events-api.ts). A URL da API é fornecida pela variável de ambiente `NEXT_PUBLIC_API_URL`, que é definida no momento do build e nunca commitada no código-fonte para evitar exposição de acesso.
+&emsp;O front-end consome a API de leitura de eventos por meio de um cliente HTTP tipado em [`events/api.ts`](../apps/basica/frontend/src/lib/events/api.ts). A URL da API é fornecida pela variável de ambiente `NEXT_PUBLIC_API_URL`, que é definida no momento do build e nunca commitada no código-fonte para evitar exposição de acesso.
 
 &emsp;O fluxo de integração é o seguinte:
 
@@ -349,7 +349,7 @@ Interface renderizada com dados filtrados localmente
 
 &emsp;A coleção Postman descrita no [MVP inicial](./mvp-inicial.md) registrou anteriormente 51 asserções de API sem falha, confirmando que os endpoints consumidos pelo front-end operam corretamente.
 
-&emsp; As telas Agora e Explorar não percorrem esse fluxo na versão atual: ambas importam snapshots de `src/mocks/` e calculam a apresentação em estado local do React. Essa separação permite avaliar as interações projetadas, mas não comprova integração com o back-end nessas telas.
+&emsp; As telas Agora e Explorar não percorrem esse fluxo na versão atual: ambas importam cenários sintéticos localizados em suas respectivas pastas `_mocks/` e calculam a apresentação em estado local do React. Essa separação permite avaliar as interações projetadas, mas não comprova integração com o back-end nessas telas.
 
 ## 7. Publicação na AWS S3
 
