@@ -148,3 +148,110 @@ EventBridge Scheduler** aparece no desenho original como o mecanismo que dispara
 processamento e o detector por agendamento, mas ainda não tem recurso Terraform
 aplicado — hoje o serviço `processing` roda como um serviço de longa duração com laços
 internos, não como uma execução agendada.
+
+---
+
+## 3. Justificativa da arquitetura e das tecnologias
+
+### 3.1 De coletor a consumidor de CDC
+
+&emsp; A arquitetura anterior (documentada em `mvp-inicial.md`) partia da premissa de
+que o sistema **produzia** o dado: API Gateway → SQS → worker Fargate → DynamoDB, um
+desenho de firehose de ingestão. O entendimento aprofundado com o parceiro derrubou
+essa premissa — o Argus já existe em produção na Globo, já tem 33 tabelas com o dado
+tratado, da fonte bruta (Prometheus, New Relic, Apollo, RPaaS, Cloud Armor, Tsuru) até
+a camada canônica e o ground truth de incidentes. O papel do projeto deixou de ser
+coletar telemetria e passou a ser **ler, replicar e manter atualizadas** essas tabelas,
+construindo em cima delas as camadas analíticas do dashboard. Essa mudança de natureza
+do sistema — de coletor para consumidor de CDC com replay — é a raiz de todas as
+demais decisões de arquitetura descritas abaixo.
+
+### 3.2 RDS PostgreSQL com camadas bronze/silver/gold, não DynamoDB single-table
+
+&emsp; O DynamoDB single-table fazia sentido quando o sistema controlava o schema dos
+eventos que ele mesmo produzia. Consumindo CDC de 33 tabelas heterogêneas, com colunas
+que a Globo pode acrescentar a qualquer momento sem aviso, a exigência mudou: o
+armazenamento precisa acomodar mudança de schema **sem migração**. A separação entre
+`bronze.change_log` (append-only, `jsonb` genérico, absorve qualquer coluna nova sem
+DDL) e a corrente tipada resolve isso — e sustenta uma garantia mais forte, a de que
+nenhuma tabela de silver ou gold pode conter informação que não seja derivável do
+`change_log`. Enquanto o log estiver íntegro, `TRUNCATE` em silver e gold seguido de
+replay reconstrói tudo, o que torna a iteração do ETL barata: mudar uma transformação
+custa um rebuild, não uma migração de dado. Essa propriedade não existe de graça em
+DynamoDB, e é o motivo direto de adotar um banco relacional com camadas explícitas em
+vez de manter o modelo single-table.
+
+### 3.3 Integração direta API Gateway → SQS, sem Lambda intermediária
+
+&emsp; As rotas `POST /v1/changes` e `POST /v1/events` usam integração `AWS_PROXY`
+direto para SQS (`SQS SendMessage`), sem uma Lambda de recepção no meio. O simulador é
+o único emissor conhecido e o contrato do payload já é o formato interno de change
+event — não há transformação nem validação de negócio a fazer na borda que justifique
+uma função adicional. Cada Lambda a mais nesse caminho seria custo e mais um ponto de
+falha sem ganho de comportamento, então a integração direta do API Gateway com o SQS
+foi preferida à alternativa mais comum (API Gateway → Lambda → SQS).
+
+### 3.4 Dois workers, duas filas, sem duplicar a API
+
+&emsp; A escolha de duas filas (`changes` e `events`) e dois serviços ECS consumidores
+(`merge_worker` e `event_worker`) em vez de uma fila única com um worker que
+decide o destino pelo conteúdo da mensagem separa as duas responsabilidades — mudança
+de estado da tabela de origem (`change_log` → corrente) e evento de sessão (`bronze.
+event`) — em unidades de deploy e escala independentes, sem acoplar a lógica de
+roteamento a um único processo. O custo dessa escolha é infraestrutura duplicada (duas
+filas, dois serviços); o ganho é que cada worker pode escalar, falhar e ser reimplantado
+sem afetar o outro.
+
+### 3.5 ETL incremental como threads dentro de um único serviço ECS
+
+&emsp; O ETL incremental de bronze→silver (cadência de 60 s) e silver→gold (cadência
+de 900 s) roda como duas threads dentro do mesmo container `processing` já
+provisionado, em vez de dois serviços ECS novos. A atomicidade de cada ciclo mora no
+banco — cada chamada a `etl.executar_*()` é uma única transação SQL, watermark e dado
+avançando juntos — então threads bastam para orquestrar a cadência, e evitam Terraform
+novo (task definition, log group, alarme de `RunningTaskCount`) para algo que não
+precisa de isolamento de processo. Essa decisão trouxe consigo uma regra de guarda
+descoberta durante a implementação: se a janela máxima do ciclo silver→gold não for
+estritamente maior que a margem de segurança de reabertura, o watermark não trava —
+**regride** a cada chamada, porque a margem é subtraída nas duas pontas do ciclo.
+`etl.executar_silver_gold()` hoje falha alto (`RAISE EXCEPTION`) nessa condição.
+
+### 3.6 Lambda para leitura, ECS Fargate para os workers
+
+&emsp; A camada de leitura (`read_api`) roda em Lambda, enquanto ingestão,
+processamento e simulação rodam em ECS Fargate. A diferença de perfil de carga
+justifica a diferença de tecnologia: leitura de dashboard é *bursty* e correlacionada
+ao uso humano, um encaixe natural para o modelo de invocação sob demanda da Lambda. Os
+workers de ingestão e o ETL, por outro lado, mantêm conexão de pool com o RDS e um
+ciclo de vida contínuo (long polling, laços com cadência fixa) — cold start de Lambda
+e o limite de conexões simultâneas ao banco tornariam esse padrão caro e frágil em
+Lambda. Fargate também foi a escolha original do worker de ingestão desde o MVP
+anterior, motivada pela sazonalidade forte do tráfego da Globo (picos em eventos ao
+vivo, shows e ofertas) — um padrão que Lambda, com limite de concorrência por conta,
+atenderia pior que containers de vida longa com auto scaling próprio.
+
+### 3.7 Decisões de infraestrutura
+
+&emsp; **Rede.** O RDS é publicamente acessível por padrão de ambiente de laboratório
+(`var.db_publicly_accessible`, default `false`, ligado via `tfvars` do Learner Lab),
+com ingress na porta 5432 restrito a um CIDR configurável — nunca `0.0.0.0/0`. A
+alternativa de produção (RDS privado, Lambda dentro da VPC) fica documentada como a
+postura correta, mas custa cold start de ENI na Lambda e impede inspecionar o banco sem
+bastion — um custo que não se justifica em ambiente de desenvolvimento/laboratório.
+
+&emsp; **Senha.** Dois modos: por padrão, `aws_secretsmanager_secret` com senha
+gerada por `random_password`; se o Secrets Manager for negado pelo ambiente de
+laboratório, cai para uma senha de `tfvars` (gitignored, marcada `sensitive`). Em
+nenhum caminho a senha entra em arquivo versionado.
+
+&emsp; **Dimensionamento da instância.** `db.t3.medium` com 100 GB gp3 foi dimensionado
+para a bronze (~13 GB) e a silver (~6 GB, `signal_point` duplicado), considerando que
+o PostgreSQL não comprime heap — os 199 MB de Parquet de origem expandem para cerca de
+2,1 GB de dados mais 1,2 GB de índice só em `prom_point`. O ponto que sustenta essa
+escolha de instância sem virar gargalo é o mesmo da seção 3.2: as telas do dashboard
+nunca leem bronze, só `gold.v_*`, o que desacopla o desempenho percebido do tamanho da
+camada bruta.
+
+&emsp; **Proteção contra destruição.** `deletion_protection` e `skip_final_snapshot`
+seguem `var.environment == "prod"`. Em laboratório, `skip_final_snapshot = true` — um
+snapshot final de uma conta que vai deixar de existir é custo sem valor.
