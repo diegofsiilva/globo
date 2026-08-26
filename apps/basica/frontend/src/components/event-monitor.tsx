@@ -2,24 +2,84 @@
 
 import { useEffect, useState } from "react";
 
-type View = "timeline" | "recorte";
-const navigation = [
-  { number: "01", label: "Agora", badge: "3" }, { number: "02", label: "Explorar" },
-  { number: "03", label: "Comparar" }, { number: "04", label: "Hipóteses", badge: "4" },
-  { number: "05", label: "Timeline", view: "timeline" as const },
-  { number: "06", label: "Recorte", view: "recorte" as const },
-];
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchEvents, type ApiEvent } from "@/lib/events-api";
+import { Sidebar } from "@/components/sidebar";
 
 /** Dashboard navegável que reproduz as telas de timeline e recorte do protótipo. */
 export function EventMonitor() {
-  const [view, setView] = useState<View>("timeline");
-  const [period, setPeriod] = useState("30 min");
-  const [time, setTime] = useState("20:11:04");
-  useEffect(() => { const update = () => setTime(new Date().toLocaleTimeString("pt-BR")); update(); const timer = window.setInterval(update, 1_000); return () => window.clearInterval(timer); }, []);
-  return <div className="monitor">
-    <div className="live-controls"><span className="live-status"><i />Ao vivo · {time}</span><div className="periods" aria-label="Intervalo de atualização">{["15 min", "30 min", "3 h", "24 h"].map(item => <button key={item} aria-pressed={period === item} onClick={() => setPeriod(item)}>{item}</button>)}</div></div>
-    <ScopeBar />
-    <div className="workspace"><nav className="primary-nav" aria-label="Navegação principal">{navigation.map(item => <button key={item.number} className={item.view === view ? "active" : ""} onClick={() => item.view && setView(item.view)} disabled={!item.view}><span>{item.number}</span><strong>{item.label}</strong>{item.badge && <b>{item.badge}</b>}</button>)}</nav><main className="screen-content">{view === "timeline" ? <TimelineScreen /> : <CutScreen />}</main></div>
+  const [period,setPeriod]=useState<Period>("30");
+  const [now,setNow]=useState<Date|null>(null);
+  const [platform,setPlatform]=useState("all");
+  const [manufacturer,setManufacturer]=useState("all");
+  const [eventType,setEventType]=useState("all");
+  const [status,setStatus]=useState<Status>("all");
+  const [search,setSearch]=useState("");
+  const [selectedId,setSelectedId]=useState<string|null>(null);
+
+  useEffect(()=>{
+    const restoreTimer=window.setTimeout(()=>{
+      const saved=window.localStorage.getItem("event-monitor-period");
+      if(isPeriod(saved))setPeriod(saved);
+      setNow(new Date());
+    },0);
+    const timer=window.setInterval(()=>setNow(new Date()),1_000);
+    return()=>{window.clearTimeout(restoreTimer);window.clearInterval(timer)};
+  },[]);
+
+  const selectPeriod=(value:Period)=>{
+    setPeriod(value);
+    window.localStorage.setItem("event-monitor-period",value);
+  };
+
+  // O período vai para o backend. Os demais filtros são locais para que as opções
+  // continuem disponíveis e combinações como OS + versão funcionem corretamente.
+  const events=useQuery({
+    queryKey:["events",period],
+    queryFn:({signal})=>fetchEvents(getPeriod(period),signal),
+    refetchInterval:30_000,
+  });
+  const allEvents=useMemo(()=>events.data?.items??[],[events.data]);
+  const platforms=unique(allEvents.map(platformName));
+  const manufacturers=unique(allEvents.map(e=>e.device_manufacturer).filter(isString));
+  const eventTypes=unique(allEvents.map(e=>e.event_name));
+  const filtered=useMemo(()=>allEvents.filter(event=>{
+    const haystack=[event.event_id,event.event_name,event.action,event.device_manufacturer,event.device_model,event.device_os,event.device_os_version,event.app_version,event.route_path,event.session_id].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
+    return (platform==="all"||platformName(event)===platform)
+      &&(manufacturer==="all"||event.device_manufacturer===manufacturer)
+      &&(eventType==="all"||event.event_name===eventType)
+      &&(status==="all"||(status==="attention")===needsAttention(event))
+      &&haystack.includes(search.trim().toLocaleLowerCase("pt-BR"));
+  }).sort((a,b)=>Date.parse(b.occurred_at)-Date.parse(a.occurred_at)),[allEvents,platform,manufacturer,eventType,status,search]);
+  const selected=filtered.find(e=>e.event_id===selectedId)??filtered[0]??null;
+  const alertCount=filtered.filter(needsAttention).length;
+  const clear=()=>{setPlatform("all");setManufacturer("all");setEventType("all");setStatus("all");setSearch("")};
+
+  return <div className="dashboard-shell">
+    <div className="top-controls"><div className="live"><i/>{events.isFetching?"Atualizando":"Ao vivo"} · {now?.toLocaleTimeString("pt-BR")??"--:--:--"}</div><div className="period-picker">{(["15","30","180","1440","all"] as Period[]).map(v=><button key={v} aria-pressed={period===v} onClick={()=>selectPeriod(v)}>{periodLabel(v)}</button>)}</div></div>
+    <div className="scope-bar">
+      <span className="scope-label">Escopo</span>
+      <Filter label="plataforma" value={platform} onChange={setPlatform} options={platforms}/>
+      <Filter label="fabricante" value={manufacturer} onChange={setManufacturer} options={manufacturers}/>
+      <Filter label="evento" value={eventType} onChange={setEventType} options={eventTypes}/>
+      <Filter label="status" value={status} onChange={v=>setStatus(v as Status)} options={["attention","normal"]} labels={{attention:"atenção",normal:"normal"}}/>
+      <input className="event-search" type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="buscar evento…" aria-label="Buscar eventos"/>
+      <p>{filtered.length} de {allEvents.length} eventos · {alertCount} requerem atenção</p><button className="clear-filter" onClick={clear}>limpar</button>
+    </div>
+    <div className="dashboard-body">
+      <Sidebar />
+      <main className="analysis-area">
+        <Hero event={selected} count={filtered.length}/>
+        <section className="signals-section"><header><h2>Eventos coletados pela API</h2><p>ordenados do mais recente para o mais antigo</p></header>
+          <div className="signal-table"><div className="signal-head"><span>evento</span><span>dispositivo / rota</span><span>horário</span><span>duração</span><span>status</span><span>aplicativo</span><span>sessão</span></div>{filtered.map(event=><EventRow key={event.event_id} event={event} selected={event.event_id===selected?.event_id} onSelect={()=>setSelectedId(event.event_id)}/>)}</div>
+          {events.isLoading&&<p className="empty-state">Consultando eventos na API…</p>}
+          {events.isError&&<p className="empty-state error">Não foi possível consultar a API. Tente novamente.</p>}
+          {!events.isLoading&&!events.isError&&filtered.length===0&&<p className="empty-state">Nenhum evento corresponde aos filtros selecionados.</p>}
+        </section>
+        {selected&&<EventDetails event={selected}/>}
+      </main>
+    </div>
   </div>;
 }
 

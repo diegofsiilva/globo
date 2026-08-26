@@ -12,7 +12,8 @@ from telemetry.domain.exceptions import (
     UnsupportedMediaTypeError,
     ValidationError,
 )
-from telemetry.infrastructure.dynamo import build_repository
+from telemetry.infrastructure.gold import GoldRepository
+from telemetry.infrastructure.postgres import PostgresEventRepository, build_pool
 from telemetry.interfaces.http import api, health
 
 
@@ -20,6 +21,7 @@ def create_app(
     config: dict[str, Any] | type[Config] | None = None,
     *,
     repository: Any = None,
+    gold: Any = None,
 ) -> Flask:
     """Monta a aplicação.
 
@@ -27,8 +29,9 @@ def create_app(
         config (dict[str, Any] | type[Config] | None): Configurações a aplicar
             por cima do `Config` padrão.
         repository (Any, optional): Permite injetar um adaptador pronto -- é o
-            que os testes usam para apontar a API para um DynamoDB falso sem
-            passar por variável de ambiente.
+            que os testes usam para apontar a API para outro banco sem passar
+            por variável de ambiente.
+        gold (Any, optional): Idem, para o repositório da camada gold.
 
     Returns:
         Flask: Instância da aplicação Flask pronta para execução.
@@ -41,13 +44,30 @@ def create_app(
         else:
             app.config.from_object(config)
 
-    app.extensions["event_repository"] = repository or build_repository(
-        app.config["EVENTS_TABLE_NAME"],
-        region=app.config["AWS_REGION"],
-        endpoint_url=app.config.get("DYNAMODB_ENDPOINT_URL"),
-        gsi1_shards=app.config["GSI1_SHARDS"],
-        user_id_hash_salt=app.config["USER_ID_HASH_SALT"],
-    )
+    if repository is not None and gold is not None:
+        app.extensions["event_repository"] = repository
+        app.extensions["gold_repository"] = gold
+    else:
+        url = app.config.get("DATABASE_URL")
+        if not url:
+            raise RuntimeError(
+                "DATABASE_URL nao definida. A API le do PostgreSQL desde a v3; "
+                "veja `terraform output database_url_hint`."
+            )
+        # UM pool para os dois repositorios. Cada execucao concorrente da Lambda
+        # e um processo proprio, e dois pools por processo dobrariam o consumo
+        # de conexao do RDS sem dobrar a concorrencia real.
+        pool = build_pool(url)
+        app.extensions["db_pool"] = pool
+        app.extensions["event_repository"] = repository or PostgresEventRepository(
+            pool,
+            user_id_hash_salt=app.config["USER_ID_HASH_SALT"],
+            default_window_hours=app.config["DEFAULT_WINDOW_HOURS"],
+            max_items_scanned=app.config["MAX_ITEMS_SCANNED"],
+        )
+        app.extensions["gold_repository"] = gold or GoldRepository(
+            pool, max_points=app.config["MAX_ITEMS_SCANNED"]
+        )
     app.register_blueprint(api)
     app.register_blueprint(health)
     register_cors(app)

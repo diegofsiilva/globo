@@ -11,7 +11,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent
 SOURCE_ROOT = BACKEND_ROOT / "src"
 RUNTIME_REQUIREMENTS = (
     "Flask>=3.1,<4",
-    "boto3>=1.35,<2",
+    "psycopg[binary,pool]>=3.2,<4",
 )
 
 if str(SOURCE_ROOT) not in sys.path:
