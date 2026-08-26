@@ -13,7 +13,7 @@ Simulador  ──> API Gateway (mudanças) ──> SQS ──> ECS (merge worker
 > ambiente exige — elas não são poucas.
 
 O desenho e os porquês estão em [`artefatos/arquitetura.md`](../../artefatos/arquitetura.md)
-e no [plano da v3](../../artefatos/plano-argus-v3.md).
+e na [arquitetura do Argus v3](../../artefatos/arquitetura-inicial.md).
 
 ---
 

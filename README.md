@@ -79,7 +79,7 @@ Toda linha carrega um `available_at` — o instante em que a informação *ficar
 
 Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem um detector futuro conseguem enxergar um dado antes da hora em que ele existiria.
 
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura.md`](artefatos/arquitetura.md) e no [plano da v3](artefatos/plano-argus-v3.md).
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura-inicial.md`](artefatos/arquitetura-inicial.md).
 
 > **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
@@ -263,7 +263,7 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | Artefato | Descrição |
 |----------|-----------|
 | [MVP inicial](artefatos/mvp-inicial.md) | O que está implantado, modelo de dados e relatório de testes |
-| [Plano da v3](artefatos/plano-argus-v3.md) | A migração de DynamoDB para RDS: camadas, CDC, relógio virtual e carga inicial |
+| [Arquitetura do Argus v3](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
