@@ -6,15 +6,14 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { RefreshCw, TriangleAlert } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   ScreenFrame,
   type ScreenFilter,
   type ScreenPeriod,
 } from "../../_components/screen-frame";
+import { useOperationsUi } from "../../_components/operations-ui-context";
+import { normalizeQueryFailure } from "@/lib/operational-state";
 import { fetchHypotheses } from "../_lib/hypotheses-source";
 import { factorStrength } from "../_lib/score";
 import type {
@@ -42,7 +41,8 @@ const factorShades = [
 
 /** Causas prováveis do recorte, ranqueadas e com o score decomposto. */
 export function HipotesesScreen() {
-  const [period, setPeriod] = useState<ScreenPeriod>("30 min");
+  const { period: sharedPeriod } = useOperationsUi();
+  const period = sharedPeriod ?? "30 min";
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const report = useQuery({
@@ -56,10 +56,25 @@ export function HipotesesScreen() {
 
   return (
     <ScreenFrame
-      period={period}
-      onPeriodChange={setPeriod}
       filters={scopeFilters(report.data)}
       scopeSummary={scopeSummary(report.data)}
+      operational={{
+        state: report.isLoading
+          ? "loading"
+          : report.isError && !report.data
+            ? "error"
+            : report.isError && report.data
+              ? "stale"
+              : report.isFetching && report.data
+                ? "refreshing"
+                : report.data && hypotheses.length === 0
+                  ? "empty"
+                  : "ready",
+        title: "Hipóteses de causa provável",
+        scope: scopeSummary(report.data),
+        failure: report.error ? normalizeQueryFailure(report.error, report.dataUpdatedAt ? new Date(report.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined) : undefined,
+        onRetry: () => report.refetch(),
+      }}
     >
       <header className={styles.header}>
         <h1>Hipóteses de causa provável</h1>
@@ -70,28 +85,6 @@ export function HipotesesScreen() {
           </p>
         )}
       </header>
-
-      {report.isLoading && <HypothesesSkeleton />}
-      {report.isError && (
-        <Alert variant="destructive" className="my-6 max-w-2xl">
-          <TriangleAlert aria-hidden="true" />
-          <AlertTitle>Falha ao consultar o motor de hipóteses</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-4">
-            <span>Os filtros foram preservados. Verifique a conexão e tente novamente.</span>
-            <Button size="sm" variant="outline" onClick={() => void report.refetch()}>
-              <RefreshCw aria-hidden="true" />
-              Tentar novamente
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {report.data && hypotheses.length === 0 && (
-        <Alert className="my-6 max-w-2xl">
-          <AlertTitle>Nenhuma hipótese encontrada</AlertTitle>
-          <AlertDescription>Amplie o período ou altere o recorte para consultar outros sinais.</AlertDescription>
-        </Alert>
-      )}
 
       {report.data && hypotheses.length > 0 && (
         <div className={styles.layout}>
@@ -188,6 +181,7 @@ function DiscardedList({ items }: { items: DiscardedHypothesis[] }) {
 
 /** Renderiza a decomposição do score, as evidências e as ações da hipótese. */
 function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
+  const { hrefWithDemoState } = useOperationsUi();
   return (
     <aside className={styles.panel} aria-label="Composição do score">
       <p className={styles.panelKicker}>Como este score foi calculado</p>
@@ -234,44 +228,17 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
           timeline e o recorte abram já centrados nela. */}
       <div className={styles.actions}>
         <Button asChild>
-          <Link href={`/timeline?hipotese=${hypothesis.id}&t=${encodeURIComponent(hypothesis.timelineAnchor)}`}>
+          <Link href={hrefWithDemoState(`/timeline?hipotese=${hypothesis.id}&t=${encodeURIComponent(hypothesis.timelineAnchor)}`)}>
             Abrir na timeline
           </Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href={`/recorte?hipotese=${hypothesis.id}&segmento=${encodeURIComponent(hypothesis.segment)}`}>
+          <Link href={hrefWithDemoState(`/recorte?hipotese=${hypothesis.id}&segmento=${encodeURIComponent(hypothesis.segment)}`)}>
             Ver recorte afetado
           </Link>
         </Button>
       </div>
     </aside>
-  );
-}
-
-/** Mantém a hierarquia da tela estável durante a consulta assíncrona. */
-function HypothesesSkeleton() {
-  return (
-    <div className="grid gap-7 py-6 lg:grid-cols-2" role="status" aria-label="Carregando hipóteses">
-      <div className="space-y-px border-t border-border">
-        {[0, 1, 2].map((item) => (
-          <div className="grid min-h-24 grid-cols-[56px_1fr] gap-4 border-b border-border p-4" key={item}>
-            <Skeleton className="h-8 w-12" />
-            <div className="space-y-3">
-              <Skeleton className="h-2 w-32" />
-              <Skeleton className="h-4 w-4/5" />
-              <Skeleton className="h-1.5 w-full" />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="space-y-4 border-t border-border pt-4">
-        <Skeleton className="h-2 w-40" />
-        <Skeleton className="h-5 w-3/4" />
-        <Skeleton className="h-10 w-1/2" />
-        <Skeleton className="h-28 w-full" />
-      </div>
-      <span className="sr-only">Consultando o motor de hipóteses…</span>
-    </div>
   );
 }
 

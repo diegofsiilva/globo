@@ -6,8 +6,8 @@ import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ScreenFrame,
-  type ScreenPeriod,
 } from "../../_components/screen-frame";
+import { useOperationsUi } from "../../_components/operations-ui-context";
 import {
   eventKinds,
   explorationGroups,
@@ -33,6 +33,7 @@ import { ExplorationBreakdown } from "./exploration-breakdown";
 
 /** Visão de exploração baseada em um snapshot estático de telemetria. */
 export function ExplorarScreen() {
+  const { period, setPeriod } = useOperationsUi();
   const [activeEvent, setActiveEvent] = useState("error");
   const [groupBy, setGroupBy] = useState<GroupBy>("Modelo");
   const [activeFilters, setActiveFilters] = useState<string[]>(
@@ -40,10 +41,11 @@ export function ExplorarScreen() {
   );
   const [showGuide, setShowGuide] = useState(true);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [windowStart, setWindowStart] = useState(
-    historyLastIndex - defaultRangeSteps,
-  );
-  const [windowEnd, setWindowEnd] = useState(historyLastIndex);
+  const [freeRange, setFreeRange] = useState<{ start: number; end: number } | null>(null);
+  const presetMinutes = periodPresets.find((item) => item.label === period)?.minutes;
+  const presetRangeSteps = presetMinutes ? presetMinutes / historyStepMinutes : defaultRangeSteps;
+  const windowStart = period === null && freeRange ? freeRange.start : historyLastIndex - presetRangeSteps;
+  const windowEnd = period === null && freeRange ? freeRange.end : historyLastIndex;
 
   const inactiveFilters = scopeFilters.filter(
     (filter) => !activeFilters.includes(filter.id),
@@ -63,9 +65,6 @@ export function ExplorarScreen() {
   const selectedDuration = formatDuration(selectedMinutes);
   const windowStartLabel = formatTimelinePoint(windowStart, true);
   const windowEndLabel = formatTimelinePoint(windowEnd, true);
-  const activePreset = windowEnd === historyLastIndex
-    ? periodPresets.find((preset) => preset.minutes === selectedMinutes)?.label
-    : undefined;
   const axisLabels = createAxisLabels(windowStart, windowEnd);
   const firstVisibleError = selectedTimeline[0]?.errors ?? 0;
   const lastVisibleError = selectedTimeline.at(-1)?.errors ?? 0;
@@ -99,13 +98,6 @@ export function ExplorarScreen() {
   function restoreFilter(id: string) {
     setActiveFilters((current) => [...current, id]);
     setShowFilterMenu(false);
-  }
-
-  function selectPreset(minutes: number) {
-    const rangeSteps = minutes / historyStepMinutes;
-
-    setWindowStart(historyLastIndex - rangeSteps);
-    setWindowEnd(historyLastIndex);
   }
 
   const scopeContent = (
@@ -157,14 +149,15 @@ export function ExplorarScreen() {
 
   return (
     <ScreenFrame
-      period={(activePreset as ScreenPeriod | undefined) ?? null}
-      onPeriodChange={(value) => {
-        const preset = periodPresets.find((item) => item.label === value);
-        if (preset) selectPreset(preset.minutes);
-      }}
       scopeContent={scopeContent}
+      scopeFilterCount={activeFilters.length}
       scopeSummary={scopeSummary}
       onClearFilters={() => setActiveFilters([])}
+      operational={{
+        title: "Exploração de eventos",
+        scope: scopeSummary,
+        onResetFilters: () => setActiveFilters(scopeFilters.map((filter) => filter.id)),
+      }}
     >
       <div className={styles.page}>
           <header className={styles.intro}>
@@ -334,14 +327,16 @@ export function ExplorarScreen() {
                     value={windowStart}
                     aria-label="Início da janela temporal"
                     aria-valuetext={windowStartLabel}
-                    onChange={(event) =>
-                      setWindowStart(
-                        Math.min(
+                    onChange={(event) => {
+                      setPeriod(null);
+                      setFreeRange({
+                        start: Math.min(
                           Number(event.target.value),
                           windowEnd - minimumRangeSteps,
                         ),
-                      )
-                    }
+                        end: windowEnd,
+                      });
+                    }}
                   />
                   <input
                     className={clsx(styles.rangeInput, styles.rangeEnd)}
@@ -352,14 +347,16 @@ export function ExplorarScreen() {
                     value={windowEnd}
                     aria-label="Fim da janela temporal"
                     aria-valuetext={windowEndLabel}
-                    onChange={(event) =>
-                      setWindowEnd(
-                        Math.max(
+                    onChange={(event) => {
+                      setPeriod(null);
+                      setFreeRange({
+                        start: windowStart,
+                        end: Math.max(
                           Number(event.target.value),
                           windowStart + minimumRangeSteps,
                         ),
-                      )
-                    }
+                      });
+                    }}
                   />
                 </div>
                 <div className={styles.rangeScale} aria-hidden="true">

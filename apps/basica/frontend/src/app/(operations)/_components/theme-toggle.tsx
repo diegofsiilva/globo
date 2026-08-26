@@ -2,18 +2,19 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** Alterna o tema resolvido e evita diferenças entre HTML estático e hidratação. */
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const mounted = useSyncExternalStore(
-    () => () => undefined,
-    () => true,
-    () => false,
-  );
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const tick = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(tick);
+  }, []);
 
   useEffect(() => {
     if (!mounted || !resolvedTheme) return;
@@ -36,7 +37,7 @@ export function ThemeToggle() {
           size="sm"
           aria-label={label}
           onClick={() => setTheme(nextTheme)}
-          className="h-8 min-h-8 gap-2 px-3 font-mono text-[9px] uppercase tracking-[0.11em]"
+          className="h-11 min-h-11 gap-2 px-3 font-mono text-xs uppercase tracking-[0.09em] md:h-8 md:min-h-8 md:text-[11px]"
         >
           {dark ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
           <span className="hidden xl:inline">{dark ? "Modo escuro" : "Modo claro"}</span>

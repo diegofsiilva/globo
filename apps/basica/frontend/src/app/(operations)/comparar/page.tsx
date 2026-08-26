@@ -15,6 +15,7 @@ export default function CompararPage() {
     <ScreenFrame
       filters={compareScope.map((chip) => ({ ...chip, options: [chip.value] }))}
       scopeSummary={scopeSummary}
+      operational={{ title: "Comparação histórica", scope: scopeSummary }}
     >
       <CompararContent />
     </ScreenFrame>

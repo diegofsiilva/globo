@@ -14,6 +14,7 @@ export default function TimelinePage() {
     <ScreenFrame
       filters={timelineScope.map((chip) => ({ ...chip, options: [chip.value] }))}
       scopeSummary={scopeSummary}
+      operational={{ title: "Timeline correlacionada", scope: scopeSummary }}
     >
       <TimelineContent />
     </ScreenFrame>

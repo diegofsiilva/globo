@@ -62,12 +62,7 @@ export function ExplorationBreakdown({
       </header>
 
       <div className={styles.results}>
-        <div
-          className={styles.distribution}
-          tabIndex={0}
-          role="region"
-          aria-label={`Concentração de ${selectedEventName} por ${groupBy}`}
-        >
+        <div className={`${styles.distribution} hidden md:block`} aria-label={`Concentração de ${selectedEventName} por ${groupBy}`}>
           <table className={styles.distributionTable}>
             <caption>
               Eventos de {selectedEventName} agrupados por {groupBy}
@@ -122,6 +117,28 @@ export function ExplorationBreakdown({
               })}
             </tbody>
           </table>
+        </div>
+        <div className="divide-y divide-border border-y border-border md:hidden" aria-label={`Concentração de ${selectedEventName} por ${groupBy}`}>
+          {rows.map((row) => {
+            const critical = row.errorRate >= 10;
+            const width = Math.max(12, (row.events / maxEvents) * 96);
+            return (
+              <article className="grid gap-3 py-5" key={row.label}>
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="break-words font-semibold">{row.label}</h3>
+                  <span className={clsx("shrink-0 border px-2 py-1 font-mono text-xs", critical ? "border-critical text-critical" : "border-border text-muted-foreground")}>
+                    {critical ? "Erro alto" : "Dentro do esperado"}
+                  </span>
+                </div>
+                <dl className="grid grid-cols-3 gap-3 font-mono text-xs">
+                  <div><dt className="text-muted-foreground">Eventos</dt><dd className="mt-1">{formatEvents(row.events)}</dd></div>
+                  <div><dt className="text-muted-foreground">Taxa de erro</dt><dd className={clsx("mt-1 font-semibold", critical && "text-critical")}>{row.errorRate.toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%</dd></div>
+                  <div><dt className="text-muted-foreground">vs. ontem</dt><dd className="mt-1">{row.delta}</dd></div>
+                </dl>
+                <span className={styles.distributionBar} role="img" aria-label={`${Math.round(width)}% do maior volume deste grupo`}><i className={clsx(critical && styles.criticalFill)} style={{ width: `${width}%` }} /></span>
+              </article>
+            );
+          })}
         </div>
 
         <aside className={styles.errorsPanel} aria-labelledby="errors-title">

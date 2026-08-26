@@ -13,6 +13,11 @@ export type SignalDeviation = {
   current: string;
   delta: string;
   id: string;
+  threshold: string;
+  detectedAt: string;
+  lastObservedAt: string;
+  interpretation: string;
+  relatedPaths: { timeline: string; cut: string };
   metric: string;
   scope: string;
   sessions: string;
@@ -54,6 +59,11 @@ export const signalDeviations: SignalDeviation[] = [
     current: "18,4%",
     delta: "+17,2 pp",
     id: "startup-errors-lg",
+    threshold: "acima de 4,0% por 3 buckets consecutivos",
+    detectedAt: "20:04:12",
+    lastObservedAt: "20:11:06",
+    interpretation: "A falha ocorre antes do primeiro frame e está concentrada no app 2026.3.0 em webOS 3.x.",
+    relatedPaths: { timeline: "/timeline?sinal=startup-errors-lg", cut: "/recorte?sinal=startup-errors-lg" },
     metric: "errors + startup_errors / sessions",
     scope: "LG · webOS 3.x · NE",
     sessions: "41.209",
@@ -67,6 +77,11 @@ export const signalDeviations: SignalDeviation[] = [
     current: "38.774",
     delta: "×18,1",
     id: "dash-shaka-errors",
+    threshold: "acima de 5.000 erros por janela",
+    detectedAt: "20:04:19",
+    lastObservedAt: "20:11:02",
+    interpretation: "O erro de playback acompanha a mesma população da falha de início e reforça a hipótese de regressão no player.",
+    relatedPaths: { timeline: "/timeline?sinal=dash-shaka-errors", cut: "/recorte?sinal=dash-shaka-errors" },
     metric: "category=player · dash_shaka_playback",
     scope: "live · DRM off",
     sessions: "29.880",
@@ -80,6 +95,11 @@ export const signalDeviations: SignalDeviation[] = [
     current: "4,1",
     delta: "+1,5",
     id: "player-stalls",
+    threshold: "acima de 3,5 travadas por sessão",
+    detectedAt: "19:58:31",
+    lastObservedAt: "20:10:55",
+    interpretation: "O aumento é moderado e afeta Android TV; não pertence ao núcleo crítico em LG webOS.",
+    relatedPaths: { timeline: "/timeline?sinal=player-stalls", cut: "/recorte?sinal=player-stalls" },
     metric: "stalls_avg",
     scope: "Android TV · live",
     sessions: "12.400",
@@ -93,6 +113,11 @@ export const signalDeviations: SignalDeviation[] = [
     current: "412 ms",
     delta: "+12%",
     id: "edge-p95",
+    threshold: "acima de 400 ms por 5 minutos",
+    detectedAt: "19:52:08",
+    lastObservedAt: "20:10:48",
+    interpretation: "A borda está acima do envelope semanal, mas o impacto não explica sozinha a concentração por dispositivo.",
+    relatedPaths: { timeline: "/timeline?sinal=edge-p95", cut: "/recorte?sinal=edge-p95" },
     metric: "p95_ms",
     scope: "br1|playback.video.globo.com",
     sessions: "188.900",
@@ -106,6 +131,11 @@ export const signalDeviations: SignalDeviation[] = [
     current: "3,9 s",
     delta: "+2%",
     id: "join-time",
+    threshold: "acima de 4,2 s",
+    detectedAt: "sem alerta",
+    lastObservedAt: "20:10:42",
+    interpretation: "A variação permanece dentro do envelope esperado e funciona como sinal de controle.",
+    relatedPaths: { timeline: "/timeline?sinal=join-time", cut: "/recorte?sinal=join-time" },
     metric: "jointime_s_avg",
     scope: "todos os sinais live",
     sessions: "402.110",
@@ -119,6 +149,11 @@ export const signalDeviations: SignalDeviation[] = [
     current: "2,2%",
     delta: "+4%",
     id: "active-errors",
+    threshold: "acima de 3,0%",
+    detectedAt: "sem alerta",
+    lastObservedAt: "20:10:36",
+    interpretation: "A taxa agregada dilui a concentração observada no recorte LG webOS e não indica degradação global.",
+    relatedPaths: { timeline: "/timeline?sinal=active-errors", cut: "/recorte?sinal=active-errors" },
     metric: "active_with_error / active_sessions",
     scope: "globo-rj · globo-sp · globo-bh",
     sessions: "96.500",

@@ -4,7 +4,7 @@ import * as Slot from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 touch-manipulation items-center justify-center gap-2 whitespace-nowrap border text-[11px] font-semibold transition-[background-color,color,border-color,opacity,transform] duration-[160ms] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45 active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 touch-manipulation items-center justify-center gap-2 whitespace-nowrap border text-[12px] font-semibold transition-[background-color,color,border-color,opacity,transform] duration-[160ms] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45 active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -23,10 +23,10 @@ const buttonVariants = cva(
       },
       size: {
         default: "min-h-10 px-4 py-2",
-        sm: "min-h-8 px-3 py-1.5 text-[10px]",
+        sm: "min-h-11 px-3 py-1.5 text-[12px] md:min-h-8 md:text-[11px]",
         lg: "min-h-11 px-5 py-2.5 text-xs",
         icon: "size-11 p-0",
-        "icon-sm": "size-9 p-0",
+        "icon-sm": "size-11 p-0 md:size-9",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

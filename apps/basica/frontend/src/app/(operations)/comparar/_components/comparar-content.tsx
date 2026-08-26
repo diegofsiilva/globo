@@ -129,7 +129,7 @@ export function CompararContent() {
 
       <section className={styles.table} aria-labelledby="comparison-table-title">
         <h2 id="comparison-table-title" className="sr-only">Métricas comparadas</h2>
-        <Table className="min-w-[720px] table-fixed">
+        <Table className="table-fixed" containerClassName="hidden md:block">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[30%]">Métrica</TableHead>
@@ -171,6 +171,31 @@ export function CompararContent() {
             })}
           </TableBody>
         </Table>
+        <div className="divide-y divide-border border-y border-border md:hidden" aria-label="Métricas comparadas">
+          {metrics.map((metric) => {
+            const comparison = metric.references[reference];
+            const significant = comparison.sigma >= SIGNIFICANT_SIGMA;
+            return (
+              <article className="grid gap-4 py-5" key={metric.label}>
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="break-words font-semibold">{metric.label}</h3>
+                  <span className={clsx("shrink-0 border px-2 py-1 font-mono text-xs", significant ? "border-critical text-critical" : "border-border text-muted-foreground")}>
+                    {significant ? "Desvio significativo" : "Variação normal"}
+                  </span>
+                </div>
+                <dl className="grid grid-cols-3 gap-3 font-mono text-xs">
+                  <div><dt className="text-muted-foreground">Agora</dt><dd className="mt-1 font-semibold">{metric.now}</dd></div>
+                  <div><dt className="text-muted-foreground">{selected.column}</dt><dd className="mt-1">{comparison.value}</dd></div>
+                  <div><dt className="text-muted-foreground">Variação</dt><dd className={clsx("mt-1 font-semibold", significant && "text-critical")}>{comparison.delta}</dd></div>
+                </dl>
+                <div className={styles.significance}>
+                  <span className={styles.meter} aria-hidden="true"><i className={clsx(significant && styles.hot)} style={{ width: `${meterWidth(comparison.sigma, sigmaMax)}%` }} /></span>
+                  <span className={styles.sigma}>{comparison.sigma.toLocaleString("pt-BR", { minimumFractionDigits: 1 })}σ</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </section>
     </>
   );

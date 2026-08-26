@@ -15,7 +15,7 @@ function SelectTrigger({ className, size = "default", children, ...props }: Reac
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-fit min-w-28 touch-manipulation items-center justify-between gap-2 border border-input bg-background px-3 font-mono text-[10px] font-medium text-foreground outline-none transition-[border-color,box-shadow,background-color] duration-[160ms] hover:bg-surface-raised focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 data-[size=default]:h-11 data-[size=sm]:h-9 md:data-[size=default]:h-9 motion-reduce:transition-none [&_svg]:size-3.5 [&_svg]:shrink-0",
+        "flex w-fit min-w-28 touch-manipulation items-center justify-between gap-2 border border-input bg-background px-3 font-mono text-[12px] font-medium text-foreground outline-none transition-[border-color,box-shadow,background-color] duration-[160ms] hover:bg-surface-raised focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 data-[size=default]:h-11 data-[size=sm]:h-11 md:data-[size=default]:h-9 md:data-[size=sm]:h-9 md:text-[11px] motion-reduce:transition-none [&_svg]:size-3.5 [&_svg]:shrink-0",
         className,
       )}
       {...props}
@@ -50,7 +50,7 @@ function SelectContent({ className, children, position = "popper", align = "star
 }
 
 function SelectLabel({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Label>) {
-  return <SelectPrimitive.Label className={cn("px-2 py-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground", className)} {...props} />;
+  return <SelectPrimitive.Label className={cn("px-2 py-1.5 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground md:text-[11px]", className)} {...props} />;
 }
 
 function SelectItem({ className, children, ...props }: React.ComponentProps<typeof SelectPrimitive.Item>) {
@@ -58,7 +58,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex min-h-9 w-full cursor-default select-none items-center py-2 pr-8 pl-2 font-mono text-[10px] outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-45",
+        "relative flex min-h-11 w-full cursor-default select-none items-center py-2 pr-8 pl-2 font-mono text-[12px] outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-45 md:min-h-9 md:text-[11px]",
         className,
       )}
       {...props}

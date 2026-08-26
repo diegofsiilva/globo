@@ -1,19 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import clsx from "clsx";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   ScreenFrame,
   type ScreenFilter,
-  type ScreenPeriod,
 } from "../../_components/screen-frame";
+import { useOperationsUi } from "../../_components/operations-ui-context";
 import {
   activeDegradation,
   agoraFilters,
   openDegradations,
   signalDeviations,
+  type SignalDeviation,
 } from "../_mocks/scenario";
 import { agoraStyles as styles } from "./agora.styles";
 
@@ -44,8 +53,10 @@ const filterDefinitions: Array<{
 
 /** Visão operacional em tempo real baseada em um recorte mock do dataset Argus. */
 export function AgoraScreen() {
-  const [period, setPeriod] = useState<ScreenPeriod>("30 min");
   const [filters, setFilters] = useState<Filters>(initialFilters);
+  const [selectedSignal, setSelectedSignal] = useState<SignalDeviation | null>(null);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const { hrefWithDemoState } = useOperationsUi();
 
   const isIncidentScope =
     filters.platform === initialFilters.platform &&
@@ -82,12 +93,15 @@ export function AgoraScreen() {
 
   return (
     <ScreenFrame
-      period={period}
-      onPeriodChange={setPeriod}
       filters={screenFilters}
       onFilterChange={(key, value) => updateFilter(key as FilterKey, value)}
       onClearFilters={clearFilters}
       scopeSummary={scopeSummary}
+      operational={{
+        title: "Sinais em desvio",
+        scope: scopeSummary,
+        onResetFilters: () => setFilters(initialFilters),
+      }}
     >
       <div className={styles.page}>
           <section className={styles.hero} aria-labelledby="active-degradation-title">
@@ -127,7 +141,7 @@ export function AgoraScreen() {
                   </div>
                 </div>
                 <Button asChild className={styles.primaryAction}>
-                  <Link href="/hipoteses">Ver hipóteses ranqueadas <span aria-hidden="true">→</span></Link>
+                  <Link href={hrefWithDemoState("/hipoteses")}>Ver hipóteses ranqueadas <span aria-hidden="true">→</span></Link>
                 </Button>
               </>
             ) : (
@@ -151,22 +165,18 @@ export function AgoraScreen() {
               <span>Mock · snapshot 06 ago 2026</span>
             </header>
 
-            <div
-              className={styles.tableScroller}
-              tabIndex={0}
-              role="region"
-              aria-label="Tabela de sinais em desvio; role horizontalmente para ver todas as colunas"
-            >
+            <div className={`${styles.tableScroller} hidden md:block`}>
               <table className={styles.signalsTable}>
                 <thead>
                   <tr>
-                    <th scope="col">Métrica</th>
-                    <th scope="col">Recorte</th>
+                    <th scope="col" className="!w-[25%]">Métrica</th>
+                    <th scope="col" className="!w-[16%]">Recorte</th>
                     <th scope="col">Agora</th>
                     <th scope="col">Baseline</th>
                     <th scope="col">Δ</th>
-                    <th scope="col">Últimos 30 min</th>
+                    <th scope="col" className="!w-[11%]">Últimos 30 min</th>
                     <th scope="col">Sessões</th>
+                    <th scope="col" className="!w-[13%]">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -182,7 +192,7 @@ export function AgoraScreen() {
                           />
                           <span className={styles.metricName}>{signal.title}</span>
                           <small>
-                            {signal.source} · {signal.metric}
+                            {severityLabel(signal.severity)} · {signal.source} · {signal.metric}
                           </small>
                         </th>
                         <td>{signal.scope}</td>
@@ -215,11 +225,40 @@ export function AgoraScreen() {
                           </span>
                         </td>
                         <td>{signal.sessions}</td>
+                        <td>
+                          <Button type="button" variant="ghost" size="sm" onClick={(event) => { detailTriggerRef.current = event.currentTarget; setSelectedSignal(signal); }}>
+                            Ver detalhes
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+            </div>
+
+            <div className="mt-4 divide-y divide-border border-y border-border md:hidden" aria-label="Sinais em desvio">
+              {visibleSignals.map((signal) => (
+                <article className="grid gap-4 py-5" key={signal.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Badge variant={signal.severity === "critical" ? "destructive" : signal.severity === "warning" ? "warning" : "outline"}>
+                        {severityLabel(signal.severity)}
+                      </Badge>
+                      <h3 className="mt-2 break-words text-base font-semibold">{signal.title}</h3>
+                      <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{signal.source} · {signal.metric}</p>
+                    </div>
+                    <strong className={clsx("shrink-0 font-mono text-lg", signal.severity === "critical" && "text-critical")}>{signal.current}</strong>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 font-mono text-xs">
+                    <div><dt className="text-muted-foreground">Recorte</dt><dd className="mt-1 break-words">{signal.scope}</dd></div>
+                    <div><dt className="text-muted-foreground">Baseline</dt><dd className="mt-1">{signal.baseline}</dd></div>
+                    <div><dt className="text-muted-foreground">Variação</dt><dd className="mt-1 font-semibold">{signal.delta}</dd></div>
+                    <div><dt className="text-muted-foreground">Sessões</dt><dd className="mt-1">{signal.sessions}</dd></div>
+                  </dl>
+                  <Button type="button" variant="outline" onClick={(event) => { detailTriggerRef.current = event.currentTarget; setSelectedSignal(signal); }}>Ver detalhes</Button>
+                </article>
+              ))}
             </div>
           </section>
 
@@ -253,6 +292,60 @@ export function AgoraScreen() {
             </div>
           </section>
       </div>
+
+      <Sheet open={Boolean(selectedSignal)} onOpenChange={(open) => !open && setSelectedSignal(null)}>
+        <SheetContent
+          side="right"
+          className="overflow-y-auto sm:max-w-lg"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            detailTriggerRef.current?.focus();
+          }}
+        >
+          {selectedSignal && (
+            <>
+              <SheetHeader>
+                <Badge variant={selectedSignal.severity === "critical" ? "destructive" : selectedSignal.severity === "warning" ? "warning" : "outline"}>
+                  {severityLabel(selectedSignal.severity)}
+                </Badge>
+                <SheetTitle className="break-words">{selectedSignal.title}</SheetTitle>
+                <SheetDescription className="break-all">{selectedSignal.source} · {selectedSignal.metric}</SheetDescription>
+              </SheetHeader>
+              <div className="grid gap-6 px-4 pb-8">
+                <dl className="grid grid-cols-2 gap-px border border-border bg-border text-sm">
+                  {[
+                    ["Valor atual", selectedSignal.current],
+                    ["Baseline", selectedSignal.baseline],
+                    ["Limiar", selectedSignal.threshold],
+                    ["Período observado", `${selectedSignal.detectedAt} — ${selectedSignal.lastObservedAt}`],
+                    ["Recorte", selectedSignal.scope],
+                    ["Sessões", selectedSignal.sessions],
+                  ].map(([label, value]) => (
+                    <div className="min-w-0 bg-background p-3" key={label}>
+                      <dt className="font-mono text-xs text-muted-foreground">{label}</dt>
+                      <dd className="mt-1 break-words font-semibold">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <div>
+                  <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Interpretação</h3>
+                  <p className="mt-2 text-sm leading-6">{selectedSignal.interpretation}</p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button asChild><Link href={hrefWithDemoState(selectedSignal.relatedPaths.timeline)}>Abrir na Timeline</Link></Button>
+                  <Button asChild variant="outline"><Link href={hrefWithDemoState(selectedSignal.relatedPaths.cut)}>Ver no Recorte</Link></Button>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </ScreenFrame>
   );
+}
+
+function severityLabel(severity: SignalDeviation["severity"]): string {
+  if (severity === "critical") return "Crítico";
+  if (severity === "warning") return "Atenção";
+  return "Estável";
 }

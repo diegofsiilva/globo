@@ -25,7 +25,10 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-critical: var(--critical);
   --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-success: var(--success);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-input: var(--input);
@@ -44,21 +47,24 @@
   --foreground: #171719;
   --surface: #ffffff;
   --surface-raised: #eceae6;
-  --primary: #d93616;
-  --primary-hover: #ad2511;
+  --primary: #b92b0b;
+  --primary-hover: #8f2109;
   --primary-foreground: #ffffff;
   --secondary: #e8e6e1;
   --secondary-foreground: #27262a;
-  --muted-foreground: #57565d;
-  --subtle-foreground: #74727a;
+  --muted-foreground: #68666e;
+  --subtle-foreground: #68666e;
   --accent: #e4e1dc;
   --accent-foreground: #171719;
-  --destructive: #b52b17;
-  --warning: #8a570f;
+  --critical: #b42318;
+  --destructive: var(--critical);
+  --warning: #7a4a00;
+  --info: #175cd3;
+  --success: #067647;
   --border: #d8d4ce;
-  --border-strong: #b9b4ac;
-  --input: #b9b4ac;
-  --ring: #d93616;
+  --border-strong: #77736c;
+  --input: #77736c;
+  --ring: #b92b0b;
   --grid-line: rgb(23 23 25 / 3.5%);
   --status-neutral: #74727a;
 
@@ -81,7 +87,7 @@
   --foreground: #f5f5f3;
   --surface: #0f1013;
   --surface-raised: #15161a;
-  --primary: #ff4b20;
+  --primary: #ff5a2f;
   --primary-hover: #ff6a2c;
   --primary-foreground: #120905;
   --secondary: #17181d;
@@ -90,11 +96,14 @@
   --subtle-foreground: #7f7e87;
   --accent: #202126;
   --accent-foreground: #f5f5f3;
-  --destructive: #ff5b3a;
-  --warning: #ff9d2e;
+  --critical: #ff6b6b;
+  --destructive: var(--critical);
+  --warning: #f7b955;
+  --info: #66aaff;
+  --success: #61c89a;
   --border: #292a30;
-  --border-strong: #3a3b43;
-  --input: #3a3b43;
+  --border-strong: #60616b;
+  --input: #60616b;
   --ring: #ff7a45;
   --grid-line: rgb(255 255 255 / 2.5%);
   --status-neutral: #70717a;
@@ -136,6 +145,8 @@
     background-size: 40px 40px;
     color: var(--foreground);
     font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
     text-rendering: optimizeLegibility;
   }
 
@@ -146,6 +157,10 @@
   h1, h2, h3 { text-wrap: balance; scroll-margin-top: 72px; }
   p { text-wrap: pretty; }
   ::selection { background: color-mix(in srgb, var(--primary) 28%, transparent); color: var(--foreground); }
+}
+
+@media (min-width: 768px) {
+  body { font-size: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -177,4 +192,49 @@
   border-color: var(--border-strong);
   background: var(--surface);
   box-shadow: 4px 5px 0 color-mix(in srgb, var(--foreground) 13%, transparent);
+}
+
+.signalsTable tbody th,
+.signalsTable tbody td {
+  height: auto !important;
+  min-height: 54px;
+  padding-block: 10px !important;
+}
+
+.signalsTable tbody th small,
+.navigatorSummary small {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+
+/* Limites de legibilidade pedidos para uso prolongado: as classes históricas
+   continuam definindo hierarquia, mas não podem reduzir conteúdo operacional
+   abaixo do piso de 11 px no desktop e 12 px em telas compactas. */
+@layer utilities {
+  main :where(p, span, small, label, dt, dd, th, td, time, b, strong, a, button, input) {
+    font-size: max(11px, 1em) !important;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 767px) {
+  main :where(p, span, small, label, dt, dd, th, td, time, b, strong, a, button, input) {
+    font-size: max(12px, 1em) !important;
+  }
+
+  .groupBar { overflow: visible !important; }
+  .groupBar > div {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .groupBar button { min-width: 0 !important; }
+  .metrics {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px !important;
+    overflow: visible !important;
+  }
 }

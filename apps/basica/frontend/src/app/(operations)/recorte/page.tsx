@@ -14,6 +14,7 @@ export default function RecortePage() {
     <ScreenFrame
       filters={cutScope.map((chip) => ({ ...chip, options: [chip.value] }))}
       scopeSummary={scopeSummary}
+      operational={{ title: "Recorte afetado", scope: scopeSummary }}
     >
       <RecorteContent />
     </ScreenFrame>

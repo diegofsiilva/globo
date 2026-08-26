@@ -16,6 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { navigationItems } from "./navigation-items";
+import { useOperationsUi } from "./operations-ui-context";
 import { navigationStyles as styles } from "./operations-navigation.styles";
 
 /** Navegação primária reutilizável das páginas operacionais. */
@@ -60,6 +61,7 @@ export function MobileOperationsNavigation() {
 }
 
 function NavigationLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const { hrefWithDemoState } = useOperationsUi();
   return (
     <ol className={styles.list}>
       {navigationItems.map((item) => {
@@ -68,7 +70,7 @@ function NavigationLinks({ pathname, onNavigate }: { pathname: string; onNavigat
           <li key={item.href}>
             <Link
               className={clsx(styles.link, active && styles.active)}
-              href={item.href}
+              href={hrefWithDemoState(item.href)}
               aria-current={active ? "page" : undefined}
               onClick={onNavigate}
             >

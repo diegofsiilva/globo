@@ -45,13 +45,54 @@ export const adjustments: CutAdjustment[] = [
 
 export const sampleColumns = ["Hora", "Modelo", "SO", "Evento", "Erro"];
 
-export const samples: string[][] = [
-  ["20:04:11", "49LJ5550-SC", "WebOS 3.9.0", "error", "dash_shaka_playback:6_6002"],
-  ["20:04:44", "43LJ5500", "WebOS 3.8.0", "video_view", "start timeout · live"],
-  ["20:05:19", "32LJ600B", "WebOS 3.4.0", "error", "media_source_not_supported"],
-  ["20:05:52", "49LJ5550-SC", "WebOS 3.9.0", "vitals", "frozen · 0,78 s"],
-  ["20:06:07", "43LJ5500", "WebOS 3.8.0", "error", "dash_shaka_playback:6_6002"],
-  ["20:06:41", "55UJ6300", "WebOS 3.8.0", "video_view", "start timeout · live"],
+export type SessionEventKind = "session" | "screen_view" | "video_view" | "vitals" | "error";
+
+export type SessionEvent = {
+  at: string;
+  kind: SessionEventKind;
+  detail: string;
+};
+
+export type SessionSample = {
+  id: string;
+  observedAt: string;
+  device: { model: string; os: string; region: string; app: string };
+  summaryEvent: SessionEventKind;
+  summary: string;
+  events: SessionEvent[];
+};
+
+function session(
+  id: string,
+  observedAt: string,
+  model: string,
+  os: string,
+  summaryEvent: SessionEventKind,
+  summary: string,
+): SessionSample {
+  return {
+    id,
+    observedAt,
+    device: { model, os, region: "Nordeste", app: "2026.3.0" },
+    summaryEvent,
+    summary,
+    events: [
+      { at: "20:03:54", kind: "session", detail: "Sessão iniciada na rota live" },
+      { at: "20:03:57", kind: "screen_view", detail: "Tela do canal ao vivo aberta" },
+      { at: "20:04:02", kind: "video_view", detail: "Tentativa de iniciar o primeiro frame" },
+      { at: "20:04:08", kind: "vitals", detail: "Thread principal congelada por 0,78 s" },
+      { at: observedAt, kind: "error", detail: summary },
+    ],
+  };
+}
+
+export const samples: SessionSample[] = [
+  session("ses-8f31a2", "20:04:11", "49LJ5550-SC", "WebOS 3.9.0", "error", "dash_shaka_playback:6_6002"),
+  session("ses-a9c420", "20:04:44", "43LJ5500", "WebOS 3.8.0", "video_view", "start timeout · live"),
+  session("ses-34be91", "20:05:19", "32LJ600B", "WebOS 3.4.0", "error", "media_source_not_supported"),
+  session("ses-c7710e", "20:05:52", "49LJ5550-SC", "WebOS 3.9.0", "vitals", "frozen · 0,78 s"),
+  session("ses-f28a77", "20:06:07", "43LJ5500", "WebOS 3.8.0", "error", "dash_shaka_playback:6_6002"),
+  session("ses-55d104", "20:06:41", "55UJ6300", "WebOS 3.8.0", "video_view", "start timeout · live"),
 ];
 
 /** Recorte analisado, exibido na barra de escopo. */
