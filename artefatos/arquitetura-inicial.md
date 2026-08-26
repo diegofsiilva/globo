@@ -629,3 +629,179 @@ CREATE VIEW gold.v_feature_bucket AS
 não recebe permissão de `SELECT` nas tabelas base, então a barreira contra vazamento de
 futuro é do banco, imposta por `GRANT`, não da aplicação. A aplicação pode esquecer o
 filtro; o `GRANT` não.
+
+---
+
+## 6. Justificativa da arquitetura e das tecnologias
+
+### 6.1 RDS PostgreSQL com camadas bronze, silver e gold, não DynamoDB single-table
+
+&emsp; O DynamoDB single-table fazia sentido quando o sistema controlava o schema dos
+eventos que ele mesmo produzia. Consumindo CDC de 33 tabelas heterogêneas, com colunas
+que a Globo pode acrescentar a qualquer momento sem aviso, a exigência mudou: o
+armazenamento precisa acomodar mudança de schema sem migração. A separação entre
+`bronze.change_log` e a corrente tipada (seção 4) resolve isso, e sustenta uma garantia
+mais forte: nenhuma tabela de silver ou gold pode conter informação que não seja
+derivável do `change_log`. Essa propriedade não existe de graça em DynamoDB, e é o
+motivo direto de adotar um banco relacional com camadas explícitas em vez de manter o
+modelo single-table.
+
+### 6.2 Integração direta entre API Gateway e SQS, sem Lambda intermediária
+
+&emsp; As rotas `POST /v1/changes` e `POST /v1/events` usam integração `AWS_PROXY`
+direto para SQS (`SQS SendMessage`), sem uma Lambda de recepção no meio. O simulador é
+o único emissor conhecido, e o contrato do payload já é o formato interno de change
+event: não há transformação nem validação de negócio a fazer na borda que justifique
+uma função adicional. Cada Lambda a mais nesse caminho seria custo e mais um ponto de
+falha sem ganho de comportamento, então a integração direta do API Gateway com o SQS
+foi preferida à alternativa mais comum (API Gateway, Lambda, SQS).
+
+### 6.3 Dois workers, duas filas, sem duplicar a API
+
+&emsp; A escolha de duas filas (`changes` e `events`) e dois serviços ECS consumidores
+(`merge_worker` e `event_worker`), em vez de uma fila única com um worker que decide o
+destino pelo conteúdo da mensagem, separa duas responsabilidades: mudança de estado da
+tabela de origem (`change_log` para corrente) e evento de sessão (`bronze.event`), em
+unidades de deploy e escala independentes, sem acoplar a lógica de roteamento a um
+único processo. O custo dessa escolha é infraestrutura duplicada (duas filas, dois
+serviços); o ganho é que cada worker pode escalar, falhar e ser reimplantado sem afetar
+o outro.
+
+### 6.4 ETL incremental como threads dentro de um único serviço ECS
+
+&emsp; O ETL incremental roda como duas threads dentro do mesmo container
+`processing` já provisionado, em vez de dois serviços ECS novos. A atomicidade de cada
+ciclo mora no banco: cada chamada a `etl.executar_*()` é uma única transação SQL, com
+watermark e dado avançando juntos, então threads bastam para orquestrar a cadência, e
+evitam Terraform novo (task definition, log group, alarme de `RunningTaskCount`) para
+algo que não precisa de isolamento de processo. O desenho completo, incluindo a regra
+de guarda descoberta durante a implementação, está na seção 7.
+
+### 6.5 Lambda para leitura, ECS Fargate para os workers
+
+&emsp; A camada de leitura (`read_api`) roda em Lambda, enquanto ingestão,
+processamento e simulação rodam em ECS Fargate. A diferença de perfil de carga
+justifica a diferença de tecnologia: leitura de dashboard é intermitente e
+correlacionada ao uso humano, um encaixe natural para o modelo de invocação sob
+demanda da Lambda. Os workers de ingestão e o ETL, por outro lado, mantêm conexão de
+pool com o RDS e um ciclo de vida contínuo (long polling, laços com cadência fixa);
+cold start de Lambda e o limite de conexões simultâneas ao banco tornariam esse padrão
+caro e frágil em Lambda. Fargate também foi a escolha original do worker de ingestão
+desde o MVP anterior, motivada pela sazonalidade forte do tráfego da Globo (picos em
+eventos ao vivo, shows e ofertas), um padrão que Lambda, com limite de concorrência por
+conta, atenderia pior que containers de vida longa com auto scaling próprio.
+
+### 6.6 Decisões de infraestrutura
+
+&emsp; **Rede.** O RDS é publicamente acessível por padrão de ambiente de laboratório
+(`var.db_publicly_accessible`, default `false`, ligado via `tfvars` do Learner Lab),
+com ingress na porta 5432 restrito a um CIDR configurável, nunca `0.0.0.0/0`:
+
+```hcl
+resource "aws_security_group_rule" "rds_from_dev" {
+  count = var.db_allowed_cidr != "" ? 1 : 0
+  # ingress 5432 apenas do CIDR informado, nunca 0.0.0.0/0
+}
+```
+
+&emsp; A alternativa de produção (RDS privado, Lambda dentro da VPC) fica documentada
+como a postura correta, mas custa cold start de ENI na Lambda e impede inspecionar o
+banco sem bastion, um custo que não se justifica em ambiente de desenvolvimento ou
+laboratório.
+
+&emsp; **Senha.** Dois modos: por padrão, `aws_secretsmanager_secret` com senha gerada
+por `random_password`; se o Secrets Manager for negado pelo ambiente de laboratório,
+cai para uma senha de `tfvars` (gitignored, marcada `sensitive`). Em nenhum caminho a
+senha entra em arquivo versionado.
+
+&emsp; **Dimensionamento da instância.** `db.t3.medium` com 100 GB gp3 foi
+dimensionado para a bronze (cerca de 13 GB) e a silver (cerca de 6 GB, `signal_point`
+duplicado), considerando que o PostgreSQL não comprime heap: os 199 MB de Parquet de
+origem expandem para cerca de 2,1 GB de dados mais 1,2 GB de índice só em
+`prom_point`. O ponto que sustenta essa escolha de instância sem virar gargalo é o
+mesmo do corolário 1 da seção 4: as telas do dashboard nunca leem bronze, só
+`gold.v_*`, o que desacopla o desempenho percebido do tamanho da camada bruta.
+
+&emsp; **Proteção contra destruição.** `deletion_protection` e `skip_final_snapshot`
+seguem `var.environment == "prod"`. Em laboratório, `skip_final_snapshot = true`: um
+snapshot final de uma conta que vai deixar de existir é custo sem valor.
+
+---
+
+## 7. ETL incremental por watermarks
+
+&emsp; Até a migration `015`, o único caminho para popular silver e gold era
+`gold.rebuild_tudo()`: um recompute completo das tabelas de origem a cada chamada,
+correto e idempotente (é o que sustenta o teste de rebuild da seção 8.4), mas que não
+escala para rodar a cada 1 a 5 minutos sobre 18 milhões de linhas de `signal_point`. O
+desenho abaixo, registrado primeiro numa publicação interna de apoio ("Watermarks e
+workers de transição de camada", 20 de agosto de 2026) e implementado na migration
+`015_etl_incremental.sql`, substitui isso por dois workers incrementais, cada um dono
+do seu watermark, sem tocar nas funções `build_*` existentes além de acrescentar
+parâmetros de faixa com `DEFAULT` (compatível com `gold.rebuild_tudo()`, que continua
+chamando sem argumento nenhum).
+
+| Worker | Watermark | Marcador | Cadência | Tabela de controle |
+|---|---|---|---|---|
+| bronze para silver | `etl.watermark_bronze_silver` | sequencial (`lsn`) | 60 s | `etl.execucoes` |
+| silver para gold | `etl.watermark_silver_gold` | temporal (`available_at`, com margem que sempre reabre) | 900 s | `etl.execucoes` |
+
+&emsp; Cada ciclo é uma única chamada SQL (`etl.executar_bronze_silver()` ou
+`etl.executar_silver_gold()`): lê o watermark com `SELECT ... FOR UPDATE`, chama os
+`build_*` na faixa certa, grava o resultado em `etl.execucoes` e avança o watermark,
+tudo no mesmo commit, para que dado e watermark nunca fiquem inconsistentes entre si.
+
+### 7.1 Onde este desenho diverge da publicação original
+
+1. **Schema `etl`, não tabelas soltas.** A publicação original propunha
+   `etl_watermark_bronze_silver` como tabela solta; aqui viraram
+   `etl.watermark_bronze_silver` e assim por diante, num schema `etl` novo,
+   consistente com a separação por schema que já organiza `bronze`, `silver`, `gold`,
+   `sim` e `detect`.
+2. **`live_event_window` e `incident_window` continuam de tabela inteira** dentro do
+   ciclo silver para gold, em vez de também janelados por `available_at`. As origens
+   (`bronze.live_event`, `bronze.incidents`, `bronze.incident_label`) são pequenas,
+   centenas a poucos milhares de linhas, contra os quase 5 milhões de
+   `signal_bucket`; recomputá-las por inteiro a cada ciclo custa menos do que o
+   esforço de as tornar incrementais compraria. Só `gold.build_feature_bucket` ganhou
+   janela.
+3. **Watermark `silver_gold` semeado em 1º de julho de 2026, não em epoch.** A
+   publicação original semeava 1º de janeiro de 1970. Como não há dado possível antes
+   do limite inferior das partições de silver e gold, semear em epoch faria o primeiro
+   dreno percorrer cerca de 56 anos em janelas de minutos até achar a primeira linha
+   real, correto, só que muito lento.
+4. **Dois workers, uma task ECS.** A publicação original (e o registro histórico do
+   pivot, anterior a este documento) descrevia dois workers como unidades separadas,
+   plausivelmente dois `RunTask` do EventBridge Scheduler. O que existe hoje
+   (`ecs_processing.tf`) é um único serviço ECS sempre ativo, de laço próprio, não
+   agendado por scheduler. Os dois workers viraram duas threads dentro do mesmo
+   container (`argus_processing/__main__.py`), cada uma com seu laço, seu watermark e
+   sua cadência, sem interferir uma na outra. Criar dois serviços ECS novos exigiria
+   Terraform novo para separar uma cadência que duas threads já resolvem, já que a
+   atomicidade de cada ciclo mora no banco (uma chamada SQL), não em memória
+   compartilhada.
+5. **Guarda de configuração nova, não prevista na publicação original.**
+   `p_janela_max_segundos` (silver para gold) precisa ser estritamente maior que
+   `margem_seguranca`; senão, o watermark não apenas trava, ele regride a cada
+   chamada, porque a margem é subtraída nas duas pontas do ciclo (na leitura e no novo
+   watermark). `etl.executar_silver_gold()` hoje falha alto (`RAISE EXCEPTION`) se
+   essa condição não for satisfeita, em vez de deixar o worker girar para trás
+   silenciosamente até alguém notar que a gold parou de crescer. Default em produção:
+   `janela_max_segundos = 14400` (4h) contra `margem_seguranca = 2h`, dando 2h de
+   progresso real por ciclo mesmo com backlog.
+6. **Índice novo.** `silver.signal_bucket` não tinha índice em `available_at` (a
+   migration `006` indexou `signal_point` e `session_event`, mas não
+   `signal_bucket`), uma lacuna inofensiva enquanto o único leitor era o rebuild
+   completo. O worker incremental filtra por `available_at` a cada ciclo; a migration
+   `015` acrescenta o índice `signal_bucket_disponivel`.
+
+### 7.2 Limitação conhecida, fora do escopo desta mudança
+
+&emsp; Nem `gold.rebuild_tudo()` nem os novos `build_*` incrementais removem de
+silver/gold uma linha cujo registro de origem foi apagado na bronze (o merge do log
+processa `op = 'd'` fazendo `DELETE` na bronze corrente, mas os `build_*` são
+`INSERT ... ON CONFLICT DO UPDATE`, nunca `DELETE`). Não é uma regressão desta
+mudança, o comportamento já existia antes do ETL incremental, mas o desenho
+incremental o torna mais visível, por rodar em produção de verdade em vez de só em
+teste pontual. Fica registrado como pendência para decisão futura, não corrigido nesta
+entrega.
