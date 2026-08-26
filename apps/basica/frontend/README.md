@@ -4,6 +4,10 @@ Dashboard estático em Next.js App Router. A entrada `/` redireciona para
 `/agora`; as demais URLs públicas são `/explorar`, `/comparar`, `/hipoteses`,
 `/timeline` e `/recorte`.
 
+O contrato HTTP que a interface já chama e o que ela espera da API de leitura
+e do motor de hipóteses está em
+[artefatos/rotas-frontend.md](../../../artefatos/rotas-frontend.md).
+
 ## Organização
 
 ```text
