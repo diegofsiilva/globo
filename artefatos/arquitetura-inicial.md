@@ -805,3 +805,163 @@ mudança, o comportamento já existia antes do ETL incremental, mas o desenho
 incremental o torna mais visível, por rodar em produção de verdade em vez de só em
 teste pontual. Fica registrado como pendência para decisão futura, não corrigido nesta
 entrega.
+
+---
+
+## 8. Plano de deploy detalhado com recursos AWS
+
+### 8.1 Inventário de mudanças no Terraform (`apps/basica/infra/`)
+
+&emsp; A tabela a seguir resume o que foi removido, criado e modificado em relação à
+arquitetura anterior (DynamoDB), servindo de checklist do que o `terraform plan`
+precisa mostrar.
+
+**Removido**
+
+| Arquivo | Motivo |
+|---|---|
+| `dynamodb.tf` | Toda a persistência migrou para o RDS PostgreSQL (seção 6.1) |
+
+**Novo**
+
+| Arquivo | Conteúdo |
+|---|---|
+| `rds.tf` | Subnet group, parameter group, security group, `aws_db_instance`, gestão de senha |
+| `s3_origem.tf` | Bucket `origem/` com versionamento, para o dump e o Parquet imutáveis |
+| `sqs_changes.tf` | Fila de change events e DLQ, espelhando `sqs.tf` |
+| `apigateway_changes.tf` | Rota `POST /v1/changes` para SQS, integração direta sem Lambda |
+| `ecs_simulator.tf` | Serviço do simulador (relógio, falhas com seed fixa, emissor) |
+| `ecs_processing.tf` | Serviço do worker de processamento (ETL incremental; detector/canário no-op) |
+| `ecs_loader.tf` | Task definition one-shot da carga inicial |
+
+**Modificado**
+
+| Arquivo | Mudança |
+|---|---|
+| `ecs.tf` | Workers de merge e evento passam a falar PostgreSQL (`DATABASE_URL` no lugar de `EVENTS_TABLE_NAME`); egress 5432 liberado para o security group do RDS |
+| `api_read.tf` | Lambda passa a ler as views (`DATABASE_URL` no lugar de `GSI1_SHARDS`) |
+| `iam.tf` | Sai `dynamodb:*`; entram `secretsmanager:GetSecretValue` e `s3:GetObject` restrito a `origem/` |
+| `observability.tf` | Sai o alarme de throttle do DynamoDB; entram alarmes de CPU, armazenamento e conexões do RDS, `lag_sim` e heartbeat por fonte |
+| `variables.tf`, `locals.tf`, `outputs.tf` | Bloco de variáveis do DynamoDB sai, entra o do RDS; outputs passam a expor o endpoint do RDS e a URL de `/v1/changes` |
+
+### 8.2 Carga inicial
+
+&emsp; A carga inicial segue a cadeia `argus_dump.sql.gz` (fonte de verdade), depois
+`tools/etl_dump.py`, depois Parquet (199 MB, 33 tabelas, formato de transporte),
+depois `aws s3 sync` para `s3://<nome>-origem-<conta>/parquet/`, depois a task ECS
+`loader` (one-shot), que lê os arquivos em batches via `pyarrow` e faz `COPY ...
+FROM STDIN` na corrente de bronze, gravando também `change_log` com `op = 'r'`
+(snapshot). Os requisitos não negociáveis dessa carga são: `COPY` por lote, nunca
+`INSERT` linha a linha; índices criados depois da carga de cada tabela; `ANALYZE` ao
+final; e validação obrigatória contra o `row_counts` do `_manifest.json`, onde
+divergência é falha, não aviso. O alvo de tempo é 20 a 30 minutos para as 68,7 milhões
+de linhas, dimensionado para caber com folga numa sessão do Learner Lab.
+
+### 8.3 Ordem de execução
+
+| # | Passo |
+|---|---|
+| 1 | Migrations do schema (001 a 015) escritas e validadas contra PostgreSQL 16 local (Docker) |
+| 2 | `tools/migrate.py` aplica as migrations no ambiente alvo |
+| 3 | Terraform: `rds.tf` e `s3_origem.tf` primeiro, com `terraform plan` isolado |
+| 4 | Terraform: remoção do DynamoDB e ajuste de `iam.tf`, `observability.tf` e `api_read.tf` |
+| 5 | Loader e carga inicial; validação contra `_manifest.json` |
+| 6 | Serviços `merge_worker` e `event_worker` |
+| 7 | Serviço `simulator` |
+| 8 | Serviço `processing` (ETL incremental) |
+| 9 | Lambda de leitura sobre as views |
+
+&emsp; Os passos 1 e 2 são pré-condição para todo o resto. Os blocos 3 e 4 (Terraform
+de persistência) e a preparação do Parquet para o passo 5 são independentes entre si e
+podem ser tocados em paralelo por pessoas diferentes.
+
+### 8.4 Verificação pós-deploy
+
+&emsp; **Schemas.** Subir PostgreSQL 16 local, rodar as migrations e checar:
+
+```sql
+SELECT sim.now();                       -- avança sozinho, conforme o speed
+
+SELECT table_schema, count(*)
+  FROM information_schema.tables
+ WHERE table_schema IN ('bronze','silver','gold','sim','detect')
+ GROUP BY table_schema;
+
+-- a view não pode enxergar o futuro:
+INSERT INTO gold.feature_bucket (..., available_at)
+VALUES (..., sim.now() + interval '1 hour');
+SELECT count(*) FROM gold.v_feature_bucket;   -- deve ignorar a linha inserida
+```
+
+&emsp; **Rebuild**, a propriedade que sustenta a decisão da seção 4, precisa ser
+testada:
+
+```sql
+TRUNCATE silver.signal_point, gold.feature_bucket CASCADE;
+-- replay do change_log: as contagens voltam idênticas
+```
+
+&emsp; **Carga.** `row_counts` do `_manifest.json` igual a `count(*)` das 33 tabelas
+de bronze; divergência é falha, não aviso.
+
+&emsp; **Terraform.** `make lint` (já roda `terraform fmt -check`), `terraform
+validate`, e `terraform plan` revisado antes do apply. O plan deve mostrar destroy
+apenas da tabela DynamoDB e dos recursos IAM associados a ela; qualquer outra
+destruição no plan é sinal de erro.
+
+&emsp; **Fim a fim.** `POST /v1/changes` com um change event sintético aparece em
+`bronze.change_log`, é mesclado na corrente, processado pelo ETL, e só fica visível em
+`gold.v_*` quando `sim.now()` ultrapassar o `available_at`.
+
+&emsp; **Learner Lab.** Antes do apply, buscar o account ID com `aws sts
+get-caller-identity --profile g4` e atualizar `existing_role_arn` no tfvars. Para
+confirmar que a sessão está viva de verdade, usar uma chamada com permissão real, como
+`aws ec2 describe-vpcs --profile g4`: o `get-caller-identity` continua respondendo
+normalmente mesmo depois de a credencial ser cancelada. O provider do Terraform usa a
+cadeia padrão de credenciais, portanto também é obrigatório executar `export
+AWS_PROFILE=g4 AWS_REGION=us-east-1` antes de `plan` ou `apply`; passar `--profile`
+apenas nos comandos da CLI não afeta o Terraform.
+
+---
+
+## 9. Riscos e pendências conhecidas
+
+| Risco / pendência | Mitigação / situação |
+|---|---|
+| O Learner Lab pode negar RDS ou limitar a classe de instância; não foi possível verificar durante o planejamento (credenciais expiradas) | Confirmar com `aws rds describe-orderable-db-instance-options --engine postgres --profile g4` assim que o laboratório subir; plano B é `db.t3.small`/`micro`, sustentável porque as telas leem `gold.v_*` e nunca `bronze` (seção 4) |
+| Carga de 68,7 milhões de linhas não caber na sessão do laboratório | Parquet mais `COPY` (20 a 30 min); loader idempotente e retomável por tabela, usando `_manifest.json` como checkpoint |
+| Secrets Manager negado no laboratório | `var.db_password_from_secrets_manager = false` cai para senha via tfvars |
+| Laboratório novo zera a conta e o `terraform.tfstate` vira lixo | Procedimento já conhecido: resetar o state antes de aplicar num laboratório novo |
+| `sim.now()` no `WHERE` das views degradar o plano de execução | A função é `STABLE`, avaliada uma vez por statement; medir com `EXPLAIN ANALYZE` sobre `gold.v_feature_bucket` já com a carga cheia |
+| UF e ISP ausentes no schema de evento (seção 5.4) | Não bloqueia: o `payload jsonb` acomoda os campos quando o outro fluxo do Argus for especificado |
+| CloudFront aparece no desenho original da arquitetura, mas não foi implementado | O bucket S3 do frontend atende como website estático; CloudFront fica registrado como melhoria futura |
+| Amazon EventBridge Scheduler não tem recurso Terraform aplicado | O serviço `processing` roda como serviço de longa duração com laços internos, não como execução agendada (seção 3.7) |
+| `build_*`/`gold.rebuild_tudo()` não propagam `DELETE` de bronze para silver/gold | Limitação conhecida e não corrigida, os dois só fazem upsert; pré-existente à introdução do ETL incremental (seção 7.2) |
+
+---
+
+## 10. Proveniência das decisões
+
+&emsp; Para que a revisão consiga auditar o porquê de cada escolha:
+
+| Origem | O que definiu |
+|---|---|
+| `ARGUS v3, CDC, replay e camada gold em AWS.pdf` | A arquitetura-alvo: RDS PostgreSQL, bronze log mais corrente, silver com `available_at`, gold com `feature_bucket`, `circadian_state`, `incident_window`, `detection_match` e `live_event_window`, views `v_*`, simulador com relógio virtual, ingestão por `POST /v1/changes` |
+| Conversas com o parceiro (Globo) | A virada de premissa de ler das tabelas que já existem em vez de produzir o dado; o segundo fluxo com grain de sessão |
+| `DATASET.md` v1.3 (documentação do dump) | Convenções de tempo, identidade das chaves, dicionário de dados, vocabulários e armadilhas conhecidas do dump |
+| Telas do dashboard | A justificativa de `prom_point` (seção 1.2) e o grain exigido pelas telas Explorar e Recorte |
+| EDA do dump (`notebooks/eda_argus.ipynb`) | Os nulos de `rpaas_bucket`, a exclusão mútua entre UF e ISP em `geo_hourly`, e a sobreposição fraca entre rótulos e telemetria |
+| `apps/basica/infra/` (arquitetura anterior) | Os padrões mantidos: flag de Learner Lab, nenhuma facilidade em arquivo versionado, separação entre execution role e task role, alarmes por sintoma |
+
+---
+
+## 11. Conclusão
+
+&emsp; A arquitetura descrita neste artefato reflete um sistema que já saiu do papel:
+o pivot de DynamoDB para RDS PostgreSQL com camadas bronze, silver e gold, o simulador
+de produção com relógio virtual, e o ETL incremental por watermarks estão
+implementados e mergeados em `develop`, com suíte de testes própria (worker,
+simulador, processamento e backend) e `make lint` passando. As pendências registradas
+na seção 9, CloudFront, o EventBridge Scheduler e a propagação de `DELETE`, não
+bloqueiam o funcionamento atual do pipeline, mas ficam como próximos passos explícitos
+para a evolução do projeto junto ao parceiro Globo.
