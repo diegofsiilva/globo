@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import clsx from "clsx";
+import { Button } from "@/components/ui/button";
+import {
+  ScreenFrame,
+  type ScreenFilter,
+  type ScreenPeriod,
+} from "../../_components/screen-frame";
 import {
   activeDegradation,
   agoraFilters,
@@ -10,8 +16,6 @@ import {
   signalDeviations,
 } from "../_mocks/scenario";
 import { agoraStyles as styles } from "./agora.styles";
-
-const periods = ["15 min", "30 min", "3 h", "24 h"] as const;
 
 type FilterKey = "app" | "manufacturer" | "platform" | "region";
 type Filters = Record<FilterKey, string>;
@@ -40,17 +44,8 @@ const filterDefinitions: Array<{
 
 /** Visão operacional em tempo real baseada em um recorte mock do dataset Argus. */
 export function AgoraScreen() {
-  const [period, setPeriod] = useState<(typeof periods)[number]>("30 min");
+  const [period, setPeriod] = useState<ScreenPeriod>("30 min");
   const [filters, setFilters] = useState<Filters>(initialFilters);
-  const [clock, setClock] = useState("20:11:04");
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setClock(new Date().toLocaleTimeString("pt-BR"));
-    }, 1_000);
-
-    return () => window.clearInterval(timer);
-  }, []);
 
   const isIncidentScope =
     filters.platform === initialFilters.platform &&
@@ -78,65 +73,23 @@ export function AgoraScreen() {
     setFilters({ app: "all", manufacturer: "all", platform: "all", region: "all" });
   }
 
+  const screenFilters: ScreenFilter[] = filterDefinitions.map((definition) => ({
+    key: definition.key,
+    label: definition.label,
+    value: filters[definition.key],
+    options: definition.options,
+  }));
+
   return (
-    <div className={styles.page}>
-      <div
-        className={styles.topControls}
-        data-operations-slot="controls"
-        aria-label="Atualização e período"
-      >
-        <p className={styles.liveStatus}>
-          <span aria-hidden="true" />
-          Ao vivo · {clock}
-        </p>
-        <div className={styles.periods} aria-label="Período analisado">
-          {periods.map((value) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={period === value}
-              onClick={() => setPeriod(value)}
-            >
-              {value}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <section
-        className={styles.scopeBar}
-        data-operations-slot="scope"
-        aria-label="Filtros do recorte"
-      >
-        <span className={styles.scopeLabel}>Escopo</span>
-        <div className={styles.filterList}>
-          {filterDefinitions.map((definition) => (
-            <label className={styles.filter} key={definition.key}>
-              <span>{definition.label}</span>
-              <select
-                aria-label={`Filtrar por ${definition.label}`}
-                value={filters[definition.key]}
-                onChange={(event) => updateFilter(definition.key, event.target.value)}
-              >
-                <option value="all">todos</option>
-                {definition.options.map((option) => (
-                  <option value={option} key={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
-        <div className={styles.scopeMeta}>
-          <span>{scopeSummary}</span>
-          <button type="button" onClick={clearFilters}>
-            limpar
-          </button>
-        </div>
-      </section>
-
-      <div className={styles.content} data-operations-slot="content">
+    <ScreenFrame
+      period={period}
+      onPeriodChange={setPeriod}
+      filters={screenFilters}
+      onFilterChange={(key, value) => updateFilter(key as FilterKey, value)}
+      onClearFilters={clearFilters}
+      scopeSummary={scopeSummary}
+    >
+      <div className={styles.page}>
           <section className={styles.hero} aria-labelledby="active-degradation-title">
             {isIncidentScope ? (
               <>
@@ -173,9 +126,9 @@ export function AgoraScreen() {
                     <span>sem reclamação aberta</span>
                   </div>
                 </div>
-                <Link className={styles.primaryAction} href="/hipoteses">
-                  Ver hipóteses ranqueadas <span aria-hidden="true">→</span>
-                </Link>
+                <Button asChild className={styles.primaryAction}>
+                  <Link href="/hipoteses">Ver hipóteses ranqueadas <span aria-hidden="true">→</span></Link>
+                </Button>
               </>
             ) : (
               <div className={styles.clearState}>
@@ -184,9 +137,9 @@ export function AgoraScreen() {
                 <p>
                   Os sinais ainda aparecem abaixo para comparação com seus baselines.
                 </p>
-                <button type="button" onClick={() => setFilters(initialFilters)}>
+                <Button type="button" variant="outline" onClick={() => setFilters(initialFilters)}>
                   Restaurar recorte principal
-                </button>
+                </Button>
               </div>
             )}
           </section>
@@ -300,6 +253,6 @@ export function AgoraScreen() {
             </div>
           </section>
       </div>
-    </div>
+    </ScreenFrame>
   );
 }

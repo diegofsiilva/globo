@@ -21,6 +21,7 @@ src/
 │   ├── globals.css             # Tailwind, tema, animações e reset
 │   └── layout.tsx              # documento HTML raiz
 ├── lib/                        # contratos e adapters compartilhados
+├── components/ui/              # primitivas shadcn customizadas para o Argus
 └── providers/                  # providers usados por ilhas específicas
 ```
 
@@ -39,6 +40,18 @@ O frontend usa Tailwind CSS v4 com configuração CSS-first em `globals.css`.
 Paletas, tipografia e animações são tokens de `@theme`; os componentes usam
 utilities Tailwind colocalizadas em arquivos `*.styles.ts`. `clsx` compõe os
 estados condicionais sem depender de CSS Modules ou `tailwind.config`.
+
+As primitivas acessíveis ficam em `src/components/ui` e seguem a estrutura do
+shadcn/ui. O projeto mantém somente `button`, `badge`, `select`, `toggle-group`,
+`sheet`, `separator`, `input`, `tooltip`, `table`, `skeleton` e `alert`. A
+composição das telas continua próxima das rotas e usa `cn()` de `src/lib/utils.ts`.
+Radix fornece comportamento e semântica; cores, radius, bordas e estados são
+definidos pelos tokens Argus, sem o tema visual padrão do shadcn.
+
+Archivo é a fonte da interface e IBM Plex Mono identifica horários, métricas e
+rótulos técnicos. O tema inicial segue o sistema; o seletor do cabeçalho
+persiste a escolha em `argus-theme` e aplica a classe no documento com
+`next-themes`.
 
 Estilos inline ficam restritos a valores calculados em runtime, como altura e
 posição de barras dos gráficos. Breakpoints, foco visível, redução de movimento

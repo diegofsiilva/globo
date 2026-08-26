@@ -18,32 +18,38 @@ export function TimelineContent() {
         <p>Seis fontes em silos, um único eixo de tempo. Janela de correlação destacada.</p>
       </header>
 
-      <div className={styles.chart}>
-        <div className={styles.axis}>
-          {timeAxis.map((hour) => (
-            <span key={hour}>{hour}</span>
-          ))}
-        </div>
-        <div className={styles.band} aria-hidden="true" />
-        {timelineRows.map((row) => (
-          <div className={styles.row} key={row.label}>
-            <div className={styles.source}>
-              <strong>{row.label}</strong>
-              <span>{row.source}</span>
-            </div>
-            <div className={styles.track}>
-              <div
-                className={clsx(styles.event, styles[row.kind])}
-                style={{ left: `${row.start}%`, width: row.width ? `${row.width}%` : "auto" }}
-              >
-                <strong>{row.event}</strong>
-                <span>{row.detail}</span>
-                {row.width > 0 && <i />}
+      <figure className={styles.chart} aria-labelledby="timeline-chart-caption">
+        <div aria-hidden="true">
+          <div className={styles.axis}>
+            {timeAxis.map((hour) => (
+              <span key={hour}>{hour}</span>
+            ))}
+          </div>
+          <div className={styles.band} />
+          {timelineRows.map((row) => (
+            <div className={styles.row} key={row.label}>
+              <div className={styles.source}>
+                <strong>{row.label}</strong>
+                <span>{row.source}</span>
+              </div>
+              <div className={styles.track}>
+                <div
+                  className={clsx(styles.event, styles[row.kind])}
+                  style={{ left: `${row.start}%`, width: row.width ? `${row.width}%` : "auto" }}
+                >
+                  <strong>{row.event}</strong>
+                  <span>{row.detail}</span>
+                  {row.width > 0 && <i />}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+        <figcaption id="timeline-chart-caption" className="sr-only">
+          Eixo temporal correlacionado de seis fontes. A cronologia textual a seguir apresenta os
+          mesmos eventos, horários, fontes e detalhes em formato acessível.
+        </figcaption>
+      </figure>
 
       <div className={styles.lower}>
         {/* A cronologia repete os mesmos fatos em texto, cada linha atribuída à

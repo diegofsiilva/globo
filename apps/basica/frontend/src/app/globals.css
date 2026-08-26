@@ -1,125 +1,180 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-@theme static {
-  --font-sans: var(--font-archivo), Arial, sans-serif;
+@custom-variant dark (&:is(.dark *));
 
-  --color-argus-red: #ec3013;
-  --color-argus-dark-red: #ae1800;
-  --color-argus-ink: #201e1d;
-  --color-argus-muted: #605d5d;
-  --color-argus-soft: #8a8686;
-  --color-argus-canvas: #f3f2f2;
-  --color-argus-surface: #eae9e9;
-  --color-agora-danger: #dc2f16;
-  --color-agora-danger-dark: #a51f0d;
-  --color-agora-warning: #8a570f;
-  --color-agora-ink: #211f1e;
-  --color-agora-muted: #676260;
-  --color-agora-soft: #837e7b;
-  --color-agora-paper: #f5f4f3;
-  --color-agora-raised: #fbfaf9;
-  --color-explore-red: #ed2f17;
-  --color-explore-red-dark: #b51f0d;
-  --color-explore-ink: #22201f;
-  --color-explore-muted: #706c69;
-  --color-explore-soft: #918c88;
-  --color-explore-paper: #f4f3f2;
-  --color-explore-panel: #ecebea;
+@theme inline {
+  --font-sans: var(--font-archivo), sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), monospace;
 
-  --animate-agora-live-pulse: agora-live-pulse 2s ease-out infinite;
-  --animate-agora-enter-content: agora-enter-content 260ms ease-out both;
-  --animate-explorar-live-pulse: explorar-live-pulse 2s ease-out 2;
-  --animate-explorar-enter-content: explorar-enter-content 280ms ease-out both;
-  --animate-explorar-reveal-guide: explorar-reveal-guide 220ms ease-out both;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface-raised);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--secondary);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 
-  @keyframes agora-live-pulse {
-    0% {
-      box-shadow: 0 0 0 0 rgb(220 47 22 / 35%);
-    }
-    70%,
-    100% {
-      box-shadow: 0 0 0 7px rgb(220 47 22 / 0%);
-    }
-  }
-
-  @keyframes agora-enter-content {
-    from {
-      opacity: 0;
-      transform: translateY(5px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes explorar-live-pulse {
-    0% {
-      box-shadow: 0 0 0 0 rgb(237 47 23 / 35%);
-    }
-    70%,
-    100% {
-      box-shadow: 0 0 0 7px rgb(237 47 23 / 0%);
-    }
-  }
-
-  @keyframes explorar-enter-content {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes explorar-reveal-guide {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+  --animate-agora-live-pulse: live-pulse 2s ease-out infinite;
+  --animate-agora-enter-content: enter-content 260ms ease-out both;
+  --animate-explorar-live-pulse: live-pulse 2s ease-out 2;
+  --animate-explorar-enter-content: enter-content 280ms ease-out both;
+  --animate-explorar-reveal-guide: reveal-guide 220ms ease-out both;
 }
 
 :root {
-  --red: var(--color-argus-red);
-  --dark-red: var(--color-argus-dark-red);
-  --ink: var(--color-argus-ink);
-  --muted: var(--color-argus-muted);
-  --soft: var(--color-argus-soft);
-  --canvas: var(--color-argus-canvas);
-  --surface: var(--color-argus-surface);
-  --line: rgb(32 30 29 / 22%);
-  --line-soft: rgb(32 30 29 / 10%);
-  --nav-hover: rgb(255 255 255 / 58%);
-  --nav-selected: rgb(236 48 19 / 8%);
-  --nav-selected-hover: rgb(236 48 19 / 12%);
+  color-scheme: light;
+  --background: #f3f2ef;
+  --foreground: #171719;
+  --surface: #ffffff;
+  --surface-raised: #eceae6;
+  --primary: #d93616;
+  --primary-hover: #ad2511;
+  --primary-foreground: #ffffff;
+  --secondary: #e8e6e1;
+  --secondary-foreground: #27262a;
+  --muted-foreground: #57565d;
+  --subtle-foreground: #74727a;
+  --accent: #e4e1dc;
+  --accent-foreground: #171719;
+  --destructive: #b52b17;
+  --warning: #8a570f;
+  --border: #d8d4ce;
+  --border-strong: #b9b4ac;
+  --input: #b9b4ac;
+  --ring: #d93616;
+  --grid-line: rgb(23 23 25 / 3.5%);
+  --status-neutral: #74727a;
+
+  --red: var(--primary);
+  --dark-red: var(--primary-hover);
+  --ink: var(--foreground);
+  --muted: var(--muted-foreground);
+  --soft: var(--subtle-foreground);
+  --canvas: var(--background);
+  --line: var(--border);
+  --line-soft: color-mix(in srgb, var(--border) 60%, transparent);
+  --nav-hover: var(--surface-raised);
+  --nav-selected: color-mix(in srgb, var(--primary) 9%, transparent);
+  --nav-selected-hover: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #09090b;
+  --foreground: #f5f5f3;
+  --surface: #0f1013;
+  --surface-raised: #15161a;
+  --primary: #ff4b20;
+  --primary-hover: #ff6a2c;
+  --primary-foreground: #120905;
+  --secondary: #17181d;
+  --secondary-foreground: #e8e8e5;
+  --muted-foreground: #aaa9b0;
+  --subtle-foreground: #7f7e87;
+  --accent: #202126;
+  --accent-foreground: #f5f5f3;
+  --destructive: #ff5b3a;
+  --warning: #ff9d2e;
+  --border: #292a30;
+  --border-strong: #3a3b43;
+  --input: #3a3b43;
+  --ring: #ff7a45;
+  --grid-line: rgb(255 255 255 / 2.5%);
+  --status-neutral: #70717a;
+}
+
+@keyframes live-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 42%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 7px transparent; }
+}
+
+@keyframes enter-content {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes reveal-guide {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @layer base {
-  *,
-  ::before,
-  ::after {
-    box-sizing: border-box;
+  *, ::before, ::after { box-sizing: border-box; }
+
+  html {
+    min-height: 100%;
+    background: var(--background);
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: color-mix(in srgb, var(--primary) 20%, transparent);
   }
 
-  html,
   body {
     min-height: 100%;
     margin: 0;
-    background: var(--canvas);
-    color: var(--ink);
+    overflow-x: hidden;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      var(--background);
+    background-size: 40px 40px;
+    color: var(--foreground);
     font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
   }
 
-  button {
-    border: 0;
-    color: inherit;
-    font: inherit;
+  button, input, select, textarea { color: inherit; font: inherit; }
+  button, a { touch-action: manipulation; }
+  button { border-radius: 0; cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  h1, h2, h3 { text-wrap: balance; scroll-margin-top: 72px; }
+  p { text-wrap: pretty; }
+  ::selection { background: color-mix(in srgb, var(--primary) 28%, transparent); color: var(--foreground); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
+}
+
+/* Superfícies editoriais herdadas agora respondem aos dois temas. */
+.eventSummary button:hover,
+.groupBar button:hover,
+.distributionTable tbody tr:hover,
+.filterMenu button:hover {
+  background: var(--surface-raised);
+}
+
+.guide,
+.quickRead {
+  background: var(--surface);
+}
+
+.filter { border-color: var(--input); }
+
+.filterMenu {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  box-shadow: 4px 5px 0 color-mix(in srgb, var(--foreground) 13%, transparent);
 }

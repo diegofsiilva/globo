@@ -1,25 +1,22 @@
 "use client";
 
+import clsx from "clsx";
+import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import clsx from "clsx";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { navigationItems } from "./navigation-items";
 import { navigationStyles as styles } from "./operations-navigation.styles";
-
-type NavigationItem = {
-  badge?: string;
-  href: string;
-  index: string;
-  label: string;
-};
-
-const navigationItems: readonly NavigationItem[] = [
-  { href: "/agora", index: "01", label: "Agora", badge: "3" },
-  { href: "/explorar", index: "02", label: "Explorar" },
-  { href: "/comparar", index: "03", label: "Comparar" },
-  { href: "/hipoteses", index: "04", label: "Hipóteses", badge: "4" },
-  { href: "/timeline", index: "05", label: "Timeline" },
-  { href: "/recorte", index: "06", label: "Recorte" },
-];
 
 /** Navegação primária reutilizável das páginas operacionais. */
 export function OperationsNavigation() {
@@ -27,29 +24,65 @@ export function OperationsNavigation() {
 
   return (
     <nav className={styles.navigation} aria-label="Navegação de monitoração">
-      <ol className={styles.list}>
-        {navigationItems.map((item) => {
-          const active = pathname === item.href;
-
-          return (
-            <li key={item.href}>
-              <Link
-                className={clsx(styles.link, active && styles.active)}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-              >
-                <span className={styles.index}>{item.index}</span>
-                <span className={styles.label}>{item.label}</span>
-                {item.badge && (
-                  <span className={styles.badge} aria-label={`${item.badge} pendências`}>
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
-            </li>
-          );
-        })}
-      </ol>
+      <NavigationLinks pathname={pathname} />
     </nav>
+  );
+}
+
+/** Navegação em drawer para viewports onde a sidebar não cabe. */
+export function MobileOperationsNavigation() {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button
+          className={styles.menuButton}
+          variant="ghost"
+          size="icon"
+          aria-label="Abrir menu de navegação"
+        >
+          <Menu aria-hidden="true" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className={styles.drawer}>
+        <SheetHeader>
+          <SheetTitle>Monitoração Agêntica</SheetTitle>
+          <SheetDescription>Escolha uma etapa da investigação operacional.</SheetDescription>
+        </SheetHeader>
+        <nav aria-label="Navegação móvel de monitoração" className={styles.drawerNavigation}>
+          <NavigationLinks pathname={pathname} onNavigate={() => setOpen(false)} />
+        </nav>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function NavigationLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  return (
+    <ol className={styles.list}>
+      {navigationItems.map((item) => {
+        const active = pathname === item.href;
+        return (
+          <li key={item.href}>
+            <Link
+              className={clsx(styles.link, active && styles.active)}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              onClick={onNavigate}
+            >
+              <span className={styles.index}>{item.index}</span>
+              <span className={styles.label}>{item.label}</span>
+              {item.badge && (
+                <Badge className={styles.badge} aria-label={`${item.badge} pendências`}>
+                  {item.badge}
+                </Badge>
+              )}
+            </Link>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

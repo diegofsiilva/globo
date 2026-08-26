@@ -9,6 +9,14 @@ import {
   samples,
 } from "../_mocks/scenario";
 import clsx from "clsx";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { recorteStyles as styles } from "./recorte.styles";
 
 /** Índice da coluna e da linha que concentram o erro do cenário. */
@@ -64,36 +72,54 @@ export function RecorteContent() {
         <aside className={styles.adjustments}>
           <h2>Ajustar o recorte</h2>
           <p>
-            O agente mede o efeito de cada ajuste sobre a especificidade do sinal antes de você
-            clicar.
+            Efeito previsto de cada ajuste sobre a especificidade do sinal. Estes cenários são
+            informativos e não executam ações.
           </p>
           {adjustments.map((adjustment) => (
-            <button className={styles.adjustment} type="button" key={adjustment.title}>
+            <article className={styles.adjustment} key={adjustment.title}>
               <strong>{adjustment.title}</strong>
               <span className={clsx(adjustment.critical && styles.gain)}>
                 {adjustment.result}
               </span>
-            </button>
+            </article>
           ))}
         </aside>
       </div>
 
       <section className={styles.samples}>
         <h2 className={styles.sectionLabel}>Amostra de sessões no recorte</h2>
-        <div className={styles.sampleHead}>
-          {sampleColumns.map((column) => (
-            <span key={column}>{column}</span>
-          ))}
-        </div>
-        {samples.map((row) => (
-          <div className={styles.sampleRow} key={row.join("-")}>
-            {row.map((cell, index) => (
-              <span key={cell} className={clsx(index === 4 && styles.sampleError)}>
-                {cell}
-              </span>
+        <Table className="min-w-[780px] table-fixed">
+          <TableHeader>
+            <TableRow>
+              {sampleColumns.map((column, index) => (
+                <TableHead
+                  className={clsx(index === 0 && "w-24", index === 2 && "w-32", index === 3 && "w-28")}
+                  key={column}
+                >
+                  {column}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {samples.map((row) => (
+              <TableRow key={row.join("-")}>
+                {row.map((cell, index) => (
+                  <TableCell
+                    key={`${row[0]}-${index}`}
+                    className={clsx(
+                      "font-mono text-[10px]",
+                      index === 0 && "text-muted-foreground",
+                      index === 4 && "font-semibold text-primary",
+                    )}
+                  >
+                    {cell}
+                  </TableCell>
+                ))}
+              </TableRow>
             ))}
-          </div>
-        ))}
+          </TableBody>
+        </Table>
       </section>
     </>
   );
@@ -118,21 +144,22 @@ function HeatmapRow({
   return (
     <>
       <strong>{family}</strong>
-      {rates.map((rate, columnIndex) => (
-        <span
-          key={`${family}-${heatmapRegions[columnIndex]}`}
-          className={clsx(
-            rowIndex === hottest.row &&
-              columnIndex === hottest.column &&
-              styles.hottest,
-            rowIndex === hottest.row &&
-              columnIndex !== hottest.column &&
-              styles.hot,
-          )}
-        >
-          {rate}
-        </span>
-      ))}
+      {rates.map((rate, columnIndex) => {
+        const isHottest = rowIndex === hottest.row && columnIndex === hottest.column;
+        return (
+          <span
+            key={`${family}-${heatmapRegions[columnIndex]}`}
+            aria-label={`${family}, ${heatmapRegions[columnIndex]}: ${rate}${isHottest ? ", maior concentração do recorte" : ""}`}
+            className={clsx(
+              isHottest && styles.hottest,
+              rowIndex === hottest.row && columnIndex !== hottest.column && styles.hot,
+            )}
+          >
+            <span>{rate}</span>
+            {isHottest && <small>pico</small>}
+          </span>
+        );
+      })}
     </>
   );
 }

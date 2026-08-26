@@ -1,10 +1,17 @@
-/** Utilities Tailwind geradas a partir do CSS legado para preservar paridade visual. */
+/** Utilities da navegação operacional em sidebar e drawer. */
 export const navigationStyles = {
-  "active": "active [box-shadow:inset_2px_0_var(--red)] [background:#fff]",
-  "badge": "badge [min-width:15px] [height:15px] [padding:0_3px] [display:grid] [place-items:center] [background:var(--red)] [color:white] [font-size:8px] [font-weight:700] [font-variant-numeric:tabular-nums]",
-  "index": "index [color:var(--soft)] [font-size:8px] [font-variant-numeric:tabular-nums]",
-  "label": "label [font-size:11px] [font-weight:600]",
-  "link": "link [min-height:48px] [padding:0_12px_0_9px] [display:grid] [grid-template-columns:22px_1fr_18px] [align-items:center] [border-bottom:1px_solid_var(--line-soft)] [box-shadow:inset_2px_0_transparent] [color:var(--ink)] [text-decoration:none] [transition:background-color_160ms_ease,box-shadow_160ms_ease] hover:[background:rgba(255,255,255,0.55)] focus-visible:[position:relative] focus-visible:[z-index:1] focus-visible:[outline:2px_solid_var(--ink)] focus-visible:[outline-offset:-2px] max-[760px]:[width:118px] max-[760px]:[min-height:48px] max-[760px]:[border-right:1px_solid_var(--line-soft)] max-[760px]:[border-bottom:0] motion-reduce:[transition:none]",
-  "list": "list [position:sticky] [top:0] [margin:0] [padding:0] [list-style:none] max-[760px]:[position:static] max-[760px]:[display:flex] max-[760px]:[width:max-content]",
-  "navigation": "navigation [min-width:150px] [border-right:1px_solid_var(--line)] [background:rgba(255,255,255,0.12)] max-[760px]:[min-width:0] max-[760px]:[overflow-x:auto] max-[760px]:[border-right:0] max-[760px]:[border-bottom:1px_solid_var(--line)] max-[760px]:[scrollbar-width:thin]",
+  active:
+    "bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-foreground shadow-[inset_2px_0_var(--primary)] before:absolute before:right-0 before:h-5 before:w-px before:bg-primary",
+  badge:
+    "min-w-5 border-0 px-1.5 py-0.5 text-[8px] tracking-normal [border-radius:999px]",
+  drawer: "p-0",
+  drawerNavigation: "flex-1 py-3",
+  index: "font-mono text-[8px] text-muted-foreground tabular-nums",
+  label: "text-[11px] font-semibold",
+  link:
+    "relative grid min-h-12 grid-cols-[24px_1fr_auto] items-center gap-2 border-b border-border px-3 text-muted-foreground no-underline transition-[background-color,color,box-shadow] duration-[160ms] hover:bg-surface-raised hover:text-foreground focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring motion-reduce:transition-none",
+  list: "m-0 list-none p-0",
+  menuButton: "md:hidden",
+  navigation:
+    "hidden min-h-full min-w-44 border-r border-border bg-surface/65 backdrop-blur-[6px] md:block",
 } as const;

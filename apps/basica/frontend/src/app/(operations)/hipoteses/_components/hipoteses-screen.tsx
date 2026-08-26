@@ -6,6 +6,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
+import { RefreshCw, TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ScreenFrame,
   type ScreenFilter,
@@ -29,7 +33,12 @@ const periodMinutes: Record<ScreenPeriod, number> = {
 };
 
 /** Tons da faixa de fatores, do mais para o menos determinante. */
-const factorShades = ["#201e1d", "#575453", "#8f8b8b", "#cfcccc"];
+const factorShades = [
+  "var(--primary)",
+  "var(--warning)",
+  "var(--muted-foreground)",
+  "var(--border-strong)",
+];
 
 /** Causas prováveis do recorte, ranqueadas e com o score decomposto. */
 export function HipotesesScreen() {
@@ -62,14 +71,29 @@ export function HipotesesScreen() {
         )}
       </header>
 
-      {report.isLoading && <p className={styles.state}>Consultando o motor de hipóteses…</p>}
+      {report.isLoading && <HypothesesSkeleton />}
       {report.isError && (
-        <p className={clsx(styles.state, styles.error)}>
-          Não foi possível carregar as hipóteses. Tente novamente.
-        </p>
+        <Alert variant="destructive" className="my-6 max-w-2xl">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>Falha ao consultar o motor de hipóteses</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-4">
+            <span>Os filtros foram preservados. Verifique a conexão e tente novamente.</span>
+            <Button size="sm" variant="outline" onClick={() => void report.refetch()}>
+              <RefreshCw aria-hidden="true" />
+              Tentar novamente
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
-      {report.data && (
+      {report.data && hypotheses.length === 0 && (
+        <Alert className="my-6 max-w-2xl">
+          <AlertTitle>Nenhuma hipótese encontrada</AlertTitle>
+          <AlertDescription>Amplie o período ou altere o recorte para consultar outros sinais.</AlertDescription>
+        </Alert>
+      )}
+
+      {report.data && hypotheses.length > 0 && (
         <div className={styles.layout}>
           <section className={styles.list} aria-label="Hipóteses ranqueadas">
             <ol>
@@ -209,20 +233,45 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
       {/* As duas ações encadeiam os fluxos: a hipótese viaja na URL para que a
           timeline e o recorte abram já centrados nela. */}
       <div className={styles.actions}>
-        <Link
-          className={clsx(styles.action, styles.primary)}
-          href={`/timeline?hipotese=${hypothesis.id}&t=${encodeURIComponent(hypothesis.timelineAnchor)}`}
-        >
-          Abrir na timeline
-        </Link>
-        <Link
-          className={styles.action}
-          href={`/recorte?hipotese=${hypothesis.id}&segmento=${encodeURIComponent(hypothesis.segment)}`}
-        >
-          Ver recorte afetado
-        </Link>
+        <Button asChild>
+          <Link href={`/timeline?hipotese=${hypothesis.id}&t=${encodeURIComponent(hypothesis.timelineAnchor)}`}>
+            Abrir na timeline
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href={`/recorte?hipotese=${hypothesis.id}&segmento=${encodeURIComponent(hypothesis.segment)}`}>
+            Ver recorte afetado
+          </Link>
+        </Button>
       </div>
     </aside>
+  );
+}
+
+/** Mantém a hierarquia da tela estável durante a consulta assíncrona. */
+function HypothesesSkeleton() {
+  return (
+    <div className="grid gap-7 py-6 lg:grid-cols-2" role="status" aria-label="Carregando hipóteses">
+      <div className="space-y-px border-t border-border">
+        {[0, 1, 2].map((item) => (
+          <div className="grid min-h-24 grid-cols-[56px_1fr] gap-4 border-b border-border p-4" key={item}>
+            <Skeleton className="h-8 w-12" />
+            <div className="space-y-3">
+              <Skeleton className="h-2 w-32" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-1.5 w-full" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="space-y-4 border-t border-border pt-4">
+        <Skeleton className="h-2 w-40" />
+        <Skeleton className="h-5 w-3/4" />
+        <Skeleton className="h-10 w-1/2" />
+        <Skeleton className="h-28 w-full" />
+      </div>
+      <span className="sr-only">Consultando o motor de hipóteses…</span>
+    </div>
   );
 }
 

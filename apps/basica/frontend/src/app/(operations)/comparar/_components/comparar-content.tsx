@@ -4,6 +4,15 @@
 
 import { useMemo, useState } from "react";
 import clsx from "clsx";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   chart,
   changes,
@@ -36,35 +45,39 @@ export function CompararContent() {
 
       {/* Quatro escalas de sazonalidade. Num evento programado o correto é
           comparar contra outro pico, não contra a média. */}
-      <div className={styles.references} role="group" aria-label="Referência de comparação">
+      <ToggleGroup
+        className={styles.references}
+        type="single"
+        value={reference}
+        onValueChange={(value) => value && setReference(value as ReferenceId)}
+        aria-label="Referência de comparação"
+      >
         {references.map((item) => (
-          <button
+          <ToggleGroupItem
             className={styles.reference}
             key={item.id}
-            type="button"
-            aria-pressed={item.id === reference}
-            onClick={() => setReference(item.id)}
+            value={item.id}
+            aria-label={`${item.label}: ${item.detail}`}
           >
             <strong>{item.label}</strong>
             <span>{item.detail}</span>
-          </button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
 
       <div className={styles.body}>
-        <section aria-labelledby="chart-title">
+        <figure aria-labelledby="chart-title">
           <div className={styles.chartHeader}>
             <h2 id="chart-title">Falha de início de play (video_view · start error)</h2>
             <span>%, bucket de 1 min</span>
           </div>
 
-          <div className={styles.chart}>
+          <div className={styles.chart} aria-hidden="true">
             {chart.map((bucket) => (
               <div className={styles.bucket} key={bucket.hour}>
                 <i
                   className={clsx(styles.bar, bucket.outside && styles.outside)}
                   style={{ height: `${(bucket.now / chartMax) * 100}%` }}
-                  title={`${bucket.hour} · ${bucket.now.toLocaleString("pt-BR")}%`}
                 />
                 <i
                   className={styles.referenceLine}
@@ -96,7 +109,12 @@ export function CompararContent() {
               fora do envelope histórico
             </span>
           </p>
-        </section>
+          <figcaption className="sr-only">
+            Série de falha de início por minuto. {chart.map((bucket) =>
+              `${bucket.hour}: agora ${bucket.now.toLocaleString("pt-BR")}% e referência ${bucket.reference.toLocaleString("pt-BR")}%${bucket.outside ? ", fora do envelope histórico" : ""}`,
+            ).join("; ")}.
+          </figcaption>
+        </figure>
 
         <aside className={styles.changes}>
           <h2>O que mudou entre as janelas</h2>
@@ -109,40 +127,50 @@ export function CompararContent() {
         </aside>
       </div>
 
-      <section className={styles.table} aria-label="Métricas comparadas">
-        <div className={styles.head}>
-          <span>métrica</span>
-          <span>agora</span>
-          <span>{selected.column}</span>
-          <span>Δ</span>
-          <span>significância</span>
-        </div>
-        {metrics.map((metric) => {
-          const comparison = metric.references[reference];
-          const significant = comparison.sigma >= SIGNIFICANT_SIGMA;
+      <section className={styles.table} aria-labelledby="comparison-table-title">
+        <h2 id="comparison-table-title" className="sr-only">Métricas comparadas</h2>
+        <Table className="min-w-[720px] table-fixed">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[30%]">Métrica</TableHead>
+              <TableHead className="text-right">Agora</TableHead>
+              <TableHead className="text-right">{selected.column}</TableHead>
+              <TableHead className="text-right">Δ</TableHead>
+              <TableHead className="w-[28%]">Significância</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {metrics.map((metric) => {
+              const comparison = metric.references[reference];
+              const significant = comparison.sigma >= SIGNIFICANT_SIGMA;
 
-          return (
-            <div className={styles.row} key={metric.label}>
-              <b>{metric.label}</b>
-              <span>{metric.now}</span>
-              <span>{comparison.value}</span>
-              <span className={clsx(styles.delta, significant && styles.deltaHot)}>
-                {comparison.delta}
-              </span>
-              <span className={styles.significance}>
-                <span className={styles.meter}>
-                  <i
-                    className={clsx(significant && styles.hot)}
-                    style={{ width: `${meterWidth(comparison.sigma, sigmaMax)}%` }}
-                  />
-                </span>
-                <span className={styles.sigma}>
-                  {comparison.sigma.toLocaleString("pt-BR", { minimumFractionDigits: 1 })}σ
-                </span>
-              </span>
-            </div>
-          );
-        })}
+              return (
+                <TableRow key={metric.label}>
+                  <TableCell className="font-semibold text-foreground">{metric.label}</TableCell>
+                  <TableCell className="text-right font-mono font-semibold">{metric.now}</TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground">{comparison.value}</TableCell>
+                  <TableCell className={clsx("text-right font-mono font-semibold", significant && "text-primary")}>
+                    {comparison.delta}
+                  </TableCell>
+                  <TableCell>
+                    <span className={styles.significance}>
+                      <span className={styles.meter} aria-hidden="true">
+                        <i
+                          className={clsx(significant && styles.hot)}
+                          style={{ width: `${meterWidth(comparison.sigma, sigmaMax)}%` }}
+                        />
+                      </span>
+                      <span className={styles.sigma}>
+                        {comparison.sigma.toLocaleString("pt-BR", { minimumFractionDigits: 1 })}σ
+                        {significant && <span className="sr-only">, desvio significativo</span>}
+                      </span>
+                    </span>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       </section>
     </>
   );

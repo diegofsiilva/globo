@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import clsx from "clsx";
+import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   frequentErrors,
   type ExplorationRow,
@@ -49,18 +51,13 @@ export function ExplorationBreakdown({
         </div>
         <div className={styles.groupBar} aria-label="Quebrar resultado por">
           <span>Quebrar por</span>
-          <div>
-            {groupOptions.map((option) => (
-              <button
-                type="button"
-                key={option}
-                aria-pressed={groupBy === option}
-                onClick={() => onGroupByChange(option)}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
+          <ToggleGroup
+            type="single"
+            value={groupBy}
+            onValueChange={(value) => value && onGroupByChange(value as GroupBy)}
+          >
+            {groupOptions.map((option) => <ToggleGroupItem key={option} value={option}>{option}</ToggleGroupItem>)}
+          </ToggleGroup>
         </div>
       </header>
 
@@ -79,11 +76,11 @@ export function ExplorationBreakdown({
               <tr>
                 <th scope="col">{groupBy}</th>
                 <th scope="col">Eventos</th>
-                <th scope="col" title="Percentual de eventos que apresentaram erro">
-                  Taxa de erro
+                <th scope="col">
+                  Taxa de erro<span className="sr-only">, percentual de eventos que apresentaram erro</span>
                 </th>
-                <th scope="col" title="Volume relativo dentro deste agrupamento">
-                  Volume relativo
+                <th scope="col">
+                  Volume relativo<span className="sr-only"> dentro deste agrupamento</span>
                 </th>
                 <th scope="col">vs. ontem</th>
               </tr>
@@ -95,9 +92,7 @@ export function ExplorationBreakdown({
 
                 return (
                   <tr key={row.label}>
-                    <th scope="row" title={row.label}>
-                      {row.label}
-                    </th>
+                    <th scope="row">{row.label}</th>
                     <td>{formatEvents(row.events)}</td>
                     <td className={clsx(critical && styles.errorValue)}>
                       {row.errorRate.toLocaleString("pt-BR", {
@@ -138,12 +133,14 @@ export function ExplorationBreakdown({
             </div>
           </header>
           <label htmlFor="error-search">Filtrar erros pelo nome</label>
-          <input
+          <Input
             id="error-search"
+            name="error-search"
             type="search"
+            autoComplete="off"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Ex.: playback, timeout..."
+            placeholder="Ex.: playback, timeout…"
           />
           <small className={styles.searchHint}>
             Procure por parte do nome técnico do erro.

@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import clsx from "clsx";
+import { Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  ScreenFrame,
+  type ScreenPeriod,
+} from "../../_components/screen-frame";
 import {
   eventKinds,
   explorationGroups,
@@ -27,7 +33,6 @@ import { ExplorationBreakdown } from "./exploration-breakdown";
 
 /** Visão de exploração baseada em um snapshot estático de telemetria. */
 export function ExplorarScreen() {
-  const [clock, setClock] = useState("20:11:04");
   const [activeEvent, setActiveEvent] = useState("error");
   const [groupBy, setGroupBy] = useState<GroupBy>("Modelo");
   const [activeFilters, setActiveFilters] = useState<string[]>(
@@ -39,14 +44,6 @@ export function ExplorarScreen() {
     historyLastIndex - defaultRangeSteps,
   );
   const [windowEnd, setWindowEnd] = useState(historyLastIndex);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setClock(new Date().toLocaleTimeString("pt-BR"));
-    }, 1_000);
-
-    return () => window.clearInterval(timer);
-  }, []);
 
   const inactiveFilters = scopeFilters.filter(
     (filter) => !activeFilters.includes(filter.id),
@@ -111,95 +108,65 @@ export function ExplorarScreen() {
     setWindowEnd(historyLastIndex);
   }
 
-  return (
-    <div className={styles.page}>
-      <div
-        className={styles.topControls}
-        data-operations-slot="controls"
-        aria-label="Atualização e período"
-      >
-        <p className={styles.liveStatus}>
-          <span aria-hidden="true" />
-          Ao vivo · {clock}
-        </p>
-        <div className={styles.periods} aria-label="Atalhos de período">
-          {periodPresets.map((preset) => (
-            <button
-              key={preset.label}
+  const scopeContent = (
+    <div className={styles.filterList}>
+      {scopeFilters
+        .filter((filter) => activeFilters.includes(filter.id))
+        .map((filter) => (
+          <div className={styles.filter} key={filter.id}>
+            <span>{filter.label}</span>
+            <strong>{filter.value}</strong>
+            <Button
+              variant="ghost"
+              size="icon-sm"
               type="button"
-              aria-pressed={activePreset === preset.label}
-              onClick={() => selectPreset(preset.minutes)}
+              aria-label={`Remover filtro ${filter.label}: ${filter.value}`}
+              onClick={() => removeFilter(filter.id)}
             >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <section
-        className={styles.scopeBar}
-        data-operations-slot="scope"
-        aria-label="Filtros do recorte"
-      >
-        <span className={styles.scopeLabel}>Escopo</span>
-        <div className={styles.filterList}>
-          {scopeFilters
-            .filter((filter) => activeFilters.includes(filter.id))
-            .map((filter) => (
-              <div className={styles.filter} key={filter.id}>
-                <span>{filter.label}</span>
-                <strong>{filter.value}</strong>
-                <button
-                  type="button"
-                  aria-label={`Remover filtro ${filter.label}: ${filter.value}`}
-                  onClick={() => removeFilter(filter.id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          <div className={styles.addFilterWrap}>
-            <button
-              className={styles.addFilter}
-              type="button"
-              aria-expanded={showFilterMenu}
-              onClick={() => setShowFilterMenu((current) => !current)}
-            >
-              + filtro
-            </button>
-            {showFilterMenu && (
-              <div className={styles.filterMenu}>
-                {inactiveFilters.length ? (
-                  inactiveFilters.map((filter) => (
-                    <button
-                      type="button"
-                      key={filter.id}
-                      onClick={() => restoreFilter(filter.id)}
-                    >
-                      <span>{filter.label}</span>
-                      {filter.value}
-                    </button>
-                  ))
-                ) : (
-                  <p>Todos os filtros estão ativos.</p>
-                )}
-              </div>
+              <X aria-hidden="true" />
+            </Button>
+          </div>
+        ))}
+      <div className={styles.addFilterWrap}>
+        <Button
+          className={styles.addFilter}
+          variant="outline"
+          size="sm"
+          type="button"
+          aria-expanded={showFilterMenu}
+          onClick={() => setShowFilterMenu((current) => !current)}
+        >
+          <Plus aria-hidden="true" /> filtro
+        </Button>
+        {showFilterMenu && (
+          <div className={styles.filterMenu}>
+            {inactiveFilters.length ? (
+              inactiveFilters.map((filter) => (
+                <Button variant="ghost" type="button" key={filter.id} onClick={() => restoreFilter(filter.id)}>
+                  <span>{filter.label}</span>{filter.value}
+                </Button>
+              ))
+            ) : (
+              <p>Todos os filtros estão ativos.</p>
             )}
           </div>
-        </div>
-        <div className={styles.scopeMeta}>
-          <span>{scopeSummary}</span>
-          <button
-            type="button"
-            onClick={() => setActiveFilters([])}
-            disabled={activeFilters.length === 0}
-          >
-            limpar
-          </button>
-        </div>
-      </section>
+        )}
+      </div>
+    </div>
+  );
 
-      <div className={styles.content} data-operations-slot="content">
+  return (
+    <ScreenFrame
+      period={(activePreset as ScreenPeriod | undefined) ?? null}
+      onPeriodChange={(value) => {
+        const preset = periodPresets.find((item) => item.label === value);
+        if (preset) selectPreset(preset.minutes);
+      }}
+      scopeContent={scopeContent}
+      scopeSummary={scopeSummary}
+      onClearFilters={() => setActiveFilters([])}
+    >
+      <div className={styles.page}>
           <header className={styles.intro}>
             <div>
               <span className={styles.contextLabel}>Investigação do recorte</span>
@@ -209,15 +176,17 @@ export function ExplorarScreen() {
                 qual erro explica o sinal.
               </p>
             </div>
-            <button
+            <Button
               className={styles.guideToggle}
+              variant="outline"
+              size="sm"
               type="button"
               aria-expanded={showGuide}
               aria-controls="exploration-guide"
               onClick={() => setShowGuide((current) => !current)}
             >
               {showGuide ? "Ocultar guia" : "Como usar"}
-            </button>
+            </Button>
           </header>
 
           {showGuide && (
@@ -283,7 +252,7 @@ export function ExplorarScreen() {
               role="region"
               aria-label={`Gráfico de ${selectedEvent.name} entre ${windowStartLabel} e ${windowEndLabel}.`}
             >
-              <div className={styles.chart}>
+              <div className={styles.chart} aria-hidden="true">
                 <div className={styles.bars}>
                   {visibleTimeline.map((bar, index) => {
                     const barStyle = {
@@ -296,7 +265,6 @@ export function ExplorarScreen() {
                         className={styles.bar}
                         style={barStyle}
                         key={`${bar.events}-${bar.errors}-${index}`}
-                        title={`Índice de volume ${bar.events + bar.errors}; índice de erro ${bar.errors}`}
                       >
                         <i className={styles.errorBar} />
                         <i className={styles.eventBar} />
@@ -310,6 +278,11 @@ export function ExplorarScreen() {
                   ))}
                 </div>
               </div>
+              <p className="sr-only">
+                {visibleTimeline.map((bar, index) =>
+                  `Ponto ${index + 1}: índice de volume ${bar.events + bar.errors} e índice de erro ${bar.errors}`,
+                ).join("; ")}.
+              </p>
             </div>
 
             <div
@@ -355,6 +328,7 @@ export function ExplorarScreen() {
                   <input
                     className={clsx(styles.rangeInput, styles.rangeStart)}
                     type="range"
+                    name="window-start"
                     min={0}
                     max={historyLastIndex}
                     value={windowStart}
@@ -372,6 +346,7 @@ export function ExplorarScreen() {
                   <input
                     className={clsx(styles.rangeInput, styles.rangeEnd)}
                     type="range"
+                    name="window-end"
                     min={0}
                     max={historyLastIndex}
                     value={windowEnd}
@@ -424,6 +399,6 @@ export function ExplorarScreen() {
             selectedEventName={selectedEvent.name}
           />
       </div>
-    </div>
+    </ScreenFrame>
   );
 }
