@@ -33,10 +33,10 @@ const periodMinutes: Record<ScreenPeriod, number> = {
 
 /** Tons da faixa de fatores, do mais para o menos determinante. */
 const factorShades = [
-  "var(--primary)",
-  "var(--warning)",
-  "var(--muted-foreground)",
-  "var(--border-strong)",
+  "var(--rank-1)",
+  "var(--rank-2)",
+  "var(--rank-3)",
+  "var(--rank-4)",
 ];
 
 /** Causas prováveis do recorte, ranqueadas e com o score decomposto. */

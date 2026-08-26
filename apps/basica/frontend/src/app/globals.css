@@ -36,6 +36,10 @@
   --color-subtle-foreground: var(--subtle-foreground);
   --color-status-neutral: var(--status-neutral);
   --color-border-soft: var(--border-soft);
+  --color-rank-1: var(--rank-1);
+  --color-rank-2: var(--rank-2);
+  --color-rank-3: var(--rank-3);
+  --color-rank-4: var(--rank-4);
 
   /* Escala tipográfica única das telas. Seis degraus: abaixo de 12px o rótulo
      deixa de ser legível em tela densa, e acima de 28px compete com o h1. */
@@ -84,6 +88,17 @@
      que sobrevive: os demais aliases (--ink, --muted, --line, --red…) foram
      removidos porque só duplicavam nomes canônicos. */
   --border-soft: color-mix(in srgb, var(--border) 62%, transparent);
+
+  /* Rampa ordinal de 4 passos: codifica ordem (1 = mais determinante), não
+     identidade — por isso um hue só com luminosidade monótona, e não cores
+     avulsas. Os tokens semânticos NÃO servem aqui: --warning no claro é um
+     marrom calibrado para texto e vira lama como preenchimento, e
+     --muted-foreground e --border-strong são cinzas indistinguíveis entre si.
+     Cada passo verificado ≥ 2:1 sobre a superfície do seu tema. */
+  --rank-1: #8f1f07;
+  --rank-2: #b92b0b;
+  --rank-3: #cb6440;
+  --rank-4: #d59277;
 }
 
 .dark {
@@ -112,6 +127,10 @@
   --ring: #ff7a45;
   --grid-line: rgb(255 255 255 / 2.5%);
   --status-neutral: #70717a;
+  --rank-1: #ff7a54;
+  --rank-2: #e8552a;
+  --rank-3: #b03c1c;
+  --rank-4: #7a2c14;
 }
 
 @keyframes live-pulse {
