@@ -367,6 +367,303 @@ São da operação da API, não do Next.js:
 Ingestão **não** passa por estas rotas. Eventos entram pelo API Gateway de
 ingest (`ARGUS_INGEST_URL`), fora do contrato do dashboard.
 
+### 4.4 Mapa de ações da interface e chamadas necessárias
+
+Esta seção transforma os controles visíveis do frontend em tarefas de
+integração. A coluna “Ação HTTP” indica o que deve acontecer quando os dados
+mockados forem substituídos por dados reais.
+
+Legenda:
+
+- **Local**: altera somente estado da interface ou navega para outra tela.
+- **API existente**: o endpoint já está implementado no backend.
+- **Contrato ausente**: a interface precisa de um novo endpoint ou de uma
+  extensão do contrato atual.
+
+#### 4.4.1 Controles compartilhados
+
+| Controle | Ação atual | Ação HTTP necessária | Situação |
+|---|---|---|---|
+| Links Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte | Navega entre as telas e preserva demoState | A tela de destino deve executar sua própria query com o escopo compartilhado | Local; integração pendente |
+| Abrir menu de navegação no mobile | Abre o drawer lateral | Nenhuma | Local |
+| Período 15 min, 30 min, 3 h ou 24 h | Atualiza o período global em React | Enviar from/to ISO 8601 em todas as queries da tela | Parcial; Explorar e Hipóteses usam o período, as demais ainda não |
+| Alternar tema claro/escuro | Altera o tema no navegador | Nenhuma | Local |
+| Botão Escopo no mobile | Abre o painel de filtros | Nenhuma diretamente; o fechamento deve disparar a query da tela | Local |
+| Selects da barra de escopo | Atualizam filtros da tela quando existe callback | Mapear plataforma para device_os, fabricante para device_manufacturer, app para app_version e região para um contrato regional | Parcial; várias telas usam valores mockados |
+| Limpar filtros / limpar | Remove ou restaura os filtros da tela | Refazer a query sem os filtros removidos | Parcial; atualmente apenas estado local |
+| Voltar ao estado normal | Remove demoState da URL | Nenhuma | Local |
+| Rever filtros em estado vazio ou erro | Restaura o conjunto inicial de filtros | Refazer a query após a restauração | Local hoje; deve invalidar a query real |
+| Tentar novamente / Atualizar agora | Refaz a consulta atual | Repetir a mesma requisição, mantendo from, to e escopo | API existente quando a tela estiver ligada |
+| Continuar com último resultado | Mantém os dados válidos anteriores | Nenhuma nova chamada; registrar que a tela está stale | Local |
+
+O período e o escopo devem ser tratados como estado de investigação, não apenas
+como estado visual. Para preservar o recorte ao navegar, recomenda-se
+serializar os valores na URL ou em um estado compartilhado que seja consumido
+por todas as telas. Atualmente apenas demoState é preservado nos links.
+
+#### 4.4.2 Tela Agora
+
+Arquivo principal:
+apps/basica/frontend/src/app/(operations)/agora/_components/agora-screen.tsx
+
+| Controle ou ação | Dados que devem mudar | Endpoint necessário | Parâmetros principais | Situação atual |
+|---|---|---|---|---|
+| Select plataforma | Escopo dos sinais e da degradação | GET /api/v1/events, /api/v1/metrics/timeseries e /api/v1/metrics/breakdown | device_os, from, to | Mock/local |
+| Select fabricante | Escopo dos sinais e da degradação | Os mesmos endpoints | device_manufacturer, from, to | Mock/local |
+| Select região | Escopo regional | Novo contrato regional ou fonte externa | uf/region, from, to | Sem suporte de ponta a ponta |
+| Select app | Escopo por versão | Os mesmos endpoints | app_version, from, to | Mock/local |
+| Restaurar recorte principal | Volta para LG, webOS 3.x, Nordeste e 2026.3.0 | Refazer todas as queries da tela | Escopo inicial e janela atual | Local |
+| Ver detalhes de um sinal | Abre drawer com valor atual, baseline, limiar, tendência e interpretação | GET /api/v1/anomalies ou novo endpoint de detalhe de sinal | signal_id, run_id e/ou from/to | O drawer existe, mas os dados vêm de mock |
+| Ver hipóteses ranqueadas | Navega para /hipoteses | GET /api/v1/hypotheses na tela de destino | from, to e escopo | Link existe; endpoint Flask não existe |
+| Abrir na Timeline | Navega com sinal, hipótese ou âncora temporal | GET /api/v1/sessions/{session_id} para sessão ou novo endpoint multi-fonte | sinal, hipotese, t, session_id | Link existe; Timeline ainda usa mock |
+| Ver no Recorte | Navega para o recorte associado | GET /api/v1/events e breakdowns na tela de destino | sinal, hipotese, segmento, from/to | Link existe; Recorte ainda usa mock |
+| Outras degradações abertas | Lista degradações e severidade | GET /api/v1/anomalies ou novo endpoint de degradações | run_id, from, to, limit | Backend possui anomalies, mas não entrega necessariamente o contrato visual completo |
+
+Dados que o backend ainda precisa fornecer para reproduzir o cabeçalho de Agora:
+
+- título da degradação ativa;
+- valor atual e baseline;
+- multiplicador em relação ao baseline;
+- limiar e número de buckets consecutivos;
+- sessões impactadas;
+- tempo desde a detecção;
+- estado de reclamações/incidentes;
+- lista de sinais ordenada por impacto.
+
+Esses dados não podem ser derivados apenas de GET /api/v1/events. É necessário
+um contrato de detector/anomalias ou uma camada de agregação.
+
+#### 4.4.3 Tela Explorar
+
+Arquivo principal:
+apps/basica/frontend/src/app/(operations)/explorar/_components/explorar-screen.tsx
+
+| Controle ou ação | Dados que devem mudar | Endpoint necessário | Parâmetros principais | Situação atual |
+|---|---|---|---|---|
+| Remover filtro pelo botão X | Escopo ativo | Todas as queries da tela | Remover a chave correspondente | Local; deve refazer queries |
+| Botão + filtro | Abre opções de filtros removidos | Nenhum ao abrir; consultar facets para opções reais | field repetível | Menu local; facets não é consumido |
+| Selecionar filtro inativo | Adiciona o filtro ao escopo | GET /api/v1/facets e queries do conteúdo | field, limite e valor selecionado | Local/mock |
+| Limpar escopo | Remove todos os filtros | Refazer timeseries, breakdown e events sem o escopo | from, to | Local |
+| Como usar / Ocultar guia | Mostra ou esconde a orientação | Nenhuma | — | Local |
+| Cards de tipo de evento | Troca request, screen_view, video_view, session, vitals ou error | GET /api/v1/metrics/timeseries e GET /api/v1/metrics/breakdown | event_name, interval, from, to | Mock |
+| Presets de período | Troca a janela temporal | GET /api/v1/metrics/timeseries | interval, from, to | O estado existe, mas a query é mock |
+| Alça início da janela | Ajusta from | GET /api/v1/metrics/timeseries | from atualizado, to, interval | Local |
+| Alça fim da janela | Ajusta to | GET /api/v1/metrics/timeseries | from, to atualizado, interval | Local |
+| Alternar Modelo | Tabela por modelo | GET /api/v1/metrics/breakdown | dimension=device_model | Backend existente; adapter ausente |
+| Alternar Versão | Tabela por versão | GET /api/v1/metrics/breakdown | dimension=app_version | Backend existente; adapter ausente |
+| Alternar Rota | Tabela por rota | GET /api/v1/metrics/breakdown | dimension=route_path | Backend existente; adapter ausente |
+| Alternar UF | Tabela por UF | GET /api/v1/metrics/breakdown | dimension=uf | Whitelist e dados precisam ser confirmados |
+| Alternar ISP | Tabela por ISP | GET /api/v1/metrics/breakdown | dimension=isp | Whitelist e dados precisam ser confirmados |
+| Busca por nome de erro | Lista de erros frequentes | GET /api/v1/events?event_name=error ou novo breakdown por atributo | event_name=error, from, to, texto em attributes | Busca atual é local sobre mock |
+
+O endpoint de timeseries já retorna count e by_event_name. O frontend deverá
+transformar esses campos em volume total e volume com erro. A tabela de
+distribuição exige uma combinação de breakdown do total e breakdown com
+event_name=error para calcular taxa de erro por grupo.
+
+O campo “vs. ontem” exige uma segunda janela ou compare=true. A busca por
+códigos como dash_shaka_playback:6_6002 não é atendida por dimension no contrato
+atual; se a busca precisar ser server-side, o backend deve expor uma dimensão
+segura de código/categoria de erro ou um endpoint específico.
+
+#### 4.4.4 Tela Comparar
+
+Arquivo principal:
+apps/basica/frontend/src/app/(operations)/comparar/_components/comparar-content.tsx
+
+| Controle ou ação | Dados que devem mudar | Endpoint necessário | Parâmetros principais | Situação atual |
+|---|---|---|---|---|
+| Ontem, mesmo horário | Série e valores da janela do dia anterior | GET /api/v1/metrics/timeseries | from, to, compare=true ou duas janelas explícitas | Mock |
+| Semana passada | Série e valores da mesma faixa da semana anterior | GET /api/v1/metrics/timeseries | from, to da janela histórica | Mock; frontend precisa calcular a janela |
+| Última janela estável | Série de uma janela classificada como estável | Novo contrato de referências ou timeseries com janela descoberta | reference_id, from, to | Ausente |
+| Pico ao vivo anterior | Série do pico ao vivo anterior | Novo endpoint de referências/live-events ou janela calculada pelo cliente | event_key/reference_id, from, to | Ausente |
+| Gráfico atual x referência | Buckets atuais, referência e pontos fora do envelope | GET /api/v1/metrics/timeseries | interval, from, to, compare | Backend entrega série e comparação básica |
+| Métricas comparadas | Valor atual, valor histórico, delta e total | GET /api/v1/metrics/timeseries e/ou breakdown | Filtros da moldura | Mock |
+| Significância sigma | Desvio-padrão por métrica | Novo contrato estatístico | baseline, stddev/sigma, reference_id | Não existe na API de eventos |
+| O que mudou entre janelas | Deploy, autoscale, WAF e mudanças de infraestrutura | Novo GET /api/v1/changes ou integração com fontes de mudança | from, to, scope | Ausente |
+
+compare=true no backend significa “janela imediatamente anterior de mesma
+duração”. Isso não é suficiente para descobrir sozinho “semana passada”,
+“última janela estável” ou “pico ao vivo anterior”. Essas referências precisam
+de cálculo no frontend ou de um contrato de catálogo de referências.
+
+#### 4.4.5 Tela Hipóteses
+
+Arquivos principais:
+apps/basica/frontend/src/app/(operations)/hipoteses/_components/hipoteses-screen.tsx
+apps/basica/frontend/src/app/(operations)/hipoteses/_lib/http-source.ts
+
+| Controle ou ação | Dados que devem mudar | Endpoint necessário | Parâmetros principais | Situação atual |
+|---|---|---|---|---|
+| Carregar a tela | Relatório, ranking, escopo e resumo | GET /api/v1/hypotheses | from, to e filtros de scope | Adapter HTTP pronto; endpoint não existe na API Flask |
+| Selecionar uma hipótese | Painel de score, fatores e evidências | Nenhuma nova chamada se o relatório já trouxer o detalhe | hypothesis_id local | Local |
+| Tentar novamente | Reexecuta o relatório | GET /api/v1/hypotheses | Mesmos filtros da tentativa anterior | Implementado no adapter/query |
+| Abrir na timeline | Navega com hipótese e âncora | Query da Timeline | hipotese, t | Link existe; parâmetros ainda não são lidos |
+| Ver recorte afetado | Navega com hipótese e segmento | Queries do Recorte | hipotese, segmento | Link existe; parâmetros ainda não são lidos |
+| Feedback da hipótese | Não existe botão na tela atual | POST /api/v1/hypotheses/{hypothesis_id}/feedback | agree, partial ou disagree | Contrato futuro; sem UI |
+
+Os selects de escopo exibidos a partir do relatório ainda não possuem
+onFilterChange na página de Hipóteses. Portanto, eles aparecem como controles,
+mas não alteram a consulta. Para torná-los funcionais, a tela precisa manter
+scope no estado/queryKey e reenviar os valores ao adapter.
+
+#### 4.4.6 Tela Timeline
+
+Arquivo principal:
+apps/basica/frontend/src/app/(operations)/timeline/_components/timeline-content.tsx
+
+| Controle ou ação | Dados que devem mudar | Endpoint necessário | Parâmetros principais | Situação atual |
+|---|---|---|---|---|
+| Abrir Timeline por sessão | Eventos cronológicos e resumo | GET /api/v1/sessions/{session_id} | session_id, limit=200 | Backend existente; não consumido |
+| Abrir detalhe de evento | Evento completo | GET /api/v1/sessions/{session_id}/events/{event_id} | session_id, event_id | Backend existente; não há botão dedicado na Timeline atual |
+| Abrir histórico de aparelho | Eventos do aparelho no período | GET /api/v1/devices/{device_id} | device_id, from, to, limit, cursor | Backend existente; não consumido |
+| Timeline de seis fontes | Deploy, QoE, CDN, backend, identidade e incidentes | Novo endpoint multi-fonte ou composição das APIs gold | sinal/hipótese, from, to | Mock |
+| Âncora da hipótese | Centraliza o gráfico no instante indicado | O endpoint multi-fonte deve aceitar a âncora | hipotese, t | Parâmetros são emitidos, mas não lidos |
+| Fechar ou retornar da tela | Navegação normal | Nenhuma | — | Local |
+
+Os filtros exibidos no ScreenFrame da Timeline são montados com valores mockados
+e sem callback de alteração. Eles devem ser conectados ao estado de escopo antes
+da troca da fonte de dados.
+
+#### 4.4.7 Tela Recorte
+
+Arquivo principal:
+apps/basica/frontend/src/app/(operations)/recorte/_components/recorte-content.tsx
+
+| Controle ou ação | Dados que devem mudar | Endpoint necessário | Parâmetros principais | Situação atual |
+|---|---|---|---|---|
+| Select de região | Heatmap e indicadores do recorte | Novo contrato regional ou breakdown/crosstab | region/uf, from, to | Local/mock |
+| Participação por modelo | Volume e taxa por dispositivo | GET /api/v1/metrics/breakdown, duas consultas total/erro | dimension=device_model, filtros do recorte | Backend existente; adapter ausente |
+| Mapa dispositivo x região | Matriz de taxa de erro | Novo GET de crosstab ou endpoint regional | dimensions=device_model,uf; event_name=error | Não existe na API atual |
+| Lift tráfego x erros | Percentual de tráfego e percentual de erros | Dois GET /api/v1/metrics/breakdown | uma consulta total e outra com event_name=error | Pode ser calculado no frontend |
+| Amostra de sessões | Eventos representativos do recorte | GET /api/v1/events | device_os, device_manufacturer, app_version, event_name=error, from, to, limit | Backend existente; não consumido |
+| Clique no resumo da sessão | Abre o drawer da sessão | GET /api/v1/sessions/{session_id} | session_id, limit=200 | Drawer atual usa fixture |
+| Abrir sessão | Mesmo comportamento do clique no resumo | GET /api/v1/sessions/{session_id} | session_id | Drawer atual usa fixture |
+| Fechar drawer da sessão | Fecha detalhe e devolve foco | Nenhuma | — | Local |
+| Ajustes do recorte | Alteram a população e recalculam especificidade/cobertura | Refazer events e métricas com filtros alterados | app, route_path, device_os, manufacturer, região | Atualmente são cartões informativos sem ação |
+| Hipótese/segmento/sinal na URL | Inicializa o recorte vindo de outra tela | O backend deve receber o escopo correspondente | hipotese, segmento, sinal | Emitido pelos links, mas não lido |
+
+O heatmap exige uma agregação por duas dimensões. Não é possível produzi-lo
+com uma única chamada atual de breakdown, que aceita somente uma dimension por
+vez. O contrato regional deve definir nomes, valores, nulos e a fórmula da taxa.
+
+#### 4.4.8 Monitor legado na rota raiz
+
+O componente
+apps/basica/frontend/src/app/(operations)/(dashboard)/_components/dashboard-screen.tsx
+mantém um monitor conectado a GET /api/v1/events, mas a página raiz redireciona
+para /agora. Ele não deve ser confundido com a experiência atual das seis
+etapas.
+
+Se esse monitor for reativado, seus controles precisam ser tratados assim:
+
+| Controle | Ação HTTP |
+|---|---|
+| Período | Refazer GET /api/v1/events com from/to |
+| Plataforma, fabricante e tipo de evento | Enviar device_os, device_manufacturer e event_name; hoje parte do filtro é local |
+| Busca textual | Continuar local ou criar busca por attributes |
+| Limpar | Refazer a consulta sem os filtros |
+| Linha de evento selecionada | Usar GET /api/v1/sessions/{session_id}/events/{event_id} para detalhe completo |
+| Ver atributos recebidos | Pode usar o payload já retornado; não exige nova rota |
+
+## 4.5 Adaptadores frontend que precisam ser criados
+
+Para evitar que cada tela monte URLs e trate erros de forma diferente, o
+frontend deve centralizar os seguintes clientes:
+
+| Adapter sugerido | Endpoint | Consumidores |
+|---|---|---|
+| fetchEvents | GET /api/v1/events | Agora, Explorar, Recorte e monitor legado |
+| fetchFacets | GET /api/v1/facets | Barra de escopo e filtros de Explorar |
+| fetchBreakdown | GET /api/v1/metrics/breakdown | Agora, Explorar e Recorte |
+| fetchTimeseries | GET /api/v1/metrics/timeseries | Agora, Explorar e Comparar |
+| fetchSessionTimeline | GET /api/v1/sessions/{session_id} | Timeline e Recorte |
+| fetchEventDetail | GET /api/v1/sessions/{session_id}/events/{event_id} | Detalhe de evento |
+| fetchDeviceHistory | GET /api/v1/devices/{device_id} | Timeline e Recorte |
+| fetchHypotheses | GET /api/v1/hypotheses | Hipóteses; já existe com seleção mock/api |
+| fetchClock | GET /api/v1/clock | Cabeçalho “Ao vivo”, se o relógio virtual for adotado |
+| fetchGoldSeries | GET /api/v1/series | Timeline e Comparar, se as séries gold forem a fonte escolhida |
+| fetchSources | GET /api/v1/sources | Resumos de fontes e estado parcial |
+| fetchIncidents | GET /api/v1/incidents | Incidentes e referências históricas |
+| fetchLiveEvents | GET /api/v1/live-events | Referência “pico ao vivo anterior” |
+| fetchAnomalies | GET /api/v1/anomalies | Sinais e degradações, após o detector |
+
+Todos os adapters devem:
+
+1. receber um objeto tipado de filtros;
+2. remover parâmetros vazios;
+3. codificar valores com URLSearchParams;
+4. aceitar AbortSignal;
+5. diferenciar erro HTTP, timeout, rede indisponível e JSON inválido;
+6. validar o formato mínimo da resposta antes de renderizar;
+7. usar queryKey que inclua período, escopo e seleção ativa;
+8. expor next_cursor quando a tela puder paginar.
+
+## 4.6 Checklist de implementação por tela
+
+### Agora
+
+- [ ] Criar query de eventos/métricas com período e escopo.
+- [ ] Criar query de facets para os quatro filtros.
+- [ ] Definir contrato de sinais/anomalias e degradação ativa.
+- [ ] Ligar “Ver detalhes” ao payload real.
+- [ ] Preservar o escopo nos links para Hipóteses, Timeline e Recorte.
+
+### Explorar
+
+- [ ] Criar query de timeseries.
+- [ ] Criar query de breakdown por dimensão.
+- [ ] Calcular volume, taxa de erro e variação contra a referência.
+- [ ] Ligar busca de erros a events ou a um endpoint de erro agregado.
+- [ ] Habilitar UF e ISP somente quando houver dados e contrato.
+- [ ] Refazer as queries ao mover as alças temporais.
+
+### Comparar
+
+- [ ] Criar query para a janela atual.
+- [ ] Criar query para cada referência.
+- [ ] Definir contrato de sigma/envelope histórico.
+- [ ] Definir catálogo de referências estável e pico ao vivo.
+- [ ] Criar integração de change events.
+
+### Hipóteses
+
+- [ ] Publicar ou configurar o serviço de GET /api/v1/hypotheses.
+- [ ] Ligar filtros de escopo ao estado e ao adapter.
+- [ ] Validar invariantes de score, peso, contribuição e confidence.
+- [ ] Ler hipotese e t na Timeline.
+- [ ] Ler hipotese e segmento no Recorte.
+- [ ] Criar feedback somente quando houver UI e autorização para escrita.
+
+### Timeline
+
+- [ ] Implementar modo sessão com session_id.
+- [ ] Implementar detalhe de evento.
+- [ ] Definir a fonte das seis raias.
+- [ ] Implementar âncora temporal e sinal selecionado.
+- [ ] Substituir o mock por dados atribuídos à fonte original.
+
+### Recorte
+
+- [ ] Implementar eventos filtrados do recorte.
+- [ ] Implementar breakdown total e de erros.
+- [ ] Definir e implementar heatmap de duas dimensões.
+- [ ] Implementar abertura de sessão real.
+- [ ] Tornar os ajustes do recorte ações reais ou marcá-los explicitamente como informativos.
+
+## 4.7 Critério de conclusão da integração
+
+Uma tela só deve ser considerada integrada quando:
+
+- cada controle que altera dados atualiza o estado de filtros;
+- o estado de filtros aparece na queryKey;
+- a chamada HTTP contém os parâmetros equivalentes;
+- loading, vazio, erro, stale e refreshing são tratados;
+- os dados exibidos vêm da resposta da API, não de fixture;
+- links entre telas preservam o contexto necessário;
+- a API de backend possui contrato documentado para todos os campos exibidos;
+- existe teste ou verificação reproduzível para a ação principal da tela.
+
 ## 5. Rotas do motor de hipóteses ainda não consumidas
 
 &emsp;Definidas em [hipoteses.md](./hipoteses.md) §14.2. O frontend hoje só lista
