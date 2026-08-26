@@ -7,8 +7,8 @@ plano técnico completo da migração (o antigo `plano-argus-v3.md`, hoje incorp
 este documento): o porquê da mudança de arquitetura, o diagrama de implantação dos
 componentes na AWS, a descrição de cada nó e como eles se conectam, o desenho completo
 do banco de dados, a justificativa técnica das decisões de arquitetura e tecnologia
-adotadas, o desenho do ETL incremental, o plano de deploy dos recursos AWS, e o
-registro de riscos e da proveniência de cada decisão.
+adotadas, o desenho do ETL (extract, transform, load) incremental, o plano de deploy
+dos recursos AWS, e o registro de riscos e da proveniência de cada decisão.
 
 &emsp; O sistema descrito aqui é o resultado de um pivot de escopo em relação ao MVP
 original (ver [`mvp-inicial.md`](mvp-inicial.md)): em vez de um coletor próprio de
@@ -46,7 +46,7 @@ publica, materializa o estado corrente, e deriva as camadas analíticas a partir
 |---|---|---|
 | 1 | Substituir o DynamoDB por completo | `dynamodb.tf` sai; toda a persistência vira PostgreSQL |
 | 2 | Carregar as 33 tabelas inteiras, incluindo `prom_point` | 68,7 milhões de linhas; justificativa na seção 1.2 |
-| 3 | Dois fluxos de ingestão | CDC das tabelas já mapeadas e eventos de grain de sessão, que chegam por outro fluxo do Argus |
+| 3 | Dois fluxos de ingestão | CDC das tabelas já mapeadas e eventos no grain de sessão (um evento por sessão de uso do app, não por tabela do Argus), que chegam por outro fluxo |
 | 4 | Bronze otimizada para mudar, não para performance | O ETL ainda está em aprimoramento; o custo de errar precisa ser baixo |
 | 5 | Carga inicial via Parquet | `tools/etl_dump.py` converte o dump e gera os 33 arquivos (199 MB) |
 | 6 | Não renormalizar `signal_point` | A silver faz canonicalização de tipo e tempo, não normalização multifonte |
@@ -149,7 +149,8 @@ produção real, viria de fora.
 `apigateway_changes.tf`) expõe duas rotas, `POST /v1/changes` e `POST /v1/events`, cada
 uma integrada diretamente a uma fila SQS via `AWS_PROXY`/`SQS SendMessage`, sem Lambda
 no meio. **Amazon SQS** hospeda as duas filas (`changes` e `events`), cada uma com sua
-DLQ própria, redirecionando a mensagem após 5 tentativas de entrega.
+própria dead letter queue (DLQ, fila de mensagens que falharam repetidamente),
+redirecionando a mensagem após 5 tentativas de entrega.
 
 &emsp; **Amazon ECS Fargate, serviço `merge_worker`** consome a fila `changes` por
 long polling, grava em `bronze.change_log` (append-only) e aplica o `MERGE` por `lsn`
@@ -188,9 +189,10 @@ raciocínio que sustenta separar log e corrente está na seção 4.
 duas threads independentes que chamam as funções `etl.executar_bronze_silver()` (a
 cada 60 s) e `etl.executar_silver_gold()` (a cada 900 s) por `JDBC/SQL`, cada chamada
 sendo um ciclo atômico, com watermark e dado avançando no mesmo commit. O detector de
-anomalias (EWMA circadiano) e o canário de qualidade seguem no-op: a infraestrutura já
-está provisionada e observável, mas a lógica ainda não foi implementada. O desenho
-completo do ETL incremental está na seção 7.
+anomalias (uma média móvel exponencialmente ponderada, EWMA, sensível ao ciclo
+circadiano do tráfego) e o canário de qualidade seguem no-op: a infraestrutura já está
+provisionada e observável, mas a lógica ainda não foi implementada. O desenho completo
+do ETL incremental está na seção 7.
 
 ### 3.6 Consulta e apresentação
 
@@ -567,9 +569,10 @@ CREATE TABLE gold.detection_match (
 &emsp; `gold.source_series` é um catálogo derivado de `feature_bucket`, com uma linha
 por `(source, entity, metric)` e o primeiro `available_at`. Ele existe porque listar
 fontes com dois `count(DISTINCT ...)` sobre os 4,9 milhões de buckets levou 47,4 s no
-RDS do Learner Lab, acima do timeout de 30 s da API. A view `gold.v_source_series`
-preserva o corte do relógio virtual; o catálogo é reconstruído junto de
-`gold.rebuild_tudo()` e não cria uma segunda fonte de verdade.
+RDS do Learner Lab (o ambiente de treinamento da AWS Academy usado pelo grupo, cuja
+conta é temporária e reseta a cada nova sessão), acima do timeout de 30 s da API. A
+view `gold.v_source_series` preserva o corte do relógio virtual; o catálogo é
+reconstruído junto de `gold.rebuild_tudo()` e não cria uma segunda fonte de verdade.
 
 &emsp; **`gold.live_event_window` tem duas armadilhas no ETL.** Primeira: `tid` 994 e
 995 não são o mesmo canal em horários diferentes, são feeds simultâneos com jogos
@@ -928,11 +931,9 @@ apenas nos comandos da CLI não afeta o Terraform.
 
 | Risco / pendência | Mitigação / situação |
 |---|---|
-| O Learner Lab pode negar RDS ou limitar a classe de instância; não foi possível verificar durante o planejamento (credenciais expiradas) | Confirmar com `aws rds describe-orderable-db-instance-options --engine postgres --profile g4` assim que o laboratório subir; plano B é `db.t3.small`/`micro`, sustentável porque as telas leem `gold.v_*` e nunca `bronze` (seção 4) |
+| Cada nova sessão do Learner Lab pode vir com conta zerada e limitar ou negar a classe de instância do RDS | `db.t3.medium` já foi confirmado disponível na sessão usada para o deploy atual; plano B é `db.t3.small`/`micro`, sustentável porque as telas leem `gold.v_*` e nunca `bronze` (seção 4). Confirmar de novo com `aws rds describe-orderable-db-instance-options --engine postgres --profile g4` a cada nova sessão, e resetar o `terraform.tfstate` antes de aplicar |
 | Carga de 68,7 milhões de linhas não caber na sessão do laboratório | Parquet mais `COPY` (20 a 30 min); loader idempotente e retomável por tabela, usando `_manifest.json` como checkpoint |
 | Secrets Manager negado no laboratório | `var.db_password_from_secrets_manager = false` cai para senha via tfvars |
-| Laboratório novo zera a conta e o `terraform.tfstate` vira lixo | Procedimento já conhecido: resetar o state antes de aplicar num laboratório novo |
-| `sim.now()` no `WHERE` das views degradar o plano de execução | A função é `STABLE`, avaliada uma vez por statement; medir com `EXPLAIN ANALYZE` sobre `gold.v_feature_bucket` já com a carga cheia |
 | UF e ISP ausentes no schema de evento (seção 5.4) | Não bloqueia: o `payload jsonb` acomoda os campos quando o outro fluxo do Argus for especificado |
 | CloudFront aparece no desenho original da arquitetura, mas não foi implementado | O bucket S3 do frontend atende como website estático; CloudFront fica registrado como melhoria futura |
 | Amazon EventBridge Scheduler não tem recurso Terraform aplicado | O serviço `processing` roda como serviço de longa duração com laços internos, não como execução agendada (seção 3.7) |
