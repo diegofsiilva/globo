@@ -232,7 +232,7 @@ ambiente publicado. Não registrar credenciais, tokens ou URLs privadas.
 
 ## 9. Frontend das hipóteses
 
-![Tela do frontend](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/docs/frontendHipoteses/artefatos/assets/prototipo_hipoteses.png "Tela do frontend)
+![Tela do frontend](artefatos/assets/prototipo_hipoteses.png "Tela do frontend)
 
 
 ## 10. Limitações e próximos passos
