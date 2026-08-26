@@ -402,7 +402,7 @@ unitários rápidos e previsíveis.
 
 ## 9. Migrations planejadas
 
-As migrations existentes `001` a `015` são imutáveis e **não serão alteradas**.
+As migrations existentes `001` a `017` são imutáveis e **não serão alteradas**.
 
 ### 9.1 `016_gold_checkpoint.sql`
 
@@ -649,6 +649,15 @@ Saída: primeira versão de `metric_catalog.py`, `entity_relations.py` e
 Saída: uma unidade de trabalho pode ser reivindicada, acompanhada e encerrada com
 segurança, ainda sem detector real.
 
+> **Estado: concluída.** As migrations
+> [`016_gold_checkpoint.sql`](../db/migrations/016_gold_checkpoint.sql) e
+> [`017_analysis_coordination.sql`](../db/migrations/017_analysis_coordination.sql)
+> implementam as garantias de banco. O módulo
+> [`orchestration.py`](src/argus_processing/orchestration.py) implementa claim,
+> lease, heartbeat, takeover e commit protegido. Os cenários concorrentes estão
+> cobertos por [`test_claim.py`](tests/test_claim.py) e
+> [`test_fencing.py`](tests/test_fencing.py).
+
 ### Etapa 2 — Contratos do detector
 
 1. criar a migration `018`;
@@ -852,4 +861,3 @@ volume e uma decisão explícita de operação.
 13. O frontend não executa detector, correlação ou score.
 14. `argus_reader` continua restrito a views.
 15. Pelo menos duas famílias diferentes funcionam de ponta a ponta.
-

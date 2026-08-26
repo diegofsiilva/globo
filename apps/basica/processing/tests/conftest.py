@@ -90,6 +90,25 @@ def db(_migrated):
 
 
 @pytest.fixture
+def checkpoint(db):
+    """Publica uma versao Gold pronta para os testes de coordenacao."""
+    from argus_processing import etl
+
+    resultado = etl.executar_silver_gold(db, janela_max_segundos=999_999_999)
+    assert resultado["status"] == "sucesso"
+    publicado = db.fetch_one(
+        """
+        SELECT checkpoint_id, ready_through, source_lsn
+          FROM etl.gold_checkpoint
+         ORDER BY checkpoint_id DESC
+         LIMIT 1
+        """
+    )
+    assert publicado is not None
+    return publicado
+
+
+@pytest.fixture
 def inserir_change():
     """Devolve uma funcao que insere uma linha em `bronze.change_log`.
 
