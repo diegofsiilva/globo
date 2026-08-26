@@ -13,7 +13,7 @@
 - Consulta de eventos por período (15 min, 30 min, 3 h, 24 h, tudo) e tipo de evento;
 - Aplicação de filtros cumulativos por plataforma, fabricante, tipo de evento e status;
 - Busca textual por nome de evento;
-- Visualização de indicadores (contagem, fabricante, plataforma, duração) no hero do monitor;
+- Visualização de indicadores (contagem, fabricante, plataforma, duração) no bloco de destaque do monitor;
 - Inspeção de detalhes completos do evento selecionado, incluindo atributos JSON;
 - Estados de carregamento (`Consultando eventos na API…`), ausência de dados (`Nenhum evento corresponde aos filtros selecionados.`) e erro da API (`Não foi possível consultar a API. Tente novamente.`);
 - Tela Agora com visão operacional, degradações ativas, sinais de desvio e filtros de escopo (plataforma, fabricante, região, app);
@@ -32,32 +32,55 @@
 | TanStack Query | Consulta, cache, refetch automático e estados das requisições ao back-end | ^5.101.4 |
 | ESLint | Análise estática de qualidade e padronização | ^9 |
 
+### 1.3 Capturas de tela
+
+&emsp; As capturas abaixo mostram as seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte) com a interface renderizada em navegador, e não apenas por inspeção estática do código. Assim como nas demais telas mockadas discutidas neste artefato, os dados exibidos são os snapshots sintéticos de `_mocks/scenario.ts` (indicados na própria interface pela etiqueta "MOCK · SNAPSHOT").
+
+- Ambiente: `next dev` local (Turbopack), porta 4180, resolução 1440×900 (desktop) e 390×844 (mobile);
+- Data da captura: 26/08/2026;
+- Ferramenta: Google Chrome headless (`--headless=new --screenshot`);
+- Comando executado: `NEXT_PUBLIC_API_URL=http://127.0.0.1:9 NEXT_PUBLIC_HYPOTHESES_SOURCE=mock npm run dev -- -p 4180`.
+
+
+**Agora**: visão operacional com degradação ativa, sinais em desvio e minigráficos de tendência (pequenos gráficos de barras, sem eixos, que mostram a variação recente de cada sinal):
+
+![Captura de tela da área Agora](./assets/captura_agora.png)
+
+**Explorar**: exploração de eventos por tipo, com leitura guiada em três passos:
+
+![Captura de tela da área Explorar](./assets/captura_explorar.png)
+
+**Comparar**: comparação com quatro janelas de referência e significância estatística (σ):
+
+![Captura de tela da área Comparar](./assets/captura_comparar.png)
+
+**Hipóteses**: hipóteses de causa provável ranqueadas, com fatores ponderados e evidências:
+
+![Captura de tela da área Hipóteses](./assets/captura_hipoteses.png)
+
+**Timeline**: cronologia do incidente cruzando seis fontes de dados:
+
+![Captura de tela da área Timeline](./assets/captura_timeline.png)
+
+**Recorte**: mapa de calor por família de dispositivo × região e sugestões de ajuste:
+
+![Captura de tela da área Recorte](./assets/captura_recorte.png)
+
+&emsp; As duas capturas a seguir mostram variações de tema e viewport, ambas sobre a mesma tela (Agora):
+
+**Tema claro**: a alternância de tema (`next-themes`) preserva o layout e os dados:
+
+![Captura de tela da área Agora em tema claro](./assets/captura_agora_tema_claro.png)
+
+**Viewport mobile (390×844)**: em telas estreitas, a interface recolhe a navegação em um ícone de hambúrguer, resume a barra de escopo em "Escopo · N filtros" e reorganiza os sinais em cartões empilhados:
+
+![Captura de tela da área Agora em viewport mobile](./assets/captura_agora_mobile.png)
+
 ## 2. Organização e qualidade do código
 
 &emsp; O código-fonte do front-end está localizado em [`apps/basica/frontend`](../apps/basica/frontend). A especificação original cita `/apps/frontend`; optou-se por manter a estrutura atual do monorepo, onde o frontend coexiste com a API de leitura, o worker e a infraestrutura do MVP.
 
 ### 2.1 Estrutura de pastas
-
-Branch atual (`docs/relatorio-frontend`):
-
-```text
-apps/basica/frontend/src/
-├── app/
-│   ├── globals.css              Estilos globais e variáveis do tema
-│   ├── layout.tsx               Layout raiz: metadados, tipografia (Archivo) e Providers
-│   ├── page.tsx                 Página inicial: renderiza DashboardPage
-│   ├── providers.tsx            QueryClientProvider com TanStack Query
-│   └── [section]/
-│       └── page.tsx             Rota dinâmica para as 6 seções de navegação
-├── components/
-│   ├── dashboard-page.tsx       Estrutura visual do dashboard (header + EventMonitor)
-│   ├── event-monitor.tsx        Monitor de eventos: filtros, tabela, hero e detalhes
-│   └── sidebar.tsx              Navegação lateral entre as 6 áreas de análise
-└── lib/
-    └── events-api.ts            Cliente HTTP tipado da API de eventos
-```
-
-Branch `feat/frontend-telas` (estrutura mais completa):
 
 ```text
 apps/basica/frontend/src/
@@ -73,7 +96,7 @@ apps/basica/frontend/src/
 │   ├── recorte/                 Delimitação da população afetada (mock)
 │   └── layout.tsx               Layout compartilhado das páginas operacionais
 ├── components/
-│   ├── operations-navigation.tsx  Navegação primária reutilizável com badges
+│   ├── operations-navigation.tsx  Navegação primária reutilizável com contadores de notificação
 │   └── screen-frame.tsx           Moldura compartilhada: período, filtros, escopo
 ├── lib/
 │   ├── events/api.ts            Cliente HTTP tipado da API
@@ -123,7 +146,7 @@ apps/basica/frontend/src/
 - Filtros: nomes acessíveis com `aria-label="Filtrar por {dimensão}"` nos selects;
 - Controles temporais: `aria-valuetext` nas alças de ajuste de intervalo (tela Explorar);
 - Regiões ao vivo: `aria-live="polite"` para atualizações dinâmicas;
-- Badges: `aria-label` descritivo (ex.: `"3 pendências"`) nos indicadores de notificação;
+- Contadores de notificação: `aria-label` descritivo (ex.: `"3 pendências"`) nos indicadores numéricos da navegação;
 - Foco visível: regras `:focus-visible` nos controles principais;
 - Movimento reduzido: `prefers-reduced-motion: reduce` desabilita transições.
 
@@ -142,46 +165,47 @@ apps/basica/frontend/src/
 
 | Elemento da interface | Risco de acessibilidade identificado | Tratamento recomendado |
 |---|---|---|
-| Chips de escopo removíveis (plataforma, fabricante, região, app) | Botão "×" sem rótulo textual | Adicionar `aria-label="Remover filtro {dimensão}: {valor}"` a cada botão de remoção |
+| Chips de escopo removíveis (etiquetas de filtro com botão "×"; plataforma, fabricante, região, app) | Botão "×" sem rótulo textual | Adicionar `aria-label="Remover filtro {dimensão}: {valor}"` a cada botão de remoção |
 | Relógio "AO VIVO" atualizado a cada segundo | Atualização contínua pode gerar leitura excessiva em leitores de tela | Usar `aria-live="off"` no relógio e expor o horário da última atualização em elemento separado com `aria-live="polite"` |
 | Abas de tipo de evento (Explorar: request, screen_view, video_view, session, vitals, error) | Marcação apenas visual, sem padrão de abas | Implementar `role="tablist"`/`role="tab"`/`role="tabpanel"` com navegação por setas |
 | Pastilhas de seleção (agrupar por dimensão, janela de comparação, hipótese selecionada) | `<div>` clicável sem foco por teclado nem estado de seleção anunciado | Usar `<button>` com `aria-pressed`/`aria-selected` e ordem de tabulação lógica |
-| Sparklines na tabela "Sinais em desvio agora" | Gráfico de barras decorativo sem alternativa textual | Adicionar `aria-hidden="true"` ao gráfico; os valores de Agora, Baseline e Δ já presentes na linha servem de alternativa |
+| Minigráficos de tendência na tabela "Sinais em desvio agora" | Gráfico de barras decorativo sem alternativa textual | Adicionar `aria-hidden="true"` ao gráfico; os valores de Agora, Baseline e Δ já presentes na linha servem de alternativa |
 | Mapa de calor "Taxa de erro por família de dispositivo × região" (tela Recorte) | Codifica intensidade por cor, além do valor numérico | Manter o percentual em texto em cada célula e garantir contraste mínimo mesmo nas células de menor opacidade |
 | Timeline por raias (Deploy, Player QoE, CDN, Backend, Identidade, Incidentes) | Representação espacial complexa, difícil de navegar sem mouse | Manter a lista "Cronologia reconstruída" como alternativa textual equivalente, associada à raia correspondente com `aria-describedby` |
 | Alternância de tema claro/escuro | Estado atual não é anunciado a leitores de tela | Adicionar `aria-pressed` e `aria-label="Alternar para modo {claro\|escuro}"` |
 
 ### 3.2 Responsividade
 
-&emsp; A interface utiliza breakpoints progressivos definidos no CSS global:
+&emsp; A interface utiliza breakpoints (larguras de tela em que o layout muda) progressivos definidos no CSS global:
 
 | Breakpoint | Adaptação |
 |---|---|
-| ≤ 1000 px | Oculta resumo de filtros e botão limpar; tabela de sinais com scroll horizontal |
-| ≤ 900 px | Oculta subtítulo da marca no header |
+| ≤ 1000 px | Oculta resumo de filtros e botão limpar; tabela de sinais com rolagem horizontal |
+| ≤ 900 px | Oculta subtítulo da marca no cabeçalho |
 | ≤ 780 px | Oculta indicador de status ao vivo |
-| ≤ 700 px | Sidebar horizontal (abaixo do header); hero compacto; grid de detalhes em 2 colunas; tabela com max-height 55vh |
-| ≤ 560 px | Seletor de período em faixa própria; workspace recalculado |
+| ≤ 700 px | Barra lateral horizontal (abaixo do cabeçalho); bloco de destaque compacto; grade de detalhes em 2 colunas; tabela com altura máxima de 55vh |
+| ≤ 560 px | Seletor de período em faixa própria; área de análise recalculada |
 
 #### 3.2.1 Responsividade das seis áreas operacionais
 
-&emsp; As seis áreas operacionais têm layout definido para a resolução de desktop (1440×900 px), com grades de colunas de largura fixa em pixels. Por exemplo, a tabela "Sinais em desvio agora" usa `1fr 168px 86px 82px 84px 108px 84px`, e as telas Comparar, Hipóteses, Timeline e Recorte reservam um painel lateral fixo de 292 a 452 px ao lado do conteúdo principal. 
+&emsp; Na resolução de desktop (1440×900 px), as seis áreas operacionais usam grades de colunas de largura fixa em pixels. Por exemplo, a tabela "Sinais em desvio agora" usa `1fr 168px 86px 82px 84px 108px 84px`, e as telas Comparar, Hipóteses, Timeline e Recorte reservam um painel lateral fixo de 292 a 452 px ao lado do conteúdo principal.
 
-Breakpoints para tablet e celular ainda não foram definidos para essas seis telas, já que o foco do projeto é criar uma plataforma de telemetria para desktop.
+&emsp; Abaixo de 768 px, a navegação principal e a barra de escopo, compartilhadas pelas seis telas, recolhem para um menu de hambúrguer (componente `Sheet`) e para o resumo "Escopo · N filtros". Abaixo de 1100 px, os painéis laterais de Comparar, Hipóteses, Timeline e Recorte empilham verticalmente sobre o conteúdo principal. Cada tela também substitui, em larguras menores, seus elementos mais densos por alternativas compactas: a tabela de sinais da Agora e o mapa de calor do Recorte viram listas de cartões, as abas de tipo de evento do Explorar reagrupam de 6 para 3 e depois 2 colunas, e o gráfico de raias da Timeline é ocultado em favor da lista "Cronologia reconstruída". A captura em viewport mobile (390×844) da seção 1.3 mostra esse comportamento na tela Agora.
 
-| Área da interface | Comportamento em telas largas | Adaptação necessária em telas estreitas |
+| Área da interface | Comportamento em telas largas | Adaptação em telas estreitas |
 |---|---|---|
-| Barra de escopo (chips + resumo de sessões) | Chips em linha única, texto de resumo alinhado à direita | Quebra em múltiplas linhas ou rolagem horizontal, como já ocorre na tabela de sinais |
-| Abas de tipo de evento (Explorar) | Grade de 6 colunas iguais | Rolagem horizontal ou lista colapsável abaixo de um breakpoint definido |
-| Painel lateral fixo (Comparar, Hipóteses, Timeline, Recorte) | Colunas lado a lado (conteúdo principal + painel de 292 a 452 px) | Empilhamento vertical, no mesmo padrão já aplicado à sidebar principal em ≤ 700 px |
-| Mapa de calor por região (Recorte) | 5 colunas de região + coluna de rótulo de 150 px | Rolagem horizontal com coluna de rótulo fixa (`position: sticky`) |
-| Timeline por raias | Eixo de tempo fixo com marcadores posicionados em percentual absoluto | Rolagem horizontal com eixo de tempo fixo no topo |
+| Navegação lateral (menu com as 6 áreas) | Coluna fixa ao lado do conteúdo | Recolhimento em painel deslizante (hambúrguer) abaixo de 768 px |
+| Barra de escopo (chips + resumo de sessões) | Chips em linha única, texto de resumo alinhado à direita | Resumo "Escopo · N filtros" com filtros completos em painel deslizante, abaixo de 768 px |
+| Abas de tipo de evento (Explorar) | Grade de 6 colunas iguais | Regrade para 3 colunas em 1040 px e 2 colunas em 600 px |
+| Painel lateral fixo (Comparar, Hipóteses, Timeline, Recorte) | Colunas lado a lado (conteúdo principal + painel de 292 a 452 px) | Empilhamento vertical abaixo de 1100 px |
+| Mapa de calor por região (Recorte) | 5 colunas de região + coluna de rótulo de 150 px | Lista de cartões por família de dispositivo abaixo de 768 px |
+| Timeline por raias | Eixo de tempo fixo com marcadores posicionados em percentual absoluto | Gráfico ocultado abaixo de 760 px, substituído pela lista "Cronologia reconstruída" |
 
 | Dispositivo ou viewport | Resultado | Evidência |
 |---|---|---|
 | Desktop (1440 px) | Layout definido integralmente nessa resolução | `globals.css` |
-| Tablet (768 px) | Sidebar horizontal no monitor da rota raiz; sem definição de breakpoint nas seis áreas operacionais | Pendente de captura visual e de definição de breakpoints |
-| Celular (390 px) | Navegação compacta no monitor da rota raiz; sem definição de breakpoint nas seis áreas operacionais | Pendente de captura visual e de definição de breakpoints |
+| Tablet (768 px) | 768 px é o ponto de corte que recolhe a navegação em hambúrguer, tanto nas seis áreas operacionais quanto no monitor da rota raiz | Pendente de captura visual em 768 px |
+| Celular (390 px) | Menu em hambúrguer, escopo resumido e sinais em cartões empilhados nas seis áreas operacionais; navegação compacta no monitor da rota raiz | [captura_agora_mobile.png](./assets/captura_agora_mobile.png), seção 1.3 |
 
 ## 4. Validação das entradas do usuário
 
@@ -253,12 +277,12 @@ Observações: O teste TF-08 (limite de tamanho) é parcial porque, embora os se
 | RF09 | Aplicar filtros cumulativos | Quatro selects cumulativos + busca textual no monitor; os chips de escopo das seis áreas operacionais são cumulativos por padrão e se aplicam simultaneamente a todas as telas | TF-05, TF-11, TF-12 | Atendido | Filtros cumulativos em `fetchEvents()` e `filterEvents()`; escopo global nas seis áreas operacionais |
 | RF10 | Sugerir valores existentes | Selects derivam opções dos itens carregados via `unique()` (rota raiz); as seis áreas operacionais sugerem valores de escopo (ex.: webOS 3.x, LG, Nordeste) e de atributos no campo "Buscar em atributos" da tela Explorar | TF-04, TF-05, TF-16 | Parcial | Raiz deriva dinamicamente; seis áreas operacionais usam dados de demonstração fixos |
 | RF11 | Agrupar eventos por critério | Botões de dimensão em `/explorar` (Modelo, UF, ISP, Versão, Rota); a tela Recorte acrescenta o agrupamento por família de dispositivo × região no mapa de calor | TF-04, TF-15 | Parcial | Cinco dimensões na interface com dados mockados; mapa de calor por dispositivo × região na tela Recorte |
-| RF12 | Exibir gráficos e indicadores | Métricas no hero do monitor; degradações e sinais em `/agora`; cada área operacional tem visualização própria: sparklines por sinal (Agora), gráfico de eventos × erros (Explorar), gráfico com envelope histórico e significância σ (Comparar), mapa de calor (Recorte) e timeline por raias com seis fontes (Timeline) | TF-01, TF-06, TF-17 | Parcial | Visualizações implementadas sobre snapshots nas seis áreas operacionais |
+| RF12 | Exibir gráficos e indicadores | Métricas no bloco de destaque do monitor; degradações e sinais em `/agora`; cada área operacional tem visualização própria: minigráficos de tendência por sinal (Agora), gráfico de eventos × erros (Explorar), gráfico com envelope histórico e significância σ (Comparar), mapa de calor (Recorte) e timeline por raias com seis fontes (Timeline) | TF-01, TF-06, TF-17 | Parcial | Visualizações implementadas sobre snapshots nas seis áreas operacionais |
 | RF13 | Consultar falhas críticas | Degradação ativa, sinais de desvio, busca de erros e status "atenção"; a tela Agora lista "Sinais em desvio agora" (com Agora, baseline e Δ) e "Outras degradações abertas" com severidade (ALTO/ATENÇÃO) | TF-06, TF-07 | Parcial | Implementado com filtro de status `attention`; tabela de sinais e lista de degradações abertas na tela Agora |
-| RF14 | Comparar período atual e anterior | Tela Comparar disponível na branch `feat/frontend-telas`, com quatro janelas de referência (ontem no mesmo horário, semana passada, última janela estável, pico ao vivo anterior), gráfico com envelope histórico e tabela com significância estatística (σ) por métrica | TF-17 | Parcial | Rota `/comparar` com layout e mock implementados |
+| RF14 | Comparar período atual e anterior | Tela Comparar com quatro janelas de referência (ontem no mesmo horário, semana passada, última janela estável, pico ao vivo anterior), gráfico com envelope histórico e tabela com significância estatística (σ) por métrica | TF-17 | Parcial | Rota `/comparar` com layout e mock implementados |
 | RF15 | Destacar aumentos relevantes | Sinais em desvio e tendência de erros na tela Agora; indicador `needsAttention()` no monitor; os desvios relevantes são destacados por cor, símbolo Δ e barra de significância σ na tela Comparar | TF-06, TF-17 | Parcial | Destaques visuais existem; critério calculado sobre dados reais apenas na raiz |
 | RF16 | Exibir contexto para investigação | Detalhes do evento: ID, data, dispositivo, sistema, rota, versão, atributos JSON; a tela Recorte detalha o recorte afetado com amostra de sessões e a tela Timeline reconstrói a cronologia do incidente cruzando seis fontes de dados | TF-04, TF-06 | Atendido | Componente `EventDetails` exibe todos os campos e atributos; contexto ampliado nas telas Recorte e Timeline |
-| RF17 | Apresentar hipóteses de causa raiz | Tela Hipóteses disponível na branch `feat/frontend-telas`, em que cada hipótese recebe um score de 0 a 100, quatro fatores ponderados com justificativa textual, lista de hipóteses descartadas com motivo e lista de evidências consultadas | TF-18 | Parcial | Rota `/hipoteses` com layout, mock e cliente de API |
+| RF17 | Apresentar hipóteses de causa raiz | Tela Hipóteses em que cada hipótese recebe um score de 0 a 100, quatro fatores ponderados com justificativa textual, lista de hipóteses descartadas com motivo e lista de evidências consultadas | TF-18 | Parcial | Rota `/hipoteses` com layout, mock e cliente de API |
 
 ### 5.1 Cobertura resumida
 
@@ -311,7 +335,7 @@ Interface renderizada com dados filtrados localmente
 | Carregamento | Exibe `"Consultando eventos na API…"` com classe `.empty-state` |
 | Sucesso sem dados | Exibe `"Nenhum evento corresponde aos filtros selecionados."` |
 | Erro da API | Exibe `"Não foi possível consultar a API. Tente novamente."` com classe `.error` e cor vermelha |
-| Sucesso com dados | Renderiza tabela de eventos, hero com indicadores e detalhes do evento selecionado |
+| Sucesso com dados | Renderiza tabela de eventos, bloco de destaque com indicadores e detalhes do evento selecionado |
 | Atualização em segundo plano | Indicador `"Atualizando"` no canto superior enquanto `isFetching` é true |
 
 ### 6.2 Evidência do fluxo ponta a ponta
@@ -337,7 +361,6 @@ Interface renderizada com dados filtrados localmente
 
 - Testes automatizados ausentes: não existe suíte automatizada nem script `test` no `package.json`. Recomenda-se adicionar Vitest + Testing Library para os componentes críticos e Playwright para testes E2E;
 - Telas com dados mockados: Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte operam sobre snapshots sintéticos; a integração com a API real está implementada apenas na rota raiz;
-- Navegação inconsistente entre branches: na branch atual, `/comparar`, `/hipoteses`, `/timeline` e `/recorte` retornam 404. Na branch `feat/frontend-telas`, todas as rotas renderizam conteúdo (com mocks);
 - Acessibilidade e responsividade: os fundamentos estão implementados (ARIA, landmarks, breakpoints, foco visível), mas carecem de validação em navegador com teclado, leitor de tela e viewports reais;
 - Campo de busca sem `maxlength`: o input de busca textual não impõe limite de tamanho.
 
