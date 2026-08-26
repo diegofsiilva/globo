@@ -15,7 +15,7 @@ telemetria de frontend, a solução passou a ser um **consumidor de change data
 capture (CDC)** das tabelas já tratadas pelo Argus — o correlator de incidentes já em
 produção na Globo — mantendo-as replicadas e atualizadas na infraestrutura do projeto,
 e derivando delas as camadas analíticas que alimentam o dashboard. A justificativa
-completa dessa mudança de premissa está na seção 4.1.
+completa dessa mudança de premissa está na seção 3.1.
 
 ---
 
@@ -28,7 +28,7 @@ software (estereótipo `«artifact»`) hospedados dentro de cada nó. As setas i
 caminhos de comunicação entre nós, rotuladas com o protocolo ou mecanismo usado. O nó
 com borda tracejada laranja (`Amazon EventBridge Scheduler`) está marcado como
 planejado: aparece no desenho original da arquitetura, mas ainda não existe como
-recurso Terraform aplicado — ver a pendência registrada na seção 6.
+recurso Terraform aplicado — ver a pendência registrada na seção 5.
 
 <div align="center">
 
