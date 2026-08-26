@@ -335,3 +335,28 @@ seção 3.2; (3) `terraform plan` não mostra nenhuma destruição fora do escop
 (DynamoDB e IAM associado); (4) um change event sintético enviado a `POST /v1/changes`
 aparece em `bronze.change_log`, é mesclado na corrente, processado pelo ETL, e só fica
 visível em `gold.v_*` quando `sim.now()` ultrapassa o `available_at` do registro.
+
+---
+
+## 5. Riscos e pendências conhecidas
+
+| Risco / pendência | Situação |
+|---|---|
+| CloudFront aparece no desenho original da arquitetura, mas não foi implementado | O bucket S3 do frontend atende como website estático; CloudFront fica registrado como melhoria futura, não bloqueia o uso atual |
+| Amazon EventBridge Scheduler não tem recurso Terraform aplicado | O serviço `processing` roda como serviço de longa duração com laços internos, não como execução agendada; ver seção 2.7 |
+| `build_*`/`gold.rebuild_tudo()` não propagam `DELETE` de bronze para silver/gold | Limitação conhecida e não corrigida — os dois só fazem upsert; pré-existente à introdução do ETL incremental |
+| Classe de instância do RDS pode ser negada ou limitada pelo Learner Lab | Confirmar com `aws rds describe-orderable-db-instance-options` assim que o laboratório subir; plano B é `db.t3.small`/`micro`, sustentável porque as telas só leem `gold.v_*` |
+| Detector de anomalias (EWMA circadiano) e canário de qualidade | Seguem no-op; infraestrutura provisionada e observável para quando a lógica for implementada |
+
+---
+
+## 6. Conclusão
+
+&emsp; A arquitetura descrita neste artefato reflete um sistema que já saiu do papel: o
+pivot de DynamoDB para RDS PostgreSQL com camadas bronze/silver/gold, o simulador de
+produção com relógio virtual, e o ETL incremental por watermarks estão implementados e
+mergeados em `develop`, com suíte de testes própria (worker, simulador, processamento e
+backend) e `make lint` passando. As pendências registradas na seção 5 — CloudFront, o
+EventBridge Scheduler e a propagação de `DELETE` — não bloqueiam o funcionamento atual
+do pipeline, mas ficam como próximos passos explícitos para a evolução do projeto junto
+ao parceiro Globo.
