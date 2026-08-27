@@ -61,10 +61,13 @@ export function MobileOperationsNavigation() {
 
 function NavigationLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { hrefWithDemoState } = useOperationsUi();
+  // `trailingSlash: true` faz o `usePathname()` devolver "/agora/"; os hrefs da
+  // navegação não têm a barra final, então normalizamos antes de comparar.
+  const currentPath = pathname.replace(/\/+$/, "") || "/";
   return (
     <ol className={styles.list}>
       {navigationItems.map((item) => {
-        const active = pathname === item.href;
+        const active = currentPath === item.href;
         return (
           <li key={item.href}>
             <Link

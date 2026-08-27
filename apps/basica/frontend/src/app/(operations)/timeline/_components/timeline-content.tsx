@@ -18,7 +18,11 @@ export function TimelineContent() {
         <p>Seis fontes em silos, um único eixo de tempo. Janela de correlação destacada.</p>
       </header>
 
-      <figure className={styles.chart} aria-labelledby="timeline-chart-caption">
+      <figure
+        className={styles.chart}
+        aria-labelledby="timeline-chart-caption"
+        aria-describedby="timeline-chronology"
+      >
         <div aria-hidden="true">
           <div className={styles.axis}>
             {timeAxis.map((hour) => (
@@ -55,7 +59,7 @@ export function TimelineContent() {
         {/* A cronologia repete os mesmos fatos em texto, cada linha atribuída à
             sua fonte: é o que mantém a afirmação rastreável quando alguém
             questionar de onde saiu a sequência. */}
-        <section className={styles.chronology}>
+        <section className={styles.chronology} id="timeline-chronology">
           <h2>Cronologia reconstruída</h2>
           {chronology.map((entry) => (
             <div className={styles.chronologyRow} key={entry.hour}>

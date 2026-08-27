@@ -131,7 +131,7 @@ function HypothesisItem({
       className={clsx(styles.item, selected && styles.selected)}
       type="button"
       onClick={onSelect}
-      aria-current={selected ? "true" : undefined}
+      aria-pressed={selected}
     >
       <strong className={clsx(styles.score, selected && "text-gradient-emphasis")}>{hypothesis.score}</strong>
       <span className={styles.body}>

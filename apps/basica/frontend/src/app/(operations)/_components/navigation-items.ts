@@ -6,10 +6,11 @@ export type NavigationItem = {
 
 /** Destinos públicos da monitoração, compartilhados pela sidebar e pelo drawer. */
 export const navigationItems: readonly NavigationItem[] = [
-  { href: "/agora", index: "01", label: "Agora" },
-  { href: "/explorar", index: "02", label: "Explorar" },
-  { href: "/comparar", index: "03", label: "Comparar" },
-  { href: "/hipoteses", index: "04", label: "Hipóteses" },
-  { href: "/timeline", index: "05", label: "Timeline" },
-  { href: "/recorte", index: "06", label: "Recorte" },
+  { href: "/monitor", index: "01", label: "Monitor" },
+  { href: "/agora", index: "02", label: "Agora" },
+  { href: "/explorar", index: "03", label: "Explorar" },
+  { href: "/comparar", index: "04", label: "Comparar" },
+  { href: "/hipoteses", index: "05", label: "Hipóteses" },
+  { href: "/timeline", index: "06", label: "Timeline" },
+  { href: "/recorte", index: "07", label: "Recorte" },
 ];

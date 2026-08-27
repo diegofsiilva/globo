@@ -169,6 +169,7 @@ export function DashboardScreen() {
           onChange={(event) => setSearch(event.target.value)}
           placeholder="buscar evento…"
           aria-label="Buscar eventos"
+          maxLength={80}
         />
         <p>
           {filteredEvents.length} de {allEvents.length} eventos · {alertCount}{" "}

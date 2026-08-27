@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import clsx from "clsx";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,7 @@ export function ExplorarScreen() {
   const [showGuide, setShowGuide] = useState(true);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [freeRange, setFreeRange] = useState<{ start: number; end: number } | null>(null);
+  const eventTabsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const presetMinutes = periodPresets.find((item) => item.label === period)?.minutes;
   const presetRangeSteps = presetMinutes ? presetMinutes / historyStepMinutes : defaultRangeSteps;
   const windowStart = period === null && freeRange ? freeRange.start : historyLastIndex - presetRangeSteps;
@@ -98,6 +99,26 @@ export function ExplorarScreen() {
   function restoreFilter(id: string) {
     setActiveFilters((current) => [...current, id]);
     setShowFilterMenu(false);
+  }
+
+  /**
+   * Move a seleção entre os botões de tipo de evento com as setas, Home e End,
+   * mantendo o padrão de foco itinerante usado nos demais grupos de pastilha.
+   */
+  function onEventKeyDown(keyEvent: KeyboardEvent<HTMLDivElement>) {
+    const current = eventKinds.findIndex((event) => event.id === activeEvent);
+    if (current < 0) return;
+
+    let next = current;
+    if (keyEvent.key === "ArrowRight" || keyEvent.key === "ArrowDown") next = (current + 1) % eventKinds.length;
+    else if (keyEvent.key === "ArrowLeft" || keyEvent.key === "ArrowUp") next = (current - 1 + eventKinds.length) % eventKinds.length;
+    else if (keyEvent.key === "Home") next = 0;
+    else if (keyEvent.key === "End") next = eventKinds.length - 1;
+    else return;
+
+    keyEvent.preventDefault();
+    setActiveEvent(eventKinds[next].id);
+    eventTabsRef.current[next]?.focus();
   }
 
   const scopeContent = (
@@ -212,18 +233,30 @@ export function ExplorarScreen() {
               </div>
               <strong>{selectedEvent.value} no recorte</strong>
             </header>
-            <div className={styles.eventSummary}>
-            {eventKinds.map((event) => (
-              <button
-                type="button"
-                key={event.id}
-                aria-pressed={activeEvent === event.id}
-                onClick={() => setActiveEvent(event.id)}
-              >
-                <strong>{event.name}</strong>
-                <span>{event.label} · {event.value}</span>
-              </button>
-            ))}
+            <div
+              className={styles.eventSummary}
+              role="group"
+              aria-labelledby="event-picker-title"
+              onKeyDown={onEventKeyDown}
+            >
+            {eventKinds.map((event, index) => {
+              const active = activeEvent === event.id;
+              return (
+                <button
+                  type="button"
+                  key={event.id}
+                  ref={(node) => {
+                    eventTabsRef.current[index] = node;
+                  }}
+                  aria-pressed={active}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => setActiveEvent(event.id)}
+                >
+                  <strong>{event.name}</strong>
+                  <span>{event.label} · {event.value}</span>
+                </button>
+              );
+            })}
             </div>
           </section>
 

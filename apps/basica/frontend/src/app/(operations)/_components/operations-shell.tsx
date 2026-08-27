@@ -32,7 +32,7 @@ function ShellContent({ children }: { children: ReactNode }) {
           </div>
         </div>
         <div className={styles.controlRow} aria-label="Atualização e período">
-          <p className={styles.liveStatus}>
+          <p className={styles.liveStatus} aria-live="off">
             <span data-live-dot aria-hidden="true" />
             Ao vivo <span className="hidden sm:inline">· {clock}</span>
           </p>

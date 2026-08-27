@@ -26,7 +26,8 @@ export function ThemeToggle() {
 
   const dark = mounted && resolvedTheme === "dark";
   const nextTheme = dark ? "light" : "dark";
-  const label = mounted ? `Usar modo ${dark ? "claro" : "escuro"}` : "Alternar tema";
+  const targetLabel = `Modo ${dark ? "claro" : "escuro"}`;
+  const label = mounted ? `Usar ${targetLabel.toLowerCase()}` : "Alternar tema";
 
   return (
     <Tooltip>
@@ -40,7 +41,7 @@ export function ThemeToggle() {
           className="h-11 min-h-11 gap-2 rounded-pill px-3 font-mono text-xs uppercase tracking-[0.09em] md:h-8 md:min-h-8 md:text-[11px]"
         >
           {dark ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
-          <span className="hidden xl:inline">{dark ? "Modo escuro" : "Modo claro"}</span>
+          <span className="hidden xl:inline">{targetLabel}</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

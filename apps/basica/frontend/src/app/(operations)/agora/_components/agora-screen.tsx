@@ -208,8 +208,7 @@ export function AgoraScreen() {
                         <td>
                           <span
                             className={styles.sparkline}
-                            role="img"
-                            aria-label={`Tendência recente de ${signal.title}: ${signal.delta}`}
+                            aria-hidden="true"
                           >
                             {signal.trend.map((point, index) => (
                               <i
