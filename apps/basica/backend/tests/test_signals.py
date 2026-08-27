@@ -174,6 +174,18 @@ def test_janela_padrao_sem_from_to_usa_sim_now(client, pool):
     assert len(resposta.json["items"]) == 1
 
 
+def test_threshold_value_converte_z_para_unidade_nativa(client, pool):
+    """`threshold_value` e `baseline +- threshold_z * stddev`, do lado em que
+    o desvio esta acontecendo -- e o que permite o front mostrar o limiar na
+    unidade da metrica, sem o operador precisar interpretar z-score."""
+    _inserir_baseline(pool, [48, 50, 52])  # media 50, desvio 2
+    _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
+
+    sinal = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"][0]
+
+    assert sinal["threshold_value"] == 54  # 50 + 2.0 * 2 (z positivo: limiar acima do baseline)
+
+
 def test_sessions_impacted_e_inteiro(client, seeded, pool):
     """So confere o tipo/presenca -- a contagem exata depende das fixtures de
     sessao compartilhadas com o worker, fora do escopo deste arquivo."""

@@ -109,6 +109,18 @@ class GenerateSignals:
                 else None
             )
 
+            # threshold_z (2.0) e em desvios-padrao, nao na unidade nativa da
+            # metrica -- o front nao pode mostrar "z >= 2.0" pro operador sem
+            # contexto. threshold_value e o mesmo limiar convertido de volta
+            # pra unidade da metrica, do lado em que o desvio esta acontecendo
+            # (sinal de z decide se o limiar fica acima ou abaixo do baseline).
+            lado = 1 if ultimo["z"] >= 0 else -1
+            threshold_value = (
+                round(ultimo["media"] + lado * LIMIAR_SINAL * ultimo["desvio"], 2)
+                if ultimo["media"] is not None and ultimo["desvio"] is not None
+                else None
+            )
+
             sinais.append(
                 {
                     "id": _signal_id(source, entity, metric),
@@ -122,6 +134,7 @@ class GenerateSignals:
                     "multiplier": multiplicador,
                     "z": round(ultimo["z"], 2),
                     "threshold_z": LIMIAR_SINAL,
+                    "threshold_value": threshold_value,
                     "severity": _severidade(ultimo["z"]),
                     "consecutive_buckets_over_threshold": consecutivos,
                     "detected_at": detectado_em.isoformat(),
