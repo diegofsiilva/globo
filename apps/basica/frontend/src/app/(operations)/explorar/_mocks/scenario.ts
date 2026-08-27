@@ -1,26 +1,6 @@
-export type EventKind = {
-  count: number;
-  id: string;
-  label: string;
-  name: string;
-  value: string;
-};
+import type { EventKind, GroupBy, ExplorationRow, FrequentError } from "../_lib/types";
 
-export type GroupBy = "Modelo" | "UF" | "ISP" | "Versão" | "Rota";
-
-export type ExplorationRow = {
-  delta: string;
-  errorRate: number;
-  events: number;
-  label: string;
-};
-
-export type FrequentError = {
-  count: string;
-  id: string;
-  name: string;
-  share: string;
-};
+export type { EventKind, GroupBy, ExplorationRow, FrequentError } from "../_lib/types";
 
 export const eventKinds: EventKind[] = [
   { id: "request", label: "request", name: "Requisições", value: "42,8 M", count: 42_800_000 },

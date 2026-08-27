@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { ScreenFrame } from "../_components/screen-frame";
-import { cutScope, scopeSummary } from "./_mocks/scenario";
+import { QueryProvider } from "@/providers/query-provider";
 import { RecorteContent } from "./_components/recorte-content";
 
 export const metadata: Metadata = {
@@ -8,15 +7,11 @@ export const metadata: Metadata = {
   description: "Definição explícita e ajuste da população afetada",
 };
 
-/** Compõe a rota demonstrativa de recorte afetado. */
+/** Compõe a rota de recorte afetado com dados reais da API de leitura. */
 export default function RecortePage() {
   return (
-    <ScreenFrame
-      filters={cutScope.map((chip) => ({ ...chip, options: [chip.value] }))}
-      scopeSummary={scopeSummary}
-      operational={{ title: "Recorte afetado", scope: scopeSummary }}
-    >
+    <QueryProvider>
       <RecorteContent />
-    </ScreenFrame>
+    </QueryProvider>
   );
 }

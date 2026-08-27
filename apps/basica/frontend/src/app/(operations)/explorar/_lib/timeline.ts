@@ -1,4 +1,4 @@
-import { timeline } from "../_mocks/scenario";
+import type { TimeseriesBucket } from "./api";
 
 export const periodPresets = [
   { label: "15 min", minutes: 15 },
@@ -7,43 +7,48 @@ export const periodPresets = [
   { label: "24 h", minutes: 1_440 },
 ] as const;
 
-const historyMinutes = 1_440;
+export const historyMinutes = 1_440;
 export const historyStepMinutes = 5;
 const historyPointCount = historyMinutes / historyStepMinutes + 1;
 export const historyLastIndex = historyPointCount - 1;
 export const minimumRangeSteps = 15 / historyStepMinutes;
 export const defaultRangeSteps = 30 / historyStepMinutes;
-const mockEndMinute = 20 * 60 + 11;
 
-export const historyTimeline = createHistoryTimeline();
-export const previewMaximum = Math.max(
-  ...timeline.map((point) => point.events + point.errors),
-);
+export type DensePoint = {
+  total: number;
+  byEventName: Record<string, number>;
+  bucketTs: string;
+};
 
-function createHistoryTimeline() {
+export type ChartPoint = { events: number; errors: number; bucketTs: string };
+
+/**
+ * Converte os buckets esparsos vindos da API (só existem intervalos com
+ * evento) em uma série densa de `historyPointCount` posições, alinhada ao
+ * fim em `now`. Índices sem bucket correspondente na API viram zero -- é a
+ * mesma leitura que o gráfico já fazia implicitamente com o mock denso.
+ */
+export function buildDenseTimeline(
+  buckets: TimeseriesBucket[],
+  now: Date,
+): DensePoint[] {
+  const byBucketStart = new Map<number, TimeseriesBucket>();
+  for (const bucket of buckets) {
+    byBucketStart.set(new Date(bucket.bucket).getTime(), bucket);
+  }
+
+  const endMs = now.getTime();
+  const stepMs = historyStepMinutes * 60_000;
+
   return Array.from({ length: historyPointCount }, (_, index) => {
-    const sourcePosition =
-      (index / historyLastIndex) * Math.max(0, timeline.length - 1);
-    const sourceStart = Math.floor(sourcePosition);
-    const sourceEnd = Math.min(timeline.length - 1, sourceStart + 1);
-    const progress = sourcePosition - sourceStart;
-    const start = timeline[sourceStart];
-    const end = timeline[sourceEnd];
-    const variation = 1 + Math.sin(index * 1.7) * 0.035;
+    const targetMs = endMs - (historyLastIndex - index) * stepMs;
+    const bucketMs = Math.floor(targetMs / stepMs) * stepMs;
+    const bucket = byBucketStart.get(bucketMs);
 
     return {
-      errors: Math.max(
-        1,
-        Math.round(
-          (start.errors + (end.errors - start.errors) * progress) * variation,
-        ),
-      ),
-      events: Math.max(
-        8,
-        Math.round(
-          (start.events + (end.events - start.events) * progress) * variation,
-        ),
-      ),
+      total: bucket?.count ?? 0,
+      byEventName: bucket?.by_event_name ?? {},
+      bucketTs: new Date(bucketMs).toISOString(),
     };
   });
 }
@@ -87,29 +92,32 @@ export function formatDuration(minutes: number): string {
   return remainingMinutes ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
 }
 
-export function formatTimelinePoint(index: number, includeDay = false): string {
-  const absoluteMinute =
-    mockEndMinute - historyMinutes + index * historyStepMinutes;
-  const isYesterday = absoluteMinute < 0;
-  const minuteOfDay = ((absoluteMinute % 1_440) + 1_440) % 1_440;
-  const hours = Math.floor(minuteOfDay / 60).toString().padStart(2, "0");
-  const minutes = (minuteOfDay % 60).toString().padStart(2, "0");
+export function formatTimelinePoint(
+  bucketTs: string,
+  now: Date,
+  includeDay = false,
+): string {
+  const date = new Date(bucketTs);
+  const isYesterday = date.toDateString() !== now.toDateString();
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
   const day = isYesterday ? "ontem" : "hoje";
 
   return `${includeDay || isYesterday ? `${day} · ` : ""}${hours}:${minutes}`;
 }
 
-export function createAxisLabels(start: number, end: number) {
+export function createAxisLabels(points: { bucketTs: string }[], start: number, end: number, now: Date) {
   const tickCount = Math.min(5, end - start + 1);
 
   return Array.from({ length: tickCount }, (_, index) => {
     const pointIndex = Math.round(
       start + ((end - start) * index) / Math.max(1, tickCount - 1),
     );
+    const point = points[pointIndex];
 
     return {
       index: pointIndex,
-      label: formatTimelinePoint(pointIndex),
+      label: point ? formatTimelinePoint(point.bucketTs, now) : "--:--",
     };
   }).filter(
     (item, index, items) =>
