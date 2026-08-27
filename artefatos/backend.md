@@ -175,7 +175,7 @@ dedicado.
 
 | Requisito | Status | Detalhe |
 |---|---|---|
-| Persistência em RDS | ✅ Feito | PostgreSQL RDS, schemas `bronze`/`silver`/`gold`/`sim`/`detect`, 18 migrations aplicadas nesta branch, até `022_deploy_events.sql` (`apps/basica/db/migrations/`) |
+| Persistência em RDS | ✅ Feito | PostgreSQL RDS, schemas `bronze`/`silver`/`gold`/`sim`/`detect`, 18 migrations aplicadas nesta branch, até `023_deploy_events.sql` (`apps/basica/db/migrations/`) |
 | Autenticação segura | 🔴 **Não implementada** | Nenhuma das duas APIs exige credencial hoje. Segue em análise se será necessária, e sob qual mecanismo (ex.: API key via API Gateway, IAM auth); decisão ainda em aberto. |
 | Log centralizado | 🟡 Parcial | `logging.basicConfig` + captura de exceção não tratada (`app.py`); em produção, roda em Lambda, então stdout/stderr já vai para o CloudWatch Logs por comportamento padrão da plataforma, mas não há logging estruturado (JSON, id de correlação por requisição) nem alarme configurado sobre os logs. |
 
