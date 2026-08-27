@@ -242,6 +242,52 @@ class PostgresEventRepository:
             for linha in linhas
         ]
 
+    def crosstab(
+        self, filters: EventFilters, dimension_x: str, dimension_y: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Agrupa eventos por DUAS dimensoes (heatmap do Recorte, RF16).
+
+        `breakdown` agrupa por uma dimensao so; o heatmap dispositivo x
+        regiao (ou qualquer outro par) precisa das duas contagens ao mesmo
+        tempo, que uma dimensao unica nao responde.
+
+        Args:
+            filters (EventFilters): Filtros aplicados antes do agrupamento.
+            dimension_x (str): Coluna do primeiro eixo.
+            dimension_y (str): Coluna do segundo eixo.
+            limit (int): Teto de celulas devolvidas.
+
+        Returns:
+            list[dict[str, Any]]: Uma linha por combinacao (x, y) com `count`,
+                da mais frequente para a menos.
+
+        Raises:
+            ValueError: Se alguma das duas dimensoes nao for agrupavel.
+        """
+        coluna_x = self._coluna_agrupavel(dimension_x)
+        coluna_y = self._coluna_agrupavel(dimension_y)
+        onde, params = self._where(filters)
+
+        linhas = self._query(
+            sql.SQL(
+                """
+                SELECT COALESCE({x}, '(sem valor)') AS chave_x,
+                       COALESCE({y}, '(sem valor)') AS chave_y,
+                       count(*) AS total
+                  FROM silver.v_session_event
+                 WHERE {onde}
+                 GROUP BY 1, 2
+                 ORDER BY total DESC
+                 LIMIT %s
+                """
+            ).format(x=coluna_x, y=coluna_y, onde=sql.SQL(" AND ").join(onde)),
+            [*params, limit],
+        )
+        return [
+            {"x": linha["chave_x"], "y": linha["chave_y"], "count": int(linha["total"])}
+            for linha in linhas
+        ]
+
     def timeseries(
         self, filters: EventFilters, interval_minutes: int = 60
     ) -> Sequence[TimeBucket]:

@@ -6,13 +6,14 @@ expurgo e feito pelo TTL do DynamoDB -- a task role do worker nem tem
 permissao de DeleteItem.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
 from telemetry.application.use_cases import (
     GetBreakdown,
+    GetCrosstab,
     GetEvent,
     GetFacets,
     GetSessionTimeline,
@@ -41,8 +42,14 @@ def index():
                 "event_detail": "GET /api/v1/sessions/{session_id}/events/{event_id}",
                 "device_history": "GET /api/v1/devices/{device_id}",
                 "breakdown": "GET /api/v1/metrics/breakdown?dimension=app_target",
+                "crosstab": "GET /api/v1/metrics/crosstab?dimension_x=device_model&dimension_y=uf",
                 "timeseries": "GET /api/v1/metrics/timeseries?interval=60&compare=true",
                 "facets": "GET /api/v1/facets?field=event_name&field=app_target",
+                "signals": "GET /api/v1/signals?from&to",
+                "changes": "GET /api/v1/changes?from&to",
+                "timeline": "GET /api/v1/timeline?from&to",
+                "stable_window": "GET /api/v1/references/stable-window?duration_minutes&before",
+                "last_live_peak": "GET /api/v1/references/last-live-peak?before",
                 "health": "GET /health/ready",
                 "docs": "GET /docs",
                 "openapi": "GET /openapi.json",
@@ -106,6 +113,21 @@ def breakdown():
         raise ValidationError("parametro 'dimension' e obrigatorio", field="dimension")
     limit = parse_int("limit", default=20, minimum=1, maximum=100)
     return jsonify(GetBreakdown(repository()).execute(filters_from_query(), dimension, limit))
+
+
+@api.get("/metrics/crosstab")
+def crosstab():
+    """Endpoint de cruzamento entre duas dimensoes -- heatmap do Recorte (RF16)."""
+    dimension_x = request.args.get("dimension_x")
+    dimension_y = request.args.get("dimension_y")
+    if not dimension_x or not dimension_y:
+        raise ValidationError(
+            "parametros 'dimension_x' e 'dimension_y' sao obrigatorios", field="dimension_x"
+        )
+    limit = parse_int("limit", default=50, minimum=1, maximum=200)
+    return jsonify(
+        GetCrosstab(repository()).execute(filters_from_query(), dimension_x, dimension_y, limit)
+    )
 
 
 @api.get("/metrics/timeseries")

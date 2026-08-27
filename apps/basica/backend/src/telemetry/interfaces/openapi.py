@@ -514,6 +514,50 @@ def build_spec() -> dict[str, Any]:
                     },
                 }
             },
+            "/api/v1/metrics/crosstab": {
+                "get": {
+                    "tags": ["Metricas"],
+                    "summary": "Agrupa e conta por DUAS dimensoes -- heatmap do Recorte",
+                    "description": (
+                        "`breakdown` agrupa por uma dimensao so; o heatmap "
+                        "dispositivo x regiao (ou qualquer par) precisa das duas "
+                        "contagens ao mesmo tempo."
+                    ),
+                    "parameters": common
+                    + [
+                        {
+                            "name": "dimension_x",
+                            "in": "query",
+                            "required": True,
+                            "description": "Campo do primeiro eixo.",
+                            "schema": {"type": "string", "enum": sorted(BREAKDOWN_FIELDS)},
+                        },
+                        {
+                            "name": "dimension_y",
+                            "in": "query",
+                            "required": True,
+                            "description": "Campo do segundo eixo.",
+                            "schema": {"type": "string", "enum": sorted(BREAKDOWN_FIELDS)},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "description": "Quantas celulas devolver, da maior para a menor.",
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 200,
+                                "default": 50,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Celulas do cruzamento"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
             "/api/v1/metrics/timeseries": {
                 "get": {
                     "tags": ["Metricas"],
