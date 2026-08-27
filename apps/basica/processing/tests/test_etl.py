@@ -56,13 +56,17 @@ def test_bronze_silver_processa_e_avanca_watermark(db, inserir_change):
     resultado = etl.executar_bronze_silver(db, batch_size=100)
 
     assert resultado["status"] == "sucesso"
-    assert resultado["linhas"] == 2
+    # signal_point + signal_bucket + sua versao imutavel para a analise.
+    assert resultado["linhas"] == 3
     assert resultado["ate_lsn"] == lsn2
 
     watermark = db.fetch_one(
         "SELECT lsn_processado FROM etl.watermark_bronze_silver WHERE id = 1"
     )
     assert watermark["lsn_processado"] == lsn2
+    assert (
+        db.fetch_one("SELECT count(*) AS n FROM silver.analysis_fact_version")["n"] == 1
+    )
 
     ponto = db.fetch_one("SELECT source, value FROM silver.signal_point")
     assert ponto == {"source": "prometheus", "value": 368.0}
@@ -71,7 +75,7 @@ def test_bronze_silver_processa_e_avanca_watermark(db, inserir_change):
         "SELECT status, linhas_processadas FROM etl.execucoes"
         " WHERE worker = 'bronze_silver'"
     )
-    assert execucao == {"status": "sucesso", "linhas_processadas": 2}
+    assert execucao == {"status": "sucesso", "linhas_processadas": 3}
 
     # Rodar de novo sem novo backlog nao reprocessa nem duplica execucao.
     resultado_2 = etl.executar_bronze_silver(db, batch_size=100)

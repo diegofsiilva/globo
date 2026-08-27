@@ -94,7 +94,7 @@ def pool(_migrated):
             """
             TRUNCATE silver.session_event, silver.signal_bucket,
                      gold.feature_bucket, gold.source_series, gold.incident_window,
-                     gold.live_event_window, gold.deploy_event
+                     gold.live_event_window, gold.deploy_event, detect.manifest
               RESTART IDENTITY CASCADE
             """
         )
@@ -145,13 +145,23 @@ def _inserir_eventos(pool, eventos: dict[str, dict]) -> None:
             """,
             [
                 (
-                    linha["ts"], linha["event_id"], linha["event_name"],
-                    linha["session_id"], linha["device_id"], linha.get("user_id"),
-                    linha.get("app_bucket"), linha.get("app_env"),
-                    linha.get("app_target"), linha.get("app_version"),
-                    linha.get("device_manufacturer"), linha.get("device_model"),
-                    linha.get("device_os"), linha.get("route_path"),
-                    linha.get("duration"), None, None,
+                    linha["ts"],
+                    linha["event_id"],
+                    linha["event_name"],
+                    linha["session_id"],
+                    linha["device_id"],
+                    linha.get("user_id"),
+                    linha.get("app_bucket"),
+                    linha.get("app_env"),
+                    linha.get("app_target"),
+                    linha.get("app_version"),
+                    linha.get("device_manufacturer"),
+                    linha.get("device_model"),
+                    linha.get("device_os"),
+                    linha.get("route_path"),
+                    linha.get("duration"),
+                    None,
+                    None,
                     Jsonb(linha["payload"]),
                     # available_at no passado: o grain de sessao chega do
                     # proprio aparelho, sem batch no meio.

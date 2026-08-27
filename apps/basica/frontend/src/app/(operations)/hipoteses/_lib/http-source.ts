@@ -1,0 +1,56 @@
+/** Adapter HTTP do relatório de hipóteses de causa provável. */
+
+import type { HypothesesSource } from "./types";
+import { QuerySourceError } from "@/lib/operational-state";
+
+/** Cria um adapter HTTP preso à URL configurada no build. */
+export function createHttpHypothesesSource(apiUrl: string): HypothesesSource {
+  const normalizedUrl = apiUrl.replace(/\/$/, "");
+
+  return async (filters = {}, signal) => {
+    const params = new URLSearchParams();
+
+    if (filters.from) params.set("from", filters.from);
+    if (filters.to) params.set("to", filters.to);
+    for (const [key, value] of Object.entries(filters.scope ?? {})) {
+      params.set(key, value);
+    }
+
+    const endpoint = `${normalizedUrl}/api/v1/hypotheses?${params}`;
+    let response: Response;
+
+    try {
+      response = await fetch(endpoint, { signal });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new QuerySourceError(
+        "A conexão com o motor de hipóteses está indisponível. Verifique a rede e tente novamente.",
+        "offline",
+        "ARG-HYP-OFFLINE",
+      );
+    }
+
+    if (!response.ok) {
+      const timeout = response.status === 408 || response.status === 504;
+      throw new QuerySourceError(
+        timeout
+          ? "O motor de hipóteses excedeu o tempo limite da consulta."
+          : `O motor de hipóteses respondeu com status ${response.status}.`,
+        timeout ? "timeout" : "server",
+        `ARG-HYP-HTTP-${response.status}`,
+        response.status >= 500 || timeout,
+      );
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      throw new QuerySourceError(
+        "O motor de hipóteses respondeu em um formato que a interface não reconhece.",
+        "invalid-response",
+        "ARG-HYP-INVALID-JSON",
+        false,
+      );
+    }
+  };
+}

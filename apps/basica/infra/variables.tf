@@ -477,6 +477,54 @@ variable "etl_silver_gold_janela_max_segundos" {
   default     = 14400
 }
 
+variable "analysis_enabled" {
+  description = "Habilita a terceira thread de detector, canario e hipoteses."
+  type        = bool
+  default     = true
+}
+
+variable "analysis_poll_seconds" {
+  description = "Intervalo entre polls quando nao existe checkpoint analisavel."
+  type        = number
+  default     = 30
+}
+
+variable "analysis_lease_seconds" {
+  description = "Duracao do lease de um run de analise."
+  type        = number
+  default     = 120
+}
+
+variable "analysis_heartbeat_seconds" {
+  description = "Intervalo de renovacao do lease da analise."
+  type        = number
+  default     = 30
+}
+
+variable "analysis_max_input_rows" {
+  description = "Teto de fatos capturados por run; exceder falha sem mover o cursor."
+  type        = number
+  default     = 250000
+}
+
+variable "analysis_max_candidates" {
+  description = "Teto global de candidatos avaliados por run."
+  type        = number
+  default     = 10000
+}
+
+variable "analysis_max_candidates_per_family" {
+  description = "Teto de candidatos avaliados por familia e run."
+  type        = number
+  default     = 2000
+}
+
+variable "analysis_max_generated" {
+  description = "Teto de hipoteses generated persistidas por run."
+  type        = number
+  default     = 500
+}
+
 # --------------------------------------------------------------------------- #
 # Loader da carga inicial
 # --------------------------------------------------------------------------- #
@@ -601,6 +649,18 @@ variable "read_api_throttle_burst_limit" {
   description = "Pico instantaneo da API de leitura."
   type        = number
   default     = 100
+}
+
+variable "hypothesis_feedback_throttle_rate_limit" {
+  description = "Requisicoes por segundo da escrita publica de feedback."
+  type        = number
+  default     = 5
+}
+
+variable "hypothesis_feedback_throttle_burst_limit" {
+  description = "Burst da escrita publica de feedback."
+  type        = number
+  default     = 10
 }
 
 variable "dashboard_origins" {

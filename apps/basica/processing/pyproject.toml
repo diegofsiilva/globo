@@ -1,9 +1,12 @@
 [project]
 name = "argus-processing"
 version = "0.1.0"
-description = "Servico de processamento do Argus: ETL incremental bronze->silver e silver->gold; detector e canario seguem no-op"
+description = "ETL incremental, detector, canario e motor de hipoteses do Argus"
 requires-python = ">=3.12"
 dependencies = ["argus-common"]
+
+[project.scripts]
+analysisctl = "argus_processing.analysisctl:main"
 
 [dependency-groups]
 dev = ["pytest>=8.3", "ruff>=0.6"]

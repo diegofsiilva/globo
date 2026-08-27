@@ -38,7 +38,7 @@ publica, materializa o estado corrente, e deriva as camadas analíticas a partir
 | 4 | Bronze otimizada para **mudar**, não para performance | O ETL ainda está em aprimoramento; o custo de errar tem que ser baixo |
 | 5 | Carga inicial via Parquet | `tools/etl_dump.py` já converte o dump e gera os 33 arquivos (199 MB) |
 | 6 | Não re-normalizar `signal_point` | A silver faz canonicalização de tipo e tempo, não normalização multi-fonte |
-| 7 | Detecção segue embrionária; ETL deixou de ser no-op | Worker de processamento roda o ETL incremental (seção 12); detector e canário seguem no-op, infraestrutura provisionada e observável para quando chegarem |
+| 7 | Detecção e hipóteses executam no serviço de processamento | Três threads executam ETL, canário, EWMA causal e as 11 famílias; o código local é a fonte atual e a imagem AWS pode estar defasada |
 
 ### 1.2 Por que `prom_point` entra, apesar de ser 60% das linhas
 
@@ -642,13 +642,11 @@ Reusa `models.py` inteiro.
 bronze/silver à frente do relógio virtual, aplica as falhas de `sim.fault` com a seed
 fixa da `sim.run`, e emite os change events em `POST /v1/changes` por HTTPS.
 
-**Processing worker** (`apps/basica/processing/`) — decisão 7 agora **parcial**: o ETL
-incremental (bronze→silver e silver→gold, seção 12) roda dentro deste serviço; detector
-e canário de qualidade continuam **no-op**, pelo mesmo motivo de sempre — dependem de
-lógica que ainda não existe (EWMA circadiano, cadência esperada por fonte). O container
-segue provisionado e observável para os dois quando chegarem: a task definition, o log
-group, o alarme de `RunningTaskCount` e o `DATABASE_URL` já ficam corretos, e a primeira
-versão do detector entra sem tocar em Terraform — exatamente como o ETL entrou.
+**Processing worker** (`apps/basica/processing/`) — executa três threads no mesmo
+container: bronze→silver, silver→gold e análise. A análise faz canário por cadência,
+EWMA circadiano causal, agrupamento não exclusivo, 11 famílias determinísticas e
+commit protegido por fencing. O [README do processamento](../apps/basica/processing/README.md)
+é o contrato operacional atualizado; este plano preserva o histórico arquitetural.
 
 ---
 

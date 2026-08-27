@@ -9,11 +9,9 @@
 # comentario historico abaixo), e a atomicidade de cada ciclo mora no banco
 # (uma unica chamada SQL por ciclo), nao em memoria compartilhada entre elas.
 #
-# Detector e canario de qualidade CONTINUAM no-op (decisao 7 do plano, agora
-# parcial): dependem de logica que ainda nao existe (EWMA circadiano, cadencia
-# esperada por fonte). O container existe provisionado e observavel para eles
-# desde ja pelo mesmo motivo de sempre: a primeira versao do detector entra sem
-# tocar em Terraform.
+# A terceira thread executa detector, canario, regras e persistencia de
+# hipoteses. Checkpoints e fencing vivem no PostgreSQL, portanto replicas podem
+# disputar o trabalho sem dividir estado em memoria.
 
 resource "aws_ecs_task_definition" "processing" {
   family                   = "${local.name}-processing"
@@ -55,6 +53,21 @@ resource "aws_ecs_task_definition" "processing" {
           name  = "ETL_SILVER_GOLD_JANELA_MAX_SECONDS"
           value = tostring(var.etl_silver_gold_janela_max_segundos)
         },
+        { name = "ANALYSIS_ENABLED", value = tostring(var.analysis_enabled) },
+        { name = "ANALYSIS_POLL_SECONDS", value = tostring(var.analysis_poll_seconds) },
+        { name = "ANALYSIS_LEASE_SECONDS", value = tostring(var.analysis_lease_seconds) },
+        {
+          name  = "ANALYSIS_HEARTBEAT_SECONDS"
+          value = tostring(var.analysis_heartbeat_seconds)
+        },
+        { name = "ANALYSIS_MAX_INPUT_ROWS", value = tostring(var.analysis_max_input_rows) },
+        { name = "ANALYSIS_MAX_CANDIDATES", value = tostring(var.analysis_max_candidates) },
+        {
+          name  = "ANALYSIS_MAX_CANDIDATES_PER_FAMILY"
+          value = tostring(var.analysis_max_candidates_per_family)
+        },
+        { name = "ANALYSIS_MAX_GENERATED", value = tostring(var.analysis_max_generated) },
+        { name = "IMAGE_TAG", value = var.worker_image_tag },
       ])
 
       logConfiguration = {

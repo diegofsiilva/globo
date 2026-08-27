@@ -1,6 +1,13 @@
 """A spec precisa descrever a API que existe, nao a que foi planejada."""
 
+import re
+
 from telemetry.interfaces.openapi import BREAKDOWN_FIELDS, FACET_FIELDS, build_spec
+
+
+def _openapi_path(rule) -> str:
+    """Converte `<int:id>` do Flask em `{id}` do OpenAPI."""
+    return re.sub(r"<(?:[^:>]+:)?([^>]+)>", r"{\1}", str(rule))
 
 
 def test_spec_e_servida(client):
@@ -39,8 +46,7 @@ def test_todas_as_rotas_da_aplicacao_estao_na_spec(app):
         caminho = str(rule)
         if caminho in {"/", "/favicon.ico", "/docs", "/openapi.json"}:
             continue
-        # Flask usa <param>; OpenAPI usa {param}.
-        reais.add(caminho.replace("<", "{").replace(">", "}"))
+        reais.add(_openapi_path(rule))
 
     faltando = reais - documentadas
     assert not faltando, f"rotas sem documentacao na spec: {sorted(faltando)}"
@@ -48,11 +54,7 @@ def test_todas_as_rotas_da_aplicacao_estao_na_spec(app):
 
 def test_spec_nao_documenta_rota_inexistente(app):
     spec = build_spec()
-    reais = {
-        str(rule).replace("<", "{").replace(">", "}")
-        for rule in app.url_map.iter_rules()
-        if rule.endpoint != "static"
-    }
+    reais = {_openapi_path(rule) for rule in app.url_map.iter_rules() if rule.endpoint != "static"}
 
     sobrando = set(spec["paths"]) - reais
     assert not sobrando, f"spec documenta rota que nao existe: {sorted(sobrando)}"
@@ -76,12 +78,15 @@ def test_valores_aceitos_vem_das_constantes_do_codigo(client):
     assert set(field["schema"]["items"]["enum"]) == FACET_FIELDS
 
 
-def test_spec_nao_documenta_escrita(client):
-    """A API e somente leitura; a spec nao pode sugerir o contrario."""
+def test_spec_documenta_somente_a_escrita_estreita_de_feedback(client):
+    """A unica mutacao publica e o feedback idempotente de hipotese."""
     spec = client.get("/openapi.json").json
 
+    writes = set()
     for caminho, operacoes in spec["paths"].items():
-        assert set(operacoes) <= {"get"}, f"{caminho} documenta metodo de escrita"
+        for method in set(operacoes) - {"get"}:
+            writes.add((method, caminho))
+    assert writes == {("post", "/api/v1/hypotheses/{hypothesis_id}/feedback")}
 
 
 def test_spec_nao_expoe_campo_sensivel_como_filtravel(client):

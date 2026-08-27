@@ -68,8 +68,9 @@ def db(_migrated):
                      bronze.signal_point, bronze.live_event, bronze.incidents,
                      bronze.incident_label,
                      silver.signal_point, silver.signal_bucket, silver.session_event,
+                     silver.analysis_fact_version,
                      gold.feature_bucket, gold.live_event_window, gold.incident_window,
-                     etl.execucoes
+                     detect.manifest, etl.execucoes
               RESTART IDENTITY CASCADE
             """
         )

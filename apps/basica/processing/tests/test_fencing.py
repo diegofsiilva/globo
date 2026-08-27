@@ -11,7 +11,7 @@ from argus_processing.orchestration import (
     reivindicar_trabalho,
 )
 
-MANIFEST_HASH = "manifest-stage-1"
+MANIFEST_HASH = "a" * 64
 
 
 def _expirar_claim(db, run_id: int) -> None:

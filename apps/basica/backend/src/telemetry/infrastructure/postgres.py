@@ -234,9 +234,7 @@ class PostgresEventRepository:
                 # milissegundos. A conversao mora aqui, na saida, e nao na
                 # ingestao -- a bronze guarda o que a origem mandou.
                 average_duration_ms=(
-                    round(float(linha["media"]) * 1000, 2)
-                    if linha["media"] is not None
-                    else None
+                    round(float(linha["media"]) * 1000, 2) if linha["media"] is not None else None
                 ),
             )
             for linha in linhas
@@ -288,9 +286,7 @@ class PostgresEventRepository:
             for linha in linhas
         ]
 
-    def timeseries(
-        self, filters: EventFilters, interval_minutes: int = 60
-    ) -> Sequence[TimeBucket]:
+    def timeseries(self, filters: EventFilters, interval_minutes: int = 60) -> Sequence[TimeBucket]:
         """Agrupa os eventos numa serie temporal.
 
         Args:
@@ -422,9 +418,7 @@ class PostgresEventRepository:
         for campo in COLUNAS_FILTRAVEIS:
             valor = getattr(filters, campo, None)
             if valor:
-                onde.append(
-                    sql.SQL("{} = %s").format(sql.Identifier(campo))
-                )
+                onde.append(sql.SQL("{} = %s").format(sql.Identifier(campo)))
                 params.append(valor)
 
         de = filters.occurred_from
@@ -515,9 +509,7 @@ class PostgresEventRepository:
         # original quando nao e ("unknown" e valor real do parque). A entidade
         # aceita os dois, entao a saida da API nao perde nenhum dos casos.
         ano_texto = payload.pop("device_model_year", None)
-        device_model_year = (
-            ano_texto if ano_texto is not None else linha.get("device_model_year")
-        )
+        device_model_year = ano_texto if ano_texto is not None else linha.get("device_model_year")
         device_os_version = payload.pop("device_os_version", None)
 
         # `duration` vem em segundos e o dashboard usa milissegundos.

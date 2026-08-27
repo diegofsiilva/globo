@@ -1,10 +1,4 @@
-"""Rotas HTTP da API de leitura.
-
-Somente leitura. Nao ha POST nem DELETE: a entrada de eventos e o pipeline
-API Gateway -> SQS -> worker, que ja resolve idempotencia, retry e DLQ, e o
-expurgo e feito pelo TTL do DynamoDB -- a task role do worker nem tem
-permissao de DeleteItem.
-"""
+"""Rotas HTTP de eventos e telemetria agregada."""
 
 from datetime import datetime, timedelta
 from typing import Any
@@ -53,6 +47,8 @@ def index():
                 "health": "GET /health/ready",
                 "docs": "GET /docs",
                 "openapi": "GET /openapi.json",
+                "hypotheses": "GET /api/v1/hypotheses",
+                "hypothesis_runs": "GET /api/v1/hypothesis-runs",
             },
             "notes": "Ingestao nao passa por aqui: use o endpoint do API Gateway.",
         }
@@ -218,9 +214,7 @@ def sources():
                     "entidades": linha["entidades"],
                     "metricas": linha["metricas"],
                     "ultimo_bucket": (
-                        linha["ultimo_bucket"].isoformat()
-                        if linha["ultimo_bucket"]
-                        else None
+                        linha["ultimo_bucket"].isoformat() if linha["ultimo_bucket"] else None
                     ),
                 }
                 for linha in gold().sources()
@@ -240,8 +234,7 @@ def incidents():
     """
     janelas = gold().incidents(
         origem=request.args.get("origem") or None,
-        incluir_derivados=request.args.get("include_derived", "").lower()
-        in {"1", "true", "yes"},
+        incluir_derivados=request.args.get("include_derived", "").lower() in {"1", "true", "yes"},
         limite=parse_int("limit", default=100, minimum=1, maximum=1000),
     )
     return jsonify(
@@ -267,9 +260,7 @@ def incidents():
 @api.get("/live-events")
 def live_events():
     """Calendario de transmissoes, com os feeds simultaneos agregados por confronto."""
-    eventos = gold().live_events(
-        limite=parse_int("limit", default=50, minimum=1, maximum=500)
-    )
+    eventos = gold().live_events(limite=parse_int("limit", default=50, minimum=1, maximum=500))
     return jsonify(
         {
             "items": [
@@ -448,9 +439,7 @@ def anomalies():
     )
     return jsonify(
         {
-            "items": [
-                {**item, "bucket_ts": item["bucket_ts"].isoformat()} for item in itens
-            ],
+            "items": [{**item, "bucket_ts": item["bucket_ts"].isoformat()} for item in itens],
             "count": len(itens),
         }
     )

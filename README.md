@@ -54,9 +54,9 @@ Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
 | Camada | O que guarda | Por que existe |
 |--------|--------------|----------------|
 | `bronze` | `change_log` (append-only) + uma tabela *corrente* por tabela de origem, e `event` para o grain de sessão | O log é a fonte de verdade; a corrente é o MERGE dele. Dá para reconstruir a corrente do zero a partir do log |
-| `silver` | `signal_point`, `signal_bucket`, `session_event` | Canonicaliza vocabulários que não se falam (`epoch_ms`, `ts`, `bts`, `ts_ms`, `hour_ts`, `start_ts`) num par `(ts, valor)` |
-| `gold` | `feature_bucket`, `incident_window`, `live_event_window`, `circadian_state` | Traços de 15 min prontos para o dashboard, com hora local, dia da semana e "tem jogo" |
-| `detect` | `run`, `anomaly` | Existe e está vazia: o detector é trabalho da próxima sprint, mas o contrato da API já é o final |
+| `silver` | sinais, sessões e `analysis_fact_version` | Canonicaliza tempo e conserva versões imutáveis por LSN |
+| `gold` | features, qualidade, hipóteses e evidências | Produtos de leitura e resultados explicáveis do motor |
+| `detect` | runs, claims, cursor, baseline e anomalias | Coordena e executa o detector causal por checkpoint |
 
 | Componente | Responsabilidade | Serviço AWS |
 |------------|------------------|-------------|
@@ -89,12 +89,12 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-| `/apps/basica/db/migrations` | As 14 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+| `/apps/basica/db/migrations` | As 22 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
 | `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
 | `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
 | `/apps/basica/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
-| `/apps/basica/processing` | Serviço de processamento; hoje um no-op documentado, futura casa do detector |
+| `/apps/basica/processing` | ETL, canário, detector e motor determinístico das 11 famílias de hipótese |
 | `/apps/basica/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
 | `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
@@ -266,8 +266,11 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | [Plano da v3](artefatos/plano-argus-v3.md) | A migração de DynamoDB para RDS: camadas, CDC, relógio virtual e carga inicial |
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
+| [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
 | [Arquitetura](artefatos/arquitetura.md) | Fluxos, modelo de dados, decisões de projeto, segurança, custo e validação |
+| [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
+| [Frontend](apps/basica/frontend/README.md) | Rotas, estrutura App Router, fontes de dados e comandos de validação |
 | [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
 | [Infraestrutura](apps/basica/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
 

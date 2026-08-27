@@ -1,0 +1,7 @@
+{
+  "vhosts": [
+    "playback.video.globo.com",
+    "playback-legacy.video.globo.com",
+    "playback-watcher.video.globo.com"
+  ]
+}
