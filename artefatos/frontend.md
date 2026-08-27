@@ -88,13 +88,24 @@
 
 <p align="center"><sub>Figura 6 — Delimitação da população afetada.</sub></p>
 
-#### 1.3.7 Viewport mobile
+#### 1.3.7 Temas escuro e claro
+
+&emsp; A comparação abaixo apresenta a tela Agora nos temas escuro e claro, mantendo o mesmo conteúdo e o mesmo viewport. A alternância modifica superfícies, bordas e contraste tipográfico, mas preserva a hierarquia dos alertas, os destaques em vermelho e a organização dos dados.
+
+<p align="center">
+  <img src="./assets/captura_agora_tema_escuro.png" alt="Tela Agora no tema escuro" width="49%">
+  <img src="./assets/captura_agora_tema_claro.png" alt="Tela Agora no tema claro" width="49%">
+</p>
+
+<p align="center"><sub>Figuras 7 e 8 — Tela Agora nos temas escuro e claro, respectivamente.</sub></p>
+
+#### 1.3.8 Viewport mobile
 
 &emsp; A captura mobile demonstra a adaptação da tela Agora para um viewport de 390×844. Nesse formato, a navegação lateral dá lugar a um cabeçalho compacto e o conteúdo passa a ocupar uma única coluna, preservando a leitura do alerta principal e dos indicadores sem exigir rolagem horizontal.
 
 ![Tela Agora no viewport mobile de 390 por 844 pixels](./assets/captura_agora_mobile.png)
 
-<p align="center"><sub>Figura 7 — Adaptação da tela Agora ao viewport mobile.</sub></p>
+<p align="center"><sub>Figura 9 — Adaptação da tela Agora ao viewport mobile.</sub></p>
 
 ## 2. Organização e qualidade do código
 
