@@ -79,7 +79,7 @@ Toda linha carrega um `available_at` — o instante em que a informação *ficar
 
 Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem um detector futuro conseguem enxergar um dado antes da hora em que ele existiria.
 
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura.md`](artefatos/arquitetura.md) e no [plano da v3](artefatos/plano-argus-v3.md).
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/basica/infra/README.md).
 
 > **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
@@ -100,7 +100,7 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
 | `/apps/basica/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
 | `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
-| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, arquitetura e MVP |
+| `/artefatos` | Documentação das sprints: negócio, UX, requisitos e MVP |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
 | `/artefatos/postman` | Coleção Postman de teste das duas APIs |
 | `/assets` | Logos usados neste README |
@@ -268,7 +268,6 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
-| [Arquitetura](artefatos/arquitetura.md) | Fluxos, modelo de dados, decisões de projeto, segurança, custo e validação |
 | [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
 | [Frontend](apps/basica/frontend/README.md) | Rotas, estrutura App Router, fontes de dados e comandos de validação |
 | [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
