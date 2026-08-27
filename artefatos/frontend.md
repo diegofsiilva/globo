@@ -94,14 +94,17 @@ apps/basica/frontend/src/
 │   │   ├── hipoteses/           Hipóteses, adaptadores de fonte e cenário simulado
 │   │   ├── timeline/            Correlação cronológica simulada
 │   │   ├── recorte/             Delimitação da população afetada simulada
-│   │   └── layout.tsx           Layout compartilhado das páginas operacionais
+│   │   ├── layout.tsx           Layout compartilhado das páginas operacionais
+│   │   ├── loading.tsx          Estado de carregamento exibido na troca de rota
+│   │   └── error.tsx            Fronteira de erro das rotas operacionais
 │   ├── globals.css              Tokens e estilos globais
 │   └── layout.tsx               Layout-base, fontes e metadados da aplicação
 ├── components/ui/               Componentes de interface reutilizáveis
 ├── lib/
 │   ├── events/api.ts            Cliente HTTP tipado da API de eventos
 │   ├── events/monitor.ts        Regras de monitoração e filtros
-│   └── operational-state.ts     Estados de carregamento, ausência e falha
+│   ├── operational-state.ts     Estados de carregamento, ausência e falha
+│   └── utils.ts                 Composição de classes Tailwind (`cn`)
 └── providers/
     ├── query-provider.tsx       Configuração compartilhada do TanStack Query
     └── theme-provider.tsx       Configuração de tema da aplicação
