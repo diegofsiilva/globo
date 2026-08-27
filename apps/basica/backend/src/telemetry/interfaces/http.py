@@ -326,6 +326,8 @@ def filters_from_query() -> EventFilters:
         device_manufacturer=request.args.get("device_manufacturer"),
         device_model=request.args.get("device_model"),
         route_path=request.args.get("route_path"),
+        uf=request.args.get("uf"),
+        isp=request.args.get("isp"),
         occurred_from=parse_datetime("from"),
         occurred_to=parse_datetime("to"),
         limit=parse_int("limit", default=50, minimum=1, maximum=500),
