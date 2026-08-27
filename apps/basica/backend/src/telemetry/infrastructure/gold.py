@@ -50,6 +50,11 @@ class GoldRepository:
         self._pool = pool
         self._teto = max_points
 
+    @property
+    def pool(self) -> ConnectionPool:
+        """Pool compartilhado com repositorios da mesma aplicacao."""
+        return self._pool
+
     # ----------------------------------------------------------------- #
     # Relogio
     # ----------------------------------------------------------------- #
@@ -207,9 +212,7 @@ class GoldRepository:
             # encontrasse incidentes reais que o Argus perdeu seria penalizado.
             #
             # Por isso o padrao e EXCLUIR, e incluir exige pedir explicitamente.
-            onde.append(
-                sql.SQL("(provenance IS NULL OR provenance <> 'detector-derived')")
-            )
+            onde.append(sql.SQL("(provenance IS NULL OR provenance <> 'detector-derived')"))
 
         return self._all(
             sql.SQL(
@@ -276,9 +279,7 @@ class GoldRepository:
             onde.append(sql.SQL("run_id = %s"))
             params.append(run_id)
         else:
-            onde.append(
-                sql.SQL("run_id = (SELECT max(run_id) FROM detect.v_run)")
-            )
+            onde.append(sql.SQL("run_id = (SELECT max(run_id) FROM detect.v_run)"))
 
         return self._all(
             sql.SQL(
