@@ -888,6 +888,36 @@ def build_spec() -> dict[str, Any]:
                     "responses": {"200": {"description": "Anomalias"}},
                 }
             },
+            "/api/v1/signals": {
+                "get": {
+                    "tags": ["Sinais"],
+                    "summary": "Sinais em desvio ativo agora (tela Agora)",
+                    "description": (
+                        "Versao 1 simplificada (ver "
+                        "`telemetry.application.signals`): so entra grupo cujo "
+                        "ULTIMO bucket da janela ainda esta fora do baseline "
+                        "horario -- 'ativo agora', nao 'desviou em algum "
+                        "momento'. Independente do motor de hipoteses "
+                        "(em desenvolvimento em `feat/hipotese`)."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "from",
+                            "Inicio da janela, ISO 8601. Sem valor, usa 'to' menos 6 horas.",
+                            format="date-time",
+                        ),
+                        _parameter(
+                            "to",
+                            "Fim da janela, ISO 8601. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {
+                        "200": {"description": "Sinais ativos"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
             "/health/live": {
                 "get": {
                     "tags": ["Saude"],
