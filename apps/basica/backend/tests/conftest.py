@@ -94,7 +94,7 @@ def pool(_migrated):
             """
             TRUNCATE silver.session_event, silver.signal_bucket,
                      gold.feature_bucket, gold.source_series, gold.incident_window,
-                     gold.live_event_window
+                     gold.live_event_window, gold.deploy_event
               RESTART IDENTITY CASCADE
             """
         )
@@ -201,11 +201,27 @@ def gold_repository(pool):
 
 
 @pytest.fixture
-def app(repository, gold_repository):
-    """Aplicacao Flask com os dois repositorios injetados."""
+def signals_repository(pool):
+    """Repositorio de `/api/v1/signals` apontando para o banco de teste.
+
+    `baseline_hours=168` (padrao) olharia 7 dias para tras a partir de
+    `REFERENCE_NOW` -- mais do que as fixtures de teste cobrem. Os testes
+    usam uma janela de baseline curta para caber nas poucas horas que as
+    fixtures inserem.
+    """
+    from telemetry.infrastructure.signals import SignalsRepository
+
+    return SignalsRepository(pool, baseline_hours=6)
+
+
+@pytest.fixture
+def app(repository, gold_repository, signals_repository):
+    """Aplicacao Flask com os tres repositorios injetados."""
     from telemetry.config import TestConfig
 
-    aplicacao = create_app(TestConfig, repository=repository, gold=gold_repository)
+    aplicacao = create_app(
+        TestConfig, repository=repository, gold=gold_repository, signals=signals_repository
+    )
     aplicacao.config["USER_ID_HASH_SALT"] = SALT
     return aplicacao
 

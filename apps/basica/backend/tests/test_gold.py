@@ -268,3 +268,249 @@ def test_anomalies_devolve_vazio_sem_detector(client, pool):
 
     assert resposta.status_code == 200
     assert resposta.json["items"] == []
+
+
+# --------------------------------------------------------------------------- #
+# Eventos de deploy (022_deploy_events.sql) -- so cobre Tsuru, ver nota no
+# rotas-frontend.md: autoscale/WAF nao tem log discreto neste dataset.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def com_deploys(pool):
+    """Tres eventos: um recente e disponivel, um antigo e disponivel, um
+    recente mas ainda nao alcancado pelo relogio virtual."""
+    with pool.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gold.deploy_event
+              (event_id, kind, target_type, target_value, owner, started_at,
+               ended_at, duration_ms, available_at)
+            VALUES
+              ('dep-recente', 'deploy', 'app', 'globoplay-tv', 'time-player',
+               %s, %s, 45000, %s),
+              ('dep-antigo', 'deploy', 'app', 'globoplay-tv', 'time-player',
+               %s, %s, 30000, %s),
+              ('dep-futuro', 'deploy', 'app', 'globoplay-tv', 'time-player',
+               %s, %s, 20000, %s)
+            """,
+            (
+                REFERENCE_NOW - timedelta(hours=2),
+                REFERENCE_NOW - timedelta(hours=2) + timedelta(seconds=45),
+                REFERENCE_NOW - timedelta(hours=2),
+                REFERENCE_NOW - timedelta(hours=10),
+                REFERENCE_NOW - timedelta(hours=10) + timedelta(seconds=30),
+                REFERENCE_NOW - timedelta(hours=10),
+                REFERENCE_NOW - timedelta(minutes=10),
+                REFERENCE_NOW - timedelta(minutes=9),
+                REFERENCE_NOW + timedelta(hours=1),  # ainda nao disponivel
+            ),
+        )
+    return pool
+
+
+def test_changes_devolve_so_o_que_o_relogio_ja_alcancou(client, com_deploys):
+    resposta = client.get("/api/v1/changes")
+
+    assert resposta.status_code == 200
+    ids = {item["event_id"] for item in resposta.json["items"]}
+    assert ids == {"dep-recente", "dep-antigo"}
+
+
+def test_changes_filtra_por_janela_de_started_at(client, com_deploys):
+    resposta = client.get(
+        "/api/v1/changes"
+        f"?from={(REFERENCE_NOW - timedelta(hours=3)).isoformat()}"
+        f"&to={(REFERENCE_NOW - timedelta(hours=1)).isoformat()}"
+    )
+
+    ids = {item["event_id"] for item in resposta.json["items"]}
+    assert ids == {"dep-recente"}
+
+
+def test_changes_ainda_nao_cobre_autoscale_nem_waf(client, com_deploys):
+    """Documenta o limite: so ha `kind` vindo do Tsuru neste dataset."""
+    resposta = client.get("/api/v1/changes")
+
+    kinds = {item["kind"] for item in resposta.json["items"]}
+    assert kinds == {"deploy"}
+
+
+# --------------------------------------------------------------------------- #
+# Referencias para a tela Comparar
+# --------------------------------------------------------------------------- #
+
+
+def test_stable_window_pula_a_janela_ocupada_por_incidente(client, pool):
+    with pool.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gold.incident_window (ts_start, ts_end, origem, ref_id)
+            VALUES (%s, %s, 'incidents', 'INC-recente')
+            """,
+            (REFERENCE_NOW - timedelta(minutes=30), REFERENCE_NOW - timedelta(minutes=15)),
+        )
+
+    resposta = client.get("/api/v1/references/stable-window?duration_minutes=60")
+
+    assert resposta.status_code == 200
+    assert resposta.json["found"] is True
+    # 1o passo (agora-60min..agora) esbarra no incidente; o 2o
+    # (agora-120min..agora-60min) ja fica livre.
+    assert resposta.json["to"] == (REFERENCE_NOW - timedelta(hours=1)).isoformat()
+    assert resposta.json["from"] == (REFERENCE_NOW - timedelta(hours=2)).isoformat()
+
+
+def test_stable_window_sem_incidente_acha_de_primeira(client, pool):
+    resposta = client.get("/api/v1/references/stable-window?duration_minutes=30")
+
+    assert resposta.json["found"] is True
+    assert resposta.json["to"] == REFERENCE_NOW.isoformat()
+
+
+def test_stable_window_desiste_depois_de_max_passos(client, pool):
+    """Incidente de 5h cobre mais do que 200 passos de 1 min (~3,3h) para
+    tras -- nunca acha janela livre dentro do limite."""
+    with pool.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gold.incident_window (ts_start, ts_end, origem, ref_id)
+            VALUES (%s, %s, 'incidents', 'INC-longo')
+            """,
+            (REFERENCE_NOW - timedelta(hours=5), REFERENCE_NOW),
+        )
+
+    resposta = client.get("/api/v1/references/stable-window?duration_minutes=1")
+
+    assert resposta.json == {"found": False}
+
+
+@pytest.fixture
+def com_eventos_ao_vivo(pool):
+    with pool.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gold.live_event_window
+              (event_key, tid, ts_start, ts_end, competition, team_home,
+               team_away, event_date)
+            VALUES
+              ('fla-flu', 994, %s, %s, 'Brasileirao', 'Flamengo', 'Fluminense', %s),
+              ('gre-int', 995, %s, %s, 'Brasileirao', 'Gremio', 'Internacional', %s)
+            """,
+            (
+                REFERENCE_NOW - timedelta(hours=3),
+                REFERENCE_NOW - timedelta(hours=1),
+                (REFERENCE_NOW - timedelta(hours=3)).date(),
+                REFERENCE_NOW - timedelta(hours=6),
+                REFERENCE_NOW - timedelta(hours=5),
+                (REFERENCE_NOW - timedelta(hours=6)).date(),
+            ),
+        )
+    return pool
+
+
+def test_last_live_peak_acha_o_mais_recente(client, com_eventos_ao_vivo):
+    resposta = client.get("/api/v1/references/last-live-peak")
+
+    assert resposta.status_code == 200
+    assert resposta.json["found"] is True
+    assert resposta.json["event_key"] == "fla-flu"
+
+
+def test_last_live_peak_respeita_o_before(client, com_eventos_ao_vivo):
+    antes = (REFERENCE_NOW - timedelta(hours=4)).isoformat()
+    resposta = client.get(f"/api/v1/references/last-live-peak?before={antes}")
+
+    assert resposta.json["event_key"] == "gre-int"
+
+
+def test_last_live_peak_sem_evento_e_found_false(client, pool):
+    resposta = client.get("/api/v1/references/last-live-peak")
+
+    assert resposta.json == {"found": False}
+
+
+# --------------------------------------------------------------------------- #
+# Timeline de seis raias
+# --------------------------------------------------------------------------- #
+
+
+def test_timeline_traz_as_seis_raias_com_lane_type_proprio(client, pool):
+    with pool.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gold.feature_bucket
+              (bucket_ts, source, entity, metric, value, hora_brt, dow,
+               tem_jogo, available_at)
+            VALUES (%s, 'npaw', 'globo', 'bufferratio', 0.02, 8, 1, false, %s)
+            """,
+            (REFERENCE_NOW - timedelta(hours=1), REFERENCE_NOW - timedelta(hours=1)),
+        )
+        conn.execute(
+            """
+            INSERT INTO gold.deploy_event
+              (event_id, kind, target_type, target_value, owner, started_at,
+               available_at)
+            VALUES ('dep-tl', 'deploy', 'app', 'globoplay-tv', 'time-player',
+                    %s, %s)
+            """,
+            (REFERENCE_NOW - timedelta(hours=1), REFERENCE_NOW - timedelta(hours=1)),
+        )
+        conn.execute(
+            """
+            INSERT INTO gold.incident_window
+              (ts_start, ts_end, origem, ref_id, provenance)
+            VALUES (%s, %s, 'incidents', 'INC-tl', 'servicenow')
+            """,
+            (REFERENCE_NOW - timedelta(hours=1), REFERENCE_NOW - timedelta(minutes=45)),
+        )
+
+    resposta = client.get("/api/v1/timeline")
+
+    assert resposta.status_code == 200
+    raias = {raia["source"]: raia for raia in resposta.json["lanes"]}
+    assert set(raias) == {"npaw", "prometheus", "newrelic", "apollo", "tsuru", "servicenow"}
+    assert raias["npaw"]["lane_type"] == "series"
+    assert raias["tsuru"]["lane_type"] == "events"
+    assert raias["servicenow"]["lane_type"] == "incidents"
+    assert len(raias["npaw"]["points"]) == 1
+    assert len(raias["tsuru"]["points"]) == 1
+    assert len(raias["servicenow"]["points"]) == 1
+    assert len(raias["prometheus"]["points"]) == 0
+
+
+def test_timeline_raia_npaw_agrega_tres_fontes_reais(client, pool):
+    """O rotulo 'NPAW' do mock do frontend cobre `npaw`, `youbora` e
+    `youbora_player_live` -- tres `source` diferentes em gold."""
+    with pool.connection() as conn:
+        conn.executemany(
+            """
+            INSERT INTO gold.feature_bucket
+              (bucket_ts, source, entity, metric, value, hora_brt, dow,
+               tem_jogo, available_at)
+            VALUES (%s, %s, 'globo', 'bufferratio', 0.02, 8, 1, false, %s)
+            """,
+            [
+                (REFERENCE_NOW - timedelta(hours=1), fonte, REFERENCE_NOW - timedelta(hours=1))
+                for fonte in ("npaw", "youbora", "youbora_player_live")
+            ],
+        )
+
+    raias = {raia["source"]: raia for raia in client.get("/api/v1/timeline").json["lanes"]}
+    assert len(raias["npaw"]["points"]) == 3
+
+
+def test_timeline_janela_padrao_e_tres_horas(client, pool):
+    with pool.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gold.feature_bucket
+              (bucket_ts, source, entity, metric, value, hora_brt, dow,
+               tem_jogo, available_at)
+            VALUES (%s, 'prometheus', 'pop', 'p95_ms', 300, 8, 1, false, %s)
+            """,
+            (REFERENCE_NOW - timedelta(hours=5), REFERENCE_NOW - timedelta(hours=5)),
+        )
+
+    raias = {raia["source"]: raia for raia in client.get("/api/v1/timeline").json["lanes"]}
+    assert len(raias["prometheus"]["points"]) == 0  # fora das 3h padrao
