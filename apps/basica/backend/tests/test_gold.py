@@ -1,10 +1,18 @@
 """Testes das rotas da camada gold: relogio virtual, series e janelas."""
 
 from datetime import timedelta
+from urllib.parse import quote
 
 import pytest
 
 from tests.conftest import REFERENCE_NOW
+
+
+def _q(momento) -> str:
+    """ISO 8601 URL-encoded -- sem isso o '+' do fuso vira espaco na query
+    string (convencao de application/x-www-form-urlencoded) e a API rejeita
+    a data com 422."""
+    return quote(momento.isoformat())
 
 
 @pytest.fixture
@@ -322,8 +330,8 @@ def test_changes_devolve_so_o_que_o_relogio_ja_alcancou(client, com_deploys):
 def test_changes_filtra_por_janela_de_started_at(client, com_deploys):
     resposta = client.get(
         "/api/v1/changes"
-        f"?from={(REFERENCE_NOW - timedelta(hours=3)).isoformat()}"
-        f"&to={(REFERENCE_NOW - timedelta(hours=1)).isoformat()}"
+        f"?from={_q(REFERENCE_NOW - timedelta(hours=3))}"
+        f"&to={_q(REFERENCE_NOW - timedelta(hours=1))}"
     )
 
     ids = {item["event_id"] for item in resposta.json["items"]}
@@ -420,7 +428,7 @@ def test_last_live_peak_acha_o_mais_recente(client, com_eventos_ao_vivo):
 
 
 def test_last_live_peak_respeita_o_before(client, com_eventos_ao_vivo):
-    antes = (REFERENCE_NOW - timedelta(hours=4)).isoformat()
+    antes = _q(REFERENCE_NOW - timedelta(hours=4))
     resposta = client.get(f"/api/v1/references/last-live-peak?before={antes}")
 
     assert resposta.json["event_key"] == "gre-int"
@@ -484,8 +492,8 @@ def test_timeline_traz_as_seis_raias_com_lane_type_proprio(client, pool):
 def test_timeline_raia_npaw_agrega_tres_fontes_reais(client, pool):
     """O rotulo 'NPAW' do mock do frontend cobre `npaw`, `youbora` e
     `youbora_player_live` -- tres `source` diferentes em gold."""
-    with pool.connection() as conn:
-        conn.executemany(
+    with pool.connection() as conn, conn.cursor() as cur:
+        cur.executemany(
             """
             INSERT INTO gold.feature_bucket
               (bucket_ts, source, entity, metric, value, hora_brt, dow,

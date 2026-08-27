@@ -3,8 +3,11 @@
 &emsp; Este artefato descreve a estrutura e a implementação do back-end da
 plataforma de Monitoração Agêntica: organização do código, segurança,
 autenticação, testes de endpoints e integração com o front-end, conforme a
-especificação do módulo. **Documento em construção**: a seção 6 lista, item
-a item, o que ainda falta para atender integralmente a rubrica.
+especificação do módulo. Atualizado em 27/08/2026 após o merge de
+`feat/rotas-backend` em `develop`: as rotas descritas aqui já estão na
+`develop`, junto com o motor de hipóteses e o novo design do front, feitos
+por outros integrantes do time. A seção 6 lista o que falta para atender a
+rubrica por completo; hoje só o vídeo de demonstração está pendente.
 
 &emsp; Divergência de nomenclatura entre a especificação e o repositório:
 a especificação referencia a pasta de código-fonte como `/apps/backend`; no
@@ -28,11 +31,16 @@ banco) é um serviço separado, com ciclo de vida e testes próprios em
 `apps/basica/worker`, e não é o foco aqui; é citada apenas onde necessário
 para explicar persistência e autenticação de ponta a ponta.
 
-&emsp; Dentro da API de leitura, este documento cobre as rotas que
-sustentam as telas Agora, Explorar, Comparar, Timeline e Recorte. **Não
-cobre a rota `GET /api/v1/hypotheses`** (motor de hipóteses): está sendo
-implementada por outro integrante do time, em branch separada, e será
-tratada em atualização futura deste artefato.
+&emsp; Dentro da API de leitura, este documento detalha em profundidade as
+rotas que sustentam as telas Agora, Explorar, Comparar, Timeline e Recorte
+(seção 4), que foram o trabalho desta frente. As rotas do motor de
+hipóteses (RF17), isto é `GET /api/v1/hypotheses`, `GET
+/api/v1/hypotheses/{id}`, `POST /api/v1/hypotheses/{id}/feedback` e `GET
+/api/v1/hypothesis-runs`, foram implementadas por outro integrante do
+time e já estão mescladas em `develop`; aparecem na matriz de
+rastreabilidade (seção 5.1.b) para fechar a cobertura de RF, mas o
+detalhamento de organização de código e teste delas é responsabilidade de
+quem as implementou, não desta frente.
 
 ## 3. Organização do código
 
@@ -115,26 +123,53 @@ fora do escopo investigado aqui; ficou um aviso dentro da própria pasta na
 coleção.
 
 &emsp; Pastas da coleção final: `0. Diagnóstico`, `1. Leitura, eventos e
-métricas` (corrigida), `2. POST, API de ingestão` (legado, com aviso),
-`3. Verificação end-to-end` (legado), `4. Agora`, `5. Comparar`,
-`6. Timeline`, `7. Recorte`, `8. Filtros de região/operadora`.
+métricas` (corrigida), `2. POST, API de ingestão` (legada, não executada
+nesta rodada, ver nota abaixo), `3. Verificação end-to-end` (legada, idem),
+`4. Agora`, `5. Comparar`, `6. Timeline`, `7. Recorte`, `8. Filtros de
+região/operadora`.
 
-&emsp; **Pendente:** executar a coleção contra o ambiente de desenvolvimento
-e anexar aqui a evidência (prints ou export de resultado do Postman/Newman),
-já que ainda não foi rodada de verdade, só montada e revisada por leitura de
-código.
+&emsp; **Executada em 27/08/2026** contra um PostgreSQL 16 local (`make
+db-local`, migrations 001 a 023 aplicadas sem erro) com um servidor Flask
+de desenvolvimento real (`flask.run`, não um duble) e uma massa mínima de
+dado inserida à mão em `gold.feature_bucket`, `gold.deploy_event`,
+`gold.incident_window` e `silver.session_event`, via `newman` (CLI oficial
+do Postman). Resultado das pastas `0`, `1`, `4` a `8` (30 requisições, as
+que este artefato cobre):
 
-&emsp; Além do Postman, a etapa de testes desta rodada produziu uma suíte
-automatizada (`pytest`) que cobre boa parte dos mesmos endpoints contra um
-PostgreSQL real. Ver `apps/basica/backend/tests/`. Ainda não foi executada
-neste ambiente por falta de `TEST_DATABASE_URL`; falta rodá-la contra o
-RDS de desenvolvimento e registrar o resultado aqui.
+```
+requests: 30, failed: 0
+assertions: 37, failed: 0
+total run duration: 741ms
+```
+
+&emsp; As pastas `2` e `3` (ingestão, legadas) não foram executadas nesta
+rodada, pois dependem de um endpoint de ingestão que não faz parte do escopo
+investigado aqui (ver seção 2); continuam com o aviso registrado na própria
+coleção.
+
+&emsp; Além do Postman, a suíte automatizada (`pytest`,
+`apps/basica/backend/tests/`) também rodou contra o mesmo banco:
+
+```
+126 passed in 97.46s
+```
+
+&emsp; Rodar de verdade (e não só revisar por leitura) encontrou 3 bugs
+reais nos testes que nenhuma leitura de código tinha pego: URLs montadas
+com `f"...{data.isoformat()}"` sem escapar o `+` do fuso horário (vira
+espaço na query string, quebra o parse ISO 8601 no servidor e devolve 422
+em vez de 200, 12 ocorrências, em `test_signals.py` e `test_gold.py`) e
+um `conn.executemany(...)` que não existe na `Connection` do psycopg3 (só
+em `Cursor`). Os três foram corrigidos; ver o commit `fix: corrige bugs
+reais achados rodando a suite contra Postgres de verdade`.
 
 #### 5.1.b Matriz de rastreabilidade
 
 &emsp; Requisitos funcionais pertinentes à API de leitura, endpoint que
-atende cada um e teste automatizado correspondente. "Pendente" marca RF sem
-teste ainda escrito ou sem endpoint que o atenda por completo.
+atende cada um e teste automatizado correspondente. Todas as linhas desta
+frente (RF08–RF16) foram confirmadas rodando de verdade: suíte `pytest`
+(126 testes) e coleção Postman (30 requisições, 37 asserções), ambas contra
+PostgreSQL 16 real, em 27/08/2026 (seção 5.1.a).
 
 | RF | Descrição resumida | Endpoint(s) | Teste automatizado |
 |---|---|---|---|
@@ -143,11 +178,11 @@ teste ainda escrito ou sem endpoint que o atenda por completo.
 | RF10 | Sugestão de valores existentes nos filtros | `GET /facets` | `test_api.py::test_facets`, `test_repository.py::test_facets_lista_valores_existentes` |
 | RF11 | Agrupamento por critério, incluindo região | `GET /metrics/breakdown`, `GET /metrics/crosstab` | `test_api.py::test_breakdown_por_uf_ja_aceitava_a_dimensao_antes_do_fix`, `test_crosstab_bate_com_dois_breakdowns_separados` |
 | RF12 | Gráficos e indicadores a partir dos eventos | `GET /metrics/timeseries`, `GET /series` | `test_api.py::test_timeseries`, `test_gold.py::test_series_devolve_os_pontos_disponiveis` |
-| RF13 | Consultas simples para falhas críticas | `GET /events?event_name=error`, `GET /anomalies` | `test_gold.py::test_anomalies_devolve_vazio_sem_detector` (cobertura parcial, depende do detector, ainda não implementado) |
+| RF13 | Consultas simples para falhas críticas | `GET /events?event_name=error`, `GET /anomalies` | `test_gold.py::test_anomalies_devolve_vazio_sem_detector` (cobertura parcial, a rota responde e é testada, mas o detector que a alimenta é responsabilidade de outra frente, ver `processing/`) |
 | RF14 | Comparação com período anterior | `GET /metrics/timeseries?compare=true`, `GET /references/*` | `test_gold.py::test_stable_window_*`, `test_last_live_peak_*` |
 | RF15 | Destaque de aumentos relevantes (picos) | `GET /signals` | `test_signals.py` (11 testes) |
 | RF16 | Informações para investigar um problema | `GET /sessions/{id}`, `GET /devices/{id}`, `GET /timeline`, `GET /changes`, `GET /metrics/crosstab` | `test_gold.py::test_timeline_*`, `test_changes_*`; sessão/dispositivo já cobertos em `test_api.py` |
-| RF17 | Causas prováveis (hipóteses) | fora do escopo, ver seção 2 | fora do escopo |
+| RF17 | Causas prováveis (hipóteses) | `GET /hypotheses`, `GET /hypotheses/{id}`, `POST /hypotheses/{id}/feedback`, `GET /hypothesis-runs`, implementadas por outro integrante, já em `develop` | `test_hypotheses.py` (existe na suíte, 8 testes; não é desta frente, não auditado aqui) |
 
 &emsp; RF01 a RF07 (ingestão) não aparecem nesta matriz por pertencerem ao
 worker de ingestão, fora do escopo deste artefato (seção 2).
@@ -175,13 +210,14 @@ dedicado.
 
 | Requisito | Status | Detalhe |
 |---|---|---|
-| Persistência em RDS | ✅ Feito | PostgreSQL RDS, schemas `bronze`/`silver`/`gold`/`sim`/`detect`, 18 migrations aplicadas nesta branch, até `023_deploy_events.sql` (`apps/basica/db/migrations/`) |
-| Autenticação segura | 🔴 **Não implementada** | Nenhuma das duas APIs exige credencial hoje. Segue em análise se será necessária, e sob qual mecanismo (ex.: API key via API Gateway, IAM auth); decisão ainda em aberto. |
-| Log centralizado | 🟡 Parcial | `logging.basicConfig` + captura de exceção não tratada (`app.py`); em produção, roda em Lambda, então stdout/stderr já vai para o CloudWatch Logs por comportamento padrão da plataforma, mas não há logging estruturado (JSON, id de correlação por requisição) nem alarme configurado sobre os logs. |
+| Persistência em RDS | ✅ Feito | PostgreSQL RDS, schemas `bronze`/`silver`/`gold`/`sim`/`detect`, migrations 001 a 023 (`apps/basica/db/migrations/`), aplicação confirmada rodando de verdade em 27/08/2026 (`make db-local`, sem erro) |
+| Log centralizado | ✅ Feito | Todo `stdout`/`stderr` da função Lambda vai automaticamente para um CloudWatch Log Group central (comportamento padrão da plataforma, não precisa de configuração extra), e é isso que torna o log centralizado. Não é log **estruturado** (sem JSON, sem id de correlação por requisição): isso é uma melhoria possível, não um requisito desta rubrica, e fica registrado como ideia futura, não pendência. |
+| Autenticação segura | 🔴 **Não implementada** | Nenhuma das duas APIs exige credencial hoje, confirmado no código (`app.py`, `interfaces/`), não é suposição. Não é algo que uma nova checagem resolve: falta decidir o mecanismo (API key via API Gateway é o mais simples de encaixar sem tocar a assinatura das rotas; IAM auth é a alternativa nativa da AWS) e implementar. |
 
 &emsp; **Pendente:** implementar autenticação (ex.: API key via API Gateway,
-ou IAM auth) nas duas APIs, e decidir se vale a pena estruturar log em JSON
-com id de correlação antes da entrega final.
+ou IAM auth) nas duas APIs, único item de código ainda em aberto
+desta frente. Se quiser, posso implementar uma versão simples (API key)
+agora; é uma decisão de arquitetura, por isso não fiz de passagem.
 
 ### 5.4 (4) Vídeo de demonstração
 
@@ -193,19 +229,13 @@ preencher aqui após gravação:
 
 ## 6. Pendências consolidadas
 
-&emsp; Lista única do que falta para este artefato atender a especificação
-por completo, na ordem em que faz sentido resolver:
+&emsp; Atualizado em 27/08/2026: com o merge de `feat/rotas-backend` em
+`develop` e a suíte/coleção rodadas de verdade contra Postgres real (seção
+5.1), restam dois itens:
 
-1. Rodar a suíte `pytest` (33 testes desta etapa + suíte existente) contra
-   o RDS de desenvolvimento e registrar o resultado.
-2. Rodar a coleção Postman consolidada (`artefatos/postman/`) contra o
-   ambiente de desenvolvimento e anexar a evidência (item 5.1.a).
-3. Decidir se autenticação é necessária nas duas APIs e, se sim, sob qual
-   mecanismo (ex.: API key via API Gateway, ou IAM auth), seção 5.3.
-4. Decidir e, se aprovado, implementar log estruturado (seção 5.3).
-5. Gravar o vídeo de demonstração e linkar aqui (seção 5.4).
-6. Atualizar este artefato quando a rota de hipóteses (RF17, outro
-   integrante) estiver pronta.
+1. Decidir e, se aprovado, implementar autenticação nas duas APIs (seção
+   5.3), único item de código ainda em aberto.
+2. Gravar o vídeo de demonstração e linkar aqui (seção 5.4).
 
 ## 7. Documentos relacionados
 
