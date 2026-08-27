@@ -1,8 +1,8 @@
-# API de leitura
+# API de telemetria e hipóteses
 
-API Flask que serve a telemetria para a dashboard. **Somente leitura**: a
-entrada é o pipeline `API Gateway → SQS → ECS Fargate → RDS PostgreSQL` (ver
-[`worker/`](../worker) e [`infra/`](../infra)).
+API Flask que serve telemetria e hipóteses para o dashboard. A entrada de
+eventos continua no pipeline `API Gateway → SQS → ECS Fargate → RDS PostgreSQL`.
+A única escrita desta API é o feedback idempotente de uma hipótese publicada.
 
 Publicada em Lambda + API Gateway.
 
@@ -11,7 +11,8 @@ Ela lê dois grains diferentes, e por isso tem dois adaptadores:
 | Adaptador | Grain | Serve |
 |---|---|---|
 | `infrastructure/postgres.py` | evento individual de sessão | busca, filtros, breakdown, série, facetas |
-| `infrastructure/gold.py` | bucket agregado de 15 min | relógio, séries de telemetria, incidentes, transmissões, anomalias |
+| `infrastructure/gold.py` | bucket agregado de 15 min | relógio, séries, incidentes, transmissões e anomalias |
+| `infrastructure/hypotheses.py` | hipótese publicada | runs, listagem, detalhe, evidências e feedback |
 
 São separados de propósito: um repositório único teria dois conjuntos de métodos
 que nunca se cruzam, e a `EventFilters` acabaria com campos que só metade dos
@@ -19,8 +20,9 @@ métodos usa.
 
 ## A regra que vale para toda consulta
 
-**Nenhuma query toca uma tabela base.** Todas apontam para uma view `v_*`, e
-toda view `v_*` filtra `available_at <= sim.now()`.
+**Nenhuma leitura toca uma tabela base.** Todas apontam para uma view `v_*`.
+O feedback chama apenas a função `SECURITY DEFINER`
+`gold.submit_hypothesis_feedback`.
 
 O usuário do banco que a Lambda usa (`argus_reader`) tem `SELECT` só nas views —
 não é uma convenção que se possa esquecer de seguir, é um `GRANT`. Uma consulta
@@ -71,7 +73,7 @@ terraform output -raw read_api_url
 | `GET /api/v1/metrics/timeseries?compare=true` | série temporal e comparação | RF12, RF14, RF15 |
 | `GET /api/v1/facets?field=` | valores existentes para os filtros | RF10 |
 
-### Telemetria (camada gold)
+### Telemetria e hipóteses (camada gold)
 
 | Rota | Para quê |
 |---|---|
@@ -81,6 +83,10 @@ terraform output -raw read_api_url
 | `GET /api/v1/incidents` | janelas de incidente rotuladas |
 | `GET /api/v1/live-events` | calendário de transmissões ao vivo |
 | `GET /api/v1/anomalies` | saída do detector |
+| `GET /api/v1/hypothesis-runs` | runs concluídos de manifestos publicados |
+| `GET /api/v1/hypotheses` | listagem filtrável com paginação keyset |
+| `GET /api/v1/hypotheses/{id}` | linhagem, findings, evidências, qualidade e score |
+| `POST /api/v1/hypotheses/{id}/feedback` | feedback idempotente; payload máximo de 4 KiB |
 
 | Rota | Para quê |
 |---|---|
@@ -98,8 +104,9 @@ estouraram o timeout da Lambda. A rota lê o catálogo derivado
 `gold.v_source_series` e faz apenas uma sondagem indexada por fonte para obter o
 bucket mais recente; o mesmo `sim.now()` continua impedindo vazamento de futuro.
 
-`/anomalies` devolve lista vazia enquanto não houver detector. A rota existe
-desde já para que o dashboard seja escrito contra o contrato final.
+As views de hipóteses ficam vazias durante o modo sombra. Um manifesto só aparece
+depois do evento append-only `published`; `withdrawn` volta a ocultá-lo sem apagar
+o histórico.
 
 `/incidents` **exclui** por padrão os rótulos `detector-derived`: sete dos vinte
 rótulos de `incident_label` foram criados olhando a saída do próprio Argus, e

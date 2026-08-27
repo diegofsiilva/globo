@@ -8,13 +8,17 @@ from werkzeug.exceptions import BadRequest, HTTPException, RequestEntityTooLarge
 
 from telemetry.config import Config
 from telemetry.domain.exceptions import (
+    ConflictError,
     EventNotFoundError,
+    ResourceNotFoundError,
     UnsupportedMediaTypeError,
     ValidationError,
 )
 from telemetry.infrastructure.gold import GoldRepository
+from telemetry.infrastructure.hypotheses import HypothesisRepository
 from telemetry.infrastructure.postgres import PostgresEventRepository, build_pool
 from telemetry.interfaces.http import api, health
+from telemetry.interfaces.hypotheses_http import hypotheses_api
 
 
 def create_app(
@@ -22,6 +26,7 @@ def create_app(
     *,
     repository: Any = None,
     gold: Any = None,
+    hypotheses: Any = None,
 ) -> Flask:
     """Monta a aplicação.
 
@@ -47,6 +52,7 @@ def create_app(
     if repository is not None and gold is not None:
         app.extensions["event_repository"] = repository
         app.extensions["gold_repository"] = gold
+        app.extensions["hypothesis_repository"] = hypotheses or HypothesisRepository(gold.pool)
     else:
         url = app.config.get("DATABASE_URL")
         if not url:
@@ -68,7 +74,9 @@ def create_app(
         app.extensions["gold_repository"] = gold or GoldRepository(
             pool, max_points=app.config["MAX_ITEMS_SCANNED"]
         )
+        app.extensions["hypothesis_repository"] = hypotheses or HypothesisRepository(pool)
     app.register_blueprint(api)
+    app.register_blueprint(hypotheses_api)
     app.register_blueprint(health)
     register_cors(app)
     register_error_handlers(app)
@@ -101,7 +109,7 @@ def register_cors(app: Flask) -> None:
         elif requested and requested in origins:
             response.headers["Access-Control-Allow-Origin"] = requested
             response.headers["Vary"] = "Origin"
-        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
         response.headers["Access-Control-Max-Age"] = "300"
         return response
@@ -128,6 +136,14 @@ def register_error_handlers(app: Flask) -> None:
     def handle_not_found(error: EventNotFoundError):
         """Evento ou sessão inexistente -> 404."""
         return problem(404, "Event not found", str(error))
+
+    @app.errorhandler(ResourceNotFoundError)
+    def handle_resource_not_found(error: ResourceNotFoundError):
+        return problem(404, "Resource not found", str(error))
+
+    @app.errorhandler(ConflictError)
+    def handle_conflict(error: ConflictError):
+        return problem(409, "Conflict", str(error))
 
     @app.errorhandler(BadRequest)
     def handle_bad_request(error: BadRequest):

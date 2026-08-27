@@ -68,8 +68,9 @@ def db(_migrated):
                      bronze.signal_point, bronze.live_event, bronze.incidents,
                      bronze.incident_label,
                      silver.signal_point, silver.signal_bucket, silver.session_event,
+                     silver.analysis_fact_version,
                      gold.feature_bucket, gold.live_event_window, gold.incident_window,
-                     etl.execucoes
+                     detect.manifest, etl.execucoes
               RESTART IDENTITY CASCADE
             """
         )
@@ -87,6 +88,25 @@ def db(_migrated):
         conn.execute("SELECT sim.set_clock(timestamptz '2026-07-12 12:00:00+00', 1)")
     yield banco
     banco.close()
+
+
+@pytest.fixture
+def checkpoint(db):
+    """Publica uma versao Gold pronta para os testes de coordenacao."""
+    from argus_processing import etl
+
+    resultado = etl.executar_silver_gold(db, janela_max_segundos=999_999_999)
+    assert resultado["status"] == "sucesso"
+    publicado = db.fetch_one(
+        """
+        SELECT checkpoint_id, ready_through, source_lsn
+          FROM etl.gold_checkpoint
+         ORDER BY checkpoint_id DESC
+         LIMIT 1
+        """
+    )
+    assert publicado is not None
+    return publicado
 
 
 @pytest.fixture

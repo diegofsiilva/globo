@@ -149,6 +149,20 @@ output "loader_run_command" {
   ])
 }
 
+output "migration_run_command" {
+  description = "Aplica migrations pendentes pela VPC, sem expor o RDS."
+  value = join("", [
+    "aws ecs run-task --profile g4 --region ", var.region,
+    " \\\n  --cluster ", aws_ecs_cluster.main.name,
+    " \\\n  --task-definition ", aws_ecs_task_definition.migration.family,
+    " \\\n  --launch-type FARGATE",
+    " \\\n  --network-configuration 'awsvpcConfiguration={subnets=[",
+    join(",", local.subnet_ids), "],securityGroups=[",
+    aws_security_group.worker.id, "],assignPublicIp=",
+    var.assign_public_ip ? "ENABLED" : "DISABLED", "}'",
+  ])
+}
+
 # --------------------------------------------------------------------------- #
 # Leitura
 # --------------------------------------------------------------------------- #

@@ -24,9 +24,12 @@ def com_series(pool):
               (%s, 'youbora', 'globo', 'bufferratio', 0.021, 8, 1, false, %s)
             """,
             (
-                REFERENCE_NOW - timedelta(hours=2), REFERENCE_NOW - timedelta(hours=1),
-                REFERENCE_NOW - timedelta(hours=1), REFERENCE_NOW - timedelta(minutes=30),
-                REFERENCE_NOW - timedelta(hours=2), REFERENCE_NOW + timedelta(hours=26),
+                REFERENCE_NOW - timedelta(hours=2),
+                REFERENCE_NOW - timedelta(hours=1),
+                REFERENCE_NOW - timedelta(hours=1),
+                REFERENCE_NOW - timedelta(minutes=30),
+                REFERENCE_NOW - timedelta(hours=2),
+                REFERENCE_NOW + timedelta(hours=26),
             ),
         )
         conn.execute("SELECT gold.refresh_source_series()")
@@ -48,9 +51,12 @@ def com_incidentes(pool):
                'detector-derived')
             """,
             (
-                REFERENCE_NOW - timedelta(hours=3), REFERENCE_NOW - timedelta(hours=2),
-                REFERENCE_NOW - timedelta(hours=5), REFERENCE_NOW - timedelta(hours=4),
-                REFERENCE_NOW - timedelta(hours=7), REFERENCE_NOW - timedelta(hours=6),
+                REFERENCE_NOW - timedelta(hours=3),
+                REFERENCE_NOW - timedelta(hours=2),
+                REFERENCE_NOW - timedelta(hours=5),
+                REFERENCE_NOW - timedelta(hours=4),
+                REFERENCE_NOW - timedelta(hours=7),
+                REFERENCE_NOW - timedelta(hours=6),
             ),
         )
     return pool
@@ -86,12 +92,10 @@ def test_close_run_congela_o_relogio(pool):
         congelado = conn.execute(
             "SELECT sim.close_run(%s, 'paused', %s)", (run_id, pausa)
         ).fetchone()[0]
-        estado = conn.execute(
-            "SELECT status FROM sim.run WHERE run_id = %s", (run_id,)
-        ).fetchone()[0]
-        clock = conn.execute(
-            "SELECT sim.now(), speed FROM sim.clock WHERE id = 1"
-        ).fetchone()
+        estado = conn.execute("SELECT status FROM sim.run WHERE run_id = %s", (run_id,)).fetchone()[
+            0
+        ]
+        clock = conn.execute("SELECT sim.now(), speed FROM sim.clock WHERE id = 1").fetchone()
 
     assert congelado == pausa
     assert estado == "paused"
@@ -117,9 +121,7 @@ def test_series_esconde_o_que_o_relogio_nao_alcancou(client, com_series, pool):
 
     # Avanca o relogio para depois do available_at do youbora (+28 h).
     with pool.connection() as conn:
-        conn.execute(
-            "SELECT sim.set_clock(%s, 0)", (REFERENCE_NOW + timedelta(hours=30),)
-        )
+        conn.execute("SELECT sim.set_clock(%s, 0)", (REFERENCE_NOW + timedelta(hours=30),))
 
     depois = client.get("/api/v1/series?window_hours=48").json
     assert depois["count"] == antes + 1
@@ -158,9 +160,7 @@ def test_sources_respeita_available_at(client, com_series, pool):
     assert antes == {"prometheus"}
 
     with pool.connection() as conn:
-        conn.execute(
-            "SELECT sim.set_clock(%s, 0)", (REFERENCE_NOW + timedelta(hours=30),)
-        )
+        conn.execute("SELECT sim.set_clock(%s, 0)", (REFERENCE_NOW + timedelta(hours=30),))
 
     depois = {item["source"] for item in client.get("/api/v1/sources").json["items"]}
     assert depois == {"prometheus", "youbora"}
@@ -243,9 +243,11 @@ def test_live_events_agrupa_feeds_simultaneos_por_confronto(client, pool):
                'Gremio', 'Internacional', %s)
             """,
             (
-                REFERENCE_NOW - timedelta(hours=3), REFERENCE_NOW - timedelta(hours=1),
+                REFERENCE_NOW - timedelta(hours=3),
+                REFERENCE_NOW - timedelta(hours=1),
                 (REFERENCE_NOW - timedelta(hours=3)).date(),
-                REFERENCE_NOW - timedelta(hours=3), REFERENCE_NOW - timedelta(hours=1),
+                REFERENCE_NOW - timedelta(hours=3),
+                REFERENCE_NOW - timedelta(hours=1),
                 (REFERENCE_NOW - timedelta(hours=3)).date(),
             ),
         )

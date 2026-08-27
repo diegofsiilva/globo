@@ -60,6 +60,106 @@ def _parameter(name: str, description: str, **schema: Any) -> dict[str, Any]:
     }
 
 
+def _hypothesis_paths() -> dict[str, Any]:
+    hypothesis_id = {
+        "name": "hypothesis_id",
+        "in": "path",
+        "required": True,
+        "schema": {"type": "integer", "minimum": 1},
+    }
+    return {
+        "/api/v1/hypothesis-runs": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Lista runs publicados",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "maximum": 200},
+                    },
+                    {"name": "before_run_id", "in": "query", "schema": {"type": "integer"}},
+                ],
+                "responses": {"200": {"description": "Runs concluidos e publicados"}},
+            }
+        },
+        "/api/v1/hypotheses": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Lista hipoteses publicadas",
+                "parameters": [
+                    {"name": name, "in": "query", "schema": {"type": "string"}}
+                    for name in (
+                        "family",
+                        "kind",
+                        "confidence",
+                        "review_status",
+                        "source",
+                        "entity",
+                        "from",
+                        "to",
+                        "cursor",
+                    )
+                ]
+                + [
+                    {"name": "run_id", "in": "query", "schema": {"type": "integer"}},
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "maximum": 200},
+                    },
+                ],
+                "responses": {"200": {"description": "Pagina keyset de hipoteses"}},
+            }
+        },
+        "/api/v1/hypotheses/{hypothesis_id}": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Detalha uma hipotese",
+                "parameters": [hypothesis_id],
+                "responses": {
+                    "200": {"description": "Features, evidencias e feedback"},
+                    "404": {"$ref": "#/components/responses/NaoEncontrado"},
+                },
+            }
+        },
+        "/api/v1/hypotheses/{hypothesis_id}/feedback": {
+            "post": {
+                "tags": ["Hipoteses"],
+                "summary": "Registra feedback publico",
+                "description": "reviewer_ref e declaratorio e nao verificado.",
+                "parameters": [hypothesis_id],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["verdict", "idempotency_key"],
+                                "properties": {
+                                    "verdict": {
+                                        "enum": ["confirmed", "partially_confirmed", "rejected"]
+                                    },
+                                    "note": {"type": "string", "maxLength": 2000},
+                                    "reviewer_ref": {"type": "string", "maxLength": 128},
+                                    "idempotency_key": {"type": "string", "format": "uuid"},
+                                },
+                            }
+                        }
+                    },
+                },
+                "responses": {
+                    "200": {"description": "Repeticao idempotente"},
+                    "201": {"description": "Feedback criado"},
+                    "404": {"$ref": "#/components/responses/NaoEncontrado"},
+                    "409": {"description": "Chave idempotente usada com outro payload"},
+                    "422": {"$ref": "#/components/responses/Invalido"},
+                },
+            }
+        },
+    }
+
+
 def _common_query_parameters() -> list[dict[str, Any]]:
     """Gera a lista de parâmetros de busca reutilizáveis para endpoints de consulta.
 
@@ -255,16 +355,15 @@ def build_spec() -> dict[str, Any]:
     event_schema = _event_schema()
     common = _common_query_parameters()
 
-    return {
+    spec = {
         "openapi": "3.1.0",
         "info": {
             "title": "Argus — API de leitura de eventos",
             "version": API_VERSION,
             "description": (
-                "Consulta dos eventos de telemetria do app de TV, para o dashboard.\n\n"
-                "**Somente leitura.** A entrada de eventos e o pipeline "
-                "`API Gateway -> SQS -> ECS Fargate -> DynamoDB`; esta API nao "
-                "recebe, altera nem apaga evento.\n\n"
+                "Consulta de telemetria e hipoteses para o dashboard. A entrada "
+                "de eventos nao passa por esta API; a unica escrita publica e o "
+                "feedback idempotente de uma hipotese publicada.\n\n"
                 "### Custo das consultas\n\n"
                 "Toda busca devolve um bloco `query` com a estrategia usada e "
                 "quantos itens foram lidos. Informar `event_name`, `session_id` ou "
@@ -700,8 +799,7 @@ def build_spec() -> dict[str, Any]:
                             "in": "query",
                             "required": False,
                             "description": (
-                                "Janela assumida quando from/to nao vem, "
-                                "contada de sim.now()."
+                                "Janela assumida quando from/to nao vem, contada de sim.now()."
                             ),
                             "schema": {
                                 "type": "integer",
@@ -901,6 +999,9 @@ def build_spec() -> dict[str, Any]:
             },
         },
     }
+    spec["tags"].append({"name": "Hipoteses", "description": "Resultados explicaveis e feedback"})
+    spec["paths"].update(_hypothesis_paths())
+    return spec
 
 
 def _server_url() -> str:

@@ -41,6 +41,8 @@ RUN groupadd --system --gid 10001 argus \
  && useradd --system --uid 10001 --gid argus --no-create-home argus
 
 COPY --from=builder --chown=argus:argus /app/processing/.venv /app/.venv
+COPY --chown=argus:argus db/migrations/ /app/db/migrations/
+COPY --chown=argus:argus tools/migrate.py /app/tools/migrate.py
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
