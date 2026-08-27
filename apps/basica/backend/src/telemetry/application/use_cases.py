@@ -164,6 +164,42 @@ class GetBreakdown:
         }
 
 
+class GetCrosstab:
+    """Agrupamento por duas dimensões simultaneamente -- heatmap do Recorte (RF16)."""
+
+    def __init__(self, repository: EventRepository) -> None:
+        """Inicializa o caso de uso.
+
+        Args:
+            repository (EventRepository): Instância do repositório de eventos.
+        """
+        self.repository = repository
+
+    def execute(
+        self, filters: EventFilters, dimension_x: str, dimension_y: str, limit: int = 50
+    ) -> dict[str, Any]:
+        """Calcula o cruzamento de eventos entre duas dimensões.
+
+        Args:
+            filters (EventFilters): Filtros aplicados antes do agrupamento.
+            dimension_x (str): Coluna do primeiro eixo.
+            dimension_y (str): Coluna do segundo eixo.
+            limit (int, optional): Número máximo de células retornadas.
+
+        Returns:
+            dict[str, Any]: Dimensões pedidas e as células do cruzamento.
+
+        Raises:
+            ValidationError: Se alguma das duas dimensões for inválida.
+        """
+        try:
+            celulas = self.repository.crosstab(filters, dimension_x, dimension_y, limit)
+        except ValueError as error:
+            raise ValidationError(str(error), field="dimension_x/dimension_y") from error
+
+        return {"dimension_x": dimension_x, "dimension_y": dimension_y, "cells": list(celulas)}
+
+
 class GetTimeseries:
     """Serie temporal do volume de eventos (RF12).
 

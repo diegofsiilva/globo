@@ -17,8 +17,10 @@ from telemetry.domain.exceptions import (
 from telemetry.infrastructure.gold import GoldRepository
 from telemetry.infrastructure.hypotheses import HypothesisRepository
 from telemetry.infrastructure.postgres import PostgresEventRepository, build_pool
+from telemetry.infrastructure.signals import SignalsRepository
 from telemetry.interfaces.http import api, health
 from telemetry.interfaces.hypotheses_http import hypotheses_api
+from telemetry.interfaces.signals_http import signals_api
 
 
 def create_app(
@@ -27,6 +29,7 @@ def create_app(
     repository: Any = None,
     gold: Any = None,
     hypotheses: Any = None,
+    signals: Any = None,
 ) -> Flask:
     """Monta a aplicação.
 
@@ -37,6 +40,12 @@ def create_app(
             que os testes usam para apontar a API para outro banco sem passar
             por variável de ambiente.
         gold (Any, optional): Idem, para o repositório da camada gold.
+        hypotheses (Any, optional): Idem, para o repositório do motor de hipóteses.
+        signals (Any, optional): Idem, para o repositório de `/api/v1/signals`.
+            No ramo sem injeção (abaixo) é construído a partir do mesmo pool
+            automaticamente; se `repository`/`gold` forem injetados sem
+            `signals`, a extensão fica ausente e a rota de sinais não deve
+            ser exercida por esse teste.
 
     Returns:
         Flask: Instância da aplicação Flask pronta para execução.
@@ -53,6 +62,8 @@ def create_app(
         app.extensions["event_repository"] = repository
         app.extensions["gold_repository"] = gold
         app.extensions["hypothesis_repository"] = hypotheses or HypothesisRepository(gold.pool)
+        if signals is not None:
+            app.extensions["signals_repository"] = signals
     else:
         url = app.config.get("DATABASE_URL")
         if not url:
@@ -75,9 +86,11 @@ def create_app(
             pool, max_points=app.config["MAX_ITEMS_SCANNED"]
         )
         app.extensions["hypothesis_repository"] = hypotheses or HypothesisRepository(pool)
+        app.extensions["signals_repository"] = signals or SignalsRepository(pool)
     app.register_blueprint(api)
     app.register_blueprint(hypotheses_api)
     app.register_blueprint(health)
+    app.register_blueprint(signals_api)
     register_cors(app)
     register_error_handlers(app)
     return app

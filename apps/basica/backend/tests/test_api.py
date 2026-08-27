@@ -1,6 +1,10 @@
 """Testes das rotas de leitura, com o formato real de item no DynamoDB."""
 
+from datetime import timedelta
+
 import pytest
+
+from tests.conftest import REFERENCE_NOW
 
 # --------------------------------------------------------------------------- #
 # Busca (RF08, RF09)
@@ -274,3 +278,128 @@ def test_tipo_novo_aparece_na_api(client, inserir):
     nomes = [item["event_name"] for item in response.json["items"]]
 
     assert "ad_impression" in nomes
+
+
+# --------------------------------------------------------------------------- #
+# Regiao / operadora -- uf, isp (RF09)
+# --------------------------------------------------------------------------- #
+
+
+def _inserir_sessao(pool, *, event_id, session_id, uf=None, isp=None, ts=None):
+    """Insere direto em `silver.session_event` com `uf`/`isp` explicitos.
+
+    NAO usa `inserir`/`_inserir_eventos` (helper compartilhado com o worker,
+    em `conftest.py`): aquele grava `uf`/`isp` como `NULL` sempre, porque
+    nenhum dos seis tipos reais de evento traz essas colunas hoje (comentario
+    em `006_silver.sql`). Este teste verifica o MECANISMO do filtro -- que
+    `EventFilters`/`filters_from_query` agora leem `uf`/`isp` da query string
+    e que o `WHERE` os aplica -- nao dado de producao real, que ainda nao
+    existe para essas duas colunas.
+    """
+    instante = ts or REFERENCE_NOW - timedelta(hours=1)
+    with pool.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO silver.session_event
+              (ts, event_id, event_name, session_id, device_id, uf, isp,
+               payload, available_at, _lsn)
+            VALUES (%s, %s, 'error', %s, %s, %s, %s, '{}', %s, 1)
+            """,
+            (instante, event_id, session_id, session_id, uf, isp, instante),
+        )
+
+
+def test_filtro_uf_restringe_a_regiao(client, pool):
+    _inserir_sessao(pool, event_id="e-rj", session_id="s-rj", uf="RJ")
+    _inserir_sessao(pool, event_id="e-sp", session_id="s-sp", uf="SP")
+
+    response = client.get("/api/v1/events?uf=RJ&limit=10")
+
+    assert response.status_code == 200
+    assert len(response.json["items"]) == 1
+    assert response.json["items"][0]["session_id"] == "s-rj"
+
+
+def test_filtro_isp_restringe_a_operadora(client, pool):
+    _inserir_sessao(pool, event_id="e-claro", session_id="s-claro", isp="Claro")
+    _inserir_sessao(pool, event_id="e-vivo", session_id="s-vivo", isp="Vivo")
+
+    response = client.get("/api/v1/events?isp=Claro&limit=10")
+
+    assert response.status_code == 200
+    assert len(response.json["items"]) == 1
+    assert response.json["items"][0]["session_id"] == "s-claro"
+
+
+def test_filtro_uf_e_isp_sao_cumulativos_com_os_demais(client, pool):
+    _inserir_sessao(pool, event_id="e-1", session_id="s-1", uf="RJ", isp="Claro")
+    _inserir_sessao(pool, event_id="e-2", session_id="s-2", uf="RJ", isp="Vivo")
+
+    response = client.get("/api/v1/events?uf=RJ&isp=Claro&limit=10")
+
+    assert len(response.json["items"]) == 1
+    assert response.json["items"][0]["session_id"] == "s-1"
+
+
+def test_breakdown_por_uf_ja_aceitava_a_dimensao_antes_do_fix(client, pool):
+    """`breakdown`/`facets` ja tinham `uf` na whitelist de agrupamento antes
+    desta mudanca (`COLUNAS_AGRUPAVEIS` em `postgres.py`) -- o gap era so no
+    filtro de busca (`EventFilters`). Este teste documenta que a parte que ja
+    funcionava continua funcionando, sem depender do fix novo."""
+    _inserir_sessao(pool, event_id="e-rj3", session_id="s-rj3", uf="RJ")
+    _inserir_sessao(pool, event_id="e-sp3", session_id="s-sp3", uf="SP")
+
+    response = client.get("/api/v1/metrics/breakdown?dimension=uf")
+
+    chaves = {grupo["key"] for grupo in response.json["groups"]}
+    assert {"RJ", "SP"} <= chaves
+
+
+# --------------------------------------------------------------------------- #
+# Crosstab -- heatmap de duas dimensoes (RF16)
+# --------------------------------------------------------------------------- #
+
+
+def test_crosstab_agrupa_por_duas_dimensoes(client, seeded):
+    response = client.get(
+        "/api/v1/metrics/crosstab?dimension_x=device_manufacturer&dimension_y=event_name"
+    )
+
+    assert response.status_code == 200
+    assert response.json["dimension_x"] == "device_manufacturer"
+    assert response.json["dimension_y"] == "event_name"
+    total = sum(celula["count"] for celula in response.json["cells"])
+    assert total == 6  # as seis fixtures, uma linha por combinacao (x, y)
+
+
+def test_crosstab_bate_com_dois_breakdowns_separados(client, seeded):
+    """Cada celula do crosstab tem que caber dentro do total do breakdown de
+    uma dimensao so -- e a garantia de que o GROUP BY 1, 2 nao esta duplicando
+    nem perdendo linha."""
+    breakdown = client.get("/api/v1/metrics/breakdown?dimension=device_manufacturer&limit=100").json
+    crosstab = client.get(
+        "/api/v1/metrics/crosstab?dimension_x=device_manufacturer&dimension_y=event_name"
+    ).json
+
+    por_fabricante = {}
+    for celula in crosstab["cells"]:
+        por_fabricante[celula["x"]] = por_fabricante.get(celula["x"], 0) + celula["count"]
+
+    for grupo in breakdown["groups"]:
+        assert por_fabricante.get(grupo["key"], 0) == grupo["count"]
+
+
+def test_crosstab_sem_dimension_x_e_422(client, seeded):
+    response = client.get("/api/v1/metrics/crosstab?dimension_y=event_name")
+
+    assert response.status_code == 422
+
+
+def test_crosstab_com_dimensao_invalida_e_422(client, seeded):
+    """`session_id`/`device_id` sao filtraveis mas nao agrupaveis -- alta
+    cardinalidade, o mesmo motivo que ja vale para `breakdown`."""
+    response = client.get(
+        "/api/v1/metrics/crosstab?dimension_x=device_manufacturer&dimension_y=session_id"
+    )
+
+    assert response.status_code == 422
