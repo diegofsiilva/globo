@@ -35,25 +35,51 @@ O sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `v
 
 ## Arquitetura
 
-São dois fluxos independentes ligados por um banco em comum: **ingestão** (aceita na borda, enfileira, valida de forma assíncrona e grava) e **leitura** (consulta, agrega e serve o dashboard).
+São **dois fluxos de ingestão** independentes que desembocam no mesmo banco, e um fluxo de leitura sobre ele.
+
+O primeiro fluxo é o de **eventos de sessão**: o que o app de TV emite (`request`, `screen_view`, `session`, `video_view`, `vitals`, `error`). O segundo é o de **mudanças (CDC)**: as 33 tabelas de telemetria do parceiro não chegam como evento, chegam como *linha que mudou* — e é isso que o simulador reproduz.
 
 ```
-App de TV ──> API Gateway ──> SQS ──> ECS Fargate ──> DynamoDB ──> Lambda ──> API Gateway ──> Dashboard
-             (ingestão)       │        (worker)                   (API de     (leitura)      (Next.js
-                              ▼                                   leitura)                    estático)
-                            SQS DLQ
+App de TV ──> API Gateway ──> SQS ──> ECS Fargate ─┐
+             (ingestão)                (event      │
+                                        worker)    │
+                                                   ├──> RDS PostgreSQL ──> Lambda ──> API Gateway ──> Dashboard
+Simulador ──> API Gateway ──> SQS ──> ECS Fargate ─┘   bronze/silver/gold   (API de    (leitura)      (Next.js
+ (ECS)       (mudanças)                (merge                                leitura)                  estático)
+                                        worker)
 ```
 
-| Camada | Responsabilidade | Serviço AWS |
-|--------|------------------|-------------|
-| API de ingestão | Recebe os eventos e publica na fila por integração direta, sem Lambda no caminho | API Gateway (HTTP API) |
-| Fila de mensagens | Absorve picos e garante a entrega; payload inválido vai para a DLQ com o motivo | SQS + DLQ |
-| Worker | Consome a fila por long polling, valida, deduplica e grava em lote | ECS Fargate (ARM64) |
-| Banco de dados | Tabela única com GSI1 (tipo + dia, com shard) e GSI2 (aparelho), TTL nativo | DynamoDB |
+Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
+
+| Camada | O que guarda | Por que existe |
+|--------|--------------|----------------|
+| `bronze` | `change_log` (append-only) + uma tabela *corrente* por tabela de origem, e `event` para o grain de sessão | O log é a fonte de verdade; a corrente é o MERGE dele. Dá para reconstruir a corrente do zero a partir do log |
+| `silver` | `signal_point`, `signal_bucket`, `session_event` | Canonicaliza vocabulários que não se falam (`epoch_ms`, `ts`, `bts`, `ts_ms`, `hour_ts`, `start_ts`) num par `(ts, valor)` |
+| `gold` | `feature_bucket`, `incident_window`, `live_event_window`, `circadian_state` | Traços de 15 min prontos para o dashboard, com hora local, dia da semana e "tem jogo" |
+| `detect` | `run`, `anomaly` | Existe e está vazia: o detector é trabalho da próxima sprint, mas o contrato da API já é o final |
+
+| Componente | Responsabilidade | Serviço AWS |
+|------------|------------------|-------------|
+| API de ingestão | Recebe os eventos de sessão e publica na fila por integração direta, sem Lambda no caminho | API Gateway (HTTP API) |
+| API de mudanças | Recebe os *change events* do simulador, mesma integração direta | API Gateway (HTTP API) |
+| Filas | Absorvem picos e garantem a entrega; payload inválido vai para a DLQ com o motivo | SQS + DLQ (duas filas) |
+| Event worker | Consome a fila de eventos, valida e grava em `bronze.event` | ECS Fargate (ARM64) |
+| Merge worker | Grava o change event em `bronze.change_log` e faz o MERGE na tabela corrente, na **mesma transação** | ECS Fargate (ARM64) |
+| Simulador | Anda um relógio virtual e reemite as mudanças das tabelas como se estivessem acontecendo agora | ECS Fargate (ARM64) |
+| Banco de dados | 33 tabelas de origem (68,7 M linhas), 6 delas particionadas por dia | RDS PostgreSQL 16 |
+| Carga inicial | Sobe as 33 tabelas a partir de Parquet, via `COPY FROM STDIN` | ECS Fargate (task one-shot) |
 | API de leitura | Filtros cumulativos, agregações, paginação por cursor e redação de dado pessoal | AWS Lambda (Flask) + API Gateway |
 | Dashboard | Visualização e investigação de incidentes | S3 (site estático) |
 
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura.md`](artefatos/arquitetura.md).
+### O relógio virtual
+
+O dataset do parceiro é um **dump do passado**. Um dashboard "ao vivo" sobre ele mostraria uma tela vazia, porque nada tem a data de hoje. Por isso o sistema tem um presente próprio: `sim.now()`.
+
+Toda linha carrega um `available_at` — o instante em que a informação *ficaria disponível na vida real*, contando a latência da fonte (a NPAW entrega com 28 h de atraso; o Prometheus, com 1 min). E **toda** view `v_*` filtra `available_at <= sim.now()`.
+
+Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem um detector futuro conseguem enxergar um dado antes da hora em que ele existiria.
+
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura.md`](artefatos/arquitetura.md) e no [plano da v3](artefatos/plano-argus-v3.md).
 
 > **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
@@ -63,11 +89,16 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
+| `/apps/basica/db/migrations` | As 14 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
-| `/apps/basica/worker` | Worker de ingestão, que consome o SQS e grava no DynamoDB |
+| `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
+| `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
+| `/apps/basica/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
+| `/apps/basica/processing` | Serviço de processamento; hoje um no-op documentado, futura casa do detector |
+| `/apps/basica/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
 | `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
-| `/apps/basica/tools` | Conversão dos CSVs de evento, replay para a API e ETL do dump |
+| `/apps/basica/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
 | `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
 | `/artefatos` | Documentação das sprints: negócio, UX, requisitos, arquitetura e MVP |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
@@ -87,7 +118,7 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 - Python 3.12 ou superior
 - [uv](https://docs.astral.sh/uv/), que monta os ambientes a partir do `pyproject.toml` de cada app
 - Node.js 20+ (para o dashboard)
-- Docker (para construir a imagem do worker)
+- Docker (para o PostgreSQL local e para construir as imagens dos serviços)
 - Terraform 1.x (para a infraestrutura)
 - Credenciais AWS configuradas (`aws sts get-caller-identity` deve responder)
 
@@ -100,23 +131,28 @@ Em Codespaces ou VS Code, tudo o que segue funciona sem configuração adicional
 git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
 cd g04
 
-# 2. instalar as dependências dos dois apps Python
+# 2. instalar as dependências dos apps Python
 make -C apps/basica install
 
-# 3. rodar a suíte de testes (58 do worker + 72 do backend)
+# 3. subir um PostgreSQL 16 local e aplicar as 14 migrations
+make -C apps/basica db-local
+
+# 4. rodar a suíte de testes (66 do worker + 85 do backend)
 make -C apps/basica test
 
-# 4. para usar serviços publicados, gerar as variáveis após o primeiro
+# 5. para usar serviços publicados, gerar as variáveis após o primeiro
 #    terraform apply descrito na seção "Execução na AWS"
 make -C apps/basica env
 
-# 5. subir a API de leitura local, apontando para o DynamoDB publicado
+# 6. subir a API de leitura local, apontando para o banco local
 make -C apps/basica api
 
-# 6. subir o dashboard contra a API publicada
+# 7. subir o dashboard contra a API publicada
 make -C apps/basica frontend-install
 make -C apps/basica frontend-dev
 ```
+
+O `db-local` sobe o container `argus-pg` na porta **55432** (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations. `make db-stop` derruba, `make db-psql` abre um `psql` dentro dele.
 
 | Serviço | Porta local | Como subir |
 |---------|-------------|------------|
@@ -131,11 +167,13 @@ python apps/basica/backend/run.py
 
 Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask** — é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`. Para apenas instalar, testar e analisar o código, não é necessário gerar o `.env` nem possuir credenciais AWS.
 
-O worker não é executado localmente contra a fila real: use `make -C apps/basica worker-image` para construir a imagem e `make -C apps/basica replay` para reenviar os eventos de exemplo à API de ingestão publicada.
+Os workers não são executados localmente contra a fila real: use `make -C apps/basica images` para construir as quatro imagens e `make -C apps/basica replay` para reenviar os eventos de exemplo à API de ingestão publicada.
 
 ### Sem credenciais AWS
 
-Os testes rodam contra um DynamoDB falso (moto), então os alvos `test` e `lint` funcionam sem nenhuma configuração de nuvem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
+Os testes usam um SQS falso (moto) mas um PostgreSQL **de verdade**, porque a parte difícil deste sistema é o SQL — o MERGE idempotente, o keyset de paginação, a barreira do `available_at`. Um dublê que respondesse "ok" a tudo isso testaria apenas o dublê.
+
+Com `make db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são **pulados** em vez de quebrarem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
 
 > **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore` — o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). Enquanto as APIs não tiverem autenticação, a URL é a única barreira de acesso aos dados.
 
@@ -145,48 +183,63 @@ Outros alvos úteis, todos com o prefixo `make -C apps/basica`: `lint`, `check`,
 
 ## Execução na AWS
 
-Toda a infraestrutura é provisionada por Terraform em [`apps/basica/infra`](apps/basica/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado (~US$ 14/mês para 1 milhão de eventos/mês).
+Toda a infraestrutura é provisionada por Terraform em [`apps/basica/infra`](apps/basica/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado.
 
 | Recurso | Configuração |
 |---------|--------------|
 | API Gateway (ingestão) | HTTP API com integração direta `SQS-SendMessage` |
-| SQS | Fila `argus-events-<ambiente>` com DLQ e redrive de 5 tentativas |
-| ECS Fargate | 0.25 vCPU / 0.5 GB, ARM64, subnet pública sem regra de entrada |
-| DynamoDB | Tabela única `argus-events-<ambiente>`, com GSI1, GSI2 e TTL |
+| API Gateway (mudanças) | HTTP API com integração direta `SQS-SendMessage`, fila separada |
+| SQS | Duas filas (`events` e `changes`), cada uma com DLQ e redrive de 5 tentativas |
+| ECS Fargate | Quatro serviços ARM64 (merge worker, event worker, simulador, processamento) e uma task one-shot (carga) |
+| RDS PostgreSQL 16 | `db.t3.medium`, 100 GB gp3, 33 tabelas de origem, 6 particionadas por dia |
+| S3 (origem) | Bucket versionado com o dump e os Parquet que alimentam a carga inicial |
 | Lambda + API Gateway | API de leitura, empacotada por `scripts/build_lambda.sh` |
-| S3 | Bucket com website hosting, que serve o export estático do dashboard |
-| CloudWatch | Namespace `Argus/Ingestion` com 5 alarmes |
+| S3 (site) | Bucket com website hosting, que serve o export estático do dashboard |
+| CloudWatch | Namespace `Argus/Ingestion` com alarmes de fila, banco e atraso do relógio virtual |
 
 ### Passos de implantação
 
 Credenciais primeiro: [`artefatos/mvp-inicial.md` §6.2](artefatos/mvp-inicial.md#62-conectar-o-terraform-ao-aws-academy-learner-lab)
 mostra como pegar as credenciais do AWS Academy Learner Lab em **AWS Details →
-AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`. Com
-`aws sts get-caller-identity` respondendo a conta certa:
+AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`.
+
+> **O id da conta do Learner Lab muda a cada sessão nova.** Antes do apply, confira com `aws sts get-caller-identity --profile g4 --query Account --output text` e atualize o `existing_role_arn` do `terraform.tfvars`. E **todo** comando `aws` deste projeto leva `--profile g4`: sem ele a CLI usa o profile default, que é outra conta.
 
 ```bash
 # 1. empacota a API de leitura — o Terraform precisa do zip já no plan
 make -C apps/basica install
 make -C apps/basica lambda-build
 
-# 2. cria a infraestrutura sem o worker (o ECR nasce vazio)
+# 2. cria a infraestrutura sem os serviços (o ECR nasce vazio)
 cd apps/basica/infra
-cp terraform.tfvars.example terraform.tfvars
+cp terraform.tfvars.example terraform.tfvars   # e preencha
 terraform init
-terraform apply -var="worker_desired_count=0"
+terraform apply -var="worker_desired_count=0" -var="processing_desired_count=0"
 
-# 3. publica a imagem do worker no ECR
-cd ../../.. && make -C apps/basica worker-deploy
+# 3. publica as quatro imagens no ECR
+cd ../../.. && make -C apps/basica push
 
-# 4. liga o worker
-cd apps/basica/infra && terraform apply -var="worker_desired_count=1"
+# 4. aplica as migrations e cria o usuário de leitura
+make -C apps/basica db-url        # mostra como montar a DATABASE_URL
+make -C apps/basica migrate
+make -C apps/basica db-reader
 
-# 5. gera o .env a partir dos outputs e publica o dashboard
-cd ../../..
+# 5. carga inicial: sobe o Parquet e dispara a task (20 a 30 min, 68,7 M linhas)
+make -C apps/basica parquet       # só na primeira vez: dump MySQL -> Parquet
+make -C apps/basica origem-sync
+make -C apps/basica load
+
+# 6. liga os workers e, depois que a carga terminar, o simulador
+cd apps/basica/infra && terraform apply
+cd ../../.. && make -C apps/basica sim-on
+
+# 7. gera o .env a partir dos outputs e publica o dashboard
 make -C apps/basica env
 make -C apps/basica frontend-install
 make -C apps/basica frontend-deploy      # imprime o endereço público do dashboard
 ```
+
+O simulador fica desligado até a carga terminar de propósito: simular mudança sobre tabela vazia não produz nada útil.
 
 Nos deploys seguintes, `make -C apps/basica deploy` testa, empacota, aplica e roda o smoke num
 comando só.
@@ -195,12 +248,13 @@ Verificação:
 
 ```bash
 make -C apps/basica smoke      # confere as rotas da API publicada
-make -C apps/basica postman    # roda a coleção Postman contra as duas APIs
-make -C apps/basica count      # conta os eventos armazenados
-make -C apps/basica dlq        # mostra os eventos rejeitados, com o motivo
+make -C apps/basica postman    # roda a coleção Postman contra as APIs
+make -C apps/basica count      # conta as linhas carregadas por camada
+make -C apps/basica dlq        # mostra o que foi rejeitado, com o motivo
+make -C apps/basica logs SERVICO=worker    # worker|simulator|processing|loader
 ```
 
-Para economizar crédito do lab, os alvos `pause` e `resume` desligam e religam o worker sem destruir nada.
+Para economizar crédito do lab, `pause` e `resume` desligam e religam os serviços sem destruir nada — o RDS continua de pé, que é o que guarda o trabalho da carga.
 
 ---
 
@@ -209,8 +263,10 @@ Para economizar crédito do lab, os alvos `pause` e `resume` desligam e religam 
 | Artefato | Descrição |
 |----------|-----------|
 | [MVP inicial](artefatos/mvp-inicial.md) | O que está implantado, modelo de dados e relatório de testes |
+| [Plano da v3](artefatos/plano-argus-v3.md) | A migração de DynamoDB para RDS: camadas, CDC, relógio virtual e carga inicial |
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
+| [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
 | [Arquitetura](artefatos/arquitetura.md) | Fluxos, modelo de dados, decisões de projeto, segurança, custo e validação |
 | [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |

@@ -259,7 +259,7 @@ mapa, cruzamentos entre camadas correm o risco de comparar períodos diferentes.
 md("## 1.1. Volumetria por tabela")
 
 code(
-    '''
+    """
 # domínio de cada tabela — usado para agrupar a leitura ao longo do notebook
 DOMINIO = {
     "signal_point": "Infra", "signal_bucket": "Infra", "signal_meta": "Coleta",
@@ -310,11 +310,11 @@ print(f"total: {inv.linhas.sum():,} linhas em {len(inv)} tabelas | "
       f"{inv.parquet_mb.sum() / 1000:.2f} GB em Parquet "
       f"(dump SQL original: {MANIFEST['dump_bytes'] / 1e9:.2f} GB)")
 inv
-'''
+"""
 )
 
 code(
-    '''
+    """
 # A escala entre tabelas é de várias ordens de grandeza: eixo logarítmico, e o
 # rótulo direto em cada barra dispensa a leitura do eixo.
 d = inv[inv.linhas > 0]
@@ -339,7 +339,7 @@ titulo(ax, "Volumetria por tabela",
        "prom_point e signal_point concentram a maior parte das linhas do dump")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md(
@@ -356,7 +356,7 @@ tratar a telemetria sob demanda.
 md("## 1.2. Cobertura temporal")
 
 code(
-    '''
+    """
 d = inv.dropna(subset=["inicio"]).sort_values("inicio")
 f, ax = fig(9.5, 7.0)
 y = np.arange(len(d))
@@ -382,7 +382,7 @@ plt.show()
 nucleo = d[d.linhas > 1000]
 print(f"janela comum às tabelas com >1k linhas: "
       f"{nucleo.inicio.max():%Y-%m-%d} a {nucleo.fim.min():%Y-%m-%d}")
-'''
+"""
 )
 
 md(
@@ -483,7 +483,7 @@ continuidade — porque cada uma invalida um tipo diferente de conclusão adiant
 md("## 2.1. Preenchimento das colunas")
 
 code(
-    '''
+    """
 nulos = []
 for t in TABLES:
     n = inv.loc[inv.tabela == t, "linhas"].iloc[0]
@@ -502,11 +502,11 @@ print(f"{len(nulos)} colunas analisadas em {nulos.tabela.nunique()} tabelas")
 print(f"{len(vazias)} colunas 100% nulas | "
       f"{len(nulos[nulos.pct_nulo.between(0.001, 100, inclusive='left')])} parcialmente nulas")
 vazias[["tabela", "coluna"]].reset_index(drop=True)
-'''
+"""
 )
 
 code(
-    '''
+    """
 # Só as colunas que de fato têm nulos entram no gráfico — listar as completas
 # não informa nada.
 d = nulos[nulos.pct_nulo > 0].sort_values("pct_nulo", ascending=False).head(30)
@@ -534,13 +534,13 @@ titulo(ax, "Colunas com valores ausentes — 30 maiores",
        "percentual de linhas sem valor na coluna")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md("## 2.2. Cardinalidade e colunas constantes")
 
 code(
-    '''
+    """
 # Coluna constante não separa nada: ou o campo foi zerado na sanitização, ou o
 # recorte cedido tem um valor só. Em ambos os casos ela não serve de dimensão.
 card = []
@@ -561,11 +561,11 @@ print(f"{len(const)} colunas constantes ou vazias em tabelas com >100 linhas:")
 const.merge(nulos.drop(columns="linhas"), on=["tabela", "coluna"])[
     ["tabela", "coluna", "distintos", "pct_nulo", "linhas"]
 ].reset_index(drop=True)
-'''
+"""
 )
 
 code(
-    '''
+    """
 # Dimensões de alta cardinalidade são as candidatas naturais a recorte de
 # investigação — e as que mais pesam no custo de uma suíte comercial cobrada
 # por cardinalidade.
@@ -578,13 +578,13 @@ titulo(ax, "Dimensões de maior cardinalidade",
        "valores distintos por coluna, excluindo colunas de tempo")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md("## 2.3. Integridade: chaves e referências")
 
 code(
-    '''
+    """
 # Chaves primárias declaradas no DDL. Duplicata aqui indicaria falha do dump.
 PK = {
     "signal_point": ["ts", "source", "entity", "metric"],
@@ -624,7 +624,7 @@ for t, k in PK.items():
 pk = pd.DataFrame(res)
 print("PKs com duplicata:", (pk.duplicatas > 0).sum(), "de", len(pk))
 pk.sort_values("duplicatas", ascending=False).reset_index(drop=True)
-'''
+"""
 )
 
 code(
@@ -706,7 +706,7 @@ cont
 )
 
 code(
-    '''
+    """
 d = cont.sort_values("cobertura_pct")
 f, ax = fig(9.5, 4.2)
 y = np.arange(len(d))
@@ -732,7 +732,7 @@ titulo(ax, "Continuidade da coleta, hora a hora",
        "horas com ao menos uma linha sobre o total de horas do intervalo coberto")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md(
@@ -747,7 +747,7 @@ só que sobre menos amostras.
 md("## 2.5. Valores fora do domínio esperado")
 
 code(
-    '''
+    """
 # Regras de sanidade derivadas do significado de cada campo: contagem não é
 # negativa, percentual vive em [0,100], Apdex em [0,1], percentis são monótonos.
 checagens = [
@@ -801,16 +801,16 @@ for t, nome, cond in checagens:
 san = pd.DataFrame(res)
 print(f"{(san.violacoes > 0).sum()} de {len(san)} regras violadas")
 san[san.violacoes > 0].sort_values("violacoes", ascending=False).reset_index(drop=True)
-'''
+"""
 )
 
 code(
-    '''
+    """
 ok = san[san.violacoes == 0]
 print(f"regras sem nenhuma violação ({len(ok)}):")
 for r in ok.itertuples():
     print(f"  ✓ {r.tabela:<22} {r.regra}")
-'''
+"""
 )
 
 # =========================================================================== #
@@ -859,7 +859,7 @@ sp
 )
 
 code(
-    '''
+    """
 f, (a1, a2) = plt.subplots(1, 2, figsize=(9.5, 3.6))
 barras_h(a1, sp.source, sp.linhas.values, color=CAT[0])
 titulo(a1, "Volume por fonte", "linhas em signal_point")
@@ -867,7 +867,7 @@ barras_h(a2, sp.source, sp.entidades.values, color=CAT[2])
 titulo(a2, "Entidades distintas por fonte", "cardinalidade do campo entity")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 code(
@@ -1171,7 +1171,7 @@ d
 )
 
 code(
-    '''
+    """
 # Apdex resume a satisfação do usuário; taxa de erro resume a falha dura. Um
 # scatter mostra que as duas não são redundantes.
 f, ax = fig(9.5, 4.6)
@@ -1194,7 +1194,7 @@ titulo(ax, "Apdex × taxa de erro por aplicação",
        "área do círculo proporcional ao throughput médio (rpm)")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 code(
@@ -1244,7 +1244,7 @@ d
 )
 
 code(
-    '''
+    """
 f, (a1, a2) = plt.subplots(1, 2, figsize=(11.0, 5.4))
 top = d.head(12)
 barras_h(a1, [o[:34] for o in top.operation_name], top.req.values, color=CAT[0])
@@ -1267,7 +1267,7 @@ a2.legend(ncol=3, loc="lower right", bbox_to_anchor=(1, -0.16))
 titulo(a2, "Latência por operação", "mediana de cada percentil; mesma ordem")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 code(
@@ -1314,7 +1314,7 @@ d
 )
 
 code(
-    '''
+    """
 ativos = d.dropna(subset=["permitido"]).head(10)
 f, ax = fig(9.5, 4.4)
 y = np.arange(len(ativos))
@@ -1334,7 +1334,7 @@ titulo(ax, "Tráfego permitido e bloqueado por aplicação",
        "Cloud Armor — ca_point")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md("## 3.7. Mudanças na plataforma: `tsuru_event`")
@@ -1373,7 +1373,7 @@ d
 )
 
 code(
-    '''
+    """
 f, (a1, a2) = plt.subplots(1, 2, figsize=(11.0, 5.0))
 top = d.head(12)
 barras_h(a1, [k[:36] for k in top.kind], top.n.values, color=CAT[0])
@@ -1383,7 +1383,7 @@ barras_h(a2, [k[:36] for k in top.kind], top.pct_erro.values,
 titulo(a2, "Falha por tipo de evento", "% dos eventos com campo error preenchido")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 code(
@@ -1449,7 +1449,7 @@ d.head(20)
 )
 
 code(
-    '''
+    """
 # Volume e taxa de erro respondem perguntas diferentes: o player que mais falha
 # raramente é o que mais roda. Dois painéis, mesma ordem de linhas.
 top = d.head(16).copy()
@@ -1478,7 +1478,7 @@ a2.set_xlim(0, top.pct_erro.max() * 1.25)
 titulo(a2, "Taxa de erro por player", "mesma ordem do gráfico à esquerda")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md(
@@ -1529,7 +1529,7 @@ d.head(15)
 )
 
 code(
-    '''
+    """
 # Onde a falha se concentra: modelos com volume relevante e erro muito acima da
 # média são exatamente o recorte que a média nacional esconde.
 media = 100 * d.erros.sum() / d.sessoes.sum()
@@ -1544,7 +1544,7 @@ titulo(ax, "Modelos de maior taxa de erro entre os de alto volume",
        f"apenas modelos acima do percentil 98,5 de sessões ({corte:,.0f}+)")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md("## 4.3. Geografia e operadora")
@@ -1646,7 +1646,7 @@ d.head(20)
 )
 
 code(
-    '''
+    """
 # Volume x erro para os sinais principais; sinais de alto volume e alto erro são
 # o alvo prioritário.
 top = d.head(20)
@@ -1666,11 +1666,11 @@ titulo(ax, "Sinais ao vivo: volume × erro",
        "área do círculo proporcional ao buffer ratio médio")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 code(
-    '''
+    """
 # As métricas de QoE medem coisas diferentes ou são redundantes? A matriz de
 # correlação responde — e escala divergente é a forma certa para polaridade.
 cols = ["pct_erro", "buffer_pct", "jointime_s", "latencia_ms", "travamentos",
@@ -1698,7 +1698,7 @@ titulo(ax, "Correlação entre métricas de QoE",
        "por sinal ao vivo — azul: mesma direção, vermelho: direções opostas")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md("## 4.5. Sessões ativas em janela de 15 minutos")
@@ -1946,7 +1946,7 @@ d
 )
 
 code(
-    '''
+    """
 f, (a1, a2) = plt.subplots(1, 2, figsize=(11.0, 3.8))
 barras_h(a1, d.prioridade, d.chamados.values, color=CAT[0])
 titulo(a1, "Chamados por prioridade", "volume no período")
@@ -1959,7 +1959,7 @@ titulo(a2, "Tempo mediano até a resolução",
        "minutos entre abertura e resolução do chamado")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md(
@@ -2187,7 +2187,7 @@ d
 )
 
 code(
-    '''
+    """
 f, (a1, a2) = plt.subplots(1, 2, figsize=(11.0, 4.8))
 top = d.nlargest(14, "custo_usd")
 barras_h(a1, top.fonte, top.custo_usd.values, color=CAT[1], fmt="US$ {:,.2f}")
@@ -2197,7 +2197,7 @@ barras_h(a2, top2.fonte, top2.execucoes.values, color=CAT[0])
 titulo(a2, "Execuções por fonte", "número de rodadas do coletor")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md(
@@ -2238,7 +2238,7 @@ plt.show()
 )
 
 code(
-    '''
+    """
 # Saúde dos coletores especializados.
 for t, nome in [("prom_run", "Prometheus"), ("nr_run", "New Relic"),
                 ("apollo_run", "Apollo"), ("ca_run", "Cloud Armor"),
@@ -2260,7 +2260,7 @@ for t, nome in [("prom_run", "Prometheus"), ("nr_run", "New Relic"),
     print(f"--- {nome} ({t})")
     print(q(f"SELECT {sel} FROM {t}").to_string(index=False))
     print()
-'''
+"""
 )
 
 code(
@@ -2328,7 +2328,7 @@ o outro. É o teste de viabilidade da premissa central da solução proposta.
 md("## 7.1. A janela realmente comum")
 
 code(
-    '''
+    """
 CHAVE = {
     "prom_point": "epoch_ms", "signal_point": "ts", "signal_bucket": "bts",
     "rpaas_bucket": "bucket_ts_ms", "ca_point": "ts_ms",
@@ -2356,7 +2356,7 @@ print(f"  {T0:%Y-%m-%d %H:%M} → {T1:%Y-%m-%d %H:%M} UTC "
 MS0, MS1 = int(T0.timestamp() * 1000), int(T1.timestamp() * 1000)
 
 lim[["tabela", "inicio", "fim"]].sort_values("inicio").reset_index(drop=True)
-'''
+"""
 )
 
 code(
@@ -2440,7 +2440,7 @@ painel.head()
 )
 
 code(
-    '''
+    """
 cols = ["qoe_erro_pct", "buffer", "jointime", "latencia", "sessoes",
         "borda_5xx_pct", "borda_4xx_pct", "req",
         "apm_erro_pct", "apdex", "apm_tempo", "gql_erro_pct", "gql_p99"]
@@ -2472,11 +2472,11 @@ titulo(ax, "QoE × infraestrutura, na grade horária",
        "linha preta separa métricas de experiência (acima) das de infra")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 code(
-    '''
+    """
 # Ranking explícito: o que mais se associa ao erro percebido pelo assinante?
 alvo = "qoe_erro_pct"
 infra = ["borda_5xx_pct", "borda_4xx_pct", "req",
@@ -2508,7 +2508,7 @@ titulo(ax, "O que acompanha o erro percebido pelo assinante",
        "azul: sobe junto · vermelho: move em direção oposta")
 plt.tight_layout()
 plt.show()
-'''
+"""
 )
 
 md(

@@ -1,11 +1,35 @@
-# API de leitura dos eventos
+# API de leitura
 
-API Flask que serve os eventos de telemetria para a dashboard. **Somente
-leitura**: a entrada de eventos é o pipeline
-`API Gateway → SQS → ECS Fargate → DynamoDB` (ver [`worker/`](../worker) e
-[`infra/`](../infra)).
+API Flask que serve a telemetria para a dashboard. **Somente leitura**: a
+entrada é o pipeline `API Gateway → SQS → ECS Fargate → RDS PostgreSQL` (ver
+[`worker/`](../worker) e [`infra/`](../infra)).
 
 Publicada em Lambda + API Gateway.
+
+Ela lê dois grains diferentes, e por isso tem dois adaptadores:
+
+| Adaptador | Grain | Serve |
+|---|---|---|
+| `infrastructure/postgres.py` | evento individual de sessão | busca, filtros, breakdown, série, facetas |
+| `infrastructure/gold.py` | bucket agregado de 15 min | relógio, séries de telemetria, incidentes, transmissões, anomalias |
+
+São separados de propósito: um repositório único teria dois conjuntos de métodos
+que nunca se cruzam, e a `EventFilters` acabaria com campos que só metade dos
+métodos usa.
+
+## A regra que vale para toda consulta
+
+**Nenhuma query toca uma tabela base.** Todas apontam para uma view `v_*`, e
+toda view `v_*` filtra `available_at <= sim.now()`.
+
+O usuário do banco que a Lambda usa (`argus_reader`) tem `SELECT` só nas views —
+não é uma convenção que se possa esquecer de seguir, é um `GRANT`. Uma consulta
+escrita contra a tabela base falha com permissão negada.
+
+Isso existe porque o dataset é um dump do passado sendo reproduzido por um
+relógio virtual. Sem a barreira, a API mostraria dados que, na linha do tempo
+simulada, ainda não teriam acontecido — e um detector treinado sobre eles estaria
+enxergando o futuro.
 
 ## Documentação interativa
 
@@ -31,15 +55,11 @@ cd apps/basica/infra
 terraform output -raw read_api_url
 ```
 
-Depois, no `.env` da raiz:
-
-```bash
-ARGUS_API_URL=https://...
-```
-
 ---
 
 ## Rotas
+
+### Eventos de sessão
 
 | Rota | Para quê | Requisito |
 |---|---|---|
@@ -50,8 +70,41 @@ ARGUS_API_URL=https://...
 | `GET /api/v1/metrics/breakdown?dimension=` | agrupamento e contagem | RF11 |
 | `GET /api/v1/metrics/timeseries?compare=true` | série temporal e comparação | RF12, RF14, RF15 |
 | `GET /api/v1/facets?field=` | valores existentes para os filtros | RF10 |
-| `GET /health/live` · `GET /health/ready` | saúde | — |
-| `GET /docs` · `GET /openapi.json` | documentação | — |
+
+### Telemetria (camada gold)
+
+| Rota | Para quê |
+|---|---|
+| `GET /api/v1/clock` | o instante virtual, a velocidade e o último reposicionamento |
+| `GET /api/v1/series` | pontos de `gold.feature_bucket`, por fonte/entidade/métrica |
+| `GET /api/v1/sources` | as fontes disponíveis via `gold.v_source_series` e o quão recente é cada uma |
+| `GET /api/v1/incidents` | janelas de incidente rotuladas |
+| `GET /api/v1/live-events` | calendário de transmissões ao vivo |
+| `GET /api/v1/anomalies` | saída do detector |
+
+| Rota | Para quê |
+|---|---|
+| `GET /health/live` · `GET /health/ready` | saúde |
+| `GET /docs` · `GET /openapi.json` | documentação |
+
+`/clock` não é curiosidade: a tela é marcada "ao vivo", então ela precisa saber
+que horas são no mundo virtual. Sem isso, "agora" no dashboard seria o relógio do
+navegador, que não tem relação nenhuma com o que o banco está mostrando — e a
+tela pareceria vazia sem explicar por quê.
+
+`/sources` não agrega `gold.v_feature_bucket` a cada request. Com a carga real,
+os dois `count(DISTINCT ...)` sobre 4,9 milhões de buckets levaram 47,4 s e
+estouraram o timeout da Lambda. A rota lê o catálogo derivado
+`gold.v_source_series` e faz apenas uma sondagem indexada por fonte para obter o
+bucket mais recente; o mesmo `sim.now()` continua impedindo vazamento de futuro.
+
+`/anomalies` devolve lista vazia enquanto não houver detector. A rota existe
+desde já para que o dashboard seja escrito contra o contrato final.
+
+`/incidents` **exclui** por padrão os rótulos `detector-derived`: sete dos vinte
+rótulos de `incident_label` foram criados olhando a saída do próprio Argus, e
+avaliar um detector novo contra eles mediria concordância com o baseline, não
+acurácia. Para incluí-los é preciso pedir explicitamente.
 
 Filtros aceitos em `/events` e nas métricas, todos combináveis: `session_id`,
 `device_id`, `event_name`, `app_env`, `app_target`, `app_version`, `app_bucket`,
@@ -61,12 +114,14 @@ Filtros aceitos em `/events` e nas métricas, todos combináveis: `session_id`,
 ### Exemplos
 
 ```bash
-source ../../.env       # define ARGUS_API_URL
+source ../.env       # define ARGUS_API_URL
 API="$ARGUS_API_URL"
 
+curl "$API/api/v1/clock"
+curl "$API/api/v1/series?source=prometheus&metric=error_rate&window_hours=48"
+curl "$API/api/v1/incidents?limit=10"
 curl "$API/api/v1/events?event_name=error&device_os=WebOS&limit=20"
 curl "$API/api/v1/metrics/breakdown?dimension=device_manufacturer"
-curl "$API/api/v1/metrics/timeseries?from=2026-08-01T00:00:00Z&to=2026-08-12T00:00:00Z&compare=true"
 curl "$API/api/v1/facets?field=event_name&field=app_target"
 ```
 
@@ -77,89 +132,108 @@ curl "$API/api/v1/facets?field=event_name&field=app_target"
 **`query`** aparece em toda busca:
 
 ```json
-{"strategy": "gsi1:fanout", "queries": 80, "scanned": 50, "returned": 5}
+{"strategy": "indice_tipo_e_tempo", "scanned": 50, "returned": 5}
 ```
 
-Isso não é debug — é o custo da consulta. Num banco que cobra por item lido, a
-diferença entre `scanned` e `returned` é a conta do filtro que roda depois da
-query, e `strategy` diz qual caminho de acesso foi usado:
+Isso não é debug — é o custo da consulta. `strategy` diz qual caminho de acesso
+foi usado:
 
 | `strategy` | Quando | Custo |
 |---|---|---|
-| `table:session` | você passou `session_id` | 1 query, exato |
-| `gsi2:device` | você passou `device_id` | 1 query |
-| `gsi1:fanout` | você passou `event_name` | N queries paralelas (dias × shards) |
-| `table:scan` | nenhum dos três | varre a tabela |
+| `indice_sessao` | você passou `session_id` | índice, exato |
+| `indice_aparelho` | você passou `device_id` | índice |
+| `indice_tipo_e_tempo` | você passou `event_name` | índice composto |
+| `particao_por_tempo` | nenhum dos três | varre as partições da janela |
 
-**Sempre que puder, informe `event_name`, `session_id` ou `device_id`.** Sem
-nenhum deles não existe chave de partição e só resta varrer.
+Na v2 a diferença era de custo por item lido; aqui é entre usar índice e varrer
+partição. **Sempre que puder, informe `event_name`, `session_id` ou
+`device_id`.**
 
-**`next_cursor`** pagina. Passe de volta em `?cursor=`. É opaco: no fan-out ele
-guarda a posição de cada partição, porque as partições avançam em ritmos
-diferentes no merge por tempo.
+**`next_cursor`** pagina. Passe de volta em `?cursor=`. É paginação por *keyset*
+e não por `OFFSET`: o cursor carrega a posição exata da última linha lida, então
+o custo da página 200 é igual ao da página 1. É opaco (base64) porque o formato
+interno é livre para mudar.
+
+Cursor corrompido devolve **422**, não a primeira página em silêncio: um laço de
+paginação com token quebrado giraria para sempre lendo o mesmo trecho.
 
 ---
 
 ## Privacidade (RNF10)
 
-O worker grava o evento como o aparelho enviou, então o DynamoDB tem `user_id`
-em claro e o header `authorization`. **A redação acontece na saída da API**, não
-na entrada:
+A bronze guarda o evento como o aparelho enviou — `user_id` em claro e o header
+`authorization` inclusive, porque é isso que a origem manda. **A redação
+acontece na saída da API**, não na entrada:
 
-- `user_id` → `user_id_hash` (SHA-256 com salt, truncado)
+- `user_id` → `user_id_hash` (SHA-256 com salt, truncado em 16 caracteres)
 - `request_headers` → só a allowlist em `application/redaction.py`
 - `request_url` → query string sem `token`, `access_token`, `user_id`
 - `response_headers` → removido inteiro
 
-O dado bruto continua no banco para quem tiver acesso direto e justificativa; o
-que trafega para a tela é a versão reduzida.
+O salt é fixo, o que preserva o agrupamento: dá para dizer "estes 40 eventos são
+do mesmo usuário" sem saber de quem. O dado bruto continua no banco para quem
+tiver acesso direto e justificativa; o que trafega para a tela é a versão
+reduzida.
 
 ---
 
 ## Rodar local
 
-```bash
-cd apps/basica/backend
-uv run --with flask --with boto3 python lambda_handler.py
-```
-
-Aponta para o DynamoDB real usando o profile da sua AWS:
+Com um PostgreSQL local (`make -C .. db-local`):
 
 ```bash
-AWS_PROFILE=g4 EVENTS_TABLE_NAME=argus-events-dev GSI1_SHARDS=10 \
-  uv run --with flask --with boto3 python lambda_handler.py
+make -C .. api
 ```
 
-Ou via compose (ver [`compose.yaml`](compose.yaml), que também explica como
-usar um DynamoDB local).
+Ou direto, apontando para onde você quiser:
+
+```bash
+DATABASE_URL=postgresql://argus:argus@localhost:55432/argus \
+  uv run --extra dev python lambda_handler.py
+```
+
+Contra o banco publicado, monte a URL com `make -C .. db-url`. Repare que a
+Lambda em produção usa o usuário `argus_reader`, não o dono do schema — se você
+rodar local com o dono, consultas que a produção recusaria vão passar.
 
 ### Variáveis
 
 | Variável | Padrão | Observação |
 |---|---|---|
-| `EVENTS_TABLE_NAME` | `argus-events-dev` | tabela que o worker escreve |
+| `DATABASE_URL` | — | obrigatória; sem ela o `/health/ready` falha |
 | `AWS_REGION` | `us-east-1` | |
-| `GSI1_SHARDS` | `10` | **precisa bater** com o Terraform e o worker |
 | `USER_ID_HASH_SALT` | `local-development-only` | trocar reembaralha os hashes |
 | `DEFAULT_WINDOW_HOURS` | `168` | janela quando não se informa período |
-| `MAX_ITEMS_SCANNED` | `20000` | teto de itens lidos numa agregação |
+| `MAX_ITEMS_SCANNED` | `20000` | teto de linhas lidas numa agregação |
 | `CORS_ORIGINS` | `*` | restringir antes de produção |
 
-> `GSI1_SHARDS` é o valor mais perigoso da lista. Ele monta a chave da GSI1 na
-> escrita e na leitura; se divergir, a API consulta partições onde o worker
-> nunca gravou e devolve **vazio, sem erro nenhum**.
+O pool nasce com `min_size=0` de propósito, o oposto do que se faz num worker:
+uma Lambda ociosa é congelada, e conexões ociosas de centenas de execuções
+congeladas esgotariam o `max_connections` do RDS sem ninguém estar usando nada.
 
 ## Testes
 
 ```bash
-uv run --with flask --with boto3 --with 'moto[dynamodb]' --with pytest --with pydantic \
-  python -m pytest
+make -C .. db-local      # sobe o PostgreSQL de teste
+make -C .. test-backend
 ```
 
-Os testes gravam itens no formato **exato** que o worker produz, e
-`test_formato_do_item_espelha_o_worker` importa a implementação real do worker
-para comparar as chaves. Sem essa trava, os testes passariam com um formato
-conveniente enquanto a API quebra contra o banco de verdade.
+Os testes rodam contra um PostgreSQL **de verdade**, e não contra um dublê. Duas
+razões:
+
+1. A parte difícil deste adaptador é o SQL — o keyset da paginação, o `date_bin`
+   da série temporal, o `GROUP BY` do breakdown. Um dublê que respondesse "ok" a
+   tudo isso testaria apenas o dublê, que foi exatamente o defeito encontrado no
+   backend anterior.
+
+2. A barreira contra vazamento de futuro é do **banco** (o `GRANT` em
+   `argus_reader` mais o `WHERE available_at <= sim.now()` da view). Só dá para
+   verificar isso contra um banco que tem `GRANT` e tem view.
+
+O dado entra pelas mesmas fixtures que o worker usa, e monta a linha com o mesmo
+`build_row` — é o que impede a API e o worker de divergirem em silêncio sobre o
+que é envelope e o que é payload. Sem `TEST_DATABASE_URL`, os testes que precisam
+de banco são **pulados**, não quebrados.
 
 ## Deploy
 
@@ -168,22 +242,30 @@ conveniente enquanto a API quebra contra o banco de verdade.
 cd ../infra && terraform apply
 ```
 
-O `boto3` não entra no zip — o runtime da Lambda já o traz. Sobram Flask e
-apig-wsgi, ambos Python puro, o que faz o mesmo pacote servir ARM64 e x86.
+O `psycopg[binary]` **entra** no zip, e é a parte delicada do empacotamento: a
+Lambda roda ARM64, então o wheel precisa ser o `manylinux2014_aarch64` — instalar
+sem `--platform` numa máquina x86 (ou num Mac ARM) produz um zip que importa
+localmente e estoura em produção. O script força a plataforma e depois **confere**
+que `psycopg_binary` foi parar no pacote.
+
+O `boto3` não entra: o runtime da Lambda já o traz.
 
 ---
 
 ## Arquitetura
 
-Hexagonal, como o backend original: `EventRepository` é um `Protocol` em
-`ports/`, e `infrastructure/dynamo.py` é a única peça que sabe que o banco é
-DynamoDB. Trocar de banco é escrever outro adaptador.
+Hexagonal: `EventRepository` é um `Protocol` em `ports/`, e `infrastructure/` é a
+única camada que sabe qual é o banco. A troca de DynamoDB para PostgreSQL foi
+exatamente isso — um adaptador novo, com `domain/`, `ports/` e `application/`
+intocados.
 
 ```
-domain/entities.py       TelemetryEvent, alinhado ao que o worker grava
-ports/                   contrato de leitura (filtros, página, métricas)
-infrastructure/dynamo.py adaptador: roteamento de índice, fan-out, cursor
-application/use_cases.py orquestração das consultas do dashboard
-application/redaction.py remoção de dado pessoal na saída
-interfaces/http.py       rotas Flask
+domain/entities.py         TelemetryEvent, alinhado ao que o worker grava
+ports/                     contrato de leitura (filtros, página, métricas)
+infrastructure/postgres.py adaptador de eventos: roteamento de índice, keyset
+infrastructure/gold.py     adaptador da camada gold: relógio, séries, janelas
+application/use_cases.py   orquestração das consultas do dashboard
+application/redaction.py   remoção de dado pessoal na saída
+interfaces/http.py         rotas Flask
+interfaces/openapi.py      a spec, montada a partir das constantes do adaptador
 ```

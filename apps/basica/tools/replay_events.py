@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from events_csv_to_json import convert_file  # noqa: E402
+from events_csv_to_json import convert_file
 
 
 def load_events(src: Path) -> list[dict]:
@@ -111,7 +111,9 @@ def main() -> int:
     print(f"{len(events)} eventos carregados de {args.src}")
 
     if args.dry_run:
-        json.dump(events if args.batch else events[0], sys.stdout, ensure_ascii=False, indent=2)
+        json.dump(
+            events if args.batch else events[0], sys.stdout, ensure_ascii=False, indent=2
+        )
         sys.stdout.write("\n")
         return 0
 

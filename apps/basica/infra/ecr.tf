@@ -1,8 +1,17 @@
-resource "aws_ecr_repository" "worker" {
-  name                 = local.name
+# Um repositorio por imagem. Sao cinco servicos em container agora, e nao um.
+#
+# Repositorios separados e nao tags diferentes no mesmo repositorio: a politica
+# de ciclo de vida conta imagens POR repositorio, entao um repositorio comum
+# faria o `worker` expirar por causa de builds do `simulator`. E o scan de
+# vulnerabilidade fica atribuido ao servico certo.
+
+resource "aws_ecr_repository" "images" {
+  for_each = local.container_images
+
+  name                 = "${local.name}-${each.key}"
   image_tag_mutability = "MUTABLE"
 
-  # Scan de vulnerabilidade a cada push. Nao bloqueia o deploy, so reporta.
+  # Scan a cada push. Nao bloqueia o deploy, so reporta.
   image_scanning_configuration {
     scan_on_push = true
   }
@@ -12,14 +21,17 @@ resource "aws_ecr_repository" "worker" {
   }
 
   tags = {
-    Name = local.name
+    Name      = "${local.name}-${each.key}"
+    Component = each.key
   }
 }
 
 # Sem isso o repositorio cresce para sempre: cada build empurra uma layer nova e
 # ninguem lembra de limpar.
-resource "aws_ecr_lifecycle_policy" "worker" {
-  repository = aws_ecr_repository.worker.name
+resource "aws_ecr_lifecycle_policy" "images" {
+  for_each = aws_ecr_repository.images
+
+  repository = each.value.name
 
   policy = jsonencode({
     rules = [

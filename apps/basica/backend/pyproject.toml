@@ -10,23 +10,33 @@ requires-python = ">=3.12"
 dependencies = [
   "Flask>=3.1,<4",
   "gunicorn>=23,<24",
-  "boto3>=1.35,<2",
   "apig-wsgi>=2.18,<3",
+  # `binary` traz a libpq compilada: sem isso o pacote da Lambda precisaria de
+  # uma layer com a biblioteca do sistema, e o zip deixaria de ser
+  # auto-contido. `pool` porque a Lambda reusa a conexao entre invocacoes na
+  # mesma execucao quente.
+  "psycopg[binary,pool]>=3.2,<4",
 ]
+
+# boto3 saiu: a API nao fala mais com servico nenhum da AWS. Ela le do
+# PostgreSQL, e a autorizacao vem de GRANT, nao de IAM. Sao ~15 MB a menos no
+# zip da Lambda.
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3,<9",
   "pytest-cov>=6,<7",
   "ruff>=0.11,<1",
-  # DynamoDB falso: os testes gravam itens no formato exato que o worker
-  # produz, em vez de conversar com a AWS.
-  "moto[dynamodb]>=5.0,<6",
-  # Usado por um teste só: test_formato_do_item_espelha_o_worker importa a
-  # implementação real do worker (que valida com pydantic) para comparar as
-  # chaves geradas. É o que impede a API e o worker de divergirem em silêncio.
+  # Os testes montam as linhas com o MESMO codigo que o worker usa
+  # (argus_worker.keys.build_row, que valida com pydantic) em vez de com um
+  # formato conveniente. E o que impede a API e o worker de divergirem em
+  # silencio sobre o que e coluna do envelope e o que vai para o payload.
   "pydantic>=2.9,<3",
 ]
+
+# `moto` saiu junto com o DynamoDB. Os testes agora rodam contra um PostgreSQL
+# de verdade (`make db-local`), e nao contra um duble -- a parte dificil deste
+# adaptador e o SQL, e um duble testaria apenas o duble.
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -34,10 +44,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-# Os testes importam `tests.conftest` para reaproveitar o construtor de itens
-# do DynamoDB. Sem isto, `pytest` como executável falha na coleção, embora
-# `python -m pytest` funcione — este último insere o diretório atual no path
-# e o primeiro não.
+# Os testes importam `tests.conftest`. Sem isto, `pytest` como executável falha
+# na coleção, embora `python -m pytest` funcione — este último insere o
+# diretório atual no path e o primeiro não.
 pythonpath = ["."]
 
 [tool.ruff]
