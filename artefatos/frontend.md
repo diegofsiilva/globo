@@ -44,68 +44,75 @@
 
 &emsp; A tela Agora apresenta o estado operacional mais urgente do recorte selecionado. O destaque superior resume a degradação ativa, seu alcance e a diferença em relação ao baseline; abaixo, os sinais são ordenados por sessões impactadas e mostram valor atual, referência, desvio, tendência e ação de investigação.
 
-![Tela Agora com degradação ativa, indicadores e sinais operacionais](./assets/captura_agora.png)
-
-<p align="center"><sub>Figura 1 — Visão operacional da tela Agora.</sub></p>
-
-#### 1.3.2 Explorar
-
-&emsp; A tela Explorar conduz a investigação em três etapas: escolher o tipo de evento, localizar quando o comportamento mudou e identificar onde o sinal se concentra. O usuário pode ajustar a janela temporal, alternar dimensões como modelo, UF, ISP, versão e rota, além de consultar erros associados ao recorte.
-
-![Tela Explorar com seleção de evento, janela temporal e agrupamentos](./assets/captura_explorar.png)
-
-<p align="center"><sub>Figura 2 — Exploração temporal e dimensional dos eventos.</sub></p>
-
-#### 1.3.3 Comparar
-
-&emsp; A tela Comparar posiciona o período atual diante de referências como o mesmo horário do dia anterior, a semana passada ou a última janela estável. O gráfico evidencia pontos fora do envelope histórico, enquanto a tabela quantifica a variação e a significância de cada métrica.
-
-![Tela Comparar com referências históricas, gráfico e métricas de significância](./assets/captura_comparar.png)
-
-<p align="center"><sub>Figura 3 — Comparação do comportamento atual com referências históricas.</sub></p>
-
-#### 1.3.4 Hipóteses
-
-&emsp; A tela Hipóteses organiza possíveis causas por relevância e mantém as alternativas descartadas visíveis. Ao selecionar uma hipótese, o painel lateral explica a composição do score por coincidência temporal, especificidade do recorte, ausência de causa concorrente e precedente histórico, além de listar as evidências consultadas.
-
-![Tela Hipóteses com causas prováveis, composição do score e evidências](./assets/captura_hipoteses.png)
-
-<p align="center"><sub>Figura 4 — Hipóteses ranqueadas e justificadas por evidências.</sub></p>
-
-#### 1.3.5 Timeline
-
-&emsp; A tela Timeline cruza as fontes Deploy, Player QoE, CDN, Backend, Identidade e Incidentes em um mesmo eixo temporal. A janela destacada ajuda a reconhecer coincidências entre mudanças técnicas e degradações, enquanto a cronologia reconstruída oferece uma alternativa textual ao gráfico.
-
-![Tela Timeline com seis fontes, janela de correlação e cronologia reconstruída](./assets/captura_timeline.png)
-
-<p align="center"><sub>Figura 5 — Correlação cronológica das fontes do incidente.</sub></p>
-
-#### 1.3.6 Recorte
-
-&emsp; A tela Recorte delimita a população afetada e informa sessões, participação no tráfego, concentração dos erros e número de UFs envolvidas. O mapa de calor cruza família de dispositivo e região, e o painel lateral antecipa o efeito de possíveis ajustes sobre a especificidade e a cobertura.
-
-![Tela Recorte com indicadores, mapa de calor e sugestões de ajuste](./assets/captura_recorte.png)
-
-<p align="center"><sub>Figura 6 — Delimitação da população afetada.</sub></p>
-
-#### 1.3.7 Temas escuro e claro
-
-&emsp; A comparação abaixo apresenta a tela Agora nos temas escuro e claro, mantendo o mesmo conteúdo e o mesmo viewport. A alternância modifica superfícies, bordas e contraste tipográfico, mas preserva a hierarquia dos alertas, os destaques em vermelho e a organização dos dados.
-
 <p align="center">
   <img src="./assets/captura_agora_tema_escuro.png" alt="Tela Agora no tema escuro" width="49%">
   <img src="./assets/captura_agora_tema_claro.png" alt="Tela Agora no tema claro" width="49%">
 </p>
 
-<p align="center"><sub>Figuras 7 e 8 — Tela Agora nos temas escuro e claro, respectivamente.</sub></p>
+<p align="center"><sub>Figuras 1 e 2 — Tela Agora nos temas escuro e claro, respectivamente.</sub></p>
 
-#### 1.3.8 Viewport mobile
+#### 1.3.2 Explorar
+
+&emsp; A tela Explorar conduz a investigação em três etapas: escolher o tipo de evento, localizar quando o comportamento mudou e identificar onde o sinal se concentra. O usuário pode ajustar a janela temporal, alternar dimensões como modelo, UF, ISP, versão e rota, além de consultar erros associados ao recorte.
+
+<p align="center">
+  <img src="./assets/captura_explorar_tema_escuro.png" alt="Tela Explorar no tema escuro" width="49%">
+  <img src="./assets/captura_explorar_tema_claro.png" alt="Tela Explorar no tema claro" width="49%">
+</p>
+
+<p align="center"><sub>Figuras 3 e 4 — Tela Explorar nos temas escuro e claro, respectivamente.</sub></p>
+
+#### 1.3.3 Comparar
+
+&emsp; A tela Comparar posiciona o período atual diante de referências como o mesmo horário do dia anterior, a semana passada ou a última janela estável. O gráfico evidencia pontos fora do envelope histórico, enquanto a tabela quantifica a variação e a significância de cada métrica.
+
+<p align="center">
+  <img src="./assets/captura_comparar_tema_escuro.png" alt="Tela Comparar no tema escuro" width="49%">
+  <img src="./assets/captura_comparar_tema_claro.png" alt="Tela Comparar no tema claro" width="49%">
+</p>
+
+<p align="center"><sub>Figuras 5 e 6 — Tela Comparar nos temas escuro e claro, respectivamente.</sub></p>
+
+#### 1.3.4 Hipóteses
+
+&emsp; A tela Hipóteses organiza possíveis causas por relevância e mantém as alternativas descartadas visíveis. Ao selecionar uma hipótese, o painel lateral explica a composição do score por coincidência temporal, especificidade do recorte, ausência de causa concorrente e precedente histórico, além de listar as evidências consultadas.
+
+<p align="center">
+  <img src="./assets/captura_hipoteses_tema_escuro.png" alt="Tela Hipóteses no tema escuro" width="49%">
+  <img src="./assets/captura_hipoteses_tema_claro.png" alt="Tela Hipóteses no tema claro" width="49%">
+</p>
+
+<p align="center"><sub>Figuras 7 e 8 — Tela Hipóteses nos temas escuro e claro, respectivamente.</sub></p>
+
+#### 1.3.5 Timeline
+
+&emsp; A tela Timeline cruza as fontes Deploy, Player QoE, CDN, Backend, Identidade e Incidentes em um mesmo eixo temporal. A janela destacada ajuda a reconhecer coincidências entre mudanças técnicas e degradações, enquanto a cronologia reconstruída oferece uma alternativa textual ao gráfico.
+
+<p align="center">
+  <img src="./assets/captura_timeline_tema_escuro.png" alt="Tela Timeline no tema escuro" width="49%">
+  <img src="./assets/captura_timeline_tema_claro.png" alt="Tela Timeline no tema claro" width="49%">
+</p>
+
+<p align="center"><sub>Figuras 9 e 10 — Tela Timeline nos temas escuro e claro, respectivamente.</sub></p>
+
+#### 1.3.6 Recorte
+
+&emsp; A tela Recorte delimita a população afetada e informa sessões, participação no tráfego, concentração dos erros e número de UFs envolvidas. O mapa de calor cruza família de dispositivo e região, e o painel lateral antecipa o efeito de possíveis ajustes sobre a especificidade e a cobertura.
+
+<p align="center">
+  <img src="./assets/captura_recorte_tema_escuro.png" alt="Tela Recorte no tema escuro" width="49%">
+  <img src="./assets/captura_recorte_tema_claro.png" alt="Tela Recorte no tema claro" width="49%">
+</p>
+
+<p align="center"><sub>Figuras 11 e 12 — Tela Recorte nos temas escuro e claro, respectivamente.</sub></p>
+
+#### 1.3.7 Viewport mobile
 
 &emsp; A captura mobile demonstra a adaptação da tela Agora para um viewport de 390×844. Nesse formato, a navegação lateral dá lugar a um cabeçalho compacto e o conteúdo passa a ocupar uma única coluna, preservando a leitura do alerta principal e dos indicadores sem exigir rolagem horizontal.
 
 ![Tela Agora no viewport mobile de 390 por 844 pixels](./assets/captura_agora_mobile.png)
 
-<p align="center"><sub>Figura 9 — Adaptação da tela Agora ao viewport mobile.</sub></p>
+<p align="center"><sub>Figura 13 — Adaptação da tela Agora ao viewport mobile.</sub></p>
 
 ## 2. Organização e qualidade do código
 
