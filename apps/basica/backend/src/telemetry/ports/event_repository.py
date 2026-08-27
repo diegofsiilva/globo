@@ -30,6 +30,8 @@ class EventFilters:
     device_manufacturer: str | None = None
     device_model: str | None = None
     route_path: str | None = None
+    uf: str | None = None
+    isp: str | None = None
 
     occurred_from: datetime | None = None
     occurred_to: datetime | None = None
@@ -127,6 +129,22 @@ class EventRepository(Protocol):
 
         Returns:
             Sequence[EventMetric]: Lista de métricas agrupadas.
+        """
+        ...
+
+    def crosstab(
+        self, filters: EventFilters, dimension_x: str, dimension_y: str, limit: int = 50
+    ) -> Sequence[dict]:
+        """Agrupa eventos por duas dimensões simultaneamente (heatmap do Recorte).
+
+        Args:
+            filters (EventFilters): Filtros aplicados à busca.
+            dimension_x (str): Coluna do primeiro eixo.
+            dimension_y (str): Coluna do segundo eixo.
+            limit (int, optional): Quantidade máxima de células retornadas.
+
+        Returns:
+            Sequence[dict]: Uma entrada por combinação (x, y) com contagem.
         """
         ...
 

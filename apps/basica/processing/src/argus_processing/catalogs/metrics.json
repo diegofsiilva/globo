@@ -1,0 +1,23 @@
+{
+  "exact": {
+    "apdex": {"direction": "down", "transform": "identity", "materiality_absolute": 0.05, "materiality_relative": 0.0, "sigma_floor": 0.02},
+    "sessions": {"direction": "two_sided", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.30, "sigma_floor": 0.05},
+    "active_sessions": {"direction": "two_sided", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.30, "sigma_floor": 0.05},
+    "requests_total": {"direction": "two_sided", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.30, "sigma_floor": 0.05},
+    "rpm": {"direction": "two_sided", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.30, "sigma_floor": 0.05},
+    "throughput": {"direction": "two_sided", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.30, "sigma_floor": 0.05}
+  },
+  "contains": [
+    {"token": "error", "policy": {"direction": "up", "transform": "identity", "materiality_absolute": 0.5, "materiality_relative": 0.25, "sigma_floor": 0.25}},
+    {"token": "4xx", "policy": {"direction": "up", "transform": "identity", "materiality_absolute": 0.5, "materiality_relative": 0.25, "sigma_floor": 0.25}},
+    {"token": "5xx", "policy": {"direction": "up", "transform": "identity", "materiality_absolute": 0.5, "materiality_relative": 0.25, "sigma_floor": 0.25}},
+    {"token": "latency", "policy": {"direction": "up", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.20, "sigma_floor": 0.05}},
+    {"token": "response_time", "policy": {"direction": "up", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.20, "sigma_floor": 0.05}},
+    {"token": "jointime", "policy": {"direction": "up", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.20, "sigma_floor": 0.05}},
+    {"token": "buffer", "policy": {"direction": "up", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.20, "sigma_floor": 0.05}},
+    {"token": "stall", "policy": {"direction": "up", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.20, "sigma_floor": 0.05}},
+    {"token": "dropped", "policy": {"direction": "up", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.20, "sigma_floor": 0.05}},
+    {"token": "blocked", "policy": {"direction": "up", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.30, "sigma_floor": 0.05}},
+    {"token": "cpu", "policy": {"direction": "up", "transform": "log1p", "materiality_absolute": 0.0, "materiality_relative": 0.20, "sigma_floor": 0.05}}
+  ]
+}

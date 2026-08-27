@@ -17,11 +17,17 @@ from typing import Any
 
 from flask import request
 
-from telemetry.infrastructure.dynamo import (
-    BREAKDOWN_FIELDS,
-    FACET_FIELDS,
-    POST_FILTERS,
+from telemetry.infrastructure.postgres import (
+    COLUNAS_AGRUPAVEIS,
+    COLUNAS_FILTRAVEIS,
 )
+
+# Na v2 havia duas listas: os filtros que escolhiam o indice e os que rodavam
+# DEPOIS da consulta, em Python. No PostgreSQL essa distincao some -- todo
+# filtro vai para o mesmo WHERE e o planner decide o que fazer com ele.
+BREAKDOWN_FIELDS = COLUNAS_AGRUPAVEIS
+FACET_FIELDS = COLUNAS_AGRUPAVEIS
+POST_FILTERS = sorted(COLUNAS_FILTRAVEIS - {"session_id", "device_id", "event_name"})
 
 API_VERSION = "1.0.0"
 
@@ -30,7 +36,7 @@ _FILTER_PARAMS = [
     ("session_id", "Restringe a uma sessao. Caminho mais barato: uma particao."),
     ("device_id", "Restringe a um aparelho. Usa a GSI2."),
     ("event_name", "Tipo do evento. Usa a GSI1 com fan-out por dia e shard."),
-    *[(name, f"Filtro por {name}, aplicado apos a consulta ao indice.") for name in POST_FILTERS],
+    *[(name, f"Filtro por {name}, cumulativo com os demais (RF09).") for name in POST_FILTERS],
 ]
 
 
@@ -51,6 +57,106 @@ def _parameter(name: str, description: str, **schema: Any) -> dict[str, Any]:
         "required": False,
         "description": description,
         "schema": {"type": "string", **schema},
+    }
+
+
+def _hypothesis_paths() -> dict[str, Any]:
+    hypothesis_id = {
+        "name": "hypothesis_id",
+        "in": "path",
+        "required": True,
+        "schema": {"type": "integer", "minimum": 1},
+    }
+    return {
+        "/api/v1/hypothesis-runs": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Lista runs publicados",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "maximum": 200},
+                    },
+                    {"name": "before_run_id", "in": "query", "schema": {"type": "integer"}},
+                ],
+                "responses": {"200": {"description": "Runs concluidos e publicados"}},
+            }
+        },
+        "/api/v1/hypotheses": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Lista hipoteses publicadas",
+                "parameters": [
+                    {"name": name, "in": "query", "schema": {"type": "string"}}
+                    for name in (
+                        "family",
+                        "kind",
+                        "confidence",
+                        "review_status",
+                        "source",
+                        "entity",
+                        "from",
+                        "to",
+                        "cursor",
+                    )
+                ]
+                + [
+                    {"name": "run_id", "in": "query", "schema": {"type": "integer"}},
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "maximum": 200},
+                    },
+                ],
+                "responses": {"200": {"description": "Pagina keyset de hipoteses"}},
+            }
+        },
+        "/api/v1/hypotheses/{hypothesis_id}": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Detalha uma hipotese",
+                "parameters": [hypothesis_id],
+                "responses": {
+                    "200": {"description": "Features, evidencias e feedback"},
+                    "404": {"$ref": "#/components/responses/NaoEncontrado"},
+                },
+            }
+        },
+        "/api/v1/hypotheses/{hypothesis_id}/feedback": {
+            "post": {
+                "tags": ["Hipoteses"],
+                "summary": "Registra feedback publico",
+                "description": "reviewer_ref e declaratorio e nao verificado.",
+                "parameters": [hypothesis_id],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["verdict", "idempotency_key"],
+                                "properties": {
+                                    "verdict": {
+                                        "enum": ["confirmed", "partially_confirmed", "rejected"]
+                                    },
+                                    "note": {"type": "string", "maxLength": 2000},
+                                    "reviewer_ref": {"type": "string", "maxLength": 128},
+                                    "idempotency_key": {"type": "string", "format": "uuid"},
+                                },
+                            }
+                        }
+                    },
+                },
+                "responses": {
+                    "200": {"description": "Repeticao idempotente"},
+                    "201": {"description": "Feedback criado"},
+                    "404": {"$ref": "#/components/responses/NaoEncontrado"},
+                    "409": {"description": "Chave idempotente usada com outro payload"},
+                    "422": {"$ref": "#/components/responses/Invalido"},
+                },
+            }
+        },
     }
 
 
@@ -249,16 +355,15 @@ def build_spec() -> dict[str, Any]:
     event_schema = _event_schema()
     common = _common_query_parameters()
 
-    return {
+    spec = {
         "openapi": "3.1.0",
         "info": {
             "title": "Argus — API de leitura de eventos",
             "version": API_VERSION,
             "description": (
-                "Consulta dos eventos de telemetria do app de TV, para o dashboard.\n\n"
-                "**Somente leitura.** A entrada de eventos e o pipeline "
-                "`API Gateway -> SQS -> ECS Fargate -> DynamoDB`; esta API nao "
-                "recebe, altera nem apaga evento.\n\n"
+                "Consulta de telemetria e hipoteses para o dashboard. A entrada "
+                "de eventos nao passa por esta API; a unica escrita publica e o "
+                "feedback idempotente de uma hipotese publicada.\n\n"
                 "### Custo das consultas\n\n"
                 "Toda busca devolve um bloco `query` com a estrategia usada e "
                 "quantos itens foram lidos. Informar `event_name`, `session_id` ou "
@@ -276,6 +381,13 @@ def build_spec() -> dict[str, Any]:
             {"name": "Eventos", "description": "Busca e detalhe"},
             {"name": "Investigacao", "description": "Sessao e aparelho"},
             {"name": "Metricas", "description": "Agregacoes para os graficos"},
+            {
+                "name": "Gold",
+                "description": (
+                    "Series, janelas e o relogio virtual. Tudo cortado em "
+                    "sim.now() pela propria view"
+                ),
+            },
             {"name": "Saude", "description": "Sondas de disponibilidade"},
         ],
         "paths": {
@@ -501,6 +613,50 @@ def build_spec() -> dict[str, Any]:
                     },
                 }
             },
+            "/api/v1/metrics/crosstab": {
+                "get": {
+                    "tags": ["Metricas"],
+                    "summary": "Agrupa e conta por DUAS dimensoes -- heatmap do Recorte",
+                    "description": (
+                        "`breakdown` agrupa por uma dimensao so; o heatmap "
+                        "dispositivo x regiao (ou qualquer par) precisa das duas "
+                        "contagens ao mesmo tempo."
+                    ),
+                    "parameters": common
+                    + [
+                        {
+                            "name": "dimension_x",
+                            "in": "query",
+                            "required": True,
+                            "description": "Campo do primeiro eixo.",
+                            "schema": {"type": "string", "enum": sorted(BREAKDOWN_FIELDS)},
+                        },
+                        {
+                            "name": "dimension_y",
+                            "in": "query",
+                            "required": True,
+                            "description": "Campo do segundo eixo.",
+                            "schema": {"type": "string", "enum": sorted(BREAKDOWN_FIELDS)},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "description": "Quantas celulas devolver, da maior para a menor.",
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 200,
+                                "default": 50,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Celulas do cruzamento"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
             "/api/v1/metrics/timeseries": {
                 "get": {
                     "tags": ["Metricas"],
@@ -635,6 +791,324 @@ def build_spec() -> dict[str, Any]:
                     },
                 }
             },
+            "/api/v1/clock": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "O instante VIRTUAL, que e o 'agora' de todas as telas",
+                    "description": (
+                        "Sem esta rota o dashboard usaria o relogio do navegador como "
+                        "'agora', e as telas apareceriam vazias sem explicar por que: "
+                        "o simulador pode estar replicando uma janela de julho enquanto "
+                        "o navegador marca agosto."
+                    ),
+                    "responses": {
+                        "200": {
+                            "description": "Relogio virtual",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "sim_now": {"type": "string", "format": "date-time"},
+                                            "speed": {"type": "number"},
+                                            "updated_at": {
+                                                "type": "string",
+                                                "format": "date-time",
+                                            },
+                                        },
+                                    }
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+            "/api/v1/series": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Serie de telemetria em bucket de 15 min",
+                    "description": (
+                        "Le `gold.v_feature_bucket`. So devolve o que ja passou de "
+                        "`available_at` no relogio virtual -- e o filtro e da VIEW, "
+                        "nao da aplicacao."
+                    ),
+                    "parameters": [
+                        _parameter("source", "Fonte (prometheus, youbora, rpaas...)."),
+                        _parameter("entity", "Entidade dentro da fonte."),
+                        _parameter("metric", "Metrica."),
+                        _parameter("from", "Inicio da janela, ISO-8601."),
+                        _parameter("to", "Fim da janela, ISO-8601."),
+                        {
+                            "name": "window_hours",
+                            "in": "query",
+                            "required": False,
+                            "description": (
+                                "Janela assumida quando from/to nao vem, contada de sim.now()."
+                            ),
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 8760,
+                                "default": 24,
+                            },
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 20000,
+                                "default": 5000,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Pontos da serie"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/sources": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Fontes disponiveis e quao recente esta cada uma",
+                    "description": (
+                        "`ultimo_bucket` e o que sustenta o 'fontes com desvio: 3 de 13' "
+                        "do painel lateral: uma fonte cujo ultimo bucket ficou para tras "
+                        "parou de reportar."
+                    ),
+                    "responses": {"200": {"description": "Fontes"}},
+                }
+            },
+            "/api/v1/incidents": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Janelas de incidente do ground truth",
+                    "description": (
+                        "Por padrao EXCLUI os rotulos `detector-derived`: sete dos vinte "
+                        "foram criados olhando a saida do proprio Argus, e avaliar um "
+                        "detector novo contra eles mede concordancia com o baseline, nao "
+                        "acuracia. Inclui-los exige `include_derived=true`, explicitamente."
+                    ),
+                    "parameters": [
+                        {
+                            "name": "origem",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "string",
+                                "enum": ["incidents", "incident_label", "detector"],
+                            },
+                        },
+                        {
+                            "name": "include_derived",
+                            "in": "query",
+                            "required": False,
+                            "description": "Inclui os rotulos derivados do proprio detector.",
+                            "schema": {"type": "boolean", "default": False},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1000,
+                                "default": 100,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Janelas de incidente"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/live-events": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Calendario de transmissoes ao vivo",
+                    "description": (
+                        "Agrupado por `event_key` e nao por horario: os tid 994 e 995 sao "
+                        "feeds SIMULTANEOS com jogos diferentes, porque a Globo transmite "
+                        "partidas distintas em pracas distintas no mesmo horario. O campo "
+                        "`feeds` traz os tid agregados de cada confronto."
+                    ),
+                    "parameters": [
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 500,
+                                "default": 50,
+                            },
+                        }
+                    ],
+                    "responses": {"200": {"description": "Transmissoes"}},
+                }
+            },
+            "/api/v1/changes": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Eventos de mudanca de plataforma (deploy) na janela",
+                    "description": (
+                        "So cobre deploy (fonte Tsuru, ver 018_deploy_events.sql). "
+                        "O dataset nao tem log discreto de mudanca para autoscale "
+                        "nem WAF, so serie de metrica."
+                    ),
+                    "parameters": [
+                        _parameter("from", "Inicio da janela, por started_at.", format="date-time"),
+                        _parameter("to", "Fim da janela.", format="date-time"),
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 2000,
+                                "default": 200,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Eventos de deploy"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/references/stable-window": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Janela de referencia sem incidente (Comparar)",
+                    "description": (
+                        "Caminha para tras em incrementos de duration_minutes "
+                        "ate achar uma janela sem sobreposicao com "
+                        "gold.v_incident_window, ou desiste apos 200 passos."
+                    ),
+                    "parameters": [
+                        {
+                            "name": "duration_minutes",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1440,
+                                "default": 60,
+                            },
+                        },
+                        _parameter(
+                            "before",
+                            "Nao propor janela terminando depois disto. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {"200": {"description": "Janela encontrada, ou found=false"}},
+                }
+            },
+            "/api/v1/references/last-live-peak": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Ultima transmissao ao vivo antes de um instante (Comparar)",
+                    "parameters": [
+                        _parameter(
+                            "before",
+                            "Nao propor evento comecando depois disto. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {"200": {"description": "Evento encontrado, ou found=false"}},
+                }
+            },
+            "/api/v1/timeline": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Seis raias de fonte para a tela Timeline",
+                    "description": (
+                        "Quatro raias de serie (NPAW, Prometheus, New Relic, "
+                        "Apollo), uma de deploy (Tsuru) e uma de incidente "
+                        "(ServiceNow). Sem periodo, usa as 3h antes de sim.now()."
+                    ),
+                    "parameters": [
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                    ],
+                    "responses": {
+                        "200": {"description": "Raias"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/anomalies": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Anomalias da execucao mais recente do detector",
+                    "description": (
+                        "Devolve lista VAZIA enquanto nao houver detector (decisao 7 do "
+                        "plano: processamento e deteccao seguem embrionarios). A rota "
+                        "existe desde ja para que o dashboard seja escrito contra o "
+                        "contrato final e nao precise mudar quando a deteccao chegar."
+                    ),
+                    "parameters": [
+                        {
+                            "name": "run_id",
+                            "in": "query",
+                            "required": False,
+                            "description": "Execucao. Sem valor, usa a mais recente.",
+                            "schema": {"type": "integer"},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 2000,
+                                "default": 200,
+                            },
+                        },
+                    ],
+                    "responses": {"200": {"description": "Anomalias"}},
+                }
+            },
+            "/api/v1/signals": {
+                "get": {
+                    "tags": ["Sinais"],
+                    "summary": "Sinais em desvio ativo agora (tela Agora)",
+                    "description": (
+                        "Versao 1 simplificada (ver "
+                        "`telemetry.application.signals`): so entra grupo cujo "
+                        "ULTIMO bucket da janela ainda esta fora do baseline "
+                        "horario -- 'ativo agora', nao 'desviou em algum "
+                        "momento'. Independente do motor de hipoteses "
+                        "(em desenvolvimento em `feat/hipotese`)."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "from",
+                            "Inicio da janela, ISO 8601. Sem valor, usa 'to' menos 6 horas.",
+                            format="date-time",
+                        ),
+                        _parameter(
+                            "to",
+                            "Fim da janela, ISO 8601. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {
+                        "200": {"description": "Sinais ativos"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
             "/health/live": {
                 "get": {
                     "tags": ["Saude"],
@@ -692,6 +1166,9 @@ def build_spec() -> dict[str, Any]:
             },
         },
     }
+    spec["tags"].append({"name": "Hipoteses", "description": "Resultados explicaveis e feedback"})
+    spec["paths"].update(_hypothesis_paths())
+    return spec
 
 
 def _server_url() -> str:

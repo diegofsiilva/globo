@@ -1,0 +1,47 @@
+-- Indice que torna as metricas do merge worker viaveis em volume real.
+--
+-- O PROBLEMA
+--
+-- Duas metricas do merge worker varriam `bronze.change_log` inteira:
+--
+--   lag_sim_seconds:  SELECT max(captured_at) FROM bronze.change_log
+--   sources_silent:   SELECT source_table, max(captured_at) ... GROUP BY 1
+--
+-- A tabela e particionada por RANGE em `lsn` e tinha indice so em
+-- `(source_table, lsn)`. Nao havia nada por `captured_at`, entao as duas viravam
+-- sequential scan das 11 particoes -- 68,7 M linhas.
+--
+-- Medido no RDS: a primeira das duas passa de 180 s (estourou o
+-- `statement_timeout` que usei para medir; nao sei o teto real).
+--
+-- O EFEITO, que e pior do que "metrica lenta"
+--
+-- O healthcheck do ECS exige heartbeat com menos de 120 s. O worker so toca o
+-- heartbeat entre ciclos, entao um ciclo de 180 s deixa o arquivo velho, o
+-- healthcheck reprova tres vezes seguidas e o ECS MATA a task. Ela reinicia,
+-- roda a metrica de novo, morre de novo.
+--
+-- Ou seja: uma metrica de observabilidade derrubava o servico que ela deveria
+-- observar, e so em producao -- em teste local a tabela tem milhares de linhas e
+-- a mesma consulta responde em milissegundos.
+--
+-- A CORRECAO
+--
+-- Indice composto `(source_table, captured_at DESC)`. Com ele:
+--
+--   * `sources_silent` vira um probe por fonte (~33 grupos), nao um scan;
+--   * `max(captured_at)` global vira o maximo dos maximos por grupo, tambem
+--     por indice.
+--
+-- `captured_at DESC` e nao ASC porque as duas consultas querem o MAIOR valor: o
+-- planner le a primeira entrada de cada grupo em vez da ultima.
+--
+-- CUSTO
+--
+-- Cerca de 1,5 GB de indice sobre as 68,7 M linhas, e alguns minutos para
+-- construir. E o preco de ter duas metricas operacionais que respondem em tempo
+-- constante em vez de proporcional ao historico -- que, num log append-only, so
+-- cresce.
+
+CREATE INDEX change_log_fonte_e_captura
+  ON bronze.change_log (source_table, captured_at DESC);

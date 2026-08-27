@@ -1,4 +1,13 @@
-"""Testes de integracao do loop de consumo, com SQS e DynamoDB reais via moto."""
+"""Testes dos dois consumidores contra um PostgreSQL de verdade.
+
+O que estes testes protegem, em ordem de importancia:
+
+  1. A regra do `_lsn` maior -- evento fora de ordem nao sobrescreve.
+  2. O `_extra` -- coluna nova da origem nao e perdida nem quebra a ingestao.
+  3. A idempotencia -- reentrega do SQS nao duplica nem corrompe.
+  4. A quarentena -- payload ruim vai para a DLQ e sai da fila, em vez de
+     queimar as cinco tentativas do redrive para chegar no mesmo lugar.
+"""
 
 from __future__ import annotations
 
@@ -6,21 +15,42 @@ import json
 
 import pytest
 
-from argus_worker.consumer import _extract_events
+CHANGE_BASE = {
+    "source_table": "signal_bucket",
+    "op": "r",
+    "pk": {
+        "bts": 1784904300000,
+        "source": "prometheus",
+        "entity": "pop-fortaleza",
+        "metric": "p95_ms",
+    },
+    "after": {
+        "bts": 1784904300000,
+        "source": "prometheus",
+        "entity": "pop-fortaleza",
+        "metric": "p95_ms",
+        "value": 368.0,
+    },
+    "captured_at": "2026-07-24T12:05:00Z",
+}
 
 
-def _enviar(aws, payload) -> None:
-    body = payload if isinstance(payload, str) else json.dumps(payload)
-    aws.sqs.send_message(QueueUrl=aws.config.queue_url, MessageBody=body)
+def _send(aws, fila: str, corpo) -> None:
+    aws.sqs.send_message(
+        QueueUrl=aws.filas[fila],
+        MessageBody=corpo if isinstance(corpo, str) else json.dumps(corpo),
+    )
 
 
-def _itens(aws) -> list[dict]:
-    return aws.dynamodb.scan(TableName=aws.config.table_name)["Items"]
+def _dlq(aws, fila: str) -> list[dict]:
+    return aws.sqs.receive_message(
+        QueueUrl=aws.filas[fila], MaxNumberOfMessages=10, MessageAttributeNames=["All"]
+    ).get("Messages", [])
 
 
-def _profundidade(aws, url: str) -> int:
+def _restam(aws, fila: str) -> int:
     attrs = aws.sqs.get_queue_attributes(
-        QueueUrl=url,
+        QueueUrl=aws.filas[fila],
         AttributeNames=[
             "ApproximateNumberOfMessages",
             "ApproximateNumberOfMessagesNotVisible",
@@ -32,312 +62,385 @@ def _profundidade(aws, url: str) -> int:
 
 
 # --------------------------------------------------------------------------- #
-# Caminho feliz
+# Merge worker: o caminho feliz
 # --------------------------------------------------------------------------- #
 
 
-def test_ingere_os_seis_eventos_reais(aws, consumer, sample_events):
-    for raw in sample_events.values():
-        _enviar(aws, raw)
+def test_change_event_chega_no_log_e_na_bronze(aws, merge_consumer, db):
+    _send(aws, "argus-changes", CHANGE_BASE)
+    merge_consumer.run_once()
 
-    escritos = consumer.run_once()
-
-    assert escritos == 6
-    assert len(_itens(aws)) == 6
-    assert _profundidade(aws, aws.config.queue_url) == 0
-    assert _profundidade(aws, aws.config.dlq_url) == 0
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.change_log")["n"] == 1
+    linha = db.fetch_one("SELECT value, _op FROM bronze.signal_bucket")
+    assert linha["value"] == 368.0
+    assert linha["_op"] == "r"
 
 
-def test_uma_mensagem_com_varios_eventos(aws, consumer, sample_events):
-    _enviar(aws, list(sample_events.values()))
-
-    assert consumer.run_once() == 6
-    assert len(_itens(aws)) == 6
-
-
-def test_envelope_com_chave_events(aws, consumer, sample_events):
-    _enviar(aws, {"events": list(sample_events.values())})
-
-    assert consumer.run_once() == 6
-    assert len(_itens(aws)) == 6
+def test_uma_mensagem_com_varios_changes(aws, merge_consumer, db):
+    outro = {
+        **CHANGE_BASE,
+        "pk": {**CHANGE_BASE["pk"], "metric": "p99_ms"},
+        "after": {**CHANGE_BASE["after"], "metric": "p99_ms", "value": 512.0},
+    }
+    _send(aws, "argus-changes", [CHANGE_BASE, outro])
+    merge_consumer.run_once()
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.signal_bucket")["n"] == 2
 
 
-def test_item_gravado_tem_as_chaves_de_indice(aws, consumer, sample_events):
-    _enviar(aws, sample_events["error"])
-    consumer.run_once()
-
-    item = _itens(aws)[0]
-    assert item["pk"]["S"].startswith("SESSION#")
-    assert item["gsi1pk"]["S"].startswith("EVT#error#2026-07-13#")
-    assert item["gsi2pk"]["S"].startswith("DEV#")
-    assert "expires_at" in item
-    assert "ingested_at" in item
+def test_envelope_com_chave_changes(aws, merge_consumer, db):
+    _send(aws, "argus-changes", {"changes": [CHANGE_BASE]})
+    merge_consumer.run_once()
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.signal_bucket")["n"] == 1
 
 
-def test_duration_float_vira_number_no_dynamo(aws, consumer, sample_events):
-    """DynamoDB nao tem float; se a conversao falhar, o put quebra."""
-    _enviar(aws, sample_events["session"])
-    consumer.run_once()
+def test_update_sobrescreve_a_versao_anterior(aws, merge_consumer, db):
+    _send(aws, "argus-changes", CHANGE_BASE)
+    merge_consumer.run_once()
 
-    item = _itens(aws)[0]
-    assert item["duration"]["N"] == "6.486"
+    atualizado = {
+        **CHANGE_BASE,
+        "op": "u",
+        "before": CHANGE_BASE["after"],
+        "after": {**CHANGE_BASE["after"], "value": 412.0},
+        "captured_at": "2026-07-24T12:20:00Z",
+    }
+    _send(aws, "argus-changes", atualizado)
+    merge_consumer.run_once()
+
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.signal_bucket")["n"] == 1
+    assert db.fetch_one("SELECT value FROM bronze.signal_bucket")["value"] == 412.0
 
 
-def test_query_por_sessao_devolve_a_linha_do_tempo(aws, consumer, sample_events):
-    sessao = sample_events["error"]["session_id"]
-    for i in range(3):
-        _enviar(aws, dict(sample_events["error"], duration=float(i)))
-    consumer.run_once()
+def test_delete_remove_a_linha(aws, merge_consumer, db):
+    _send(aws, "argus-changes", CHANGE_BASE)
+    merge_consumer.run_once()
 
-    resposta = aws.dynamodb.query(
-        TableName=aws.config.table_name,
-        KeyConditionExpression="pk = :pk",
-        ExpressionAttributeValues={":pk": {"S": f"SESSION#{sessao}"}},
+    _send(
+        aws,
+        "argus-changes",
+        {**CHANGE_BASE, "op": "d", "before": CHANGE_BASE["after"], "after": None},
     )
-    assert resposta["Count"] == 3
-    sks = [i["sk"]["S"] for i in resposta["Items"]]
-    assert sks == sorted(sks)
+    merge_consumer.run_once()
+
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.signal_bucket")["n"] == 0
+    # Mas o log guarda as duas: e o que permite o replay reconstruir a historia.
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.change_log")["n"] == 2
 
 
-def test_query_na_gsi1_por_tipo_e_dia(aws, consumer, sample_events):
-    _enviar(aws, sample_events["error"])
-    consumer.run_once()
+# --------------------------------------------------------------------------- #
+# As tres propriedades que sustentam a arquitetura
+# --------------------------------------------------------------------------- #
 
-    item = _itens(aws)[0]
-    resposta = aws.dynamodb.query(
-        TableName=aws.config.table_name,
-        IndexName="gsi1",
-        KeyConditionExpression="gsi1pk = :pk",
-        ExpressionAttributeValues={":pk": {"S": item["gsi1pk"]["S"]}},
+
+def test_coluna_desconhecida_cai_no_extra_sem_quebrar(aws, merge_consumer, db):
+    """A decisao 4 do plano em um teste.
+
+    A Globo pode acrescentar coluna a qualquer momento. Ela tem que ser
+    preservada, sem DDL e sem derrubar a ingestao.
+    """
+    _send(
+        aws,
+        "argus-changes",
+        {
+            **CHANGE_BASE,
+            "after": {**CHANGE_BASE["after"], "confidence": 0.93, "pod": "prom-7f9"},
+        },
     )
-    assert resposta["Count"] == 1
+    merge_consumer.run_once()
+
+    linha = db.fetch_one("SELECT value, _extra FROM bronze.signal_bucket")
+    assert linha["value"] == 368.0
+    assert linha["_extra"] == {"confidence": 0.93, "pod": "prom-7f9"}
+
+
+def test_evento_fora_de_ordem_nao_sobrescreve(aws, merge_consumer, db):
+    """A regra do `_lsn` maior.
+
+    Duas mudancas da mesma linha no MESMO lote: o ON CONFLICT do PostgreSQL
+    recusaria a instrucao inteira sem o DISTINCT ON, e sem a regra do lsn a
+    versao que sobrasse seria arbitraria. Tem que sobrar a mais nova.
+    """
+    antiga = {**CHANGE_BASE, "op": "u", "after": {**CHANGE_BASE["after"], "value": 100.0}}
+    nova = {**CHANGE_BASE, "op": "u", "after": {**CHANGE_BASE["after"], "value": 999.0}}
+    _send(aws, "argus-changes", [antiga, nova])
+    merge_consumer.run_once()
+
+    assert db.fetch_one("SELECT value FROM bronze.signal_bucket")["value"] == 999.0
+
+
+def test_reentrega_do_sqs_nao_duplica_nem_corrompe(aws, merge_consumer, db):
+    """At-least-once do SQS + escrita idempotente = efeito de exactly-once."""
+    _send(aws, "argus-changes", CHANGE_BASE)
+    merge_consumer.run_once()
+    _send(aws, "argus-changes", CHANGE_BASE)
+    merge_consumer.run_once()
+
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.signal_bucket")["n"] == 1
+    assert db.fetch_one("SELECT value FROM bronze.signal_bucket")["value"] == 368.0
 
 
 # --------------------------------------------------------------------------- #
-# Idempotencia
+# Merge worker: quarentena
 # --------------------------------------------------------------------------- #
+
+
+def test_tabela_desconhecida_vai_para_a_dlq(aws, merge_consumer, db):
+    """Tabela nova exige migration; coluna nova nao. O erro tem que dizer qual e."""
+    _send(aws, "argus-changes", {**CHANGE_BASE, "source_table": "tabela_inventada"})
+    merge_consumer.run_once()
+
+    mensagens = _dlq(aws, "argus-changes-dlq")
+    assert len(mensagens) == 1
+    motivo = mensagens[0]["MessageAttributes"]["FailureReason"]["StringValue"]
+    assert "tabela_inventada" in motivo
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.change_log")["n"] == 0
+
+
+def test_op_invalida_vai_para_a_dlq(aws, merge_consumer):
+    _send(aws, "argus-changes", {**CHANGE_BASE, "op": "x"})
+    merge_consumer.run_once()
+    assert len(_dlq(aws, "argus-changes-dlq")) == 1
+
+
+def test_update_sem_after_vai_para_a_dlq(aws, merge_consumer):
+    """Sem `after`, o MERGE ignoraria a linha em silencio e a mudanca sumiria."""
+    _send(aws, "argus-changes", {**CHANGE_BASE, "op": "u", "after": None})
+    merge_consumer.run_once()
+    mensagens = _dlq(aws, "argus-changes-dlq")
+    assert len(mensagens) == 1
+    assert "after" in mensagens[0]["MessageAttributes"]["FailureReason"]["StringValue"]
+
+
+def test_pk_vazia_vai_para_a_dlq(aws, merge_consumer):
+    _send(aws, "argus-changes", {**CHANGE_BASE, "pk": {}})
+    merge_consumer.run_once()
+    assert len(_dlq(aws, "argus-changes-dlq")) == 1
+
+
+def test_json_quebrado_vai_para_a_dlq_e_sai_da_fila(aws, merge_consumer):
+    _send(aws, "argus-changes", "{isso nao e json")
+    merge_consumer.run_once()
+    assert len(_dlq(aws, "argus-changes-dlq")) == 1
+    assert _restam(aws, "argus-changes") == 0
+
+
+def test_change_ruim_no_meio_do_lote_nao_derruba_os_bons(aws, merge_consumer, db):
+    ruim = {**CHANGE_BASE, "source_table": "nao_existe"}
+    _send(aws, "argus-changes", [CHANGE_BASE, ruim])
+    merge_consumer.run_once()
+
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.signal_bucket")["n"] == 1
+    assert len(_dlq(aws, "argus-changes-dlq")) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Merge worker: metricas do pipeline
+# --------------------------------------------------------------------------- #
+
+
+def test_lag_sim_mede_tempo_virtual(aws, merge_consumer, db):
+    """O relogio esta em 12:00 e a mudanca foi observada as 12:05.
+
+    O `captured_at` esta a frente do relogio virtual, entao o lag e NEGATIVO --
+    o pipeline esta adiantado, nao atrasado. O que importa e que a medida sai em
+    tempo virtual, e nao de parede.
+    """
+    _send(aws, "argus-changes", CHANGE_BASE)
+    merge_consumer.run_once()
+    assert merge_consumer._repo.lag_sim_seconds() == pytest.approx(-300, abs=5)
+
+
+def test_lag_e_nulo_quando_o_log_esta_vazio(merge_consumer):
+    """Nao ha atraso a medir num pipeline que nunca recebeu nada."""
+    assert merge_consumer._repo.lag_sim_seconds() is None
+
+
+def test_lag_continua_sendo_emitido_com_fila_vazia(aws, merge_consumer, monkeypatch):
+    """Repouso da fila nao pode virar ausencia de metrica no CloudWatch."""
+    chamadas = {"lag": 0, "fontes": 0}
+
+    def lag():
+        chamadas["lag"] += 1
+        return 0.0
+
+    def fontes():
+        chamadas["fontes"] += 1
+        return 0
+
+    monkeypatch.setattr(merge_consumer._repo, "lag_sim_seconds", lag)
+    monkeypatch.setattr(merge_consumer._repo, "sources_silent", fontes)
+
+    merge_consumer.run_once()
+    merge_consumer.run_once()
+
+    assert chamadas == {"lag": 1, "fontes": 1}
+
+
+# --------------------------------------------------------------------------- #
+# Event worker
+# --------------------------------------------------------------------------- #
+
+
+def test_ingere_os_seis_eventos_reais(aws, event_consumer, db, sample_events):
+    for evento in sample_events.values():
+        _send(aws, "argus-events", evento)
+    for _ in sample_events:
+        event_consumer.run_once()
+
+    total = db.fetch_one("SELECT count(*) AS n FROM bronze.event")["n"]
+    assert total == len(sample_events)
+
+
+def test_evento_repetido_nao_duplica(aws, event_consumer, db, sample_events):
+    _send(aws, "argus-events", sample_events["error"])
+    event_consumer.run_once()
+    _send(aws, "argus-events", sample_events["error"])
+    event_consumer.run_once()
+
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.event")["n"] == 1
 
 
 def test_evento_repetido_no_mesmo_lote_nao_derruba_a_escrita(
-    aws, consumer, sample_events
+    aws, event_consumer, db, sample_events
 ):
-    """Regressao: BatchWriteItem rejeita o lote INTEIRO se ha chave repetida.
-
-    Como a chave deriva do hash do conteudo, reentrega do SQS colide de
-    proposito -- entao duplicata no mesmo lote e rotina, e sem deduplicacao
-    antes do batch ela levaria os outros itens junto.
-    """
-    _enviar(
-        aws, [sample_events["error"], sample_events["error"], sample_events["vitals"]]
-    )
-
-    escritos = consumer.run_once()
-
-    assert escritos == 2, "duplicata deveria colapsar, nao derrubar o lote"
-    assert len(_itens(aws)) == 2
-    assert _profundidade(aws, aws.config.dlq_url) == 0
+    _send(aws, "argus-events", [sample_events["error"], sample_events["error"]])
+    event_consumer.run_once()
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.event")["n"] == 1
 
 
-def test_evento_repetido_em_mensagens_distintas_nao_duplica(aws, consumer, sample_events):
-    """SQS e at-least-once; a chave por hash do conteudo absorve a reentrega."""
-    _enviar(aws, sample_events["error"])
-    _enviar(aws, sample_events["error"])
-
-    # Drena: o receive pode devolver 1 ou 2 mensagens por chamada.
-    while _profundidade(aws, aws.config.queue_url):
-        consumer.run_once()
-
-    assert len(_itens(aws)) == 1
-
-
-def test_reprocessar_o_mesmo_evento_depois_tambem_nao_duplica(
-    aws, consumer, sample_events
-):
-    _enviar(aws, sample_events["error"])
-    consumer.run_once()
-    _enviar(aws, sample_events["error"])
-    consumer.run_once()
-
-    assert len(_itens(aws)) == 1
-
-
-# --------------------------------------------------------------------------- #
-# Payload ruim -> DLQ
-# --------------------------------------------------------------------------- #
-
-
-def test_json_quebrado_vai_para_a_dlq_e_sai_da_fila(aws, consumer):
-    _enviar(aws, "{isso nao e json")
-
-    consumer.run_once()
-
-    assert _profundidade(aws, aws.config.queue_url) == 0
-    assert _profundidade(aws, aws.config.dlq_url) == 1
-    assert _itens(aws) == []
-
-
-def test_dlq_carrega_o_motivo_da_falha(aws, consumer):
-    _enviar(aws, "{isso nao e json")
-    consumer.run_once()
-
-    msg = aws.sqs.receive_message(
-        QueueUrl=aws.config.dlq_url, MessageAttributeNames=["All"]
-    )["Messages"][0]
-    assert "JSON invalido" in msg["MessageAttributes"]["FailureReason"]["StringValue"]
-    assert msg["MessageAttributes"]["SourceMessageId"]["StringValue"]
-    assert msg["Body"] == "{isso nao e json"  # payload original preservado
-
-
-def test_evento_sem_envelope_minimo_vai_para_a_dlq(aws, consumer):
-    _enviar(aws, {"event_name": "vitals", "session_id": "s1"})  # sem timestamp/device
-
-    consumer.run_once()
-
-    assert _profundidade(aws, aws.config.dlq_url) == 1
-    assert _itens(aws) == []
-
-
-def test_corpo_vazio_vai_para_a_dlq(aws, consumer):
-    _enviar(aws, "   ")
-    consumer.run_once()
-    assert _profundidade(aws, aws.config.dlq_url) == 1
-
-
-def test_evento_ruim_no_meio_do_lote_nao_derruba_os_bons(aws, consumer, sample_events):
-    """Um evento invalido nao pode custar os outros da mesma mensagem."""
-    _enviar(aws, [sample_events["error"], {"nada": "aqui"}, sample_events["vitals"]])
-
-    consumer.run_once()
-
-    assert len(_itens(aws)) == 2
-    assert _profundidade(aws, aws.config.dlq_url) == 1
-    assert _profundidade(aws, aws.config.queue_url) == 0
-
-
-def test_item_gigante_vai_para_a_dlq_em_vez_de_travar(aws, consumer, sample_events):
-    """Item acima de 400 KB nunca passa; retry so repetiria a falha para sempre."""
-    gordo = dict(sample_events["error"], error_stack="x" * 400_000)
-    _enviar(aws, gordo)
-
-    consumer.run_once()
-
-    assert _itens(aws) == []
-    assert _profundidade(aws, aws.config.dlq_url) == 1
-    assert _profundidade(aws, aws.config.queue_url) == 0
-
-
-def test_tipo_desconhecido_e_gravado_e_nao_vai_para_a_dlq(aws, consumer):
-    _enviar(
+def test_tipo_desconhecido_e_gravado_e_nao_vai_para_a_dlq(aws, event_consumer, db):
+    """RF03: o parque de TVs atualiza devagar; schema estrito perderia dado em massa."""
+    _send(
         aws,
+        "argus-events",
         {
-            "timestamp": "2026-07-13T23:04:44Z",
-            "event_name": "ad_impression",
-            "session_id": "s1",
-            "device_id": "d1",
+            "timestamp": "2026-07-24T12:00:00Z",
+            "event_name": "tipo_que_ainda_nao_existe",
+            "session_id": "s-1",
+            "device_id": "d-1",
+            "campo_novo": "valor",
         },
     )
+    event_consumer.run_once()
 
-    assert consumer.run_once() == 1
-    assert _profundidade(aws, aws.config.dlq_url) == 0
-    assert _itens(aws)[0]["gsi1pk"]["S"].startswith("EVT#ad_impression#")
-
-
-# --------------------------------------------------------------------------- #
-# Falha de escrita -> mensagem fica na fila
-# --------------------------------------------------------------------------- #
+    linha = db.fetch_one("SELECT event_name, payload FROM bronze.event")
+    assert linha["event_name"] == "tipo_que_ainda_nao_existe"
+    assert linha["payload"]["campo_novo"] == "valor"
+    assert _dlq(aws, "argus-events-dlq") == []
 
 
-def test_falha_de_escrita_segura_o_delete(aws, consumer, sample_events, monkeypatch):
-    """Sem escrita confirmada, a mensagem tem que voltar para o redrive."""
-    monkeypatch.setattr(
-        consumer._repo, "put_many", lambda items: {f"{i['pk']}|{i['sk']}" for i in items}
-    )
-    _enviar(aws, sample_events["error"])
-
-    consumer.run_once()
-
-    assert _profundidade(aws, aws.config.queue_url) == 1
-    assert _profundidade(aws, aws.config.dlq_url) == 0
+def test_evento_sem_envelope_minimo_vai_para_a_dlq(aws, event_consumer, db):
+    _send(aws, "argus-events", {"event_name": "request"})  # sem timestamp/session/device
+    event_consumer.run_once()
+    assert len(_dlq(aws, "argus-events-dlq")) == 1
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.event")["n"] == 0
 
 
-def test_falha_ao_enviar_para_a_dlq_segura_o_delete(aws, consumer, monkeypatch):
-    """Se nem a DLQ aceita, nao podemos apagar: seria perda silenciosa."""
-    from botocore.exceptions import ClientError
-
-    def explode(**_kwargs):
-        raise ClientError({"Error": {"Code": "InternalError"}}, "SendMessage")
-
-    # Enfileira ANTES de quebrar o send_message, senao o proprio setup falha.
-    _enviar(aws, "{json quebrado")
-    monkeypatch.setattr(consumer._sqs, "send_message", explode)
-
-    consumer.run_once()
-
-    assert _profundidade(aws, aws.config.queue_url) == 1
-
-
-def test_escrita_parcial_so_segura_a_mensagem_afetada(
-    aws, consumer, sample_events, monkeypatch
-):
-    ruim = dict(sample_events["error"], duration=99.0)
-    _enviar(aws, sample_events["vitals"])
-    _enviar(aws, ruim)
-
-    from argus_worker.keys import build_item
-    from argus_worker.models import parse_event
-
-    evento, _ = parse_event(ruim)
-    item = build_item(
-        evento,
-        ingested_at=__import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc
-        ),
-        retention_days=90,
-        gsi1_shards=aws.config.gsi1_shards,
-        max_clock_skew_days=365,
-    )
-    chave_ruim = f"{item['pk']}|{item['sk']}"
-
-    original = consumer._repo.put_many
-    monkeypatch.setattr(
-        consumer._repo,
-        "put_many",
-        lambda items: {chave_ruim} if original(items) is not None else set(),
-    )
-
-    consumer.run_once()
-
-    # a mensagem boa saiu, a ruim ficou
-    assert _profundidade(aws, aws.config.queue_url) == 1
+def test_corpo_vazio_vai_para_a_dlq(aws, event_consumer):
+    _send(aws, "argus-events", "")
+    event_consumer.run_once()
+    assert len(_dlq(aws, "argus-events-dlq")) == 1
 
 
 # --------------------------------------------------------------------------- #
-# Operacao
+# Ciclo de vida
 # --------------------------------------------------------------------------- #
 
 
-def test_fila_vazia_nao_escreve_nada(aws, consumer):
-    assert consumer.run_once() == 0
-    assert _itens(aws) == []
+def test_fila_vazia_nao_escreve_nada(aws, merge_consumer, db):
+    assert merge_consumer.run_once() == 0
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.change_log")["n"] == 0
 
 
-def test_heartbeat_e_atualizado_mesmo_com_fila_vazia(aws, consumer):
-    """O healthcheck nao pode confundir fila vazia com worker travado."""
+def test_heartbeat_e_atualizado_mesmo_com_fila_vazia(aws, merge_consumer):
+    """Fila vazia nao pode ser confundida com processo travado.
+
+    Sem isto, um worker saudavel num domingo de madrugada seria morto em laco
+    pelo healthcheck da task definition.
+    """
     from pathlib import Path
 
-    consumer.run_once()
+    merge_consumer.run_once()
+    assert Path(aws.config_merge.heartbeat_path).exists()
 
-    assert Path(aws.config.heartbeat_path).exists()
+
+def test_falha_de_escrita_segura_o_delete(aws, merge_consumer, monkeypatch):
+    """Sem gravar, a mensagem NAO sai da fila -- e o SQS reentrega."""
+    import psycopg
+
+    def explode(*_args, **_kwargs):
+        raise psycopg.OperationalError("banco caiu no meio do lote")
+
+    _send(aws, "argus-changes", CHANGE_BASE)
+    monkeypatch.setattr(merge_consumer._repo, "append_and_merge", explode)
+
+    with pytest.raises(psycopg.OperationalError):
+        merge_consumer.run_once()
+
+    assert _restam(aws, "argus-changes") == 1
 
 
-def test_sigterm_encerra_o_loop(aws, consumer, sample_events):
+def test_registro_recusado_pelo_banco_nao_paralisa_a_fila(aws, merge_consumer, db):
+    """Um change event malformado NAO pode travar toda a ingestao de mudancas.
+
+    Regressao de producao: um unico registro sem uma coluna NOT NULL abortava a
+    transacao do lote inteiro. Como append e MERGE estao na mesma transacao, nada
+    era apagado da fila, o SQS reentregava, e a mesma falha se repetia -- de tres
+    em tres minutos, para sempre. O ciclo passou a demorar mais que o healthcheck
+    e o ECS matou o worker em laco. Um registro ruim derrubou o pipeline.
+
+    O certo e o veneno ir para a DLQ e os vizinhos passarem.
+    """
+    veneno = {
+        **CHANGE_BASE,
+        # `bts` e da chave primaria e e NOT NULL. Sem ele, o
+        # `jsonb_populate_record` do MERGE produz NULL e o banco recusa.
+        "pk": {**CHANGE_BASE["pk"], "bts": 9_999_999_999_999},
+        "after": {k: v for k, v in CHANGE_BASE["after"].items() if k != "bts"},
+    }
+    _send(aws, "argus-changes", veneno)
+    _send(aws, "argus-changes", CHANGE_BASE)
+
+    merge_consumer.run_once()
+
+    # O bom entrou.
+    assert db.fetch_one("SELECT count(*) AS n FROM bronze.signal_bucket")["n"] == 1
+    # O ruim saiu da fila principal e foi para a DLQ, com o motivo anexado.
+    assert _restam(aws, "argus-changes") == 0
+    assert _restam(aws, "argus-changes-dlq") == 1
+
+
+def test_banco_fora_do_ar_nao_manda_nada_para_a_dlq(aws, merge_consumer, monkeypatch):
+    """Indisponibilidade e o oposto de registro ruim: o dado tem de ser mantido.
+
+    A quarentena existe para dado que NUNCA vai passar. Aplicar a mesma regra a
+    uma queda de banco jogaria fora dado perfeitamente valido.
+    """
+    import psycopg
+
+    def explode(*_args, **_kwargs):
+        raise psycopg.OperationalError("banco caiu")
+
+    _send(aws, "argus-changes", CHANGE_BASE)
+    monkeypatch.setattr(merge_consumer._repo, "append_and_merge", explode)
+
+    with pytest.raises(psycopg.OperationalError):
+        merge_consumer.run_once()
+
+    assert _restam(aws, "argus-changes") == 1
+    assert _restam(aws, "argus-changes-dlq") == 0
+
+
+def test_sigterm_encerra_o_loop(aws, merge_consumer):
+    import os
     import signal
+    import threading
 
-    _enviar(aws, sample_events["error"])
-    consumer._request_stop(signal.SIGTERM, None)
-    consumer.run()  # tem que retornar sozinho
+    def manda_sigterm():
+        os.kill(os.getpid(), signal.SIGTERM)
 
-    assert consumer._running is False
+    threading.Timer(0.2, manda_sigterm).start()
+    merge_consumer.run()  # tem que retornar sozinho
 
 
 # --------------------------------------------------------------------------- #
@@ -346,18 +449,23 @@ def test_sigterm_encerra_o_loop(aws, consumer, sample_events):
 
 
 @pytest.mark.parametrize(
-    "body,esperado",
+    ("body", "chave", "esperado"),
     [
-        ('{"a":1}', 1),
-        ('[{"a":1},{"a":2}]', 2),
-        ('{"events":[{"a":1},{"a":2},{"a":3}]}', 3),
+        ('{"a": 1}', "changes", 1),
+        ('[{"a": 1}, {"b": 2}]', "changes", 2),
+        ('{"changes": [{"a": 1}, {"b": 2}]}', "changes", 2),
+        ('{"events": [{"a": 1}]}', "events", 1),
     ],
 )
-def test_extract_events_aceita_as_tres_formas(body, esperado):
-    assert len(_extract_events(body)) == esperado
+def test_extract_aceita_as_tres_formas(body, chave, esperado):
+    from argus_worker.consumer import _extract
+
+    assert len(_extract(body, chave)) == esperado
 
 
-@pytest.mark.parametrize("body", ["", "   ", "nao json", "[]", "123", '"texto"'])
-def test_extract_events_rejeita_corpo_invalido(body):
+@pytest.mark.parametrize("body", ["", "   ", "{quebrado", "[]", "null", "42"])
+def test_extract_rejeita_corpo_invalido(body):
+    from argus_worker.consumer import _extract
+
     with pytest.raises(ValueError):
-        _extract_events(body)
+        _extract(body, "changes")

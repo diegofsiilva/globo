@@ -1,0 +1,20 @@
+import { screenTitle } from "../../_components/screen-frame.styles";
+
+/** Utilities Tailwind geradas a partir do CSS legado para preservar paridade visual. */
+export const recorteStyles = {
+  "adjustment": "adjustment [width:100%] [min-height:52px] [padding:10px_0] [display:flex] [flex-direction:column] [align-items:flex-start] [justify-content:center] [border-bottom:1px_solid_var(--border-soft)] bg-transparent [text-align:left] [&_strong]:text-micro [&_span]:text-muted-foreground [&_span]:text-micro [&_span]:font-semibold",
+  "adjustments": "adjustments [padding-left:25px] [border-left:1px_solid_var(--border-soft)] [&_h2]:[margin:0_0_12px] [&_h2]:text-subtle-foreground [&_h2]:text-micro [&_h2]:font-semibold [&_h2]:[letter-spacing:0.08em] [&_h2]:[text-transform:uppercase] [&_>_p]:[margin:0_0_13px] [&_>_p]:text-muted-foreground [&_>_p]:text-micro [&_>_p]:font-semibold [&_>_p]:[line-height:1.55] max-[1100px]:[padding:20px_0] max-[1100px]:[border-left:0] max-[1100px]:[border-top:1px_solid_var(--border)]",
+  "gain": "gain text-primary",
+  "grid": "recorteGrid [display:grid] [grid-template-columns:minmax(0,1fr)_300px] [gap:28px] [padding-top:26px] [&_>_div]:[min-width:0] max-[1100px]:[grid-template-columns:minmax(0,1fr)]",
+  "heading": `heading [min-height:148px] [padding:27px_0_20px_14px] [border-left:2px_solid_var(--primary)] [&_>_p]:[margin:0_0_6px] [&_>_p]:text-subtle-foreground [&_>_p]:text-micro [&_>_p]:font-semibold [&_>_p]:[letter-spacing:0.08em] [&_>_p]:[text-transform:uppercase] ${screenTitle}`,
+  "heatmap": "heatmap [display:grid] [grid-template-columns:170px_repeat(5,minmax(95px,1fr))] [grid-auto-rows:46px] [&_>_b]:[display:grid] [&_>_b]:[place-items:center] [&_>_b]:text-subtle-foreground [&_>_b]:text-micro [&_>_b]:[letter-spacing:0.06em] [&_>_b]:[text-transform:uppercase] [&_>_strong]:[display:flex] [&_>_strong]:[align-items:center] [&_>_strong]:text-micro [&_>_span]:[margin:1px] [&_>_span]:[display:flex] [&_>_span]:[flex-direction:column] [&_>_span]:[align-items:center] [&_>_span]:[justify-content:center] [&_>_span]:[background:color-mix(in_srgb,var(--primary)_10%,var(--surface))] [&_>_span]:text-micro [&_>_span]:font-semibold [&_small]:text-micro [&_small]:font-bold [&_small]:[letter-spacing:0.08em] [&_small]:[text-transform:uppercase] max-[760px]:[min-width:720px]",
+  "heatmapScroller": "heatmapScroller [width:100%] [max-width:100%] max-[760px]:[overflow-x:auto]",
+  "hot": "hot [background:color-mix(in_srgb,var(--primary)_28%,var(--surface))]!",
+  "hottest": "hottest bg-primary! text-primary-foreground",
+  "metrics": "metrics [margin-top:14px] [display:flex] [gap:46px] [&_>_div]:[display:flex] [&_>_div]:[flex-direction:column] [&_strong]:text-subhead [&_span]:[margin-top:4px] [&_span]:text-subtle-foreground [&_span]:text-micro [&_span]:font-semibold [&_span]:[letter-spacing:0.06em] [&_span]:[text-transform:uppercase] max-[760px]:[gap:25px] max-[760px]:[overflow-x:auto]",
+  "sampleError": "sampleError text-primary-hover font-semibold",
+  "sampleHead": "sampleHead [height:35px] [display:grid] [grid-template-columns:90px_minmax(220px,1.5fr)_122px_105px_minmax(250px,1.5fr)] [align-items:center] [border-bottom:1px_solid_var(--border-soft)] text-micro [height:24px] text-subtle-foreground text-micro [letter-spacing:0.06em] [text-transform:uppercase] max-[760px]:[min-width:780px]",
+  "sampleRow": "sampleRow [height:35px] [display:grid] [grid-template-columns:90px_minmax(220px,1.5fr)_122px_105px_minmax(250px,1.5fr)] [align-items:center] [border-bottom:1px_solid_var(--border-soft)] text-micro [&_span:first-child]:text-muted-foreground [&_span:first-child]:font-semibold [&_span:nth-child(2)]:font-semibold [&_span:nth-child(3)]:font-semibold max-[760px]:[min-width:780px]",
+  "samples": "samples [width:calc(100%_-_328px)] [margin:26px_0_48px] [&_.sectionLabel]:[padding-bottom:9px] [&_.sectionLabel]:[border-bottom:1px_solid_var(--border)] max-[1100px]:[width:100%]",
+  "sectionLabel": "sectionLabel [margin:0_0_12px] text-subtle-foreground text-micro font-semibold [letter-spacing:0.08em] [text-transform:uppercase]",
+} as const;

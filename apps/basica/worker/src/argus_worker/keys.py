@@ -1,22 +1,14 @@
-"""Identidade do evento e chaves do DynamoDB.
+"""Identidade do evento e montagem da linha de `bronze.event`.
 
-Modelo single-table. Tres padroes de acesso, um por indice:
+Na v2 este modulo montava as chaves do modelo single-table do DynamoDB
+(SESSION#, EVT#, DEV# e o shard da GSI1). Nada disso sobrevive: o PostgreSQL
+resolve os tres padroes de acesso com indice, e o sharding da GSI1 existia
+apenas para contornar o teto de 1000 WCU por particao do DynamoDB -- um limite
+que nao existe aqui.
 
-  tabela  pk=SESSION#<session_id>            sk=<ts>#<event_id>
-          -> linha do tempo de uma sessao, em ordem cronologica
-
-  GSI1    gsi1pk=EVT#<event_name>#<data>#<shard>   gsi1sk=<ts>#<event_id>
-          -> todos os eventos de um tipo num dia ("erros de 13/07")
-
-  GSI2    gsi2pk=DEV#<device_id>             gsi2sk=<ts>#<event_id>
-          -> historico de um aparelho
-
-O sufixo `#<shard>` na GSI1 nao e enfeite: sem ele, todo evento `request` de um
-dia cairia na mesma particao, e uma particao do DynamoDB satura em 1000 WCU. Com
-telemetria de um parque de TVs isso e o gargalo obvio. O shard e derivado do
-hash do evento (distribuicao uniforme, deterministica), e a leitura vira um
-fan-out de GSI1_SHARDS queries em paralelo -- custo de leitura identico, so mais
-uma chamada. Em dev da pra usar GSI1_SHARDS=1 e ler com uma query so.
+O que sobrevive, e e o que importa, e `build_event_id`: o id deterministico
+derivado do conteudo. E ele que faz a reentrega at-least-once do SQS virar um
+`ON CONFLICT DO NOTHING` em vez de uma linha duplicada.
 """
 
 from __future__ import annotations
@@ -28,20 +20,24 @@ from typing import Any
 
 from .models import BaseEvent
 
-# Quantos caracteres do hash entram na sort key. 12 hex = 48 bits: com milhoes de
-# eventos por segundo no mesmo timestamp a chance de colisao segue desprezivel, e
-# eventos identicos DEVEM colidir (e assim que a idempotencia funciona).
-EVENT_ID_SK_CHARS = 12
+# Quantos caracteres do hash formam o id. 32 hex = 128 bits: com milhoes de
+# eventos por segundo a chance de colisao segue desprezivel, e eventos identicos
+# DEVEM colidir -- e assim que a idempotencia funciona.
+EVENT_ID_CHARS = 32
 
 
 def canonical_json(payload: dict[str, Any]) -> str:
-    """Serialização estável: mesma entrada gera sempre os mesmos bytes.
+    """Serializacao estavel: mesma entrada gera sempre os mesmos bytes.
+
+    `sort_keys` e o que torna o hash reproduzivel. Sem ele, o mesmo evento
+    reenviado com as chaves em outra ordem (o que acontece de verdade, porque
+    JSON nao promete ordem) geraria um id diferente e viraria uma duplicata.
 
     Args:
-        payload (dict[str, Any]): Dicionário com os dados do evento.
+        payload (dict[str, Any]): Dicionario com os dados do evento.
 
     Returns:
-        str: String JSON canônica com chaves ordenadas.
+        str: String JSON canonica com chaves ordenadas.
     """
     return json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
@@ -49,102 +45,147 @@ def canonical_json(payload: dict[str, Any]) -> str:
 
 
 def build_event_id(event: BaseEvent) -> str:
-    """Id determinístico do evento.
+    """Id deterministico do evento.
 
-    Se o cliente mandou `event_id`, ele manda. Senão, derivamos do conteúdo:
-    duas entregas do mesmo evento produzem a mesma chave, então a reentrega do
-    SQS (que é at-least-once por design) vira um overwrite idêntico no DynamoDB
-    em vez de uma linha duplicada. Idempotência sem leitura prévia nem
-    ConditionExpression.
+    Se o cliente mandou `event_id`, ele manda -- respeitamos a identidade que a
+    origem escolheu. Senao, derivamos do conteudo: duas entregas do mesmo evento
+    produzem a mesma chave, entao a reentrega do SQS (at-least-once por design)
+    colide de proposito e o `ON CONFLICT DO NOTHING` a absorve.
+
+    Idempotencia sem leitura previa e sem transacao serializavel.
 
     Args:
-        event (BaseEvent): Instância do evento de telemetria já validado.
+        event (BaseEvent): Evento ja validado.
 
     Returns:
-        str: O `event_id` do cliente, ou o SHA-256 do conteúdo canonicalizado.
+        str: Identificador de 32 caracteres hexadecimais.
     """
     if event.event_id:
         return event.event_id
-
-    payload = event.model_dump(mode="json", exclude_none=True)
-    payload.pop("event_id", None)
-    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+    bruto = canonical_json(event.model_dump(mode="json", exclude_none=True))
+    return hashlib.sha256(bruto.encode("utf-8")).hexdigest()[:EVENT_ID_CHARS]
 
 
-def _sk_timestamp(moment: datetime) -> str:
-    """Formata o timestamp em ISO-8601 UTC com milissegundos ordenável lexicograficamente.
+def clock_skew(moment: datetime, max_days: int) -> bool:
+    """Diz se o timestamp do evento esta absurdamente longe de agora.
 
-    Args:
-        moment (datetime): Objeto datetime a ser formatado.
-
-    Returns:
-        str: String de data/hora formatada.
-    """
-    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
-
-def shard_for(event_id: str, shards: int) -> int:
-    """Calcula o índice do shard para partição da GSI1 com base no event_id.
+    Relogio de TV e notoriamente errado -- aparelho sem NTP, fuso configurado na
+    mao, relogio zerado depois de queda de energia. O evento com desvio e
+    MARCADO, nunca descartado: jogar fora perderia justamente o aparelho com
+    problema, que costuma ser o que a investigacao procura.
 
     Args:
-        event_id (str): Identificador do evento.
-        shards (int): Quantidade total de shards configurados.
+        moment (datetime): Timestamp declarado pelo evento.
+        max_days (int): Desvio tolerado, em dias.
 
     Returns:
-        int: Número do shard (de 0 a shards-1).
+        bool: True se o desvio ultrapassa o limite.
     """
-    if shards <= 1:
-        return 0
-    return int(event_id[:8], 16) % shards
+    return abs(datetime.now(UTC) - moment) > timedelta(days=max_days)
 
 
-def build_item(
+# Campos que viram COLUNA em bronze.event. O resto do evento vai para `payload`.
+CAMPOS_ENVELOPE = frozenset(
+    {
+        "event_id",
+        "timestamp",
+        "event_name",
+        "session_id",
+        "device_id",
+        "user_id",
+        "app_bucket",
+        "app_env",
+        "app_target",
+        "app_version",
+        "device_manufacturer",
+        "device_model",
+        "device_model_year",
+        "device_os",
+        "device_os_version",
+        "route_path",
+        "route_params",
+        "duration",
+    }
+)
+
+
+def build_row(
     event: BaseEvent,
     *,
     ingested_at: datetime,
-    retention_days: int,
-    gsi1_shards: int,
-    max_clock_skew_days: int,
+    max_clock_skew_days: int = 365,
 ) -> dict[str, Any]:
-    """Monta o item completo do DynamoDB a partir do evento validado.
+    """Monta a linha de `bronze.event` a partir do evento validado.
+
+    A divisao entre coluna e `payload` segue o schema de 005_bronze_event.sql: o
+    envelope comum e tipado (as telas Explorar e Recorte filtram por ele, e
+    filtro precisa de indice), e o que e especifico do tipo -- request_*,
+    media_*, error_*, capabilities_* -- fica em jsonb.
 
     Args:
-        event (BaseEvent): Evento de telemetria parseado.
-        ingested_at (datetime): Data/hora de ingestão do evento pelo worker.
-        retention_days (int): Dias de retenção antes da expiração pelo TTL do DynamoDB.
-        gsi1_shards (int): Número de shards da GSI1.
-        max_clock_skew_days (int): Limite tolerado de desvio do relógio.
+        event (BaseEvent): Evento ja validado pelo Pydantic.
+        ingested_at (datetime): Instante em que o lote entrou no worker.
+        max_clock_skew_days (int): Desvio de relogio tolerado antes de marcar.
 
     Returns:
-        dict[str, Any]: Item formatado para inserção no DynamoDB.
+        dict[str, Any]: Linha pronta para EventRepository.put_many.
     """
-    event_id = build_event_id(event)
-    short_id = event_id[:EVENT_ID_SK_CHARS]
-    ts = _sk_timestamp(event.timestamp)
-    day = event.timestamp.astimezone(UTC).strftime("%Y-%m-%d")
-    shard = shard_for(event_id, gsi1_shards)
+    bruto = event.model_dump(mode="python")
+    payload = {
+        k: v for k, v in bruto.items() if k not in CAMPOS_ENVELOPE and v is not None
+    }
 
-    item: dict[str, Any] = event.model_dump(mode="json", exclude_none=True)
+    if clock_skew(event.timestamp, max_clock_skew_days):
+        # Vai no payload, e nao numa coluna: e sinal de qualidade do dado, nao
+        # dimensao de consulta. Ninguem filtra a tela por "eventos com relogio
+        # errado" -- mas quem investiga um numero estranho precisa achar isso.
+        payload["clock_skew"] = True
 
-    item["event_id"] = event_id
-    item["pk"] = f"SESSION#{event.session_id}"
-    item["sk"] = f"{ts}#{short_id}"
-    item["gsi1pk"] = f"EVT#{event.event_name}#{day}#{shard}"
-    item["gsi1sk"] = f"{ts}#{short_id}"
-    item["gsi2pk"] = f"DEV#{event.device_id}"
-    item["gsi2sk"] = f"{ts}#{short_id}"
-    item["event_date"] = day
-    item["ingested_at"] = _sk_timestamp(ingested_at)
+    # route_params chega como dict ou como string, conforme a versao do app.
+    # Normalizar aqui, e nao no banco, e o que mantem a coluna jsonb utilizavel.
+    route_params = bruto.get("route_params")
+    if isinstance(route_params, str):
+        try:
+            route_params = json.loads(route_params)
+        except (json.JSONDecodeError, TypeError):
+            route_params = {"raw": route_params}
 
-    # TTL contado da ingestao, nao do horario do evento: replay de dado historico
-    # nao pode nascer expirado.
-    item["expires_at"] = int((ingested_at + timedelta(days=retention_days)).timestamp())
+    # device_model_year vem como int, como string ("2019") ou como texto livre
+    # ("unknown"), dependendo do firmware -- e "unknown" e valor REAL do parque,
+    # nao lixo.
+    #
+    # A coluna e integer, entao o que nao converte nao cabe la. Mas descartar
+    # tambem esta fora de questao: e a mesma regra do `_extra` da bronze, de
+    # nunca perder o que a origem mandou. O valor original vai para o payload, e
+    # a coluna fica nula -- quem filtra por ano usa a coluna, quem investiga um
+    # aparelho especifico ainda encontra o "unknown".
+    ano = bruto.get("device_model_year")
+    if isinstance(ano, str):
+        if ano.strip().isdigit():
+            ano = int(ano)
+        else:
+            payload["device_model_year"] = ano
+            ano = None
 
-    # Relogio de TV erra feio. Sinalizamos o desvio grosseiro (1970, 2099) para
-    # que as analises possam filtrar, mas nunca descartamos o evento.
-    skew = abs((ingested_at - event.timestamp).days)
-    if max_clock_skew_days > 0 and skew > max_clock_skew_days:
-        item["clock_skew"] = True
-        item["clock_skew_days"] = skew
-
-    return item
+    return {
+        "event_id": build_event_id(event),
+        "ts": event.timestamp,
+        "event_name": event.event_name,
+        "session_id": event.session_id,
+        "device_id": event.device_id,
+        "user_id": event.user_id,
+        "app_bucket": event.app_bucket,
+        "app_env": event.app_env,
+        "app_target": event.app_target,
+        "app_version": event.app_version,
+        "device_manufacturer": event.device_manufacturer,
+        "device_model": event.device_model,
+        "device_model_year": ano,
+        "device_os": event.device_os,
+        "device_os_version": event.device_os_version,
+        "route_path": event.route_path,
+        "route_params": route_params,
+        "duration": event.duration,
+        "payload": payload,
+        "_captured_at": ingested_at,
+    }

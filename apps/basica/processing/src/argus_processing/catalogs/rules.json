@@ -1,0 +1,13 @@
+{
+  "deploy_regression": {"window_minutes": 60, "half_life_minutes": 15},
+  "backend_internal": {"window_minutes": 15},
+  "playback_authorization": {"window_minutes": 30, "min_sample": 100},
+  "cdn_degradation": {"window_minutes": 30},
+  "origin_encoding": {"window_minutes": 30},
+  "regional_or_isp": {"window_minutes": 60, "min_sample": 500, "min_lift": 2.0, "min_delta_pp": 1.0},
+  "waf_block": {"window_minutes": 15},
+  "player_or_device": {"window_minutes": 60, "min_sample": 200, "min_lift": 2.0, "min_delta_pp": 1.0},
+  "qoe_without_error": {"window_minutes": 60},
+  "expected_live_peak": {"window_minutes": 60},
+  "source_data_delay": {"window_minutes": 60}
+}

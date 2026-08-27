@@ -410,7 +410,7 @@
 
 &emsp; Uma plataforma proprietária transfere o custo da licença para a operação interna. Esses custos são o principal contrapeso do benefício.
 
-**Derivação da infraestrutura de produção (cenário base, B4 = 40%).** O dimensionamento segue as etapas da arquitetura descrita em `arquitetura.md`, com preços de tabela da região US East (AMAZON WEB SERVICES, 2026) convertidos por B2. O volume é de ~1,44 bi eventos/mês (C9 × B4), com item médio de ~500 bytes.
+**Derivação da infraestrutura de produção (cenário base, B4 = 40%).** O dimensionamento segue as etapas da arquitetura descrita em `mvp-inicial.md`, com preços de tabela da região US East (AMAZON WEB SERVICES, 2026) convertidos por B2. O volume é de ~1,44 bi eventos/mês (C9 × B4), com item médio de ~500 bytes.
 
 | Etapa da arquitetura | Dimensionamento | US$/mês |
 |---|---|---:|
@@ -428,7 +428,7 @@
 | **Total** | | **~5.310** |
 | **Equivalente em reais** | B2 = R$ 5,08 | **~R$ 27.000** |
 
-&emsp; O ambiente de laboratório descrito em `arquitetura.md` opera na ordem de 1 milhão de eventos por mês e custa cerca de US$ 14 mensais. A diferença de três ordens de grandeza para a tabela acima é de volume, não de arquitetura: os mesmos componentes, cobrados por requisição e por unidade de escrita, escalam de forma praticamente linear.
+&emsp; O ambiente de laboratório descrito em `mvp-inicial.md` (§1.7) opera na ordem de 1 milhão de eventos por mês e custa cerca de US$ 14 mensais. A diferença de três ordens de grandeza para a tabela acima é de volume, não de arquitetura: os mesmos componentes, cobrados por requisição e por unidade de escrita, escalam de forma praticamente linear.
 
 &emsp; Dois itens respondem por 95% da conta. O DynamoDB pesa 58% porque **cada GSI multiplica a escrita**: o mesmo evento é gravado três vezes, na tabela e nos dois índices. Reduzir para um GSI cortaria cerca de US$ 900/mês, ao custo de perder um dos caminhos de consulta. A borda de ingestão, API Gateway e SQS, responde por 38%, e é consequência de cobrar por requisição um fluxo de um evento por chamada; agrupar eventos no cliente antes do `POST` é a alavanca mais direta sobre esse valor. O NAT Gateway, que seria o maior item isolado, não aparece porque a arquitetura atribui IP público à tarefa.
 

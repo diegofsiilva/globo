@@ -1,273 +1,345 @@
-"""Escrita em lote no DynamoDB.
+"""Escrita no PostgreSQL: change events no log e eventos de sessao na bronze.
 
-Usa BatchWriteItem (25 itens por chamada, limite do servico) com retry dos
-UnprocessedItems. Nao usa ConditionExpression: como a chave deriva do hash do
-conteudo (ver keys.build_event_id), reentrega grava o mesmo item por cima e o
-resultado e identico. Fica mais barato -- condicional gastaria WCU em falha.
+Substitui o repositorio de DynamoDB da v2. A mudanca nao e so de destino: a
+estrategia de idempotencia mudou de lugar.
+
+  v2  chave derivada do hash do conteudo -> reentrega grava o mesmo item por
+      cima, e o efeito e exactly-once.
+  v3  `lsn` monotonico + a regra "so sobrescreve se o lsn for maior", aplicada
+      por `bronze.merge_do_log` dentro do banco. A reentrega e absorvida do
+      mesmo jeito, mas agora a regra vale tambem para o REPLAY e para o loader,
+      que nao passam por este codigo.
+
+A regra mora no SQL (010_merge_e_etl.sql) de proposito: e a unica forma de os
+tres caminhos de escrita nao divergirem.
 """
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import logging
-import random
-import time
-from collections.abc import Iterable
-from decimal import Decimal
 from typing import Any
 
-from boto3.dynamodb.types import TypeSerializer
-from botocore.exceptions import ClientError
-
-from .config import DYNAMO_MAX_BATCH
+from psycopg import sql
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 log = logging.getLogger(__name__)
 
-_SERIALIZER = TypeSerializer()
-
-# Limite de tamanho de item do DynamoDB. Deixamos folga para o overhead dos
-# nomes de atributo, que contam no total.
-MAX_ITEM_BYTES = 380_000
-
-
-class ItemTooLarge(ValueError):
-    """Item acima do limite de 400 KB do DynamoDB -- retry nunca vai resolver."""
+# Teto de tamanho de um change event. Nao ha limite de linha no PostgreSQL como
+# havia no DynamoDB (400 KB), mas um payload absurdo ainda e sinal de defeito na
+# origem, e aceita-lo faria o TOAST engolir a tabela em silencio.
+MAX_CHANGE_BYTES = 4_000_000
 
 
-def _sanitize(value: Any) -> Any:
-    """Deixa o valor no formato que o DynamoDB aceita.
-
-    float vira Decimal (o DynamoDB não tem float), via str para não arrastar o
-    resíduo binário de IEEE-754: Decimal(0.1) é 0.1000000000000000055..., já
-    Decimal("0.1") é exatamente 0.1.
-
-    Args:
-        value (Any): Valor a ser sanitizado, de qualquer profundidade.
-
-    Returns:
-        Any: Valor equivalente com os floats convertidos em Decimal.
-    """
-    if isinstance(value, float):
-        if value != value or value in (float("inf"), float("-inf")):
-            # NaN/Infinity nao existem no DynamoDB; viram texto para nao
-            # derrubar o lote inteiro por causa de um campo.
-            return str(value)
-        return Decimal(str(value))
-    if isinstance(value, dict):
-        return {k: _sanitize(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_sanitize(v) for v in value]
-    return value
+class ChangeTooLarge(ValueError):
+    """Change event grande demais -- retry nunca vai resolver."""
 
 
-def _estimate_bytes(item: dict[str, Any]) -> int:
-    """Estima o tamanho aproximado em bytes de um item para o DynamoDB.
+def check_size(change: dict[str, Any]) -> None:
+    """Levanta ChangeTooLarge se o change event for absurdo.
+
+    Chamado pelo consumer ANTES de montar o lote: um payload gigante nunca vai
+    passar por mais que se tente, entao precisa ser desviado para a DLQ na
+    entrada. Se entrasse no lote, derrubaria os outros junto e o redrive
+    repetiria a falha para sempre.
 
     Args:
-        item (dict[str, Any]): Dicionário com os atributos do item.
-
-    Returns:
-        int: Estimativa em bytes.
-    """
-    total = 0
-    for key, value in item.items():
-        total += len(str(key).encode("utf-8"))
-        total += len(str(value).encode("utf-8"))
-    return total
-
-
-def serialize(item: dict[str, Any]) -> dict[str, Any]:
-    """Converte um item Python no formato de mapa de AttributeValue do Boto3.
-
-    Args:
-        item (dict[str, Any]): Item bruto.
-
-    Returns:
-        dict[str, Any]: Mapa de AttributeValue serializado.
-    """
-    return {k: _SERIALIZER.serialize(_sanitize(v)) for k, v in item.items()}
-
-
-def check_size(item: dict[str, Any]) -> None:
-    """Levanta ItemTooLarge se o item nao couber no DynamoDB.
-
-    Chamado pelo consumer ANTES de montar o lote. Um item gigante nunca vai
-    passar por mais que tentemos, entao ele precisa ser desviado para a DLQ na
-    entrada -- se entrasse no lote, derrubaria os outros 24 itens junto e o
-    redrive repetiria a falha para sempre.
-
-    Args:
-        item (dict[str, Any]): Item a ser inspecionado.
+        change (dict[str, Any]): Change event ja validado.
 
     Raises:
-        ItemTooLarge: Se o tamanho estimado exceder o limite seguro.
+        ChangeTooLarge: Se o tamanho serializado exceder o limite.
     """
-    size = _estimate_bytes(item)
-    if size > MAX_ITEM_BYTES:
-        raise ItemTooLarge(
-            f"item de ~{size} bytes excede o limite de {MAX_ITEM_BYTES} do DynamoDB"
+    tamanho = len(json.dumps(change, default=str).encode("utf-8"))
+    if tamanho > MAX_CHANGE_BYTES:
+        raise ChangeTooLarge(
+            f"change event de ~{tamanho} bytes excede o limite de {MAX_CHANGE_BYTES}"
         )
 
 
-class EventRepository:
-    """Grava eventos no DynamoDB, reportando quais itens ficaram para tras."""
+class ChangeRepository:
+    """Anexa change events ao log e dispara o MERGE na bronze corrente."""
 
-    def __init__(self, client, table_name: str, max_retries: int = 5) -> None:
-        """Inicializa o repositório do worker.
+    def __init__(self, db) -> None:
+        """Inicializa o repositorio.
 
         Args:
-            client: Cliente Boto3 para DynamoDB.
-            table_name (str): Nome da tabela no DynamoDB.
-            max_retries (int, optional): Número máximo de tentativas de reenvio
-                para itens não processados.
+            db (argus_common.Database): Pool de conexao com o banco.
         """
-        self._client = client
-        self._table = table_name
-        self._max_retries = max_retries
+        self._db = db
 
-    def put_many(self, items: list[dict[str, Any]]) -> set[str]:
-        """Grava os itens e devolve as chaves (`pk|sk`) que NAO foram gravadas.
+    def append_and_merge(self, changes: list[dict[str, Any]]) -> tuple[int, int]:
+        """Grava o lote no log e aplica o MERGE, numa transacao so.
 
-        Conjunto vazio significa que tudo entrou. As chaves devolvidas fazem o
-        chamador segurar o delete da mensagem no SQS, para que o redrive tente
-        de novo.
+        Log e MERGE na MESMA transacao de proposito. Se o commit acontecesse
+        entre os dois, uma queda no meio deixaria o log a frente da bronze
+        corrente -- estado que so seria percebido quando alguem reparasse que
+        uma tabela parou de atualizar. Como estao juntos, ou os dois acontecem
+        ou nenhum, e o SQS reentrega o lote inteiro.
 
         Args:
-            items (list[dict[str, Any]]): Lista de itens a serem gravados.
+            changes (list[dict[str, Any]]): Change events validados.
 
         Returns:
-            set[str]: Conjunto de chaves dos itens que falharam.
+            tuple[int, int]: Quantos entraram no log e quantas linhas o MERGE
+                tocou na bronze corrente.
         """
-        failed: set[str] = set()
-        for chunk in _chunks(_dedupe(items), DYNAMO_MAX_BATCH):
-            failed |= self._write_chunk(chunk)
-        return failed
+        if not changes:
+            return 0, 0
 
-    def _write_chunk(self, chunk: list[dict[str, Any]]) -> set[str]:
-        """Escreve um lote de até 25 itens utilizando a API BatchWriteItem.
-
-        Args:
-            chunk (list[dict[str, Any]]): Lista contendo até 25 itens.
-
-        Returns:
-            set[str]: Chaves dos itens não processados no lote.
-        """
-        by_key: dict[str, dict[str, Any]] = {}
-        requests: list[dict[str, Any]] = []
-
-        for item in chunk:
-            requests.append({"PutRequest": {"Item": serialize(item)}})
-            by_key[_item_key(item)] = item
-
-        pending = requests
-        for attempt in range(self._max_retries + 1):
-            try:
-                response = self._client.batch_write_item(
-                    RequestItems={self._table: pending}
-                )
-            except ClientError as exc:
-                code = exc.response.get("Error", {}).get("Code", "")
-                if code not in _RETRYABLE_CODES or attempt == self._max_retries:
-                    log.error(
-                        "batch_write_item falhou",
-                        extra={"error_code": code, "attempt": attempt},
-                        exc_info=True,
+        with self._db.connection() as conn, conn.cursor() as cur:
+            # RETURNING lsn e o que fecha a faixa a aplicar. Sem ele, o MERGE
+            # teria que varrer o log inteiro a cada lote -- que fica mais caro a
+            # cada mensagem processada, exatamente o tipo de degradacao que so
+            # aparece depois de horas rodando.
+            cur.executemany(
+                """
+                INSERT INTO bronze.change_log
+                  (source_table, op, pk, before, after, captured_at, run_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING lsn
+                """,
+                [
+                    (
+                        c["source_table"],
+                        c["op"],
+                        Jsonb(c["pk"]),
+                        Jsonb(c["before"]) if c.get("before") is not None else None,
+                        Jsonb(c["after"]) if c.get("after") is not None else None,
+                        c["captured_at"],
+                        c.get("run_id"),
                     )
-                    return set(by_key)
-                _sleep_backoff(attempt)
-                continue
-
-            unprocessed = response.get("UnprocessedItems", {}).get(self._table, [])
-            if not unprocessed:
-                return set()
-
-            if attempt == self._max_retries:
-                break
-
-            log.info(
-                "reenviando itens nao processados pelo DynamoDB",
-                extra={"unprocessed": len(unprocessed), "attempt": attempt},
+                    for c in changes
+                ],
+                returning=True,
             )
-            pending = unprocessed
-            _sleep_backoff(attempt)
 
-        # Esgotou o retry: devolve as chaves que sobraram para o chamador.
-        remaining = set()
-        for request in pending:
-            item = request.get("PutRequest", {}).get("Item", {})
-            pk = item.get("pk", {}).get("S")
-            sk = item.get("sk", {}).get("S")
-            if pk and sk:
-                remaining.add(f"{pk}|{sk}")
-        return remaining or set(by_key)
+            lsns: list[int] = []
+            while True:
+                linha = cur.fetchone()
+                if linha is not None:
+                    lsns.append(linha[0])
+                if not cur.nextset():
+                    break
+
+            if not lsns:
+                return 0, 0
+
+            tocadas = 0
+            for tabela in sorted({c["source_table"] for c in changes}):
+                cur.execute(
+                    "SELECT bronze.merge_do_log(%s, %s, %s)",
+                    (tabela, min(lsns), max(lsns)),
+                )
+                resultado = cur.fetchone()
+                tocadas += resultado[0] if resultado else 0
+
+            return len(lsns), tocadas
+
+    def lag_sim_seconds(self) -> float | None:
+        """Mede quanto tempo VIRTUAL o pipeline esta atras da origem.
+
+        E a metrica que so faz sentido neste sistema. Compara `sim.now()` com o
+        `captured_at` mais recente ja aplicado: se o simulador esta em
+        20:07 virtual e a ultima mudanca aplicada foi observada as 19:52, o
+        pipeline esta 15 minutos virtuais atrasado.
+
+        Medir em tempo de parede nao serviria -- com speed = 60, o mesmo atraso
+        de rede vira 1 segundo ou 1 hora de defasagem conforme a velocidade.
+
+        Returns:
+            float | None: Segundos de tempo virtual, ou None se o log estiver
+                vazio (nao ha atraso a medir num pipeline que nunca recebeu
+                nada).
+        """
+        # Pelo `lsn` e nao por `max(captured_at)`.
+        #
+        # O `max()` global nao tem como usar indice: `change_log` e particionada
+        # por RANGE em `lsn`, e um maximo sobre `captured_at` teria de olhar todas
+        # as particoes. Medido no RDS com 68,7 M linhas: 15 s, mesmo com indice em
+        # `(source_table, captured_at)` -- o PostgreSQL 16 nao faz skip scan.
+        #
+        # `lsn` e a chave de particionamento E a ordem de chegada, entao a linha
+        # mais nova esta sempre no fim da ultima particao: uma sondagem de indice,
+        # 0,25 s. E responde a MESMA pergunta -- "quao velho e o mais novo change
+        # event que ingerimos" -- porque o log e append-only na ordem em que o
+        # worker recebe.
+        linha = self._medir(
+            """
+            SELECT extract(epoch FROM sim.now() - captured_at) AS lag
+              FROM bronze.change_log
+             ORDER BY lsn DESC
+             LIMIT 1
+            """
+        )
+        return float(linha["lag"]) if linha and linha["lag"] is not None else None
+
+    def sources_silent(self, limite: dt.timedelta = dt.timedelta(hours=2)) -> int:
+        """Conta quantas fontes pararam de mandar dado.
+
+        Uma fonte que simplesmente para nao derruba nada: as outras continuam, o
+        dashboard continua desenhando, e o buraco so aparece quando alguem for
+        investigar um incidente e nao achar o dado. Por isso e metrica propria.
+
+        Args:
+            limite (timedelta): Silencio em tempo VIRTUAL a partir do qual a
+                fonte conta como calada.
+
+        Returns:
+            int: Quantidade de fontes silenciosas.
+        """
+        # A janela de `lsn` e o que torna isto viavel: sem ela, o `GROUP BY`
+        # varre as 68,7 M linhas (13 s medidos) porque nao existe skip scan. Com
+        # ela, a poda de particao deixa a consulta em 0,17 s.
+        #
+        # LIMITACAO CONHECIDA: uma fonte calada ha mais tempo do que a janela
+        # cobre some da contagem em vez de aparecer nela. Na pratica a janela
+        # cobre bem mais que o `limite` de silencio (sao ~10 ticks do simulador),
+        # mas com volume de ingestao muito maior essa folga encolhe. O jeito certo
+        # de resolver e uma tabela de fontes esperadas -- que so faz sentido
+        # quando o simulador cobrir mais que as quatro tabelas de hoje.
+        linha = self._medir(
+            """
+            WITH teto AS (SELECT max(lsn) AS m FROM bronze.change_log)
+            SELECT count(*) AS caladas FROM (
+              SELECT source_table, max(captured_at) AS ultimo
+                FROM bronze.change_log, teto
+               WHERE lsn > teto.m - %s
+               GROUP BY source_table
+              HAVING max(captured_at) < sim.now() - %s
+            ) q
+            """,
+            (self.JANELA_DE_LSN, limite),
+        )
+        return int(linha["caladas"]) if linha else 0
+
+    # Quantos lsn para tras a contagem de fontes caladas enxerga.
+    JANELA_DE_LSN = 50_000
+
+    # Teto de tempo para as consultas de METRICA, e so para elas.
+    #
+    # As duas acima agregam sobre `bronze.change_log`, que e append-only: ela so
+    # cresce. Com o indice `change_log_fonte_e_captura` (migration 012) as duas
+    # respondem em milissegundos, mas o indice pode faltar num banco recem-criado
+    # ou o plano pode degradar -- e ai a consulta passa a levar minutos.
+    #
+    # Isso ja aconteceu: sem o indice, `lag_sim_seconds` passava de 180 s sobre
+    # 68,7 M linhas. Como o worker so toca o heartbeat entre ciclos, o arquivo
+    # ficava velho, o healthcheck do ECS reprovava e a task era MORTA. Uma
+    # metrica derrubando o servico que ela observa.
+    #
+    # `_emit_lag` ja captura `psycopg.Error` dizendo "metrica nao pode derrubar
+    # ingestao". O teto e o que torna essa promessa verdadeira: sem ele a metrica
+    # nao falhava, so demorava -- e demorar era pior do que falhar.
+    TETO_DA_METRICA_MS = 5_000
+
+    def _medir(self, sql: str, params: tuple = ()) -> dict | None:
+        """Roda uma consulta de metrica com teto de tempo.
+
+        Args:
+            sql (str): Consulta.
+            params (tuple): Parametros de bind.
+
+        Returns:
+            dict | None: Primeira linha, ou None.
+
+        Raises:
+            psycopg.errors.QueryCanceled: Se estourar o teto. Quem chama trata
+                como metrica indisponivel, nao como falha de ingestao.
+        """
+        with self._db.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            # SET LOCAL: vale so nesta transacao, entao nao vaza para a proxima
+            # conexao que o pool devolver.
+            cur.execute(f"SET LOCAL statement_timeout = {self.TETO_DA_METRICA_MS}")
+            cur.execute(sql, params)
+            return cur.fetchone()
 
 
-_RETRYABLE_CODES = frozenset(
-    {
-        "ProvisionedThroughputExceededException",
-        "ThrottlingException",
-        "RequestLimitExceeded",
-        "InternalServerError",
-        "ServiceUnavailable",
-    }
-)
+class EventRepository:
+    """Grava eventos de sessao em bronze.event."""
 
+    # As colunas do envelope tipado, na ordem do INSERT. Explicitas e nao
+    # derivadas do dict: o modelo Pydantic aceita campo extra (`extra="allow"`)
+    # de proposito, e derivar a lista do payload faria um campo novo do app
+    # virar coluna inexistente e quebrar a ingestao -- exatamente o contrario do
+    # que o RF03 pede.
+    COLUNAS = (
+        "event_id",
+        "ts",
+        "event_name",
+        "session_id",
+        "device_id",
+        "user_id",
+        "app_bucket",
+        "app_env",
+        "app_target",
+        "app_version",
+        "device_manufacturer",
+        "device_model",
+        "device_model_year",
+        "device_os",
+        "device_os_version",
+        "route_path",
+        "route_params",
+        "duration",
+        "payload",
+        "_lsn",
+        "_captured_at",
+    )
 
-def _item_key(item: dict[str, Any]) -> str:
-    """Extrai a chave identificadora no formato 'pk|sk' de um item.
+    def __init__(self, db) -> None:
+        """Inicializa o repositorio.
 
-    Args:
-        item (dict[str, Any]): Dicionário com os atributos do item.
+        Args:
+            db (argus_common.Database): Pool de conexao com o banco.
+        """
+        self._db = db
 
-    Returns:
-        str: String da chave combinada.
-    """
-    return f"{item.get('pk')}|{item.get('sk')}"
+    def put_many(self, linhas: list[dict[str, Any]]) -> int:
+        """Grava o lote, ignorando o que ja estiver la.
 
+        `DO NOTHING` e nao `DO UPDATE`: a chave e (ts, event_id), e event_id
+        deriva do conteudo do evento (ver keys.build_event_id). Chave igual
+        significa evento igual, entao reescrever gastaria I/O para produzir a
+        mesma linha. E o que da o efeito de exactly-once sobre a entrega
+        at-least-once do SQS.
 
-def _dedupe(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Remove chaves repetidas, mantendo a ultima ocorrencia.
+        Args:
+            linhas (list[dict[str, Any]]): Linhas ja montadas por keys.build_row.
 
-    O BatchWriteItem rejeita a requisicao INTEIRA se dois PutRequest tiverem a
-    mesma chave -- nao e um item que falha, e o lote todo. E duplicata aqui e o
-    caso esperado, nao a excecao: a chave deriva do hash do conteudo justamente
-    para que a reentrega at-least-once do SQS colida de proposito. Sem esta
-    deduplicacao, uma reentrega dentro do mesmo ciclo derrubaria os outros 24
-    itens do lote junto.
+        Returns:
+            int: Quantas linhas foram efetivamente inseridas (as duplicatas
+                nao contam).
+        """
+        if not linhas:
+            return 0
 
-    Manter a ultima e seguro porque chave igual significa conteudo igual: as
-    duas versoes so diferem em `ingested_at`.
+        instrucao = sql.SQL(
+            "INSERT INTO bronze.event ({}) VALUES ({})"
+            " ON CONFLICT (ts, event_id) DO NOTHING"
+        ).format(
+            sql.SQL(", ").join(sql.Identifier(c) for c in self.COLUNAS),
+            sql.SQL(", ").join(sql.Placeholder() * len(self.COLUNAS)),
+        )
 
-    Args:
-        items (list[dict[str, Any]]): Lista de itens.
+        with self._db.connection() as conn, conn.cursor() as cur:
+            # Um unico lsn para o lote inteiro: aqui ele marca "chegou nesta
+            # remessa", nao ordena linha a linha. bronze.event nao passa por
+            # MERGE -- o evento de sessao e imutavel, nunca sofre update.
+            cur.execute("SELECT nextval('bronze.change_log_lsn_seq') AS lsn")
+            lsn = cur.fetchone()[0]
 
-    Returns:
-        list[dict[str, Any]]: Lista sem itens com chaves duplicadas.
-    """
-    unique: dict[str, dict[str, Any]] = {}
-    for item in items:
-        unique[_item_key(item)] = item
-    return list(unique.values())
-
-
-def _sleep_backoff(attempt: int) -> None:
-    """Backoff exponencial com jitter total, para não sincronizar as tasks.
-
-    Args:
-        attempt (int): Número da tentativa atual, base do crescimento exponencial.
-    """
-    delay = min(2**attempt * 0.05, 2.0)
-    time.sleep(random.uniform(0, delay))
-
-
-def _chunks(items: list[Any], size: int) -> Iterable[list[Any]]:
-    """Divide uma lista em pedaços (chunks) de tamanho fixo.
-
-    Args:
-        items (list[Any]): Lista de itens.
-        size (int): Tamanho de cada sub-lote.
-
-    Yields:
-        Iterable[list[Any]]: Sub-listas com até `size` elementos.
-    """
-    for start in range(0, len(items), size):
-        yield items[start : start + size]
+            cur.executemany(
+                instrucao,
+                [
+                    tuple(
+                        Jsonb(linha[c])
+                        if c in ("payload", "route_params") and linha.get(c) is not None
+                        else (lsn if c == "_lsn" else linha.get(c))
+                        for c in self.COLUNAS
+                    )
+                    for linha in linhas
+                ],
+            )
+            return cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0

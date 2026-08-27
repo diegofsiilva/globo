@@ -1,5 +1,6 @@
 """Testes dos endpoints básicos de saúde e descoberta da API."""
 
+
 def test_liveness(client):
     response = client.get("/health/live")
 
