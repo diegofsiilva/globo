@@ -10,15 +10,15 @@
 
 ### 1.1 Funcionalidades implementadas
 
-- Consulta de eventos por período (15 min, 30 min, 3 h, 24 h, tudo) e tipo de evento;
-- Aplicação de filtros cumulativos por plataforma, fabricante, tipo de evento e status;
-- Busca textual por nome de evento;
-- Visualização de indicadores (contagem, fabricante, plataforma, duração) no bloco de destaque do monitor;
+- Monitor de eventos (`/monitor`) conectado à API de leitura: consulta por período (15 min, 30 min, 3 h, 24 h, tudo) e tipo de evento;
+- Aplicação de filtros cumulativos por plataforma, fabricante, tipo de evento e status no Monitor;
+- Busca textual por nome de evento (com limite de 80 caracteres);
+- Visualização de indicadores (contagem, fabricante, plataforma, duração) no bloco de destaque do Monitor;
 - Inspeção de detalhes completos do evento selecionado, incluindo atributos JSON;
 - Estados de carregamento (`Consultando eventos na API…`), ausência de dados (`Nenhum evento corresponde aos filtros selecionados.`) e erro da API (`Não foi possível consultar a API. Tente novamente.`);
 - Tela Agora com visão operacional, degradações ativas, sinais de desvio e filtros de escopo (plataforma, fabricante, região, app);
 - Tela Explorar com exploração por tipo de evento, dimensão (Modelo, UF, ISP, Versão, Rota), intervalo temporal ajustável e busca na tabela de resultados;
-- Navegação entre seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline, Recorte).
+- Navegação entre o Monitor e as seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline, Recorte); a rota `/` redireciona para o Monitor.
 
 ### 1.2 Tecnologias utilizadas
 
@@ -30,13 +30,15 @@
 | Tailwind CSS | Estilização base e utilitários de layout | ^4 |
 | Tailwind CSS e arquivos de estilos por tela | Utilitários de estilo e regras específicas de cada tela | ^4 |
 | TanStack Query | Consulta, cache, refetch automático e estados das requisições ao back-end | ^5.101.4 |
+| next-themes | Alternância e persistência do tema claro/escuro (`storageKey="argus-theme"`) | ^0.4.6 |
+| Radix UI + lucide-react | Primitivas acessíveis (Select, Toggle, Dialog/Sheet, Tooltip) e ícones | ^1.x / ^1.34 |
 | ESLint | Análise estática de qualidade e padronização | ^9 |
 
 ### 1.3 Capturas de tela
 
-&emsp; As capturas abaixo foram produzidas diretamente a partir da implementação executável das seis áreas operacionais. Os dados apresentados vêm dos cenários sintéticos de `_mocks/scenario.ts` e são identificados na interface pela etiqueta "MOCK · SNAPSHOT".
+&emsp; As capturas abaixo foram produzidas a partir do build estático de produção (`npm run build`), servido localmente e fotografado em Google Chrome headless nos temas escuro e claro. Os dados apresentados vêm dos cenários sintéticos de `_mocks/scenario.ts` e são identificados na interface pela etiqueta "MOCK · SNAPSHOT".
 
-- Ambiente: `next dev` local (Turbopack), porta 4182;
+- Ambiente: saída estática (`output: "export"`) servida em `127.0.0.1`; Google Chrome (viewport 1264×720), `prefers-reduced-motion: reduce`;
 - Data da captura: 27/08/2026;
 - Fonte de hipóteses: `NEXT_PUBLIC_HYPOTHESES_SOURCE=mock`.
 
@@ -108,11 +110,19 @@
 
 #### 1.3.7 Viewport mobile
 
-&emsp; A captura mobile demonstra a adaptação da tela Agora para um viewport de 390×844. Nesse formato, a navegação lateral dá lugar a um cabeçalho compacto e o conteúdo passa a ocupar uma única coluna, preservando a leitura do alerta principal e dos indicadores sem exigir rolagem horizontal.
+&emsp; A captura mobile demonstra a adaptação da tela Agora para um viewport de 390×844. Nesse formato, a navegação lateral dá lugar a um menu de hambúrguer, a barra de escopo recolhe para o resumo "Escopo · N filtros" e o conteúdo passa a ocupar uma única coluna, preservando a leitura do alerta principal e dos indicadores sem exigir rolagem horizontal.
 
 ![Tela Agora no viewport mobile de 390 por 844 pixels](./assets/captura_agora_mobile.png)
 
 <p align="center"><sub>Figura 13 — Adaptação da tela Agora ao viewport mobile.</sub></p>
+
+#### 1.3.8 Viewport tablet
+
+&emsp; A captura em 768×1024 mostra o comportamento no ponto de corte da navegação lateral: em 768 px a coluna de navegação ainda é exibida, o cabeçalho começa a comprimir a barra de escopo (com rolagem horizontal) e o bloco de indicadores reflui para duas colunas. Abaixo de 768 px a navegação recolhe para o menu de hambúrguer, como na captura mobile.
+
+![Tela Agora no viewport tablet de 768 por 1024 pixels](./assets/captura_agora_tablet.png)
+
+<p align="center"><sub>Figura 14 — Tela Agora no viewport tablet de 768 px.</sub></p>
 
 ## 2. Organização e qualidade do código
 
@@ -124,7 +134,7 @@
 apps/basica/frontend/src/
 ├── app/
 │   ├── (operations)/
-│   │   ├── (dashboard)/         Rota raiz do monitor conectado à API de eventos
+│   │   ├── monitor/             Monitor de eventos conectado à API de leitura (rota `/monitor`)
 │   │   ├── _components/         Navegação, moldura, tema e estado operacional compartilhados
 │   │   ├── agora/               Visão operacional com cenário sintético privado da rota
 │   │   ├── explorar/            Exploração temporal, agrupamentos e cenário sintético
@@ -132,6 +142,7 @@ apps/basica/frontend/src/
 │   │   ├── hipoteses/           Hipóteses, adaptadores de fonte e cenário simulado
 │   │   ├── timeline/            Correlação cronológica simulada
 │   │   ├── recorte/             Delimitação da população afetada simulada
+│   │   ├── page.tsx             Redireciona a rota `/` para `/monitor`
 │   │   ├── layout.tsx           Layout compartilhado das páginas operacionais
 │   │   ├── loading.tsx          Estado de carregamento exibido na troca de rota
 │   │   └── error.tsx            Fronteira de erro das rotas operacionais
@@ -170,11 +181,11 @@ apps/basica/frontend/src/
 | Componentização | `ScreenFrame` como moldura compartilhada; `OperationsNavigation` reutilizável; `_components/` privados por rota | Ponto positivo |
 | Testabilidade | Não existe suíte automatizada nem script `test` no `package.json` | Limitação |
 | Tamanho das telas | A marcação e o estado das telas permanecem concentrados em componentes como `AgoraScreen` e `ExplorarScreen` | Limitação |
-| Integração com API | A rota raiz possui cliente real; as demais telas operacionais usam cenários sintéticos, exceto Hipóteses, que possui adaptadores para fonte mockada ou HTTP | Cobertura parcial |
+| Integração com API | A rota `/monitor` possui cliente HTTP real; as seis áreas operacionais usam cenários sintéticos, exceto Hipóteses, que possui adaptadores para fonte mockada ou HTTP | Cobertura parcial |
 
 ## 3. Acessibilidade e responsividade
 
-&emsp; A interface do Argus é composta pelo monitor de eventos da rota raiz e por seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte), que compartilham um sistema visual unificado: tema escuro por padrão com alternância para tema claro, tipografia Archivo e IBM Plex Mono, e uma paleta vermelho e laranja para sinalizar estados críticos. As subseções a seguir avaliam a acessibilidade e a responsividade dessas seis áreas em conjunto com o monitor da rota raiz.
+&emsp; A interface do Argus é composta pelo Monitor de eventos (`/monitor`) e por seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte), que compartilham um sistema visual unificado: tema escuro por padrão com alternância para tema claro, tipografia Archivo e IBM Plex Mono, e uma paleta vermelho e laranja para sinalizar estados críticos. As subseções a seguir avaliam a acessibilidade e a responsividade dessas seis áreas em conjunto com o Monitor.
 
 ### 3.1 Acessibilidade
 
@@ -183,70 +194,70 @@ apps/basica/frontend/src/
 - Idioma: documento com `lang="pt-BR"` no `<html>`;
 - Landmarks semânticos: uso de `<nav>`, `<main>`, `<aside>`, `<header>`, `<section>` com `aria-label`;
 - Link de salto: presença de mecanismo para pular para o conteúdo principal;
-- Navegação: `aria-current="page"` na rota ativa, `aria-pressed` nos seletores de período;
-- Filtros: nomes acessíveis com `aria-label="Filtrar por {dimensão}"` nos selects;
+- Navegação: `aria-current="page"` no item ativo (normalizando a barra final imposta por `trailingSlash`), `aria-pressed` nos seletores de período;
+- Filtros: selects com nome acessível via `<label>` (Monitor) ou `aria-labelledby` (barra de escopo das telas operacionais);
 - Controles temporais: `aria-valuetext` nas alças de ajuste de intervalo (tela Explorar);
-- Regiões ao vivo: `aria-live="polite"` para atualizações dinâmicas;
-- Contadores de notificação: `aria-label` descritivo (ex.: `"3 pendências"`) nos indicadores numéricos da navegação;
-- Foco visível: regras `:focus-visible` nos controles principais;
+- Regiões ao vivo: `aria-live="polite"` para atualizações dinâmicas e `aria-live="off"` explícito no relógio;
+- Foco visível: regras `:focus-visible` nos controles do Monitor e das telas operacionais;
 - Movimento reduzido: `prefers-reduced-motion: reduce` desabilita transições.
 
 | Verificação | Método | Resultado | Evidência |
 |---|---|---|---|
 | Idioma e landmarks | Inspeção estática do código | `lang="pt-BR"`, `nav`, `main`, `aside` presentes | [layout.tsx](../apps/basica/frontend/src/app/layout.tsx) |
 | Nomes e estados ARIA | Inspeção estática do código | `aria-label`, `aria-current`, `aria-pressed`, `aria-expanded` e `aria-valuetext` presentes | Componentes de navegação, moldura e telas operacionais |
-| Foco visível | Inspeção dos estilos por tela | Regras `focus-visible` definidas nos controles operacionais | Estilos de navegação, moldura, Agora e Explorar |
+| Foco visível | Inspeção dos estilos + Chrome headless | Contorno `:focus-visible` de 2px em todos os controles exercitados do Monitor (20/20) e das telas operacionais; as alças do controle de intervalo usam contorno no thumb | Estilos por tela; rodada de validação em navegador |
 | Movimento reduzido | Inspeção dos estilos por tela | A variante `motion-reduce` reduz transições nos controles aplicáveis | Estilos das telas operacionais |
-| Navegação por teclado | Não exercitado em navegador | Controles HTML nativos (select, button, input[search]) são acessíveis por padrão | Pendente de validação em navegador |
-| Contraste | Não medido | Estados críticos usam cor + texto (não dependem exclusivamente da cor) | Pendente de medição com ferramenta |
+| Navegação por teclado | Exercitada em Chrome headless sobre o build estático | Ordem de foco lógica; link de salto move o foco ao `#main-content`; foco itinerante (←/→/Home/End) nas abas de tipo de evento; remoção de chip de escopo por Enter no botão "×" | Rodada de validação em navegador (27/08/2026) |
+| Contraste | Medição das cores computadas em Chrome (temas escuro e claro) | Todos os pares texto/fundo amostrados ≥ 4,5:1 — h1 16–18:1, rótulos e legendas ~5:1, botões ~6:1, células de heatmap 6–12:1, números-herói em gradiente 4,3–9,4:1 | Rodada de validação em navegador |
 
-#### 3.1.1 Considerações de acessibilidade nas seis áreas operacionais
+#### 3.1.1 Acessibilidade dos elementos próprios das seis áreas operacionais
 
-&emsp; As seis áreas operacionais introduzem elementos de interface que ainda não têm o mesmo nível de cobertura ARIA documentado para o monitor da rota raiz. O quadro abaixo resume os pontos de atenção e o tratamento recomendado:
+&emsp; As seis áreas operacionais introduzem elementos de interface além dos usados no Monitor. O quadro abaixo descreve o tratamento de acessibilidade implementado para cada um e como foi verificado; os casos de interação correspondentes estão na seção `4.4`.
 
-| Elemento da interface | Risco de acessibilidade identificado | Tratamento recomendado |
+| Elemento da interface | Tratamento implementado | Verificação |
 |---|---|---|
-| Chips de escopo removíveis (etiquetas de filtro com botão "×"; plataforma, fabricante, região, app) | A remoção precisa anunciar qual filtro será removido | Implementado em Explorar com `aria-label="Remover filtro {dimensão}: {valor}"`; validar a leitura em navegador |
-| Relógio "AO VIVO" atualizado a cada segundo | Atualização contínua pode gerar leitura excessiva em leitores de tela | Usar `aria-live="off"` no relógio e expor o horário da última atualização em elemento separado com `aria-live="polite"` |
-| Abas de tipo de evento (Explorar: request, screen_view, video_view, session, vitals, error) | Marcação apenas visual, sem padrão de abas | Implementar `role="tablist"`/`role="tab"`/`role="tabpanel"` com navegação por setas |
-| Pastilhas de seleção (agrupar por dimensão, janela de comparação, hipótese selecionada) | `<div>` clicável sem foco por teclado nem estado de seleção anunciado | Usar `<button>` com `aria-pressed`/`aria-selected` e ordem de tabulação lógica |
-| Minigráficos de tendência na tabela "Sinais em desvio agora" | Gráfico de barras decorativo sem alternativa textual | Adicionar `aria-hidden="true"` ao gráfico; os valores de Agora, Baseline e Δ já presentes na linha servem de alternativa |
-| Mapa de calor "Taxa de erro por família de dispositivo × região" (tela Recorte) | Codifica intensidade por cor, além do valor numérico | Manter o percentual em texto em cada célula e garantir contraste mínimo mesmo nas células de menor opacidade |
-| Timeline por raias (Deploy, Player QoE, CDN, Backend, Identidade, Incidentes) | Representação espacial complexa, difícil de navegar sem mouse | Manter a lista "Cronologia reconstruída" como alternativa textual equivalente, associada à raia correspondente com `aria-describedby` |
-| Alternância de tema claro/escuro | A ação deve comunicar o tema que será aplicado | Implementado com `aria-label="Usar modo {claro\|escuro}"`; validar a comunicação do estado em leitor de tela |
+| Chips de escopo removíveis (etiquetas de filtro com botão "×") | `aria-label="Remover filtro {dimensão}: {valor}"` no botão "×" (tela Explorar) | Remoção por teclado (Enter no botão "×") confirmada em Chrome headless; o resumo do escopo é recalculado |
+| Relógio "AO VIVO" atualizado a cada segundo | O relógio recebe `aria-live="off"` explícito, portanto a atualização por segundo não é anunciada por leitores de tela | Inspeção estática do código (`operations-shell.tsx`) |
+| Abas de tipo de evento (Explorar: request, screen_view, video_view, session, vitals, error) | Grupo de botões de alternância `role="group"` com `aria-pressed`, foco itinerante e navegação por ←/→/Home/End; um único stop de Tab. Não adota `role="tablist"` porque a seleção reconfigura várias seções da tela, não um único painel | Navegação por setas e stop único de Tab confirmados em Chrome headless |
+| Pastilhas de seleção (agrupar por dimensão, janela de comparação, hipótese) | Agrupar por dimensão e janela de comparação usam `ToggleGroup` do Radix (foco itinerante nativo, `aria-pressed`); a hipótese selecionada usa `<button aria-pressed>` | Seleção anunciada e operável por teclado; exatamente uma pastilha `aria-pressed="true"` por grupo (Chrome headless) |
+| Minigráficos de tendência na tabela "Sinais em desvio agora" (tela Agora) | `aria-hidden="true"` no gráfico; os valores Agora, Baseline e Δ da linha são a alternativa textual | Inspeção estática do código (`agora-screen.tsx`) |
+| Mapa de calor "Taxa de erro por família de dispositivo × região" (tela Recorte) | Percentual em texto em todas as células, com `aria-label` por célula; célula de pico rotulada "pico" | Contraste medido em 11,2–11,7:1 nas células tônicas e 6,2–6,3:1 na célula de pico — acima do piso AA (Chrome headless) |
+| Timeline por raias (Deploy, Player QoE, CDN, Backend, Identidade, Incidentes) | Gráfico com `aria-hidden` no conteúdo espacial, `figcaption` sr-only e `aria-describedby` ligando a `<figure>` à lista "Cronologia reconstruída" como equivalente textual | Inspeção estática do código (`timeline-content.tsx`) |
+| Alternância de tema claro/escuro | `aria-label="Usar modo {claro\|escuro}"`; o rótulo visível foi alinhado ao nome acessível (WCAG 2.5.3 "Label in Name") | Inspeção estática do código (`theme-toggle.tsx`) |
 
 ### 3.2 Responsividade
 
-&emsp; A interface utiliza breakpoints (larguras de tela em que o layout muda) progressivos definidos no CSS global:
+&emsp; O Monitor de eventos usa breakpoints (larguras de tela em que o layout muda) progressivos, verificados em `monitor/_components/dashboard.styles.ts` e no cabeçalho compartilhado:
 
 | Breakpoint | Adaptação |
 |---|---|
-| ≤ 1000 px | Oculta resumo de filtros e botão limpar; tabela de sinais com rolagem horizontal |
-| ≤ 900 px | Oculta subtítulo da marca no cabeçalho |
-| ≤ 780 px | Oculta indicador de status ao vivo |
-| ≤ 700 px | Barra lateral horizontal (abaixo do cabeçalho); bloco de destaque compacto; grade de detalhes em 2 colunas; tabela com altura máxima de 55vh |
-| ≤ 560 px | Seletor de período em faixa própria; área de análise recalculada |
+| ≤ 1000 px | Oculta a contagem de eventos e o botão "limpar"; a tabela de eventos ganha rolagem horizontal (largura mínima de 950 px) |
+| ≤ 780 px | Oculta o indicador "Ao vivo" do Monitor |
+| ≤ 768 px | A navegação lateral recolhe para o menu de hambúrguer (comportamento compartilhado com as seis áreas) |
+| ≤ 700 px | Grade de detalhes do evento em 2 colunas; tabela de eventos com altura máxima de 55vh; bloco de indicadores com rolagem horizontal |
+| ≤ 640 px | Oculta o subtítulo "Globoplay" no cabeçalho |
+| ≤ 560 px | Os controles de período do Monitor passam para uma faixa própria |
 
 #### 3.2.1 Responsividade das seis áreas operacionais
 
-&emsp; Na resolução de desktop (1440×900 px), as seis áreas operacionais usam grades de colunas de largura fixa em pixels. Por exemplo, a tabela "Sinais em desvio agora" usa `1fr 168px 86px 82px 84px 108px 84px`, e as telas Comparar, Hipóteses, Timeline e Recorte reservam um painel lateral fixo de 292 a 452 px ao lado do conteúdo principal.
+&emsp; Na resolução de desktop, a tabela "Sinais em desvio agora" (tela Agora) é um `<table>` com colunas em porcentagem (25%, 16%, 11%, 13% e automáticas); as telas Comparar, Timeline e Recorte reservam um painel lateral de largura fixa (232 px, 320 px e 300 px, respectivamente) ao lado do conteúdo principal, e a tela Hipóteses divide o espaço em duas colunas fluidas de proporção ~1:1.
 
-&emsp; Abaixo de 768 px, a navegação principal e a barra de escopo, compartilhadas pelas seis telas, recolhem para um menu de hambúrguer (componente `Sheet`) e para o resumo "Escopo · N filtros". Abaixo de 1100 px, os painéis laterais de Comparar, Hipóteses, Timeline e Recorte empilham verticalmente sobre o conteúdo principal. Cada tela também substitui, em larguras menores, seus elementos mais densos por alternativas compactas: a tabela de sinais da Agora e o mapa de calor do Recorte viram listas de cartões, as abas de tipo de evento do Explorar reagrupam de 6 para 3 e depois 2 colunas, e o gráfico de raias da Timeline é ocultado em favor da lista "Cronologia reconstruída". A captura em viewport mobile (390×844) da seção 1.3 mostra esse comportamento na tela Agora.
+&emsp; Abaixo de 768 px, a navegação principal e a barra de escopo, compartilhadas pelas seis telas, recolhem para um menu de hambúrguer (componente `Sheet`) e para o resumo "Escopo · N filtros". Abaixo de 1100 px, os painéis laterais de Comparar, Hipóteses, Timeline e Recorte empilham verticalmente sobre o conteúdo principal. Cada tela também substitui, em larguras menores, seus elementos mais densos por alternativas compactas: a tabela de sinais da Agora e o mapa de calor do Recorte viram listas de cartões, as abas de tipo de evento do Explorar reagrupam de 6 para 3 e depois 2 colunas, e o gráfico de raias da Timeline é ocultado em favor da lista "Cronologia reconstruída". A captura em viewport mobile (390×844) da seção 1.3.7 mostra esse comportamento na tela Agora.
 
 | Área da interface | Comportamento em telas largas | Adaptação em telas estreitas |
 |---|---|---|
-| Navegação lateral (menu com as 6 áreas) | Coluna fixa ao lado do conteúdo | Recolhimento em painel deslizante (hambúrguer) abaixo de 768 px |
+| Navegação lateral (Monitor + as 6 áreas) | Coluna fixa ao lado do conteúdo | Recolhimento em painel deslizante (hambúrguer) abaixo de 768 px |
 | Barra de escopo (chips + resumo de sessões) | Chips em linha única, texto de resumo alinhado à direita | Resumo "Escopo · N filtros" com filtros completos em painel deslizante, abaixo de 768 px |
 | Abas de tipo de evento (Explorar) | Grade de 6 colunas iguais | Regrade para 3 colunas em 1040 px e 2 colunas em 600 px |
-| Painel lateral fixo (Comparar, Hipóteses, Timeline, Recorte) | Colunas lado a lado (conteúdo principal + painel de 292 a 452 px) | Empilhamento vertical abaixo de 1100 px |
+| Painel lateral (Comparar, Hipóteses, Timeline, Recorte) | Colunas lado a lado (painel de 232–320 px em Comparar/Timeline/Recorte; split fluido ~1:1 em Hipóteses) | Empilhamento vertical abaixo de 1100 px |
 | Mapa de calor por região (Recorte) | 5 colunas de região + coluna de rótulo de 150 px | Lista de cartões por família de dispositivo abaixo de 768 px |
 | Timeline por raias | Eixo de tempo fixo com marcadores posicionados em percentual absoluto | Gráfico ocultado abaixo de 760 px, substituído pela lista "Cronologia reconstruída" |
 
 | Dispositivo ou viewport | Resultado | Evidência |
 |---|---|---|
-| Desktop (1440 px) | Layout definido integralmente nessa resolução | `globals.css` |
-| Tablet (768 px) | 768 px é o ponto de corte que recolhe a navegação em hambúrguer, tanto nas seis áreas operacionais quanto no monitor da rota raiz | Pendente de captura visual em 768 px |
-| Celular (390 px) | Menu em hambúrguer, escopo resumido e sinais em cartões empilhados nas seis áreas operacionais; navegação compacta no monitor da rota raiz | [captura_agora_mobile.png](./assets/captura_agora_mobile.png), seção 1.3 |
+| Desktop (1440 px) | Layout de referência definido integralmente nessa resolução (capturas produzidas em 1264 px) | `globals.css`, seção 1.3 |
+| Tablet (768 px) | Em 768 px a navegação lateral ainda aparece e o cabeçalho comprime a barra de escopo (com rolagem horizontal); abaixo de 768 px a navegação recolhe para o menu de hambúrguer | [captura_agora_tablet.png](./assets/captura_agora_tablet.png), seção 1.3.8 |
+| Celular (390 px) | Menu em hambúrguer, escopo resumido e sinais em cartões empilhados nas seis áreas operacionais; navegação compacta no Monitor | [captura_agora_mobile.png](./assets/captura_agora_mobile.png), seção 1.3.7 |
 
 ## 4. Validação das entradas do usuário
 
@@ -254,75 +265,75 @@ apps/basica/frontend/src/
 
 ### 4.1 Estratégia de teste
 
-- Ambiente: local (dev server) e inspeção estática do código.
+- Ambiente: build estático de produção (`npm run build` → `out/`) servido localmente e inspeção estática do código.
 - Data da execução: 27/08/2026.
-- Navegador e dispositivo: inspeção estática do HTML e CSS; interações dinâmicas não exercitadas em navegador nesta etapa.
-- Ferramentas: inspeção manual do código-fonte, servidor de desenvolvimento Next.js, requisições HTTP para verificação de rotas.
-- Comando executado: `NEXT_PUBLIC_API_URL=http://127.0.0.1:9 npm run dev -- --webpack -p 4174`
+- Navegador e dispositivo: Google Chrome headless dirigido por script (Playwright-core), viewports 1264×720, 390×844 e 768×1024, `prefers-reduced-motion: reduce`; complementado por inspeção estática do HTML e CSS.
+- Ferramentas: inspeção manual do código-fonte, build estático servido localmente, Google Chrome headless, requisições HTTP para verificação de rotas.
+- Comando de build: `NEXT_PUBLIC_API_URL=http://127.0.0.1:9 npm run build`
 
-&emsp; As seis áreas operacionais introduzem elementos de entrada adicionais (chips de escopo, abas de tipo de evento, pastilhas de agrupamento, campo de busca em atributos, cartões de janela de comparação, seleção de hipótese, sugestões de ajuste de recorte) que ainda não foram cobertos pela rodada de testes descrita nesta seção. A seção 4.4 lista esses elementos e o comportamento de validação esperado; eles não fazem parte dos casos TF-01 a TF-10 abaixo, que continuam avaliando exclusivamente o monitor da rota raiz.
+&emsp; As seis áreas operacionais introduzem elementos de entrada adicionais (chips de escopo, abas de tipo de evento, pastilhas de agrupamento, campo de busca em atributos, cartões de janela de comparação, seleção de hipótese, painel de ajuste de recorte). A seção 4.4 apresenta os resultados da validação em navegador desses elementos; eles não fazem parte dos casos TF-01 a TF-10 abaixo, que avaliam o Monitor (`/monitor`).
 
 ### 4.2 Casos de teste e resultados
 
 | ID | Entrada ou cenário | Procedimento | Resultado esperado | Resultado obtido | Situação | Evidência |
 |---|---|---|---|---|---|---|
-| TF-01 | Período válido (15 min, 30 min, 3 h, 24 h) | Acionar cada botão de período no monitor e nas telas Agora/Explorar | A consulta é enviada com o período selecionado; `aria-pressed="true"` no período ativo | O HTML contém os botões com `aria-pressed`; troca de período recalcula `from`/`to` via `getPeriod()` e dispara refetch | Aprovado (estático) | [event-monitor.tsx](../apps/basica/frontend/src/components/event-monitor.tsx) |
-| TF-02 | Período invertido | Informar data inicial posterior à data final | A consulta não é enviada e uma mensagem orienta a correção | O período é calculado programaticamente (Now − N minutos); não é possível inverter datas pelos controles nativos | Aprovado (por design) | Função `getPeriod()` em [event-monitor.tsx](../apps/basica/frontend/src/components/event-monitor.tsx) |
-| TF-03 | Data inválida ou ausente | Tentar acionar sem período selecionado | O campo inválido é identificado de forma acessível | Período padrão "30 min" é restaurado do `sessionStorage`; sempre há período válido | Aprovado (por design) | Validação `isPeriod()` com fallback |
-| TF-04 | Filtro por tipo | Selecionar um tipo de evento existente no select | Apenas dados compatíveis são apresentados | `filterEvents()` filtra localmente por `eventName`, `platform`, `manufacturer` e `status` | Aprovado (estático) | Lógica de filtro em [event-monitor.tsx](../apps/basica/frontend/src/components/event-monitor.tsx) |
-| TF-05 | Filtros cumulativos | Aplicar plataforma + fabricante + tipo + status simultaneamente | Todos os filtros são preservados e enviados ao back-end (API) ou aplicados localmente | Os quatro selects operam em conjunto; `fetchEvents` envia `event_name`, `device_os` e `device_manufacturer` como query string | Aprovado (estático) | [events-api.ts](../apps/basica/frontend/src/lib/events-api.ts) |
-| TF-06 | Valor inexistente | Selecionar filtros sem correspondência nos dados retornados | A interface apresenta estado vazio sem falhar | Renderiza `Nenhum evento corresponde aos filtros selecionados.` quando `filtered.length === 0` | Aprovado (estático) | Estado vazio em [event-monitor.tsx](../apps/basica/frontend/src/components/event-monitor.tsx) |
-| TF-07 | Caracteres especiais | Inserir caracteres especiais no campo de busca textual | A entrada é tratada sem quebrar a tela nem alterar indevidamente a requisição | A busca opera via `input[type="search"]` com filtragem local por `includes()`; sem injeção na URL | Aprovado (estático) | Campo `event-search` em [event-monitor.tsx](../apps/basica/frontend/src/components/event-monitor.tsx) |
-| TF-08 | Limite de tamanho | Informar texto maior que o limite definido | O limite é aplicado ou uma mensagem de validação é exibida | Selects possuem conjuntos fechados de opções; campo de busca não possui `maxlength` explícito mas opera localmente sem envio à API | Parcial | Sem `maxlength` no campo de busca |
-| TF-09 | Envio por teclado | Preencher os filtros e acionar a pesquisa pelo teclado | A ação funciona e o foco permanece previsível | Controles nativos HTML (select, button, input) são acionáveis por teclado; a navegação por Tab foi verificada nos atributos ARIA mas não exercitada | Não verificável nesta etapa | Pendente de teste em navegador |
-| TF-10 | Falha do back-end | Simular resposta de erro ou indisponibilidade | A interface informa a falha e permite nova tentativa | TanStack Query com `retry: 1`; quando `events.isError`, renderiza `Não foi possível consultar a API. Tente novamente.` com classe visual `.error` | Aprovado (estático) | [providers.tsx](../apps/basica/frontend/src/app/providers.tsx), estado de erro em [event-monitor.tsx](../apps/basica/frontend/src/components/event-monitor.tsx) |
+| TF-01 | Período válido (15 min, 30 min, 3 h, 24 h) | Acionar cada botão de período no Monitor | A consulta é enviada com o período selecionado; `aria-pressed="true"` no período ativo | Os botões têm `aria-pressed`; a troca de período recalcula `from`/`to` via `getPeriodQuery()` e dispara refetch | Aprovado (estático + navegador) | [dashboard-screen.tsx](../apps/basica/frontend/src/app/(operations)/monitor/_components/dashboard-screen.tsx) |
+| TF-02 | Período invertido | Informar data inicial posterior à data final | A consulta não é enviada e uma mensagem orienta a correção | O período é calculado programaticamente (Now − N minutos); não é possível inverter datas pelos controles nativos | Aprovado (por design) | Função `getPeriodQuery()` em [dashboard-screen.tsx](../apps/basica/frontend/src/app/(operations)/monitor/_components/dashboard-screen.tsx) |
+| TF-03 | Data inválida ou ausente | Tentar acionar sem período selecionado | O campo inválido é identificado de forma acessível | Período padrão "30 min" é restaurado do `localStorage` (`event-monitor-period`) via `isPeriod()`; sempre há período válido | Aprovado (por design) | Validação `isPeriod()` com fallback |
+| TF-04 | Filtro por tipo | Selecionar um tipo de evento existente no select | Apenas dados compatíveis são apresentados | `filterEvents()` filtra localmente por `eventType`, `platform`, `manufacturer`, `status` e `search` | Aprovado (estático) | Lógica de filtro em [dashboard-screen.tsx](../apps/basica/frontend/src/app/(operations)/monitor/_components/dashboard-screen.tsx) |
+| TF-05 | Filtros cumulativos | Aplicar plataforma + fabricante + tipo + status simultaneamente | Todos os filtros são preservados e enviados ao back-end (API) ou aplicados localmente | Os quatro selects operam em conjunto; `fetchEvents` envia `event_name`, `device_os` e `device_manufacturer` como query string | Aprovado (estático) | [api.ts](../apps/basica/frontend/src/lib/events/api.ts) |
+| TF-06 | Valor inexistente | Selecionar filtros sem correspondência nos dados retornados | A interface apresenta estado vazio sem falhar | Renderiza `Nenhum evento corresponde aos filtros selecionados.` quando `filtered.length === 0` | Aprovado (estático) | Estado vazio em [dashboard-screen.tsx](../apps/basica/frontend/src/app/(operations)/monitor/_components/dashboard-screen.tsx) |
+| TF-07 | Caracteres especiais | Inserir caracteres especiais no campo de busca textual | A entrada é tratada sem quebrar a tela nem alterar indevidamente a requisição | A busca opera via `input[type="search"]` (`aria-label="Buscar eventos"`) com filtragem local por `includes()`; sem injeção na URL | Aprovado (estático) | Campo de busca em [dashboard-screen.tsx](../apps/basica/frontend/src/app/(operations)/monitor/_components/dashboard-screen.tsx) |
+| TF-08 | Limite de tamanho | Informar texto maior que o limite definido | O limite é aplicado ou uma mensagem de validação é exibida | Selects têm conjuntos fechados de opções; o campo de busca impõe `maxLength={80}` e opera localmente sem envio à API | Aprovado (estático + navegador) | `maxLength={80}` em [dashboard-screen.tsx](../apps/basica/frontend/src/app/(operations)/monitor/_components/dashboard-screen.tsx) |
+| TF-09 | Envio por teclado | Preencher os filtros e acionar a pesquisa pelo teclado | A ação funciona e o foco permanece previsível | Em Chrome headless: ordem de foco lógica (salto → período → tema → nav → período do Monitor → 4 selects → busca); a digitação no campo de busca aplica o filtro; os botões de período ativam por Enter; todos os 20 controles exibem contorno `:focus-visible` | Aprovado (navegador) | Rodada de validação em navegador (27/08/2026) |
+| TF-10 | Falha do back-end | Simular resposta de erro ou indisponibilidade | A interface informa a falha e permite nova tentativa | TanStack Query com `retry: 1`; quando `eventsQuery.isError`, renderiza `Não foi possível consultar a API. Tente novamente.` com classe visual `.error` | Aprovado (estático + navegador) | [query-provider.tsx](../apps/basica/frontend/src/providers/query-provider.tsx), estado de erro em [dashboard-screen.tsx](../apps/basica/frontend/src/app/(operations)/monitor/_components/dashboard-screen.tsx) |
 
 ### 4.3 Síntese dos resultados
 
 | Indicador | Resultado |
 |---|---|
 | Total de testes executados | 10 |
-| Testes aprovados (incluindo por design) | 8 |
-| Testes parciais | 1 (TF-08) |
-| Testes não verificáveis nesta etapa | 1 (TF-09) |
+| Testes aprovados (incluindo por design) | 10 |
+| Testes parciais | 0 |
+| Testes não verificáveis nesta etapa | 0 |
 | Testes reprovados | 0 |
-| Taxa de aprovação | 80% |
+| Taxa de aprovação | 100% |
 
-Observações: O teste TF-08 (limite de tamanho) é parcial porque, embora os selects possuam conjuntos fechados, o campo de busca textual não impõe `maxlength`. Recomenda-se adicionar essa restrição. O teste TF-09 (envio por teclado) precisa ser validado em navegador; os controles HTML nativos utilizados suportam teclado por padrão, mas a experiência completa de foco e navegação sequencial ainda não foi exercitada.
+Observações: TF-08 passou a Aprovado com a adição de `maxLength={80}` ao campo de busca. TF-09 foi exercitado em Chrome headless — ordem de foco lógica, digitação aplicando o filtro, ativação de botões por Enter e contorno de foco visível em todos os controles do Monitor. Os casos TF-11 a TF-19 (seção 4.4) também foram executados em navegador nesta rodada.
 
 ### 4.4 Elementos de entrada das seis áreas operacionais
 
-&emsp; A tabela a seguir lista os casos de validação que ainda precisam ser executados para os elementos de entrada das seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte). Esses elementos fazem parte da interface, mas ainda não passaram pela mesma rodada de verificação aplicada ao monitor da rota raiz; a coluna "Situação" reflete esse estágio.
+&emsp; A tabela a seguir traz os resultados da validação dos elementos de entrada das seis áreas operacionais, executada em Google Chrome headless sobre o build estático (27/08/2026). Esses casos operam sobre os cenários sintéticos das telas; não substituem os casos TF-01 a TF-10 do Monitor.
 
-| ID | Elemento | Tela | Comportamento esperado | Situação |
-|---|---|---|---|---|
-| TF-11 | Adicionar filtro de escopo (botão "+ filtro") | Todas | Abre um seletor de dimensão e valor; o novo chip passa a restringir as seis telas simultaneamente | Pendente de validação |
-| TF-12 | Remover filtro de escopo (botão "×" no chip) | Todas | O chip é removido e a consulta é recalculada sem aquela restrição | Pendente de validação |
-| TF-13 | Alternar tema (claro/escuro) | Todas | A paleta muda em todas as telas sem perda do estado de filtros ou de navegação | Pendente de validação |
-| TF-14 | Selecionar tipo de evento (abas: request, screen_view, video_view, session, vitals, error) | Explorar | Apenas o tipo selecionado é exibido no gráfico e na tabela; a contagem de cada tipo permanece visível nas demais abas | Pendente de validação |
-| TF-15 | Agrupar por dimensão (Modelo, UF, ISP, Versão, Rota) | Explorar | A tabela é reagrupada pela dimensão escolhida sem exigir nova consulta ao back-end | Pendente de validação |
-| TF-16 | Buscar em atributos (campo de texto na barra lateral) | Explorar | Filtra a lista de erros mais frequentes e a tabela por texto livre, sem quebrar a tela em valores vazios ou com caracteres especiais | Pendente de validação |
-| TF-17 | Selecionar janela de comparação (Ontem, Semana passada, Última janela estável, Pico ao vivo anterior) | Comparar | Recalcula o gráfico com envelope histórico e a tabela de significância (σ) para a janela escolhida | Pendente de validação |
-| TF-18 | Selecionar hipótese na lista ranqueada | Hipóteses | O painel "Como este score foi calculado" atualiza título, score e os quatro fatores ponderados correspondentes à hipótese selecionada | Pendente de validação |
-| TF-19 | Aplicar sugestão de ajuste de recorte (ex.: restringir ISP, expandir versão de SO) | Recorte | Recalcula o recorte e exibe o efeito estimado sobre especificidade e cobertura antes da confirmação | Pendente de validação |
+| ID | Elemento | Tela | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|---|
+| TF-11 | Adicionar filtro de escopo (botão "+ filtro") | Explorar | Abre um seletor de dimensão e valor; o novo chip volta a restringir o recorte | O botão abre o menu (`aria-expanded="true"`) e a opção escolhida readiciona o chip; o recorte é recalculado localmente | Aprovado |
+| TF-12 | Remover filtro de escopo (botão "×" no chip) | Explorar | O chip é removido e o recorte é recalculado sem aquela restrição | Chip removido (inclusive por teclado, Enter no "×"); o resumo do escopo é recalculado | Aprovado |
+| TF-13 | Alternar tema (claro/escuro) | Todas | A paleta muda sem perda do estado de filtros ou de navegação | Tema alterna; os chips de escopo e a rota atual são preservados | Aprovado |
+| TF-14 | Selecionar tipo de evento (request, screen_view, video_view, session, vitals, error) | Explorar | O tipo selecionado passa a reger o gráfico e a tabela; a contagem de cada tipo continua visível | A seleção muda; o gráfico e a tabela recalculam; as contagens permanecem nos demais botões | Aprovado |
+| TF-15 | Agrupar por dimensão (Modelo, UF, ISP, Versão, Rota) | Explorar | A tabela é reagrupada pela dimensão sem nova consulta ao back-end | As 5 dimensões reagrupam a tabela localmente | Aprovado |
+| TF-16 | Buscar em atributos (campo de texto na barra lateral) | Explorar | Filtra a lista de erros por texto livre, sem quebrar a tela em valores vazios ou com caracteres especiais | O filtro estreita a lista; termo sem correspondência mostra "Nenhum erro encontrado"; caracteres especiais não quebram a tela; limpar restaura a lista | Aprovado |
+| TF-17 | Selecionar janela de comparação (Ontem, Semana passada, Última janela estável, Pico ao vivo anterior) | Comparar | Recalcula o gráfico com envelope histórico e a tabela de significância (σ) para a janela | As 4 janelas atualizam o cabeçalho da coluna e a tabela de significância | Aprovado |
+| TF-18 | Selecionar hipótese na lista ranqueada | Hipóteses | O painel "Como este score foi calculado" atualiza título, score e os quatro fatores ponderados | O painel atualiza; exatamente uma hipótese fica com `aria-pressed="true"` | Aprovado |
+| TF-19 | Painel "Ajustar o recorte" | Recorte | Exibe o efeito estimado sobre especificidade e cobertura de cada ajuste | O painel apresenta o efeito previsto de cada cenário; é informativo e não-executável — o próprio painel declara "estes cenários são informativos e não executam ações" | Aprovado (por design) |
 
-&emsp; Esses nove casos (TF-11 a TF-19) não alteram a síntese da seção `4.3`, que permanece restrita ao monitor da rota raiz; eles serão incorporados à tabela de resultados na próxima rodada de testes.
+&emsp; Os nove casos foram executados e aprovados; TF-19 é aprovado por design, já que o painel de ajuste de recorte é declaradamente informativo. A síntese da seção `4.3` permanece organizada em torno dos casos TF-01 a TF-10 do Monitor.
 
 ## 5. Matriz de rastreabilidade
 
-&emsp; A matriz relaciona os requisitos funcionais pertinentes à interface, definidos em [`requisitos.md`](./requisitos.md), às funcionalidades implementadas e aos testes que fornecem evidência de atendimento. Foram incluídos apenas os requisitos efetivamente pertinentes ao front-end (RF08 a RF17). As seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte) têm especificação de design detalhada e consistente entre si; a coluna "Evidência" indica, para cada requisito, se a referência é o código de produção da rota raiz ou as seis áreas operacionais, que ainda operam sobre dados sintéticos.
+&emsp; A matriz relaciona os requisitos funcionais pertinentes à interface, definidos em [`requisitos.md`](./requisitos.md), às funcionalidades implementadas e aos testes que fornecem evidência de atendimento. Foram incluídos apenas os requisitos efetivamente pertinentes ao front-end (RF08 a RF17). A coluna "Evidência" indica, para cada requisito, se a referência é o código de produção do Monitor (`/monitor`), conectado à API real, ou as seis áreas operacionais, que operam sobre dados sintéticos.
 
 | Requisito | Descrição | Funcionalidade ou critério verificado | Testes relacionados | Situação | Evidência |
 |---|---|---|---|---|---|
-| RF08 | Pesquisar por tipo, período e atributos | Monitor `/` com selects de plataforma, fabricante e evento + período; as seis áreas operacionais reúnem a busca em uma barra de escopo (chips de plataforma, fabricante, região, app) e seletores de período (15 min, 30 min, 3 h, 24 h) comuns a todas as telas | TF-01, TF-02, TF-03, TF-04, TF-11, TF-12 | Atendido | Controles implementados na rota raiz com API real; barra de escopo unificada nas seis áreas operacionais |
-| RF09 | Aplicar filtros cumulativos | Quatro selects cumulativos + busca textual no monitor; os chips de escopo das seis áreas operacionais são cumulativos por padrão e se aplicam simultaneamente a todas as telas | TF-05, TF-11, TF-12 | Atendido | Filtros cumulativos em `fetchEvents()` e `filterEvents()`; escopo global nas seis áreas operacionais |
-| RF10 | Sugerir valores existentes | Selects derivam opções dos itens carregados via `unique()` (rota raiz); as seis áreas operacionais sugerem valores de escopo (ex.: webOS 3.x, LG, Nordeste) e de atributos no campo "Buscar em atributos" da tela Explorar | TF-04, TF-05, TF-16 | Parcial | Raiz deriva dinamicamente; seis áreas operacionais usam dados de demonstração fixos |
+| RF08 | Pesquisar por tipo, período e atributos | Monitor `/monitor` com selects de plataforma, fabricante e evento, período (15 min, 30 min, 3 h, 24 h, tudo) e busca textual; cada área operacional tem chips de escopo e seletor de período próprios | TF-01, TF-02, TF-03, TF-04, TF-11, TF-12 | Atendido | Controles implementados no Monitor com API real; nas seis áreas, os chips de escopo derivam de mocks e são majoritariamente decorativos (uma opção fixa por chip, sem handler de mudança) — exceto Explorar, onde adicionar/remover chip recalcula o recorte localmente |
+| RF09 | Aplicar filtros cumulativos | Quatro selects cumulativos + busca textual no Monitor; em Explorar, os chips de escopo são cumulativos e recalculam o recorte localmente | TF-05, TF-11, TF-12 | Atendido | Filtros cumulativos em `fetchEvents()` e `filterEvents()` no Monitor; recálculo local em Explorar; nas demais telas os chips são decorativos |
+| RF10 | Sugerir valores existentes | Os selects do Monitor derivam opções dos itens carregados via `unique()`; as seis áreas operacionais sugerem valores de escopo (ex.: webOS 3.x, LG, Nordeste) e de atributos no campo "Buscar em atributos" da tela Explorar | TF-04, TF-05, TF-16 | Parcial | Monitor deriva dinamicamente; seis áreas operacionais usam dados de demonstração fixos |
 | RF11 | Agrupar eventos por critério | Botões de dimensão em `/explorar` (Modelo, UF, ISP, Versão, Rota); a tela Recorte acrescenta o agrupamento por família de dispositivo × região no mapa de calor | TF-04, TF-15 | Parcial | Cinco dimensões na interface com dados mockados; mapa de calor por dispositivo × região na tela Recorte |
 | RF12 | Exibir gráficos e indicadores | Métricas no bloco de destaque do monitor; degradações e sinais em `/agora`; cada área operacional tem visualização própria: minigráficos de tendência por sinal (Agora), gráfico de eventos × erros (Explorar), gráfico com envelope histórico e significância σ (Comparar), mapa de calor (Recorte) e timeline por raias com seis fontes (Timeline) | TF-01, TF-06, TF-17 | Parcial | Visualizações implementadas sobre snapshots nas seis áreas operacionais |
 | RF13 | Consultar falhas críticas | Degradação ativa, sinais de desvio, busca de erros e status "atenção"; a tela Agora lista "Sinais em desvio agora" (com Agora, baseline e Δ) e "Outras degradações abertas" com severidade (ALTO/ATENÇÃO) | TF-06, TF-07 | Parcial | Implementado com filtro de status `attention`; tabela de sinais e lista de degradações abertas na tela Agora |
 | RF14 | Comparar período atual e anterior | Tela Comparar com quatro janelas de referência (ontem no mesmo horário, semana passada, última janela estável, pico ao vivo anterior), gráfico com envelope histórico e tabela com significância estatística (σ) por métrica | TF-17 | Parcial | Rota `/comparar` com layout e mock implementados |
-| RF15 | Destacar aumentos relevantes | Sinais em desvio e tendência de erros na tela Agora; os desvios relevantes são destacados por cor, símbolo Δ e barra de significância σ na tela Comparar | TF-06, TF-17 | Parcial | Destaques visuais existem; critério calculado sobre dados reais apenas na rota raiz |
-| RF16 | Exibir contexto para investigação | Detalhes do evento: ID, data, dispositivo, sistema, rota, versão, atributos JSON; a tela Recorte detalha o recorte afetado com amostra de sessões e a tela Timeline reconstrói a cronologia do incidente cruzando seis fontes de dados | TF-04, TF-06 | Atendido | Componente `EventDetails` exibe todos os campos e atributos; contexto ampliado nas telas Recorte e Timeline |
+| RF15 | Destacar aumentos relevantes | Sinais em desvio e tendência de erros na tela Agora; os desvios relevantes são destacados por cor, símbolo Δ e barra de significância σ na tela Comparar | TF-06, TF-17 | Parcial | Destaques visuais existem; critério calculado sobre dados reais apenas no Monitor |
+| RF16 | Exibir contexto para investigação | Detalhes do evento: ID, data, dispositivo, sistema, rota, versão, atributos JSON; a tela Recorte detalha o recorte afetado com amostra de sessões e a tela Timeline reconstrói a cronologia do incidente cruzando seis fontes de dados | TF-04, TF-06 | Atendido | A seção de detalhes do `DashboardScreen` (com `DetailField` e `<details>` para os atributos JSON) exibe todos os campos; contexto ampliado nas telas Recorte e Timeline |
 | RF17 | Apresentar hipóteses de causa raiz | Tela Hipóteses em que cada hipótese recebe um score de 0 a 100, quatro fatores ponderados com justificativa textual, lista de hipóteses descartadas com motivo e lista de evidências consultadas | TF-18 | Parcial | Rota `/hipoteses` com layout, mock e cliente de API |
 
 ### 5.1 Cobertura resumida
@@ -366,7 +377,7 @@ Interface renderizada com dados filtrados localmente
 | Ação na interface | Método e endpoint | Dados enviados | Resposta utilizada |
 |---|---|---|---|
 | Carregar eventos do monitor | `GET /api/v1/events` | `limit`, `event_name`, `device_os`, `device_manufacturer`, `from`, `to` (query string) | `items[]` (eventos), `next_cursor`, `query.strategy/scanned/returned` |
-| Trocar período (15 min, 30 min, 3 h, 24 h, tudo) | `GET /api/v1/events` | `from` e `to` recalculados por `getPeriod()` | Mesma estrutura, com novo refetch automático |
+| Trocar período (15 min, 30 min, 3 h, 24 h, tudo) | `GET /api/v1/events` | `from` e `to` recalculados por `getPeriodQuery()` | Mesma estrutura, com novo refetch automático |
 | Aplicar filtro por plataforma/fabricante/tipo | `GET /api/v1/events` | Parâmetros adicionais na query string | Mesma estrutura; filtragem local adicional por `filterEvents()` |
 
 ### 6.1 Tratamento de estados
@@ -381,7 +392,7 @@ Interface renderizada com dados filtrados localmente
 
 ### 6.2 Evidência do fluxo ponta a ponta
 
-&emsp;A rota raiz (`/`) do monitor está conectada ao cliente HTTP real. Quando o servidor de desenvolvimento é iniciado com `NEXT_PUBLIC_API_URL` apontando para a API de leitura, o front-end:
+&emsp;A rota `/monitor` (para a qual `/` redireciona) está conectada ao cliente HTTP real. Quando o build recebe `NEXT_PUBLIC_API_URL` apontando para a API de leitura, o front-end:
 
 1. Dispara `GET /api/v1/events?limit=100` no primeiro carregamento;
 2. Refaz a consulta a cada mudança de período ou filtro;
@@ -390,7 +401,7 @@ Interface renderizada com dados filtrados localmente
 
 &emsp;A coleção Postman descrita no [MVP inicial](./mvp-inicial.md) registrou anteriormente 51 asserções de API sem falha, confirmando que os endpoints consumidos pelo front-end operam corretamente.
 
-&emsp; As telas Agora e Explorar não percorrem esse fluxo na versão atual: ambas importam cenários sintéticos localizados em suas respectivas pastas `_mocks/` e calculam a apresentação em estado local do React. Essa separação permite avaliar as interações projetadas, mas não comprova integração com o back-end nessas telas.
+&emsp; As seis áreas operacionais não percorrem esse fluxo: cada uma importa cenários sintéticos das suas pastas `_mocks/` e calcula a apresentação em estado local do React. A exceção é a tela Hipóteses, que possui um adaptador HTTP opcional, ativado por `NEXT_PUBLIC_HYPOTHESES_SOURCE=api`. Essa separação permite avaliar as interações projetadas, mas não comprova integração com o back-end nessas telas.
 
 ## 7. Publicação na AWS S3
 
@@ -400,10 +411,9 @@ Interface renderizada com dados filtrados localmente
 
 ## 8. Limitações
 
-- Testes automatizados ausentes: não existe suíte automatizada nem script `test` no `package.json`. Recomenda-se adicionar Vitest + Testing Library para os componentes críticos e Playwright para testes E2E;
-- Telas com dados mockados: Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte operam sobre snapshots sintéticos; a integração com a API real está implementada apenas na rota raiz;
-- Acessibilidade e responsividade: os fundamentos estão implementados (ARIA, landmarks, breakpoints, foco visível), mas carecem de validação em navegador com teclado, leitor de tela e viewports reais;
-- Campo de busca sem `maxlength`: o input de busca textual não impõe limite de tamanho.
+- Testes automatizados ausentes: não existe suíte automatizada nem script `test` no `package.json`. A validação em navegador desta entrega foi feita por scripts ad hoc não versionados; recomenda-se adicionar Vitest + Testing Library para os componentes críticos e Playwright para testes E2E;
+- Telas com dados mockados: Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte operam sobre snapshots sintéticos; a integração com a API real está implementada no Monitor (`/monitor`), e a tela Hipóteses aceita opcionalmente uma fonte HTTP (`NEXT_PUBLIC_HYPOTHESES_SOURCE=api`);
+- Leitor de tela: os fundamentos de acessibilidade foram validados em navegador (teclado, ordem de foco, contraste, viewports); a verificação com leitor de tela real (NVDA/VoiceOver) permanece pendente.
 
 ## 9. Referências internas
 
