@@ -1,36 +1,117 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend do Argus
 
-## Getting Started
+Dashboard estático em Next.js App Router. A entrada `/` redireciona para
+`/agora`; as demais URLs públicas são `/explorar`, `/comparar`, `/hipoteses`,
+`/timeline` e `/recorte`.
 
-First, run the development server:
+O contrato HTTP que a interface já chama e o que ela espera da API de leitura
+e do motor de hipóteses está em
+[artefatos/rotas-frontend.md](../../../artefatos/rotas-frontend.md).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Organização
+
+```text
+src/
+├── app/
+│   ├── (operations)/
+│   │   ├── (dashboard)/        # entrada /, redirecionada para /agora
+│   │   ├── _components/        # moldura e navegação deste grupo
+│   │   ├── agora/
+│   │   ├── comparar/
+│   │   ├── explorar/
+│   │   ├── hipoteses/
+│   │   ├── recorte/
+│   │   └── timeline/
+│   ├── globals.css             # Tailwind, tema, animações e reset
+│   └── layout.tsx              # documento HTML raiz
+├── lib/                        # contratos e adapters compartilhados
+├── components/ui/              # primitivas shadcn customizadas para o Argus
+└── providers/                  # providers usados por ilhas específicas
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O route group `(operations)` não participa da URL. Cada `page.tsx` é um
+Server Component de composição e metadata. Código específico de uma rota fica
+próximo dela em `_components`, `_lib` e `_mocks`; somente contratos ou adapters
+consumidos por mais de uma fronteira ficam em `src/lib`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+O `QueryProvider` envolve apenas a página que executa consultas no cliente.
+As telas demonstrativas mantêm suas fixtures em `_mocks`, deixando explícito
+que esses dados não vieram da API de eventos.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Estilos
 
-## Learn More
+O frontend usa Tailwind CSS v4 com configuração CSS-first em `globals.css`.
+Paletas, tipografia e animações são tokens de `@theme`; os componentes usam
+utilities Tailwind colocalizadas em arquivos `*.styles.ts`. `clsx` compõe os
+estados condicionais sem depender de CSS Modules ou `tailwind.config`.
 
-To learn more about Next.js, take a look at the following resources:
+As primitivas acessíveis ficam em `src/components/ui` e seguem a estrutura do
+shadcn/ui. O projeto mantém somente `button`, `badge`, `select`, `toggle-group`,
+`sheet`, `separator`, `input`, `tooltip`, `table`, `skeleton` e `alert`. A
+composição das telas continua próxima das rotas e usa `cn()` de `src/lib/utils.ts`.
+Radix fornece comportamento e semântica; cores, radius, bordas e estados são
+definidos pelos tokens Argus, sem o tema visual padrão do shadcn.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Archivo é a fonte da interface e IBM Plex Mono identifica horários, métricas e
+rótulos técnicos. O tema inicial segue o sistema; o seletor do cabeçalho
+persiste a escolha em `argus-theme` e aplica a classe no documento com
+`next-themes`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Há um único vocabulário de tokens de cor, o canônico do `@theme` (`--foreground`,
+`--muted-foreground`, `--subtle-foreground`, `--border`, `--border-soft`,
+`--border-strong`, `--surface`, `--surface-raised`, `--primary`, `--destructive`,
+`--warning`…). Os aliases globais (`--ink`, `--muted`, `--soft`, `--line`, `--red`,
+`--canvas`) e os forks por tela (`--agora-*`, `--explore-*`) foram removidos: eram
+indireção sem diferença visual. Cor fixa em `*.styles.ts` é bug — não responde ao
+tema. As duas exceções são o `meta[theme-color]` em `theme-toggle.tsx` e os gaps
+responsivos `--explore-section-gap` / `--explore-block-gap`, que são espaçamento.
 
-## Deploy on Vercel
+A tipografia tem seis degraus, declarados como tokens `--text-*` no `globals.css`:
+`text-micro` (12px, rótulos e legendas), `text-label` (13px), `text-body` (14px),
+`text-section` (16px, h2), `text-subhead` (20px, métricas de bloco) e
+`text-display` (28px, h1 de tela e métricas de destaque). O h1 de toda tela usa a
+constante `screenTitle` de `(operations)/_components/screen-frame.styles.ts`.
+Nenhum texto abaixo de 12px — a única exceção é `[font-size:16px]` nos inputs em
+telas estreitas, que existe para o iOS não dar zoom no foco.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Estilos inline ficam restritos a valores calculados em runtime, como altura e
+posição de barras dos gráficos. Breakpoints, foco visível, redução de movimento
+e pseudo-elementos do seletor temporal são expressos por variantes Tailwind.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Configuração
+
+O build exige uma fonte explícita para Hipóteses:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_HYPOTHESES_SOURCE=mock
+NEXT_PUBLIC_HYPOTHESES_API_URL=
+```
+
+- `mock`: usa o adapter e as fixtures locais de `/hipoteses`.
+- `api`: exige `NEXT_PUBLIC_HYPOTHESES_API_URL` e preserva o contrato HTTP
+  `GET /api/v1/hypotheses`.
+
+Os alvos `make -C apps/basica frontend-dev` e `frontend-build` convertem
+`HYPOTHESES_SOURCE` e `HYPOTHESES_API_URL` nas variáveis públicas acima. O
+fluxo gerado por `make -C apps/basica env` usa `mock` enquanto não houver um
+endpoint do motor de hipóteses.
+
+## Desenvolvimento e validação
+
+```bash
+cd apps/basica/frontend
+npm ci
+NEXT_PUBLIC_API_URL=http://localhost:8000 \
+  NEXT_PUBLIC_HYPOTHESES_SOURCE=mock npm run dev
+
+npm run lint
+npx next typegen
+npx tsc --noEmit
+test -z "$(find src -name '*.module.css' -print)"
+NEXT_PUBLIC_API_URL=http://localhost:8000 \
+  NEXT_PUBLIC_HYPOTHESES_SOURCE=mock npm run build -- --webpack
+```
+
+O projeto usa `output: "export"` e `trailingSlash: true`, produzindo o site
+estático em `out/` no formato esperado pelo website do S3.

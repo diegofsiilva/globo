@@ -1,0 +1,30 @@
+import { screenTitle } from "../../_components/screen-frame.styles";
+
+/** Utilities Tailwind geradas a partir do CSS legado para preservar paridade visual. */
+export const compararStyles = {
+  "line": "line [height:1px] [width:12px] bg-border-strong",
+  "hot": "hot bg-primary",
+  "axis": "axis [margin-top:7px] [display:flex] [justify-content:space-between] text-muted-foreground text-micro",
+  "bar": "bar [width:100%] bg-foreground",
+  "body": "body [display:grid] [grid-template-columns:minmax(0,1fr)_232px] [gap:28px] [padding:24px_0_48px] max-[1100px]:[grid-template-columns:1fr]",
+  "bucket": "bucket [position:relative] [flex:1] [min-width:0] [height:100%] [display:flex] [align-items:flex-end]",
+  "change": "change [padding:9px_0] [border-bottom:1px_solid_var(--border-soft)] [&_time]:[display:block] [&_time]:[margin-bottom:4px] [&_time]:text-subtle-foreground [&_time]:text-micro [&_p]:[margin:0] [&_p]:text-micro [&_p]:[line-height:1.45]",
+  "changes": "changes [&_h2]:[margin:0_0_12px] [&_h2]:text-subtle-foreground [&_h2]:text-micro [&_h2]:font-semibold [&_h2]:[letter-spacing:0.08em] [&_h2]:[text-transform:uppercase]",
+  "chart": "chart [height:172px] [margin-top:14px] [display:flex] [align-items:flex-end] [gap:2px] [border-bottom:1px_solid_var(--border)]",
+  "chartHeader": "chartHeader [display:flex] [align-items:baseline] [gap:9px] [&_h2]:[margin:0] [&_h2]:text-micro [&_h2]:font-semibold [&_span]:text-muted-foreground [&_span]:text-micro",
+  "delta": "delta font-semibold",
+  "deltaHot": "deltaHot text-primary",
+  "head": "head [display:grid] [grid-template-columns:minmax(180px,1fr)_92px_108px_92px_minmax(180px,1.1fr)] [align-items:center] [gap:12px] [border-bottom:1px_solid_var(--border-soft)] [height:34px] [align-items:end] [padding-bottom:6px] [border-bottom-color:var(--border)] text-subtle-foreground text-micro [letter-spacing:0.07em] [text-transform:uppercase] [&_span:nth-child(n+2)]:[text-align:right] [&_span:last-child]:[text-align:left] max-[760px]:[min-width:720px]",
+  "heading": `heading [padding:22px_0_16px] [&_p]:[margin:5px_0_0] [&_p]:text-muted-foreground [&_p]:text-micro ${screenTitle}`,
+  "legend": "legend [margin-top:12px] [display:flex] [align-items:center] [gap:16px] text-muted-foreground text-micro [&_>_span]:[display:flex] [&_>_span]:[align-items:center] [&_>_span]:[gap:5px] [&_i]:[width:8px] [&_i]:[height:8px] [&_i]:bg-foreground [&_i.line]:[height:1px] [&_i.line]:[width:12px] [&_i.line]:bg-border-strong [&_i.hot]:bg-primary",
+  "meter": "meter [flex:1] [height:9px] bg-surface-raised [&_i]:[display:block] [&_i]:[height:100%] [&_i]:bg-muted-foreground [&_i.hot]:bg-primary",
+  "outside": "outside bg-primary",
+  "reference": "reference !h-auto !min-h-12 !justify-start !items-start !px-3 !py-2 !text-left [flex-direction:column] [gap:3px] [&_strong]:text-micro [&_span]:text-muted-foreground [&_span]:text-micro data-[state=on]:bg-foreground data-[state=on]:text-background data-[state=on]:[&_span]:text-background",
+  "referenceLine": "referenceLine [position:absolute] [right:0] [left:0] [height:1px] bg-border-strong",
+  "references": "references !grid !w-full !rounded-panel [grid-template-columns:repeat(4,minmax(0,1fr))] max-[760px]:[grid-template-columns:repeat(2,minmax(0,1fr))]",
+  "row": "row [display:grid] [grid-template-columns:minmax(180px,1fr)_92px_108px_92px_minmax(180px,1.1fr)] [align-items:center] [gap:12px] [border-bottom:1px_solid_var(--border-soft)] [min-height:42px] text-micro [&_>_span:nth-child(2)]:[text-align:right] [&_>_span:nth-child(3)]:[text-align:right] [&_>_span:nth-child(2)]:font-semibold [&_>_span:nth-child(3)]:text-muted-foreground max-[760px]:[min-width:720px]",
+  "sigma": "sigma [flex:none] [width:44px] text-muted-foreground text-micro [text-align:right]",
+  "significance": "significance [display:flex] [align-items:center] [gap:9px]",
+  "table": "comparisonTable [width:calc(100%_-_260px)] [min-width:0] [padding-bottom:48px] max-[1100px]:[width:100%]",
+  "tableLabel": "tableLabel [margin:0_0_12px] text-subtle-foreground text-micro font-semibold [letter-spacing:0.08em] [text-transform:uppercase]",
+} as const;

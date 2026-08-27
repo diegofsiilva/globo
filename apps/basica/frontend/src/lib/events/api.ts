@@ -1,18 +1,9 @@
 /** Cliente tipado da API de leitura de eventos. */
 
-// A URL da API vem do ambiente de build e NUNCA fica escrita aqui. Enquanto as
-// APIs não tiverem autenticação (arquitetura.md §8.1), a URL é na prática a
-// única barreira entre os eventos e qualquer pessoa na internet -- commitá-la é
-// entregar o acesso junto com o código.
-//
-// Defina NEXT_PUBLIC_API_URL antes do build:
-//   cd apps/basica/infra && terraform output -raw read_api_url
+// A URL da API vem do ambiente de build e nunca fica escrita no código.
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 if (!API_URL) {
-  // Falha barulhenta e cedo. Sem isso, o fetch iria para o próprio domínio do
-  // site estático, devolveria o HTML da página e quebraria no JSON.parse, com
-  // uma mensagem que não explica nada.
   throw new Error(
     "NEXT_PUBLIC_API_URL não definida. Rode `make frontend-build` ou exporte a " +
       "variável antes de `next build`.",
@@ -48,7 +39,7 @@ export type EventsResponse = {
   query: { strategy: string; scanned: number; returned: number; queries: number };
 };
 
-export type EventFilters = {
+export type EventQuery = {
   eventName?: string;
   platform?: string;
   manufacturer?: string;
@@ -56,15 +47,13 @@ export type EventFilters = {
   to?: string;
 };
 
-/**
- * Consulta eventos aplicando somente os filtros preenchidos.
- * @param filters Filtros opcionais enviados como query string.
- * @param signal Sinal opcional para cancelar a requisição HTTP.
- * @returns Eventos e metadados de paginação fornecidos pela API.
- * @throws Error quando a API responde com um status HTTP não bem-sucedido.
- */
-export async function fetchEvents(filters: EventFilters, signal?: AbortSignal): Promise<EventsResponse> {
+/** Consulta eventos aplicando somente os filtros preenchidos. */
+export async function fetchEvents(
+  filters: EventQuery,
+  signal?: AbortSignal,
+): Promise<EventsResponse> {
   const params = new URLSearchParams({ limit: "100" });
+
   if (filters.eventName) params.set("event_name", filters.eventName);
   if (filters.platform) params.set("device_os", filters.platform);
   if (filters.manufacturer) params.set("device_manufacturer", filters.manufacturer);
@@ -72,6 +61,10 @@ export async function fetchEvents(filters: EventFilters, signal?: AbortSignal): 
   if (filters.to) params.set("to", filters.to);
 
   const response = await fetch(`${API_URL}/api/v1/events?${params}`, { signal });
-  if (!response.ok) throw new Error(`A API respondeu com status ${response.status}`);
+
+  if (!response.ok) {
+    throw new Error(`A API respondeu com status ${response.status}`);
+  }
+
   return response.json();
 }
