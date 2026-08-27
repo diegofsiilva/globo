@@ -68,7 +68,7 @@ export function TimelineContent() {
 
         <aside className={styles.card} aria-label="Janela de correlação">
           <small>Janela de correlação</small>
-          <h2>{correlationWindow.label}</h2>
+          <h2 className="text-gradient-emphasis">{correlationWindow.label}</h2>
           <p>{correlationWindow.description}</p>
           <hr />
           {correlationWindow.metrics.map((metric) => (

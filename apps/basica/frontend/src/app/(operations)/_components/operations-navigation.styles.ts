@@ -1,7 +1,7 @@
 /** Utilities da navegação operacional em sidebar e drawer. */
 export const navigationStyles = {
   active:
-    "bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-foreground shadow-[inset_2px_0_var(--primary)] before:absolute before:right-0 before:h-5 before:w-px before:bg-primary",
+    "bg-[image:var(--gradient-emphasis-soft)] text-foreground shadow-[inset_2px_0_var(--primary)] before:absolute before:right-0 before:h-5 before:w-px before:bg-primary",
   drawer: "p-0",
   drawerNavigation: "flex-1 py-3",
   index: "font-mono text-[12px] text-muted-foreground tabular-nums",

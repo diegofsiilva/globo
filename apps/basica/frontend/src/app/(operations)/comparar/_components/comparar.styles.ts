@@ -21,7 +21,7 @@ export const compararStyles = {
   "outside": "outside bg-primary",
   "reference": "reference !h-auto !min-h-12 !justify-start !items-start !px-3 !py-2 !text-left [flex-direction:column] [gap:3px] [&_strong]:text-micro [&_span]:text-muted-foreground [&_span]:text-micro data-[state=on]:bg-foreground data-[state=on]:text-background data-[state=on]:[&_span]:text-background",
   "referenceLine": "referenceLine [position:absolute] [right:0] [left:0] [height:1px] bg-border-strong",
-  "references": "references !grid !w-full [grid-template-columns:repeat(4,minmax(0,1fr))] max-[760px]:[grid-template-columns:repeat(2,minmax(0,1fr))]",
+  "references": "references !grid !w-full !rounded-panel [grid-template-columns:repeat(4,minmax(0,1fr))] max-[760px]:[grid-template-columns:repeat(2,minmax(0,1fr))]",
   "row": "row [display:grid] [grid-template-columns:minmax(180px,1fr)_92px_108px_92px_minmax(180px,1.1fr)] [align-items:center] [gap:12px] [border-bottom:1px_solid_var(--border-soft)] [min-height:42px] text-micro [&_>_span:nth-child(2)]:[text-align:right] [&_>_span:nth-child(3)]:[text-align:right] [&_>_span:nth-child(2)]:font-semibold [&_>_span:nth-child(3)]:text-muted-foreground max-[760px]:[min-width:720px]",
   "sigma": "sigma [flex:none] [width:44px] text-muted-foreground text-micro [text-align:right]",
   "significance": "significance [display:flex] [align-items:center] [gap:9px]",

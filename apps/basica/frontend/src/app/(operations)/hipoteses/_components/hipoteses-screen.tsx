@@ -133,7 +133,7 @@ function HypothesisItem({
       onClick={onSelect}
       aria-current={selected ? "true" : undefined}
     >
-      <strong className={styles.score}>{hypothesis.score}</strong>
+      <strong className={clsx(styles.score, selected && "text-gradient-emphasis")}>{hypothesis.score}</strong>
       <span className={styles.body}>
         <span className={styles.kicker}>
           Hipótese {rank} · {hypothesis.category}
@@ -188,7 +188,7 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
       <h2>{hypothesis.title}</h2>
 
       <p className={styles.panelScore}>
-        <strong>{hypothesis.score}</strong>
+        <strong className="text-gradient-emphasis">{hypothesis.score}</strong>
         <span>
           soma ponderada de {hypothesis.factors.length} fatores, normalizada em 0–100. Confiança{" "}
           {hypothesis.confidence}.

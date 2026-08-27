@@ -41,6 +41,12 @@
   --color-rank-3: var(--rank-3);
   --color-rank-4: var(--rank-4);
 
+  /* Raios de canto. O front é reto por padrão (button { border-radius: 0 });
+     estes três degraus arredondam só painéis, pills de escopo e badges. */
+  --radius-panel: 12px;
+  --radius-pill: 999px;
+  --radius-badge: 8px;
+
   /* Escala tipográfica única das telas. Seis degraus: abaixo de 12px o rótulo
      deixa de ser legível em tela densa, e acima de 28px compete com o h1. */
   --text-micro: 12px;      /* eyebrows, rótulos, legendas, eixos de gráfico */
@@ -99,6 +105,15 @@
   --rank-2: #b92b0b;
   --rank-3: #cb6440;
   --rank-4: #d59277;
+
+  /* Gradiente de ênfase vermelho→laranja. Só aparece nos pontos de destaque
+     (números-herói, nav ativa, barras quentes) — não em botões. -v é a versão
+     vertical para barras; -soft é o mesmo hue translúcido, para fundo atrás de
+     texto. No tema claro a ponta laranja é queimada de propósito: um laranja
+     vivo sobre o fundo bege não passa em contraste para texto. */
+  --gradient-emphasis: linear-gradient(96deg, #a82207 0%, #b0400c 52%, #bd5210 100%);
+  --gradient-emphasis-v: linear-gradient(180deg, #bd5210 0%, #a82207 100%);
+  --gradient-emphasis-soft: linear-gradient(100deg, color-mix(in srgb, var(--primary) 12%, transparent) 0%, color-mix(in srgb, #bd5210 9%, transparent) 100%);
 }
 
 .dark {
@@ -131,6 +146,10 @@
   --rank-2: #e8552a;
   --rank-3: #b03c1c;
   --rank-4: #7a2c14;
+
+  --gradient-emphasis: linear-gradient(96deg, #ff5a2f 0%, #ff8a3d 50%, #ff9a2e 100%);
+  --gradient-emphasis-v: linear-gradient(180deg, #ff9a2e 0%, #ff5a2f 100%);
+  --gradient-emphasis-soft: linear-gradient(100deg, color-mix(in srgb, var(--primary) 16%, transparent) 0%, color-mix(in srgb, var(--warning) 7%, transparent) 100%);
 }
 
 @keyframes live-pulse {
@@ -214,8 +233,19 @@
 
 .filterMenu {
   border-color: var(--border-strong);
+  border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: 4px 5px 0 color-mix(in srgb, var(--foreground) 13%, transparent);
+}
+
+/* Texto recortado sobre o gradiente de ênfase. Usado só nos números grandes
+   de destaque de cada tela — o tamanho (≥ text-subhead) mantém contraste. */
+.text-gradient-emphasis {
+  background: var(--gradient-emphasis);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
 .signalsTable tbody th,

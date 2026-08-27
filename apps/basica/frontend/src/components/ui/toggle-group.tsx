@@ -15,7 +15,7 @@ function ToggleGroup({ className, variant, size, children, ...props }: React.Com
   return (
     <ToggleGroupPrimitive.Root
       data-slot="toggle-group"
-      className={cn("flex w-fit items-center divide-x divide-border overflow-hidden border border-border-strong", className)}
+      className={cn("flex w-fit items-center divide-x divide-border overflow-hidden rounded-pill border border-border-strong", className)}
       {...props}
     >
       <ToggleGroupContext.Provider value={{ variant, size }}>{children}</ToggleGroupContext.Provider>
