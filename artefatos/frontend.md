@@ -34,47 +34,85 @@
 
 ### 1.3 Capturas de tela
 
-&emsp; As capturas abaixo mostram as seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte) com a interface renderizada em navegador, e não apenas por inspeção estática do código. Assim como nas demais telas mockadas discutidas neste artefato, os dados exibidos são os snapshots sintéticos de `_mocks/scenario.ts` (indicados na própria interface pela etiqueta "MOCK · SNAPSHOT").
+&emsp; As capturas abaixo foram produzidas diretamente a partir da implementação executável das seis áreas operacionais. Os dados apresentados vêm dos cenários sintéticos de `_mocks/scenario.ts` e são identificados na interface pela etiqueta "MOCK · SNAPSHOT".
 
-- Ambiente: `next dev` local (Turbopack), porta 4180, resolução 1440×900 (desktop) e 390×844 (mobile);
-- Data da captura: 26/08/2026;
-- Ferramenta: Google Chrome headless (`--headless=new --screenshot`);
-- Comando executado: `NEXT_PUBLIC_API_URL=http://127.0.0.1:9 NEXT_PUBLIC_HYPOTHESES_SOURCE=mock npm run dev -- -p 4180`.
+- Ambiente: `next dev` local (Turbopack), porta 4182;
+- Data da captura: 27/08/2026;
+- Fonte de hipóteses: `NEXT_PUBLIC_HYPOTHESES_SOURCE=mock`.
 
+#### 1.3.1 Agora
 
-**Agora**: visão operacional com degradação ativa, sinais em desvio e minigráficos de tendência (pequenos gráficos de barras, sem eixos, que mostram a variação recente de cada sinal):
+&emsp; A tela Agora apresenta o estado operacional mais urgente do recorte selecionado. O destaque superior resume a degradação ativa, seu alcance e a diferença em relação ao baseline; abaixo, os sinais são ordenados por sessões impactadas e mostram valor atual, referência, desvio, tendência e ação de investigação.
 
-![Captura de tela da área Agora](./assets/captura_agora.png)
+<p align="center">
+  <img src="./assets/captura_agora_tema_escuro.png" alt="Tela Agora no tema escuro" width="49%">
+  <img src="./assets/captura_agora_tema_claro.png" alt="Tela Agora no tema claro" width="49%">
+</p>
 
-**Explorar**: exploração de eventos por tipo, com leitura guiada em três passos:
+<p align="center"><sub>Figuras 1 e 2 — Tela Agora nos temas escuro e claro, respectivamente.</sub></p>
 
-![Captura de tela da área Explorar](./assets/captura_explorar.png)
+#### 1.3.2 Explorar
 
-**Comparar**: comparação com quatro janelas de referência e significância estatística (σ):
+&emsp; A tela Explorar conduz a investigação em três etapas: escolher o tipo de evento, localizar quando o comportamento mudou e identificar onde o sinal se concentra. O usuário pode ajustar a janela temporal, alternar dimensões como modelo, UF, ISP, versão e rota, além de consultar erros associados ao recorte.
 
-![Captura de tela da área Comparar](./assets/captura_comparar.png)
+<p align="center">
+  <img src="./assets/captura_explorar_tema_escuro.png" alt="Tela Explorar no tema escuro" width="49%">
+  <img src="./assets/captura_explorar_tema_claro.png" alt="Tela Explorar no tema claro" width="49%">
+</p>
 
-**Hipóteses**: hipóteses de causa provável ranqueadas, com fatores ponderados e evidências:
+<p align="center"><sub>Figuras 3 e 4 — Tela Explorar nos temas escuro e claro, respectivamente.</sub></p>
 
-![Captura de tela da área Hipóteses](./assets/captura_hipoteses.png)
+#### 1.3.3 Comparar
 
-**Timeline**: cronologia do incidente cruzando seis fontes de dados:
+&emsp; A tela Comparar posiciona o período atual diante de referências como o mesmo horário do dia anterior, a semana passada ou a última janela estável. O gráfico evidencia pontos fora do envelope histórico, enquanto a tabela quantifica a variação e a significância de cada métrica.
 
-![Captura de tela da área Timeline](./assets/captura_timeline.png)
+<p align="center">
+  <img src="./assets/captura_comparar_tema_escuro.png" alt="Tela Comparar no tema escuro" width="49%">
+  <img src="./assets/captura_comparar_tema_claro.png" alt="Tela Comparar no tema claro" width="49%">
+</p>
 
-**Recorte**: mapa de calor por família de dispositivo × região e sugestões de ajuste:
+<p align="center"><sub>Figuras 5 e 6 — Tela Comparar nos temas escuro e claro, respectivamente.</sub></p>
 
-![Captura de tela da área Recorte](./assets/captura_recorte.png)
+#### 1.3.4 Hipóteses
 
-&emsp; As duas capturas a seguir mostram variações de tema e viewport, ambas sobre a mesma tela (Agora):
+&emsp; A tela Hipóteses organiza possíveis causas por relevância e mantém as alternativas descartadas visíveis. Ao selecionar uma hipótese, o painel lateral explica a composição do score por coincidência temporal, especificidade do recorte, ausência de causa concorrente e precedente histórico, além de listar as evidências consultadas.
 
-**Tema claro**: a alternância de tema (`next-themes`) preserva o layout e os dados:
+<p align="center">
+  <img src="./assets/captura_hipoteses_tema_escuro.png" alt="Tela Hipóteses no tema escuro" width="49%">
+  <img src="./assets/captura_hipoteses_tema_claro.png" alt="Tela Hipóteses no tema claro" width="49%">
+</p>
 
-![Captura de tela da área Agora em tema claro](./assets/captura_agora_tema_claro.png)
+<p align="center"><sub>Figuras 7 e 8 — Tela Hipóteses nos temas escuro e claro, respectivamente.</sub></p>
 
-**Viewport mobile (390×844)**: em telas estreitas, a interface recolhe a navegação em um ícone de hambúrguer, resume a barra de escopo em "Escopo · N filtros" e reorganiza os sinais em cartões empilhados:
+#### 1.3.5 Timeline
 
-![Captura de tela da área Agora em viewport mobile](./assets/captura_agora_mobile.png)
+&emsp; A tela Timeline cruza as fontes Deploy, Player QoE, CDN, Backend, Identidade e Incidentes em um mesmo eixo temporal. A janela destacada ajuda a reconhecer coincidências entre mudanças técnicas e degradações, enquanto a cronologia reconstruída oferece uma alternativa textual ao gráfico.
+
+<p align="center">
+  <img src="./assets/captura_timeline_tema_escuro.png" alt="Tela Timeline no tema escuro" width="49%">
+  <img src="./assets/captura_timeline_tema_claro.png" alt="Tela Timeline no tema claro" width="49%">
+</p>
+
+<p align="center"><sub>Figuras 9 e 10 — Tela Timeline nos temas escuro e claro, respectivamente.</sub></p>
+
+#### 1.3.6 Recorte
+
+&emsp; A tela Recorte delimita a população afetada e informa sessões, participação no tráfego, concentração dos erros e número de UFs envolvidas. O mapa de calor cruza família de dispositivo e região, e o painel lateral antecipa o efeito de possíveis ajustes sobre a especificidade e a cobertura.
+
+<p align="center">
+  <img src="./assets/captura_recorte_tema_escuro.png" alt="Tela Recorte no tema escuro" width="49%">
+  <img src="./assets/captura_recorte_tema_claro.png" alt="Tela Recorte no tema claro" width="49%">
+</p>
+
+<p align="center"><sub>Figuras 11 e 12 — Tela Recorte nos temas escuro e claro, respectivamente.</sub></p>
+
+#### 1.3.7 Viewport mobile
+
+&emsp; A captura mobile demonstra a adaptação da tela Agora para um viewport de 390×844. Nesse formato, a navegação lateral dá lugar a um cabeçalho compacto e o conteúdo passa a ocupar uma única coluna, preservando a leitura do alerta principal e dos indicadores sem exigir rolagem horizontal.
+
+![Tela Agora no viewport mobile de 390 por 844 pixels](./assets/captura_agora_mobile.png)
+
+<p align="center"><sub>Figura 13 — Adaptação da tela Agora ao viewport mobile.</sub></p>
 
 ## 2. Organização e qualidade do código
 
@@ -94,14 +132,17 @@ apps/basica/frontend/src/
 │   │   ├── hipoteses/           Hipóteses, adaptadores de fonte e cenário simulado
 │   │   ├── timeline/            Correlação cronológica simulada
 │   │   ├── recorte/             Delimitação da população afetada simulada
-│   │   └── layout.tsx           Layout compartilhado das páginas operacionais
+│   │   ├── layout.tsx           Layout compartilhado das páginas operacionais
+│   │   ├── loading.tsx          Estado de carregamento exibido na troca de rota
+│   │   └── error.tsx            Fronteira de erro das rotas operacionais
 │   ├── globals.css              Tokens e estilos globais
 │   └── layout.tsx               Layout-base, fontes e metadados da aplicação
 ├── components/ui/               Componentes de interface reutilizáveis
 ├── lib/
 │   ├── events/api.ts            Cliente HTTP tipado da API de eventos
 │   ├── events/monitor.ts        Regras de monitoração e filtros
-│   └── operational-state.ts     Estados de carregamento, ausência e falha
+│   ├── operational-state.ts     Estados de carregamento, ausência e falha
+│   └── utils.ts                 Composição de classes Tailwind (`cn`)
 └── providers/
     ├── query-provider.tsx       Configuração compartilhada do TanStack Query
     └── theme-provider.tsx       Configuração de tema da aplicação
