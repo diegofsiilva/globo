@@ -8,12 +8,18 @@ baseline (ver fixture em `conftest.py`).
 """
 
 from datetime import timedelta
+from urllib.parse import quote
 
 from tests.conftest import REFERENCE_NOW
 
 DESDE = REFERENCE_NOW - timedelta(hours=1)
 ATE = REFERENCE_NOW
 BASELINE_DESDE = DESDE - timedelta(hours=6)  # baseline_hours=6 na fixture de teste
+
+# O '+' do fuso em isoformat() (ex.: ...+00:00) precisa ser escapado na query
+# string -- sem isso, o werkzeug decodifica '+' como espaco (convencao de
+# application/x-www-form-urlencoded) e a data para de ser ISO 8601 valida.
+JANELA_QS = f"from={quote(DESDE.isoformat())}&to={quote(ATE.isoformat())}"
 
 
 def _inserir_bucket(pool, *, bucket_ts, value, hora_brt=8, available_at=None):
@@ -41,7 +47,7 @@ def _inserir_baseline(pool, valores, *, hora_brt=8):
 
 
 def test_sem_dado_devolve_lista_vazia(client, pool):
-    resposta = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}")
+    resposta = client.get(f"/api/v1/signals?{JANELA_QS}")
 
     assert resposta.status_code == 200
     assert resposta.json == {"items": []}
@@ -51,9 +57,7 @@ def test_desvio_forte_vira_sinal_critico(client, pool):
     _inserir_baseline(pool, [48, 50, 52])  # media 50, desvio 2
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
 
-    itens = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ]
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"]
 
     assert len(itens) == 1
     sinal = itens[0]
@@ -69,9 +73,7 @@ def test_desvio_fraco_vira_sinal_estavel(client, pool):
     _inserir_baseline(pool, [40, 50, 60])  # media 50, desvio 10
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=72)  # z=2.2
 
-    sinal = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ][0]
+    sinal = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"][0]
 
     assert sinal["severity"] == "stable"
 
@@ -80,9 +82,7 @@ def test_desvio_medio_vira_sinal_de_atencao(client, pool):
     _inserir_baseline(pool, [40, 50, 60])  # media 50, desvio 10
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=80)  # z=3.0
 
-    sinal = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ][0]
+    sinal = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"][0]
 
     assert sinal["severity"] == "warning"
 
@@ -95,9 +95,7 @@ def test_trend_e_serie_numerica_nao_categoria(client, pool):
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=45), value=120)
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
 
-    sinal = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ][0]
+    sinal = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"][0]
 
     assert sinal["trend"] == [120, 150]
     assert sinal["direction"] in {"subindo", "descendo", "estavel"}
@@ -113,9 +111,7 @@ def test_consecutive_buckets_conta_so_a_sequencia_final(client, pool):
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=15), value=140)
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW, value=145)
 
-    sinal = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ][0]
+    sinal = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"][0]
 
     assert sinal["consecutive_buckets_over_threshold"] == 2
     assert sinal["detected_at"] == (REFERENCE_NOW - timedelta(minutes=15)).isoformat()
@@ -128,9 +124,7 @@ def test_sinal_recuperado_no_ultimo_bucket_nao_aparece(client, pool):
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=5), value=51)
 
-    itens = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ]
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"]
 
     assert itens == []
 
@@ -140,9 +134,7 @@ def test_sem_historico_de_baseline_suficiente_nao_vira_sinal(client, pool):
     _inserir_baseline(pool, [48, 52])  # so 2 pontos
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
 
-    itens = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ]
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"]
 
     assert itens == []
 
@@ -158,9 +150,7 @@ def test_respeita_o_relogio_virtual(client, pool):
         available_at=REFERENCE_NOW + timedelta(hours=2),
     )
 
-    itens = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ]
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"]
 
     assert itens == []
 
@@ -190,9 +180,7 @@ def test_sessions_impacted_e_inteiro(client, seeded, pool):
     _inserir_baseline(pool, [48, 50, 52])
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
 
-    sinal = client.get(f"/api/v1/signals?from={DESDE.isoformat()}&to={ATE.isoformat()}").json[
-        "items"
-    ][0]
+    sinal = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"][0]
 
     assert isinstance(sinal["sessions_impacted"], int)
     assert sinal["sessions_impacted"] >= 0
