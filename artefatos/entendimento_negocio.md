@@ -41,7 +41,7 @@
 | 7. Sustentação sob pico de evento ao vivo                  |                                      3 |                                   4 |                           3 | Aqui a solução proposta não é superior. A prática atual, embora lenta, sobrevive a picos porque não depende de infraestrutura nova. As suítes comerciais operam infraestrutura endurecida por anos de produção. A solução proposta precisa demonstrar ingestão sem perdas em cenários de milhões de sessões simultâneas, e essa capacidade ainda é hipótese de engenharia.                          |
 | 8. Baixo esforço de implantação e custo de propriedade     |                                      5 |                                   3 |                           2 | A prática atual não custa nada para implantar, por definição. Consolidar em suíte comercial é um projeto de migração relevante, com custo recorrente proporcional ao volume. Construir plataforma própria é a alternativa mais cara em desenvolvimento, operação e plantão, e cria um sistema que passa a precisar ele próprio de monitoração.                                                      |
 
-&emsp; A Figura 1 apresenta a curva de valor correspondente à matriz. Os atributos 1 e 2, com destaque acima, são os que descrevem capacidade ainda projetada para a Fase 5; por isso, em uma apresentação executiva, devem aparecer acompanhados do aviso de que representam a solução-alvo e não a entrega funcional imediata do MVP.
+&emsp; A Figura 1 apresenta a curva de valor correspondente à matriz. Os atributos 1 e 2, com destaque acima, são os que descrevem capacidade ainda projetada para a Fase 5, portanto representam a solução-alvo e não a entrega funcional imediata do MVP inicial.
 
 <div align="center">
 
