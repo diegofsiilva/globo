@@ -1,14 +1,42 @@
 {
   "info": {
-    "name": "Argus — telemetria (GET e POST)",
-    "description": "Testes das duas APIs implantadas na AWS.\n\n- **POST** vai para a API de ingestão (API Gateway → SQS → worker ECS → DynamoDB).\n- **GET** vai para a API de leitura (API Gateway → Lambda → DynamoDB).\n\nA pasta 3 fecha o ciclo: confirma no GET os eventos que a pasta 2 enviou por POST, provando o caminho ponta a ponta e a idempotência da ingestão.\n\nAs URLs vêm do environment e nunca são versionadas — veja `environment.example.json`.",
+    "name": "Argus, API de leitura e ingestão",
+    "description": "Coleção unificada (27/08/2026): pastas 1-3 são a coleção original de 14/08/2026, com a pasta 1 (leitura) corrigida contra o back-end atual (RDS PostgreSQL, os nomes de estrategia eram do DynamoDB v2). A pasta 2 (ingestão) não foi revisada nesta rodada, ver aviso dentro dela. Pastas 4+ são as rotas novas de apresentação (Agora, Comparar, Timeline, Recorte), implementadas e testadas nesta etapa, ver artefatos/backend.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "session_e2e", "value": "" },
-    { "key": "device_e2e", "value": "" },
-    { "key": "ts_e2e", "value": "" },
-    { "key": "tentativas", "value": "0" }
+    {
+      "key": "session_e2e",
+      "value": ""
+    },
+    {
+      "key": "device_e2e",
+      "value": ""
+    },
+    {
+      "key": "ts_e2e",
+      "value": ""
+    },
+    {
+      "key": "tentativas",
+      "value": "0"
+    },
+    {
+      "key": "read_url",
+      "value": ""
+    },
+    {
+      "key": "ingest_url",
+      "value": ""
+    },
+    {
+      "key": "from",
+      "value": ""
+    },
+    {
+      "key": "to",
+      "value": ""
+    }
   ],
   "event": [
     {
@@ -35,15 +63,92 @@
   ],
   "item": [
     {
-      "name": "1. GET — API de leitura",
+      "name": "0. Diagnóstico",
+      "item": [
+        {
+          "name": "Índice da API",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Readiness (banco)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/health/ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Relógio virtual",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/clock",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "clock"
+              ]
+            }
+          }
+        },
+        {
+          "name": "OpenAPI spec",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/openapi.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "openapi.json"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Leitura, eventos e métricas",
       "item": [
         {
           "name": "1.1 Saúde da API",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{read_url}}/health/ready", "host": ["{{read_url}}"], "path": ["health", "ready"] },
-            "description": "Sonda de readiness: confirma que a Lambda alcança o DynamoDB."
+            "url": {
+              "raw": "{{read_url}}/health/ready",
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Sonda de readiness: confirma que a API alcança o RDS PostgreSQL."
           },
           "event": [
             {
@@ -59,17 +164,28 @@
           ]
         },
         {
-          "name": "1.2 Busca sem filtro (table:scan)",
+          "name": "1.2 Busca sem filtro (particao_por_tempo)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/events?limit=50",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "events"],
-              "query": [{ "key": "limit", "value": "50" }]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
             },
-            "description": "Sem session_id, device_id ou event_name não há chave de partição, então a API varre a tabela. O bloco `query` da resposta expõe essa escolha e o custo dela."
+            "description": "Sem session_id, device_id ou event_name, a consulta cai na janela de tempo padrão (RNF02), usa o índice por `ts`."
           },
           "event": [
             {
@@ -80,7 +196,7 @@
                   "const corpo = pm.response.json();",
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
                   "pm.test('devolve uma página de eventos', () => pm.expect(corpo.items).to.be.an('array'));",
-                  "pm.test('usa a estratégia table:scan', () => pm.expect(corpo.query.strategy).to.eql('table:scan'));",
+                  "  pm.test('usa a estrategia particao_por_tempo', () => pm.expect(corpo.query.strategy).to.eql('particao_por_tempo'));",
                   "pm.test('expõe o custo da consulta', () => {",
                   "  pm.expect(corpo.query.scanned).to.be.at.least(corpo.query.returned);",
                   "});",
@@ -97,20 +213,32 @@
           ]
         },
         {
-          "name": "1.3 Busca por tipo (gsi1:fanout)",
+          "name": "1.3 Busca por tipo (indice_tipo_e_tempo)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/events?event_name=error&limit=20",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "events"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
               "query": [
-                { "key": "event_name", "value": "error" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "event_name",
+                  "value": "error"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             },
-            "description": "Com event_name a API usa a GSI1, disparando uma query por (dia × shard) em paralelo."
+            "description": "Com event_name, a consulta usa o índice por tipo e tempo, uma única query, não fan-out (isso era comportamento do DynamoDB v2)."
           },
           "event": [
             {
@@ -120,11 +248,11 @@
                 "exec": [
                   "const corpo = pm.response.json();",
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
-                  "pm.test('usa a GSI1 com fan-out', () => pm.expect(corpo.query.strategy).to.eql('gsi1:fanout'));",
+                  "  pm.test('usa o indice_tipo_e_tempo', () => pm.expect(corpo.query.strategy).to.eql('indice_tipo_e_tempo'));",
                   "pm.test('o filtro foi aplicado', () => {",
                   "  corpo.items.forEach(e => pm.expect(e.event_name).to.eql('error'));",
                   "});",
-                  "pm.test('o fan-out dispara mais de uma query', () => pm.expect(corpo.query.queries).to.be.above(1));",
+                  "  pm.test('resolve em uma unica query (Postgres, nao ha fan-out)', () => pm.expect(corpo.query.queries).to.eql(1));",
                   "pm.test('responde em menos de 3s (RNF02)', () => pm.expect(pm.response.responseTime).to.be.below(3000));"
                 ]
               }
@@ -132,14 +260,21 @@
           ]
         },
         {
-          "name": "1.4 Linha do tempo da sessão (table:session)",
+          "name": "1.4 Linha do tempo da sessão (indice_sessao)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/sessions/{{sessao_existente}}",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "sessions", "{{sessao_existente}}"]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "{{sessao_existente}}"
+              ]
             },
             "description": "Consulta mais barata do sistema: uma partição. É a tela de investigação de incidente."
           },
@@ -151,7 +286,7 @@
                 "exec": [
                   "const corpo = pm.response.json();",
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
-                  "pm.test('usa a tabela, não índice', () => pm.expect(corpo.query.strategy).to.eql('table:session'));",
+                  "  pm.test('usa o indice_sessao', () => pm.expect(corpo.query.strategy).to.eql('indice_sessao'));",
                   "pm.test('resolve em uma única query', () => pm.expect(corpo.query.queries).to.eql(1));",
                   "pm.test('a linha do tempo é cronológica', () => {",
                   "  const horarios = corpo.events.map(e => e.occurred_at);",
@@ -164,16 +299,23 @@
           ]
         },
         {
-          "name": "1.5 Histórico do aparelho (gsi2:device)",
+          "name": "1.5 Histórico do aparelho (indice_aparelho)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/devices/{{aparelho_existente}}",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "devices", "{{aparelho_existente}}"]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices",
+                "{{aparelho_existente}}"
+              ]
             },
-            "description": "Atravessa sessões: o histórico de um aparelho ao longo do tempo, pela GSI2."
+            "description": "Histórico de um aparelho ao longo do tempo, pelo índice por device_id."
           },
           "event": [
             {
@@ -183,7 +325,7 @@
                 "exec": [
                   "const corpo = pm.response.json();",
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
-                  "pm.test('usa a GSI2', () => pm.expect(corpo.query.strategy).to.eql('gsi2:device'));",
+                  "  pm.test('usa o indice_aparelho', () => pm.expect(corpo.query.strategy).to.eql('indice_aparelho'));",
                   "pm.test('todos os eventos são do aparelho pedido', () => {",
                   "  const esperado = pm.collectionVariables.get('aparelho_existente');",
                   "  corpo.items.forEach(e => pm.expect(e.device_id).to.eql(esperado));",
@@ -200,11 +342,23 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/facets?field=event_name&field=device_manufacturer",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "facets"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "facets"
+              ],
               "query": [
-                { "key": "field", "value": "event_name" },
-                { "key": "field", "value": "device_manufacturer" }
+                {
+                  "key": "field",
+                  "value": "event_name"
+                },
+                {
+                  "key": "field",
+                  "value": "device_manufacturer"
+                }
               ]
             },
             "description": "Alimenta o autocompletar dos filtros do dashboard (RF10)."
@@ -237,14 +391,27 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/metrics/breakdown?dimension=device_manufacturer&limit=10",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "metrics", "breakdown"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "breakdown"
+              ],
               "query": [
-                { "key": "dimension", "value": "device_manufacturer" },
-                { "key": "limit", "value": "10" }
+                {
+                  "key": "dimension",
+                  "value": "device_manufacturer"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
               ]
             },
-            "description": "O DynamoDB não tem GROUP BY: a agregação acontece na aplicação (RF11)."
+            "description": "A agregação roda no banco via GROUP BY, direto sobre a silver, ainda não há camada gold pré-agregada para sessão/evento (RF11; ver mapa-tratamentos-bronze-silver-gold.md)."
           },
           "event": [
             {
@@ -271,16 +438,35 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/metrics/timeseries?interval=60&compare=true&from={{janela_de}}&to={{janela_ate}}",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "metrics", "timeseries"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "timeseries"
+              ],
               "query": [
-                { "key": "interval", "value": "60" },
-                { "key": "compare", "value": "true" },
-                { "key": "from", "value": "{{janela_de}}" },
-                { "key": "to", "value": "{{janela_ate}}" }
+                {
+                  "key": "interval",
+                  "value": "60"
+                },
+                {
+                  "key": "compare",
+                  "value": "true"
+                },
+                {
+                  "key": "from",
+                  "value": "{{janela_de}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{janela_ate}}"
+                }
               ]
             },
-            "description": "Com compare=true a API devolve também a janela anterior de mesma duração e a variação entre as duas (RF14) — é o que permite dizer 'os erros dobraram'."
+            "description": "Com compare=true a API devolve também a janela anterior de mesma duração e a variação entre as duas (RF14), é o que permite dizer 'os erros dobraram'."
           },
           "event": [
             {
@@ -321,11 +507,23 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/events?event_name=request&limit=20",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "events"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
               "query": [
-                { "key": "event_name", "value": "request" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "event_name",
+                  "value": "request"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             },
             "description": "RNF10. O worker grava o evento cru, com user_id e o header authorization; a remoção acontece na SAÍDA da API. Este teste é a trava dessa garantia."
@@ -364,9 +562,20 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/events?from=ontem",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "events"],
-              "query": [{ "key": "from", "value": "ontem" }]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "ontem"
+                }
+              ]
             },
             "description": "Erro de cliente no formato Problem Details (RFC 7807), apontando o campo culpado."
           },
@@ -395,8 +604,15 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/sessions/sessao-que-nao-existe",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "sessions", "sessao-que-nao-existe"]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "sessao-que-nao-existe"
+              ]
             }
           },
           "event": [
@@ -414,14 +630,37 @@
       ]
     },
     {
-      "name": "2. POST — API de ingestão",
+      "name": "2. POST, API de ingestão",
       "item": [
+        {
+          "name": "AVISO, não verificado nesta rodada",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "",
+              "host": [
+                ""
+              ]
+            },
+            "description": "Esta pasta (POST, API de ingestão) não foi revisada nesta etapa. O trabalho desta rodada cobriu só a API de LEITURA (apps/basica/backend). Os testes abaixo assumem a integração API Gateway -> SQS direta descrita em plano-argus-v3.md; confirmar contra apps/basica/worker antes de rodar em CI."
+          }
+        },
         {
           "name": "2.1 Evento único",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"timestamp\": \"{{ts_e2e}}\",\n  \"event_name\": \"error\",\n  \"session_id\": \"{{session_e2e}}\",\n  \"device_id\": \"{{device_e2e}}\",\n  \"app_target\": \"dom-postman-teste\",\n  \"app_version\": \"2026.3.0\",\n  \"app_env\": \"production\",\n  \"device_manufacturer\": \"Postman\",\n  \"device_model\": \"COLLECTION-RUNNER\",\n  \"device_os\": \"Newman\",\n  \"route_path\": \"vod\",\n  \"duration\": 1.5,\n  \"error_name\": \"Erro de teste do Postman\",\n  \"error_message\": \"Evento sintetico da colecao de testes\",\n  \"error_stack\": \"postman:1_0001\"\n}"
@@ -452,8 +691,18 @@
           "name": "2.2 Lote de três eventos",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"events\": [\n    {\n      \"timestamp\": \"{{ts_e2e}}\",\n      \"event_name\": \"screen_view\",\n      \"session_id\": \"{{session_e2e}}\",\n      \"device_id\": \"{{device_e2e}}\",\n      \"route_path\": \"home\",\n      \"app_target\": \"dom-postman-teste\"\n    },\n    {\n      \"timestamp\": \"{{ts_e2e}}\",\n      \"event_name\": \"video_view\",\n      \"session_id\": \"{{session_e2e}}\",\n      \"device_id\": \"{{device_e2e}}\",\n      \"action\": \"open\",\n      \"media_id\": \"4452349\",\n      \"media_kind\": \"live\",\n      \"media_ads\": true\n    },\n    {\n      \"timestamp\": \"{{ts_e2e}}\",\n      \"event_name\": \"vitals\",\n      \"session_id\": \"{{session_e2e}}\",\n      \"device_id\": \"{{device_e2e}}\",\n      \"action\": \"frozen\",\n      \"duration\": 4.2\n    }\n  ]\n}"
@@ -473,11 +722,21 @@
           ]
         },
         {
-          "name": "2.3 Reenvio idêntico — idempotência",
+          "name": "2.3 Reenvio idêntico, idempotência",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"timestamp\": \"{{ts_e2e}}\",\n  \"event_name\": \"error\",\n  \"session_id\": \"{{session_e2e}}\",\n  \"device_id\": \"{{device_e2e}}\",\n  \"app_target\": \"dom-postman-teste\",\n  \"app_version\": \"2026.3.0\",\n  \"app_env\": \"production\",\n  \"device_manufacturer\": \"Postman\",\n  \"device_model\": \"COLLECTION-RUNNER\",\n  \"device_os\": \"Newman\",\n  \"route_path\": \"vod\",\n  \"duration\": 1.5,\n  \"error_name\": \"Erro de teste do Postman\",\n  \"error_message\": \"Evento sintetico da colecao de testes\",\n  \"error_stack\": \"postman:1_0001\"\n}"
@@ -500,8 +759,18 @@
           "name": "2.4 Tipo de evento desconhecido",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"timestamp\": \"{{ts_e2e}}\",\n  \"event_name\": \"postman_probe\",\n  \"session_id\": \"{{session_e2e}}\",\n  \"device_id\": \"{{device_e2e}}\",\n  \"campo_que_o_backend_nunca_viu\": \"preservado\",\n  \"outro_campo_novo\": 42\n}"
@@ -521,16 +790,26 @@
           ]
         },
         {
-          "name": "2.5 Payload inválido — rejeição assíncrona",
+          "name": "2.5 Payload inválido, rejeição assíncrona",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"event_name\": \"error\",\n  \"sem_timestamp\": true,\n  \"sem_session_id\": true,\n  \"sem_device_id\": true\n}"
             },
-            "description": "ACHADO IMPORTANTE, e contraintuitivo.\n\nEste payload é inválido: faltam timestamp, session_id e device_id. Ainda assim a resposta é **HTTP 200**.\n\nO motivo: a integração direta API Gateway → SQS não tem request validator (só o REST API tem, o HTTP API não), então o payload entra cru na fila e quem valida é o worker. A rejeição é assíncrona — o evento vai para a DLQ com o motivo anexado.\n\nÉ uma troca deliberada: para telemetria, aceitar rápido e validar depois é melhor que segurar a TV do usuário esperando validação. Mas quem consome a API precisa saber que 200 aqui significa 'enfileirado', não 'válido'.\n\nVerificação: `make dlq` mostra os eventos rejeitados com o motivo."
+            "description": "ACHADO IMPORTANTE, e contraintuitivo.\n\nEste payload é inválido: faltam timestamp, session_id e device_id. Ainda assim a resposta é **HTTP 200**.\n\nO motivo: a integração direta API Gateway → SQS não tem request validator (só o REST API tem, o HTTP API não), então o payload entra cru na fila e quem valida é o worker. A rejeição é assíncrona, o evento vai para a DLQ com o motivo anexado.\n\nÉ uma troca deliberada: para telemetria, aceitar rápido e validar depois é melhor que segurar a TV do usuário esperando validação. Mas quem consome a API precisa saber que 200 aqui significa 'enfileirado', não 'válido'.\n\nVerificação: `make dlq` mostra os eventos rejeitados com o motivo."
           },
           "event": [
             {
@@ -561,10 +840,17 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/sessions/{{session_e2e}}",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "sessions", "{{session_e2e}}"]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "{{session_e2e}}"
+              ]
             },
-            "description": "Fecha o ciclo: consulta pela API de LEITURA a sessão que a pasta 2 criou pela API de INGESTÃO.\n\nEspera 5 eventos únicos:\n- 1 de 2.1 (error)\n- 3 de 2.2 (screen_view, video_view, vitals)\n- 1 de 2.4 (tipo desconhecido)\n\nO reenvio de 2.3 NÃO conta — mesma chave, overwrite. E o payload inválido de 2.5 também não: foi para a DLQ.\n\nA requisição repete a si mesma enquanto o worker não tiver processado a fila (long polling de 20s)."
+            "description": "Fecha o ciclo: consulta pela API de LEITURA a sessão que a pasta 2 criou pela API de INGESTÃO.\n\nEspera 5 eventos únicos:\n- 1 de 2.1 (error)\n- 3 de 2.2 (screen_view, video_view, vitals)\n- 1 de 2.4 (tipo desconhecido)\n\nO reenvio de 2.3 NÃO conta, mesma chave, overwrite. E o payload inválido de 2.5 também não: foi para a DLQ.\n\nA requisição repete a si mesma enquanto o worker não tiver processado a fila (long polling de 20s)."
           },
           "event": [
             {
@@ -615,6 +901,444 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "4. Agora, sinais",
+      "item": [
+        {
+          "name": "Sinais ativos (janela padrão, 6h)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/signals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "signals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sinais ativos (janela explícita)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/signals?from={{from}}&to={{to}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "signals"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Facets para os filtros da barra de escopo (plataforma/fabricante/app)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/facets?field=device_os&field=device_manufacturer&field=app_version&field=uf",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "facets"
+              ],
+              "query": [
+                {
+                  "key": "field",
+                  "value": "device_os"
+                },
+                {
+                  "key": "field",
+                  "value": "device_manufacturer"
+                },
+                {
+                  "key": "field",
+                  "value": "app_version"
+                },
+                {
+                  "key": "field",
+                  "value": "uf"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Comparar, referências e mudanças",
+      "item": [
+        {
+          "name": "Janela atual x anterior (compare=true)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/metrics/timeseries?interval=60&compare=true&from={{from}}&to={{to}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "timeseries"
+              ],
+              "query": [
+                {
+                  "key": "interval",
+                  "value": "60"
+                },
+                {
+                  "key": "compare",
+                  "value": "true"
+                },
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Referência: última janela estável",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/references/stable-window?duration_minutes=60",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "references",
+                "stable-window"
+              ],
+              "query": [
+                {
+                  "key": "duration_minutes",
+                  "value": "60"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Referência: último pico ao vivo",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/references/last-live-peak",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "references",
+                "last-live-peak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mudanças (change events, só deploy/Tsuru, ver nota no rotas-frontend.md)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/changes?from={{from}}&to={{to}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "changes"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Timeline",
+      "item": [
+        {
+          "name": "Seis raias (janela padrão, 3h)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/timeline",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "timeline"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Seis raias (janela explícita)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/timeline?from={{from}}&to={{to}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "timeline"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Timeline de uma sessão (modo alternativo, já existia)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/sessions/:session_id?limit=200",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                ":session_id"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "200"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "session_id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Recorte, heatmap",
+      "item": [
+        {
+          "name": "Heatmap device_model x uf (total)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/metrics/crosstab?dimension_x=device_model&dimension_y=uf&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "crosstab"
+              ],
+              "query": [
+                {
+                  "key": "dimension_x",
+                  "value": "device_model"
+                },
+                {
+                  "key": "dimension_y",
+                  "value": "uf"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Heatmap device_model x uf (só erros, combine com a de cima p/ taxa)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/metrics/crosstab?dimension_x=device_model&dimension_y=uf&event_name=error&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "crosstab"
+              ],
+              "query": [
+                {
+                  "key": "dimension_x",
+                  "value": "device_model"
+                },
+                {
+                  "key": "dimension_y",
+                  "value": "uf"
+                },
+                {
+                  "key": "event_name",
+                  "value": "error"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Amostra de sessões do recorte",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/events?event_name=error&from={{from}}&to={{to}}&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "event_name",
+                  "value": "error"
+                },
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Filtros de região/operadora (uf/isp)",
+      "item": [
+        {
+          "name": "Events filtrado por uf",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/events?uf=RJ&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "uf",
+                  "value": "RJ"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "IMPORTANTE: hoje nenhum dos 6 tipos de evento reais popula uf/isp no dataset (ver rotas-frontend.md §1.1), este request deve devolver items:[] até existir enriquecimento de origem. Ele testa o MECANISMO do filtro, não dado real ainda."
+          }
+        },
+        {
+          "name": "Breakdown por uf (já funcionava antes do fix de filtro)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/metrics/breakdown?dimension=uf",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "breakdown"
+              ],
+              "query": [
+                {
+                  "key": "dimension",
+                  "value": "uf"
+                }
+              ]
+            }
+          }
         }
       ]
     }
