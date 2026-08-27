@@ -34,6 +34,9 @@ class Config:
     # sensivel sem autenticacao; restrinja antes de producao (RNF09).
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
 
+    # O unico POST desta API e feedback textual curto.
+    MAX_CONTENT_LENGTH = 4096
+
     JSON_SORT_KEYS = False
 
 

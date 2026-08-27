@@ -1,5 +1,4 @@
-"""Servico de processamento -- ETL incremental ligado; detector e canario
-seguem NO-OP (decisao 7 do plano, agora parcial).
+"""Servico de processamento -- ETL, detector, canario e hipoteses.
 
 Ate a publicacao "Watermarks e workers de transicao de camada" (20/08/2026)
 virar codigo, este container so provava que a infraestrutura (rede, security
@@ -17,9 +16,6 @@ ciclo e uma UNICA chamada SQL (`etl.executar_bronze_silver` /
 `etl.executar_silver_gold`): a atomicidade mora no banco, nao em memoria
 compartilhada entre elas.
 
-Detector e canario continuam em `_trabalho_futuro`: dependem de logica que
-ainda nao existe (EWMA circadiano, cadencia esperada por fonte).
-
 Uso:
     python -m argus_processing
 """
@@ -28,12 +24,15 @@ from __future__ import annotations
 
 import logging
 import os
+import socket
 import sys
 import threading
 
 from argus_common import Database, Heartbeat, Metrics, ShutdownSignal, configure_logging
 
 from argus_processing import etl
+from argus_processing.catalog import Catalog
+from argus_processing.pipeline import analyze_once
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +49,13 @@ def _env_int(name: str, default: int) -> int:
     """
     raw = os.getenv(name)
     return int(raw) if raw and raw.strip() else default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _drenar_bronze_silver(
@@ -192,26 +198,49 @@ def _laco_silver_gold(
     log.info("worker silver->gold encerrado")
 
 
-def _trabalho_futuro(db: Database) -> None:
-    """O que este servico ainda vai fazer -- detector e canario.
-
-    O ETL (item 1 da versao anterior deste comentario) ja roda, ver
-    `_laco_bronze_silver` e `_laco_silver_gold`. Falta:
-
-        1. Detector EWMA circadiano
-           Le gold.v_feature_bucket (a VIEW, nunca a tabela: e o filtro de
-           available_at que impede o detector de treinar com dado que ele nao
-           teria em tempo real), atualiza gold.circadian_state e grava em
-           detect.anomaly sob um detect.run novo.
-
-        2. Canario de qualidade
-           Compara a contagem por fonte com a cadencia esperada de
-           silver.source_latency e alarma a fonte que ficou muda.
-
-    Args:
-        db (Database): Pool de conexao, ja aberto e verificado.
-    """
-    raise NotImplementedError("decisao 7: deteccao segue embrionaria")
+def _laco_analise(
+    db: Database,
+    shutdown: ShutdownSignal,
+    metrics: Metrics,
+    catalog: Catalog,
+    worker_id: str,
+    intervalo_segundos: int,
+    lease_segundos: int,
+    heartbeat_segundos: int,
+    max_input_rows: int,
+    max_candidates: int,
+    max_candidates_family: int,
+    max_generated: int,
+    code_version: str,
+) -> None:
+    """Drena checkpoints sequencialmente; dorme apenas quando nao ha trabalho."""
+    log.info(
+        "worker de analise iniciado",
+        extra={"manifest_hash": catalog.manifest_hash, "worker_id": worker_id},
+    )
+    while shutdown.running:
+        worked = False
+        try:
+            worked = analyze_once(
+                db,
+                metrics,
+                catalog,
+                worker_id=worker_id,
+                code_version=code_version,
+                lease_seconds=lease_segundos,
+                heartbeat_seconds=heartbeat_segundos,
+                max_input_rows=max_input_rows,
+                max_candidates=max_candidates,
+                max_candidates_per_family=max_candidates_family,
+                max_generated=max_generated,
+            )
+        except Exception:
+            metrics.count("AnalysisUnexpectedError")
+            log.exception("worker de analise: erro no ciclo")
+        metrics.flush()
+        if not worked:
+            shutdown.sleep(intervalo_segundos)
+    log.info("worker de analise encerrado")
 
 
 def main() -> int:
@@ -233,6 +262,15 @@ def main() -> int:
     # 4h da 2h de progresso real por ciclo com backlog, sem exagerar no lote.
     etl_sg_janela = _env_int("ETL_SILVER_GOLD_JANELA_MAX_SECONDS", 14400)
 
+    analysis_enabled = _env_bool("ANALYSIS_ENABLED", True)
+    analysis_interval = _env_int("ANALYSIS_POLL_SECONDS", 30)
+    analysis_lease = _env_int("ANALYSIS_LEASE_SECONDS", 120)
+    analysis_heartbeat = _env_int("ANALYSIS_HEARTBEAT_SECONDS", 30)
+    analysis_max_input = _env_int("ANALYSIS_MAX_INPUT_ROWS", 250_000)
+    analysis_max_candidates = _env_int("ANALYSIS_MAX_CANDIDATES", 10_000)
+    analysis_max_family = _env_int("ANALYSIS_MAX_CANDIDATES_PER_FAMILY", 2_000)
+    analysis_max_generated = _env_int("ANALYSIS_MAX_GENERATED", 500)
+
     metrics_namespace = os.getenv("METRICS_NAMESPACE", "Argus/Ingestion")
     metrics = Metrics(metrics_namespace, service_name)
     heartbeat = Heartbeat(os.getenv("HEARTBEAT_PATH", "/tmp/argus-heartbeat"))
@@ -241,10 +279,9 @@ def main() -> int:
     db = None
     threads: list[threading.Thread] = []
     try:
-        # min_size=1/max_size=4: o pool e compartilhado entre o laco principal
-        # (heartbeat) e as duas threads de ETL. Cada uma so segura uma conexao
-        # pelo tempo de uma unica chamada SQL, entao 4 da folga sem exagero.
-        db = Database.from_env(min_size=1, max_size=4, application_name=service_name)
+        # ETLs, analise e heartbeat de lease precisam progredir sem disputar a
+        # ultima conexao do pool.
+        db = Database.from_env(min_size=1, max_size=8, application_name=service_name)
         log_.info("processamento iniciado", extra={"tick_seconds": tick})
 
         threads = [
@@ -271,6 +308,30 @@ def main() -> int:
                 name="etl-silver-gold",
             ),
         ]
+        if analysis_enabled:
+            code_version = os.getenv("IMAGE_TAG", "local")
+            catalog = Catalog(code_version)
+            threads.append(
+                threading.Thread(
+                    target=_laco_analise,
+                    args=(
+                        db,
+                        shutdown,
+                        Metrics(metrics_namespace, f"{service_name}-analysis"),
+                        catalog,
+                        f"{socket.gethostname()}:{os.getpid()}",
+                        analysis_interval,
+                        analysis_lease,
+                        analysis_heartbeat,
+                        analysis_max_input,
+                        analysis_max_candidates,
+                        analysis_max_family,
+                        analysis_max_generated,
+                        code_version,
+                    ),
+                    name="analysis",
+                )
+            )
         for t in threads:
             t.start()
 

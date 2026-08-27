@@ -139,7 +139,7 @@ resource "aws_apigatewayv2_api" "read" {
   # invocacao a menos por consulta do navegador.
   cors_configuration {
     allow_origins = var.dashboard_origins
-    allow_methods = ["GET", "OPTIONS"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
     allow_headers = ["content-type", "authorization"]
     max_age       = 300
   }
@@ -172,6 +172,14 @@ resource "aws_apigatewayv2_route" "read_root" {
   target    = "integrations/${aws_apigatewayv2_integration.read.id}"
 }
 
+# A rota explicita vence o proxy e recebe um limite proprio: feedback e a unica
+# escrita publica desta API e nao deve compartilhar o burst das consultas.
+resource "aws_apigatewayv2_route" "hypothesis_feedback" {
+  api_id    = aws_apigatewayv2_api.read.id
+  route_key = "POST /api/v1/hypotheses/{hypothesis_id}/feedback"
+  target    = "integrations/${aws_apigatewayv2_integration.read.id}"
+}
+
 resource "aws_lambda_permission" "read_api" {
   statement_id  = "AllowApiGatewayInvoke"
   action        = "lambda:InvokeFunction"
@@ -193,6 +201,14 @@ resource "aws_apigatewayv2_stage" "read" {
   default_route_settings {
     throttling_rate_limit    = var.read_api_throttle_rate_limit
     throttling_burst_limit   = var.read_api_throttle_burst_limit
+    detailed_metrics_enabled = true
+  }
+
+
+  route_settings {
+    route_key                = aws_apigatewayv2_route.hypothesis_feedback.route_key
+    throttling_rate_limit    = var.hypothesis_feedback_throttle_rate_limit
+    throttling_burst_limit   = var.hypothesis_feedback_throttle_burst_limit
     detailed_metrics_enabled = true
   }
 

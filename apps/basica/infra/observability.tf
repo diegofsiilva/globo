@@ -220,6 +220,128 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage" {
   alarm_actions = [aws_sns_topic.alarms.arn]
 }
 
+# --------------------------------------------------------------------------- #
+# Motor de hipoteses
+# --------------------------------------------------------------------------- #
+
+resource "aws_cloudwatch_metric_alarm" "analysis_failures" {
+  count = var.analysis_enabled && var.processing_desired_count > 0 ? 1 : 0
+
+  alarm_name          = "${local.name}-analysis-tres-falhas"
+  alarm_description   = "Tres ciclos consecutivos da analise terminaram com falha."
+  namespace           = "Argus/Ingestion"
+  metric_name         = "AnalysisRunsFailed"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions = {
+    Service = "${local.name}-processing-analysis"
+  }
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "analysis_takeover" {
+  count = var.analysis_enabled && var.processing_desired_count > 0 ? 1 : 0
+
+  alarm_name          = "${local.name}-analysis-lease-expirado"
+  alarm_description   = "Uma tentativa assumiu run cujo lease expirou."
+  namespace           = "Argus/Ingestion"
+  metric_name         = "AnalysisTakeovers"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions = {
+    Service = "${local.name}-processing-analysis"
+  }
+  alarm_actions = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "analysis_backlog" {
+  count = var.analysis_enabled && var.processing_desired_count > 0 ? 1 : 0
+
+  alarm_name          = "${local.name}-analysis-backlog"
+  alarm_description   = "Analise acumula pelo menos tres checkpoints."
+  namespace           = "Argus/Ingestion"
+  metric_name         = "AnalysisBacklogCheckpoints"
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 3
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions = {
+    Service = "${local.name}-processing-analysis"
+  }
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "analysis_truncated" {
+  count = var.analysis_enabled && var.processing_desired_count > 0 ? 1 : 0
+
+  alarm_name          = "${local.name}-analysis-truncado"
+  alarm_description   = "Um run excedeu o budget deterministico de candidatos."
+  namespace           = "Argus/Ingestion"
+  metric_name         = "AnalysisCandidatesTruncated"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions = {
+    Service = "${local.name}-processing-analysis"
+  }
+  alarm_actions = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "analysis_input_limit" {
+  count = var.analysis_enabled && var.processing_desired_count > 0 ? 1 : 0
+
+  alarm_name          = "${local.name}-analysis-entrada-excedida"
+  alarm_description   = "Um checkpoint excedeu o limite de fatos; o cursor permanece parado."
+  namespace           = "Argus/Ingestion"
+  metric_name         = "AnalysisInputLimitExceeded"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions = {
+    Service = "${local.name}-processing-analysis"
+  }
+  alarm_actions = [aws_sns_topic.alarms.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "analysis_no_completed_run" {
+  count = var.analysis_enabled && var.processing_desired_count > 0 ? 1 : 0
+
+  alarm_name          = "${local.name}-analysis-sem-run-concluido"
+  alarm_description   = "Nenhum run de analise concluiu nos ultimos 30 minutos reais."
+  namespace           = "Argus/Ingestion"
+  metric_name         = "AnalysisRunsCompleted"
+  statistic           = "Sum"
+  period              = 1800
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+  dimensions = {
+    Service = "${local.name}-processing-analysis"
+  }
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+}
+
 # Numa classe t3, CPU alta e sintoma de credito de burst acabando. Quando o
 # credito zera, a instancia e limitada ao baseline e TUDO fica lento de uma vez
 # -- inclusive as views que o dashboard consulta.

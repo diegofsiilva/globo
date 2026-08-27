@@ -25,3 +25,11 @@ class UnsupportedMediaTypeError(TelemetryError):
 
 class EventNotFoundError(TelemetryError):
     """Exceção lançada quando um evento ou sessão solicitada não é encontrada."""
+
+
+class ResourceNotFoundError(TelemetryError):
+    """Recurso de leitura inexistente ou invisível para o cliente."""
+
+
+class ConflictError(TelemetryError):
+    """A operacao conflita com um registro idempotente anterior."""
