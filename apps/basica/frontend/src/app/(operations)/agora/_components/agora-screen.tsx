@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,72 +18,88 @@ import {
   type ScreenFilter,
 } from "../../_components/screen-frame";
 import { useOperationsUi } from "../../_components/operations-ui-context";
+import { normalizeQueryFailure } from "@/lib/operational-state";
+import { regionsFromUfs } from "@/lib/uf-regions";
+import type { SignalDeviation } from "../_mocks/scenario";
 import {
-  activeDegradation,
-  agoraFilters,
-  openDegradations,
-  signalDeviations,
-  type SignalDeviation,
-} from "../_mocks/scenario";
+  fetchAgoraFacets,
+  fetchSignals,
+  toActiveDegradation,
+  toOpenDegradation,
+  toSignalDeviation,
+} from "../_lib/signals-source";
 import { agoraStyles as styles } from "./agora.styles";
 
 type FilterKey = "app" | "manufacturer" | "platform" | "region";
 type Filters = Record<FilterKey, string>;
 
 const initialFilters: Filters = {
-  app: "2026.3.0",
-  manufacturer: "LG",
-  platform: "webOS 3.x",
-  region: "Nordeste",
+  app: "all",
+  manufacturer: "all",
+  platform: "all",
+  region: "all",
 };
 
-const filterDefinitions: Array<{
-  key: FilterKey;
-  label: string;
-  options: string[];
-}> = [
-  { key: "platform", label: "plataforma", options: agoraFilters.platforms },
-  {
-    key: "manufacturer",
-    label: "fabricante",
-    options: agoraFilters.manufacturers,
-  },
-  { key: "region", label: "região", options: agoraFilters.regions },
-  { key: "app", label: "app", options: agoraFilters.apps },
-];
-
-/** Visão operacional em tempo real baseada em um recorte mock do dataset Argus. */
+/** Visão operacional em tempo real, com sinais vindos de `GET /api/v1/signals`. */
 export function AgoraScreen() {
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [selectedSignal, setSelectedSignal] = useState<SignalDeviation | null>(null);
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const { hrefWithDemoState } = useOperationsUi();
 
-  const isIncidentScope =
-    filters.platform === initialFilters.platform &&
-    filters.manufacturer === initialFilters.manufacturer &&
-    filters.region === initialFilters.region;
+  const signals = useQuery({
+    queryKey: ["agora-signals"],
+    queryFn: ({ signal }) => fetchSignals(signal),
+    refetchInterval: 30_000,
+  });
 
-  const visibleSignals = useMemo(
-    () =>
-      isIncidentScope
-        ? signalDeviations
-        : signalDeviations.filter((signal) => signal.severity !== "critical"),
-    [isIncidentScope],
+  // Valores reais dos filtros -- consulta separada porque facets muda pouco
+  // (staleTime mais longo) e não deve reexecutar junto com os sinais.
+  const facets = useQuery({
+    queryKey: ["agora-facets"],
+    queryFn: ({ signal }) => fetchAgoraFacets(signal),
+    staleTime: 5 * 60_000,
+  });
+
+  const items = useMemo(() => signals.data?.items ?? [], [signals.data]);
+  // GET /api/v1/signals não aceita parâmetro de escopo (gold.feature_bucket
+  // não tem dimensão de dispositivo/região) -- os filtros abaixo continuam
+  // interativos, mas NÃO alteram a consulta. É uma limitação de dado, não
+  // um bug: documentada em rotas-frontend.md §1.1.
+  const visibleSignals = useMemo(() => items.map(toSignalDeviation), [items]);
+  const topSignal = items[0];
+  const hasActiveDegradation = Boolean(topSignal && topSignal.severity !== "stable");
+  const activeDegradation = topSignal ? toActiveDegradation(topSignal) : null;
+  const openDegradations = useMemo(
+    () => items.slice(1).filter((item) => item.severity !== "stable").map(toOpenDegradation),
+    [items],
   );
-  const scopeSummary = isIncidentScope
-    ? "41.209 sessões · 3,1% do tráfego · 6 fontes cruzadas"
-    : filters.platform === "all"
-      ? "402.110 sessões · 100% do tráfego · 6 fontes cruzadas"
-      : "96.500 sessões · 7,3% do tráfego · 4 fontes cruzadas";
+
+  const totalSessions = items.reduce((sum, item) => sum + item.sessions_impacted, 0);
+  const scopeSummary = signals.data
+    ? `${totalSessions.toLocaleString("pt-BR")} sessões monitoradas · ${items.length} sinal(is) avaliado(s)`
+    : undefined;
 
   function updateFilter(key: FilterKey, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
   function clearFilters() {
-    setFilters({ app: "all", manufacturer: "all", platform: "all", region: "all" });
+    setFilters(initialFilters);
   }
+
+  // Região deriva de UF real (facets?field=uf), não de lista fixa: a série
+  // gold/silver não tem coluna de região nomeada, mas tem UF -- ver
+  // lib/uf-regions.ts. GET /api/v1/signals não aceita nenhum destes filtros
+  // (gold.feature_bucket não tem dimensão de dispositivo/UF/região); eles
+  // continuam interativos, mas NÃO alteram a consulta -- limitação de dado
+  // documentada em rotas-frontend.md §1.1, não um bug.
+  const filterDefinitions: Array<{ key: FilterKey; label: string; options: string[] }> = [
+    { key: "platform", label: "plataforma", options: facets.data?.facets.device_os ?? [] },
+    { key: "manufacturer", label: "fabricante", options: facets.data?.facets.device_manufacturer ?? [] },
+    { key: "region", label: "região", options: regionsFromUfs(facets.data?.facets.uf ?? []) },
+    { key: "app", label: "app", options: facets.data?.facets.app_version ?? [] },
+  ];
 
   const screenFilters: ScreenFilter[] = filterDefinitions.map((definition) => ({
     key: definition.key,
@@ -98,14 +115,32 @@ export function AgoraScreen() {
       onClearFilters={clearFilters}
       scopeSummary={scopeSummary}
       operational={{
+        state: signals.isLoading
+          ? "loading"
+          : signals.isError && !signals.data
+            ? "error"
+            : signals.isError && signals.data
+              ? "stale"
+              : signals.isFetching && signals.data
+                ? "refreshing"
+                : signals.data && items.length === 0
+                  ? "empty"
+                  : "ready",
         title: "Sinais em desvio",
         scope: scopeSummary,
+        failure: signals.error
+          ? normalizeQueryFailure(
+              signals.error,
+              signals.dataUpdatedAt ? new Date(signals.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined,
+            )
+          : undefined,
+        onRetry: () => signals.refetch(),
         onResetFilters: () => setFilters(initialFilters),
       }}
     >
       <div className={styles.page}>
           <section className={styles.hero} aria-labelledby="active-degradation-title">
-            {isIncidentScope ? (
+            {hasActiveDegradation && activeDegradation ? (
               <>
                 <p className={styles.eyebrow}>
                   <span aria-hidden="true" />
@@ -146,13 +181,13 @@ export function AgoraScreen() {
               </>
             ) : (
               <div className={styles.clearState}>
-                <p className={styles.eyebrow}>Recorte sem degradação crítica</p>
-                <h1 id="active-degradation-title">Nenhum incidente ativo neste escopo</h1>
+                <p className={styles.eyebrow}>Sem degradação ativa</p>
+                <h1 id="active-degradation-title">Nenhum incidente ativo no momento</h1>
                 <p>
                   Os sinais ainda aparecem abaixo para comparação com seus baselines.
                 </p>
-                <Button type="button" variant="outline" onClick={() => setFilters(initialFilters)}>
-                  Restaurar recorte principal
+                <Button type="button" variant="outline" onClick={() => signals.refetch()}>
+                  Atualizar agora
                 </Button>
               </div>
             )}
@@ -161,8 +196,8 @@ export function AgoraScreen() {
           <section className={styles.signalsSection} aria-labelledby="signals-title">
             <header className={styles.sectionHeader}>
               <h2 id="signals-title">Sinais em desvio agora</h2>
-              <p>ordenados por sessões impactadas — não por magnitude do desvio</p>
-              <span>Mock · snapshot 06 ago 2026</span>
+              <p>ordenados por magnitude do desvio (z-score)</p>
+              <span>GET /api/v1/signals</span>
             </header>
 
             <div className={`${styles.tableScroller} hidden md:block`}>
