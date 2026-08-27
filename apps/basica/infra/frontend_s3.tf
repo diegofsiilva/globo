@@ -39,7 +39,8 @@ resource "aws_s3_bucket_website_configuration" "frontend" {
 #
 # O que fica exposto e apenas o HTML/CSS/JS do dashboard, que ja seria baixado
 # por qualquer visitante. O dado sensivel nao esta aqui -- esta atras da API, e
-# a lacuna de autenticacao dela esta registrada em arquitetura.md §8.1.
+# a lacuna de autenticacao dela esta registrada no README desta pasta (secao
+# "Seguranca e lacunas conhecidas").
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 

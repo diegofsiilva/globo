@@ -12,7 +12,7 @@
 
 &emsp; **Solução proposta pelo grupo.** Sistema distribuído proprietário de telemetria, com API única de ingestão que aceita protocolos modernos e legados, normalização dos eventos sob vocabulário comum (`request`, `vitals`, `screen_view`, `video_view`, `session`, `error`), pipeline de alta escala sem perdas e camada agêntica de correlação, que devolve uma linha do tempo única do incidente e uma hipótese de causa provável ranqueada, com o recorte afetado explícito.
 
-&emsp; **Escopo avaliado.** A matriz compara a solução-alvo, e não o recorte entregue no módulo. O MVP implementa o caminho de ingestão, processamento assíncrono, armazenamento e consulta: os eventos são enviados pelas aplicações à API de ingestão, enfileirados, gravados sem transformação e expostos por uma API de leitura, conforme `arquitetura.md`. A validação é permissiva por decisão de projeto, para não descartar tipos de evento ainda não previstos. A camada de correlação e inferência está prevista na Fase 5 do investimento, conforme 4.3, e os atributos 1 e 2 descrevem, portanto, capacidade projetada.
+&emsp; **Escopo avaliado.** A matriz compara a solução-alvo, e não o recorte entregue no módulo. O MVP implementa o caminho de ingestão, processamento assíncrono, armazenamento e consulta: os eventos são enviados pelas aplicações à API de ingestão, enfileirados, gravados sem transformação e expostos por uma API de leitura, conforme `mvp-inicial.md`. A validação é permissiva por decisão de projeto, para não descartar tipos de evento ainda não previstos. A camada de correlação e inferência está prevista na Fase 5 do investimento, conforme 4.3, e os atributos 1 e 2 descrevem, portanto, capacidade projetada.
 
 &emsp; A matriz avalia as abordagens de solução, e não o Globoplay. Características do produto e da audiência entram como justificativa do valor de cada atributo, não como objeto de avaliação.
 
@@ -352,7 +352,7 @@
 
 &emsp; Uma plataforma proprietária transfere o custo da licença para a operação interna. Esses custos são o principal contrapeso do benefício.
 
-**Derivação da infraestrutura de produção (cenário base, B4 = 40%).** O dimensionamento segue as etapas da arquitetura descrita em `arquitetura.md`, com preços de tabela da região US East (AMAZON WEB SERVICES, 2026) convertidos por B2. O volume é de ~1,44 bi eventos/mês (C9 × B4), com item médio de ~500 bytes.
+**Derivação da infraestrutura de produção (cenário base, B4 = 40%).** O dimensionamento segue as etapas da arquitetura descrita em `mvp-inicial.md`, com preços de tabela da região US East (AMAZON WEB SERVICES, 2026) convertidos por B2. O volume é de ~1,44 bi eventos/mês (C9 × B4), com item médio de ~500 bytes.
 
 | Etapa da arquitetura | Dimensionamento | US$/mês |
 |---|---|---:|
@@ -370,7 +370,7 @@
 | **Total** | | **~5.310** |
 | **Equivalente em reais** | B2 = R$ 5,08 | **~R$ 27.000** |
 
-&emsp; O ambiente de laboratório descrito em `arquitetura.md` opera na ordem de 1 milhão de eventos por mês e custa cerca de US$ 14 mensais. A diferença de três ordens de grandeza para a tabela acima é de volume, não de arquitetura: os mesmos componentes, cobrados por requisição e por unidade de escrita, escalam de forma praticamente linear.
+&emsp; O ambiente de laboratório descrito em `mvp-inicial.md` (§1.7) opera na ordem de 1 milhão de eventos por mês e custa cerca de US$ 14 mensais. A diferença de três ordens de grandeza para a tabela acima é de volume, não de arquitetura: os mesmos componentes, cobrados por requisição e por unidade de escrita, escalam de forma praticamente linear.
 
 &emsp; Dois itens respondem por 95% da conta. O DynamoDB pesa 58% porque **cada GSI multiplica a escrita**: o mesmo evento é gravado três vezes, na tabela e nos dois índices. Reduzir para um GSI cortaria cerca de US$ 900/mês, ao custo de perder um dos caminhos de consulta. A borda de ingestão — API Gateway e SQS — responde por 38%, e é consequência de cobrar por requisição um fluxo de um evento por chamada; agrupar eventos no cliente antes do `POST` é a alavanca mais direta sobre esse valor. O NAT Gateway, que seria o maior item isolado, não aparece porque a arquitetura atribui IP público à tarefa.
 
