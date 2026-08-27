@@ -1,23 +1,17 @@
 import type { Metadata } from "next";
-import { ScreenFrame } from "../_components/screen-frame";
-import { compareScope, scopeSummary } from "./_mocks/scenario";
+import { QueryProvider } from "@/providers/query-provider";
 import { CompararContent } from "./_components/comparar-content";
 
 export const metadata: Metadata = {
   title: "Comparar · Monitoração Agêntica",
-  description:
-    "Janela atual contra referências históricas, com significância estatística",
+  description: "Janela atual contra referências históricas de volume de eventos",
 };
 
-/** Compõe a rota demonstrativa de comparação histórica. */
+/** Compõe a rota de comparação histórica; o estado operacional vive em CompararContent. */
 export default function CompararPage() {
   return (
-    <ScreenFrame
-      filters={compareScope.map((chip) => ({ ...chip, options: [chip.value] }))}
-      scopeSummary={scopeSummary}
-      operational={{ title: "Comparação histórica", scope: scopeSummary }}
-    >
+    <QueryProvider>
       <CompararContent />
-    </ScreenFrame>
+    </QueryProvider>
   );
 }

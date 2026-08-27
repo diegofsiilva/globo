@@ -3,6 +3,7 @@
 /** Tela 03 — Comparar: a janela atual contra uma referência histórica. */
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -13,38 +14,118 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  chart,
-  changes,
-  metrics,
-  references,
-  type ReferenceId,
-} from "../_mocks/scenario";
+import { ScreenFrame, type ScreenPeriod } from "../../_components/screen-frame";
+import { useOperationsUi } from "../../_components/operations-ui-context";
+import { normalizeQueryFailure } from "@/lib/operational-state";
+import { fetchChanges, fetchTimeseries } from "../_lib/http-source";
+import { resolveReference } from "../_lib/comparar-source";
+import type { ChartBucket, ReferenceId, WindowChange } from "../_lib/types";
 import { compararStyles as styles } from "./comparar.styles";
 
-/** A partir de quantos desvios-padrão o desvio deixa de ser variação normal. */
-const SIGNIFICANT_SIGMA = 2;
+/** Rótulo e detalhe fixos das quatro referências -- só a JANELA é real. */
+const REFERENCE_META: Record<ReferenceId, { label: string; column: string }> = {
+  ontem: { label: "Ontem, mesmo horário", column: "ontem" },
+  semana: { label: "Semana passada", column: "semana passada" },
+  estavel: { label: "Última janela estável", column: "janela estável" },
+  pico: { label: "Pico ao vivo anterior", column: "pico anterior" },
+};
+
+const periodMinutes: Record<ScreenPeriod, number> = {
+  "15 min": 15,
+  "30 min": 30,
+  "3 h": 180,
+  "24 h": 1_440,
+};
 
 /** Compara a janela atual com quatro referências de sazonalidade. */
 export function CompararContent() {
+  const { period: sharedPeriod } = useOperationsUi();
+  const period = sharedPeriod ?? "30 min";
   const [reference, setReference] = useState<ReferenceId>("semana");
 
-  const selected = references.find((item) => item.id === reference) ?? references[1];
-  const chartMax = useMemo(() => Math.max(...chart.map((bucket) => bucket.now)), []);
-  const sigmaMax = useMemo(
-    () => Math.max(...metrics.map((metric) => metric.references[reference].sigma)),
-    [reference],
+  const now = useMemo(() => new Date(), [period]);
+  const windowMinutes = periodMinutes[period];
+  const from = useMemo(() => new Date(now.getTime() - windowMinutes * 60_000), [now, windowMinutes]);
+  const interval = Math.max(1, Math.round(windowMinutes / 30));
+
+  const atual = useQuery({
+    queryKey: ["comparar-atual", from.toISOString(), now.toISOString(), interval],
+    queryFn: ({ signal }) =>
+      fetchTimeseries({ from: from.toISOString(), to: now.toISOString(), interval }, signal),
+    refetchInterval: 30_000,
+  });
+
+  const changesQuery = useQuery({
+    queryKey: ["comparar-changes", from.toISOString(), now.toISOString()],
+    queryFn: ({ signal }) => fetchChanges(from.toISOString(), now.toISOString(), signal),
+    refetchInterval: 30_000,
+  });
+
+  const referenciaResolvida = useQuery({
+    queryKey: ["comparar-referencia-janela", reference, from.toISOString(), now.toISOString()],
+    queryFn: ({ signal }) =>
+      resolveReference(reference, { from: from.toISOString(), to: now.toISOString() }, signal),
+  });
+
+  const janelaRef = referenciaResolvida.data;
+  const referenciaSerie = useQuery({
+    queryKey: ["comparar-referencia-serie", janelaRef?.from, janelaRef?.to, interval],
+    queryFn: ({ signal }) =>
+      fetchTimeseries(
+        { from: janelaRef!.from, to: janelaRef!.to, interval },
+        signal,
+      ),
+    enabled: Boolean(janelaRef?.found),
+  });
+
+  const chart = useMemo(
+    () => buildChart(atual.data?.buckets, referenciaSerie.data?.buckets),
+    [atual.data, referenciaSerie.data],
   );
+  const chartMax = useMemo(
+    () => Math.max(1, ...chart.map((bucket) => Math.max(bucket.now, bucket.reference))),
+    [chart],
+  );
+  const changes = useMemo(() => mapChanges(changesQuery.data), [changesQuery.data]);
+
+  const nowTotal = atual.data?.total ?? null;
+  const refTotal = janelaRef?.found ? (referenciaSerie.data?.total ?? null) : null;
+  const delta = nowTotal !== null && refTotal !== null ? nowTotal - refTotal : null;
+  const ratio = nowTotal !== null && refTotal !== null && refTotal > 0 ? delta! / refTotal : null;
+
+  const loading = atual.isLoading;
+  const anyError = atual.isError || changesQuery.isError;
+  const scopeSummary = nowTotal !== null ? `${nowTotal.toLocaleString("pt-BR")} eventos na janela` : undefined;
 
   return (
-    <>
+    <ScreenFrame
+      scopeSummary={scopeSummary}
+      operational={{
+        state: loading
+          ? "loading"
+          : anyError && !atual.data
+            ? "error"
+            : anyError && atual.data
+              ? "stale"
+              : atual.isFetching && atual.data
+                ? "refreshing"
+                : "ready",
+        title: "Comparação histórica",
+        scope: scopeSummary,
+        failure: atual.error
+          ? normalizeQueryFailure(
+              atual.error,
+              atual.dataUpdatedAt ? new Date(atual.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined,
+            )
+          : undefined,
+        onRetry: () => atual.refetch(),
+      }}
+    >
       <header className={styles.heading}>
         <h1>Agora contra o passado</h1>
         <p>Mesmo escopo, mesma métrica, janela deslocada no tempo.</p>
       </header>
 
-      {/* Quatro escalas de sazonalidade. Num evento programado o correto é
-          comparar contra outro pico, não contra a média. */}
       <ToggleGroup
         className={styles.references}
         type="single"
@@ -52,29 +133,36 @@ export function CompararContent() {
         onValueChange={(value) => value && setReference(value as ReferenceId)}
         aria-label="Referência de comparação"
       >
-        {references.map((item) => (
+        {(Object.keys(REFERENCE_META) as ReferenceId[]).map((id) => (
           <ToggleGroupItem
             className={styles.reference}
-            key={item.id}
-            value={item.id}
-            aria-label={`${item.label}: ${item.detail}`}
+            key={id}
+            value={id}
+            aria-label={`${REFERENCE_META[id].label}${janelaRef && reference === id ? `: ${janelaRef.detail}` : ""}`}
           >
-            <strong>{item.label}</strong>
-            <span>{item.detail}</span>
+            <strong>{REFERENCE_META[id].label}</strong>
+            <span>{reference === id ? (janelaRef?.detail ?? "carregando…") : ""}</span>
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
 
+      {janelaRef && !janelaRef.found && (
+        <p className="mt-3 text-micro text-muted-foreground">
+          {REFERENCE_META[reference].label.toLowerCase()}: {janelaRef.detail}. Nenhum dado real
+          disponível para essa referência agora.
+        </p>
+      )}
+
       <div className={styles.body}>
         <figure aria-labelledby="chart-title">
           <div className={styles.chartHeader}>
-            <h2 id="chart-title">Falha de início de play (video_view · start error)</h2>
-            <span>%, bucket de 1 min</span>
+            <h2 id="chart-title">Volume de eventos</h2>
+            <span>contagem por bucket de {interval} min</span>
           </div>
 
           <div className={styles.chart} aria-hidden="true">
-            {chart.map((bucket) => (
-              <div className={styles.bucket} key={bucket.hour}>
+            {chart.map((bucket, index) => (
+              <div className={styles.bucket} key={`${bucket.hour}-${index}`}>
                 <i
                   className={clsx(styles.bar, bucket.outside && styles.outside)}
                   style={{ height: `${(bucket.now / chartMax) * 100}%` }}
@@ -88,12 +176,14 @@ export function CompararContent() {
             ))}
           </div>
 
-          <div className={styles.axis}>
-            <span>{chart[0].hour}</span>
-            <span>{chart[Math.floor(chart.length / 3)].hour}</span>
-            <span>{chart[Math.floor((chart.length / 3) * 2)].hour}</span>
-            <span>{chart[chart.length - 1].hour}</span>
-          </div>
+          {chart.length > 0 && (
+            <div className={styles.axis}>
+              <span>{chart[0].hour}</span>
+              <span>{chart[Math.floor(chart.length / 3)]?.hour}</span>
+              <span>{chart[Math.floor((chart.length / 3) * 2)]?.hour}</span>
+              <span>{chart[chart.length - 1].hour}</span>
+            </div>
+          )}
 
           <p className={styles.legend}>
             <span>
@@ -102,28 +192,32 @@ export function CompararContent() {
             </span>
             <span>
               <i className={styles.line} aria-hidden="true" />
-              {selected.column}
+              {REFERENCE_META[reference].column}
             </span>
             <span>
               <i className={styles.hot} aria-hidden="true" />
-              fora do envelope histórico
+              50%+ acima da referência
             </span>
           </p>
-          <figcaption className="sr-only">
-            Série de falha de início por minuto. {chart.map((bucket) =>
-              `${bucket.hour}: agora ${bucket.now.toLocaleString("pt-BR")}% e referência ${bucket.reference.toLocaleString("pt-BR")}%${bucket.outside ? ", fora do envelope histórico" : ""}`,
-            ).join("; ")}.
-          </figcaption>
         </figure>
 
         <aside className={styles.changes}>
           <h2>O que mudou entre as janelas</h2>
-          {changes.map((change) => (
-            <article className={styles.change} key={change.hour}>
+          {changes.length === 0 && (
+            <p className="text-micro text-muted-foreground">
+              Nenhum deploy registrado nesta janela.
+            </p>
+          )}
+          {changes.map((change, index) => (
+            <article className={styles.change} key={`${change.hour}-${index}`}>
               <time>{change.hour}</time>
               <p>{change.description}</p>
             </article>
           ))}
+          <p className="mt-2 text-micro text-muted-foreground">
+            Só cobre deploy (fonte Tsuru) — autoscale e mudança de regra de WAF não têm dado
+            discreto neste dataset.
+          </p>
         </aside>
       </div>
 
@@ -134,86 +228,93 @@ export function CompararContent() {
             <TableRow>
               <TableHead className="w-[30%]">Métrica</TableHead>
               <TableHead className="text-right">Agora</TableHead>
-              <TableHead className="text-right">{selected.column}</TableHead>
+              <TableHead className="text-right">{REFERENCE_META[reference].column}</TableHead>
               <TableHead className="text-right">Δ</TableHead>
-              <TableHead className="w-[28%]">Significância</TableHead>
+              <TableHead className="w-[28%]">Variação</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {metrics.map((metric) => {
-              const comparison = metric.references[reference];
-              const significant = comparison.sigma >= SIGNIFICANT_SIGMA;
-
-              return (
-                <TableRow key={metric.label}>
-                  <TableCell className="font-semibold text-foreground">{metric.label}</TableCell>
-                  <TableCell className="text-right font-mono font-semibold">{metric.now}</TableCell>
-                  <TableCell className="text-right font-mono text-muted-foreground">{comparison.value}</TableCell>
-                  <TableCell className={clsx("text-right font-mono font-semibold", significant && "text-primary")}>
-                    {comparison.delta}
-                  </TableCell>
-                  <TableCell>
-                    <span className={styles.significance}>
-                      <span className={styles.meter} aria-hidden="true">
-                        <i
-                          className={clsx(significant && styles.hot)}
-                          style={{ width: `${meterWidth(comparison.sigma, sigmaMax)}%` }}
-                        />
-                      </span>
-                      <span className={styles.sigma}>
-                        {comparison.sigma.toLocaleString("pt-BR", { minimumFractionDigits: 1 })}σ
-                        {significant && <span className="sr-only">, desvio significativo</span>}
-                      </span>
+            <TableRow>
+              <TableCell className="font-semibold text-foreground">Volume de eventos</TableCell>
+              <TableCell className="text-right font-mono font-semibold">
+                {nowTotal?.toLocaleString("pt-BR") ?? "…"}
+              </TableCell>
+              <TableCell className="text-right font-mono text-muted-foreground">
+                {refTotal !== null ? refTotal.toLocaleString("pt-BR") : "—"}
+              </TableCell>
+              <TableCell
+                className={clsx(
+                  "text-right font-mono font-semibold",
+                  ratio !== null && Math.abs(ratio) >= 0.2 && "text-primary",
+                )}
+              >
+                {delta !== null ? formatSigned(delta) : "—"}
+              </TableCell>
+              <TableCell>
+                {ratio !== null ? (
+                  <span className={styles.significance}>
+                    <span className={styles.meter} aria-hidden="true">
+                      <i
+                        className={clsx(Math.abs(ratio) >= 0.2 && styles.hot)}
+                        style={{ width: `${Math.min(100, Math.abs(ratio) * 100)}%` }}
+                      />
                     </span>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                    <span className={styles.sigma}>{formatPercent(ratio)}</span>
+                  </span>
+                ) : (
+                  <span className="text-micro text-muted-foreground">sem referência</span>
+                )}
+              </TableCell>
+            </TableRow>
           </TableBody>
         </Table>
-        <div className="divide-y divide-border border-y border-border md:hidden" aria-label="Métricas comparadas">
-          {metrics.map((metric) => {
-            const comparison = metric.references[reference];
-            const significant = comparison.sigma >= SIGNIFICANT_SIGMA;
-            return (
-              <article className="grid gap-4 py-5" key={metric.label}>
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="break-words font-semibold">{metric.label}</h3>
-                  <span className={clsx("shrink-0 border px-2 py-1 font-mono text-xs", significant ? "border-critical text-critical" : "border-border text-muted-foreground")}>
-                    {significant ? "Desvio significativo" : "Variação normal"}
-                  </span>
-                </div>
-                <dl className="grid grid-cols-3 gap-3 font-mono text-xs">
-                  <div><dt className="text-muted-foreground">Agora</dt><dd className="mt-1 font-semibold">{metric.now}</dd></div>
-                  <div><dt className="text-muted-foreground">{selected.column}</dt><dd className="mt-1">{comparison.value}</dd></div>
-                  <div><dt className="text-muted-foreground">Variação</dt><dd className={clsx("mt-1 font-semibold", significant && "text-critical")}>{comparison.delta}</dd></div>
-                </dl>
-                <div className={styles.significance}>
-                  <span className={styles.meter} aria-hidden="true"><i className={clsx(significant && styles.hot)} style={{ width: `${meterWidth(comparison.sigma, sigmaMax)}%` }} /></span>
-                  <span className={styles.sigma}>{comparison.sigma.toLocaleString("pt-BR", { minimumFractionDigits: 1 })}σ</span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        <p className="mt-3 text-micro text-muted-foreground">
+          Reduzido a uma métrica real (volume total de eventos na janela): o backend não expõe
+          hoje a decomposição por métrica de negócio (falha de play, join time, buffer ratio
+          etc.) nem desvio-padrão histórico — não é possível calcular significância estatística
+          (σ) sem essa fonte.
+        </p>
       </section>
-    </>
+    </ScreenFrame>
   );
 }
 
-/**
- * Converte desvios-padrão em largura de barra, em escala logarítmica.
- *
- * Linear, 14σ ao lado de 0,2σ deixaria toda a metade de baixo da tabela como
- * um traço invisível, e é justamente ali que está a leitura útil: distinguir
- * 1,2σ (variação normal) de 2,1σ (começo de desvio). O log preserva a ordem e
- * mantém as pequenas legíveis.
- * @param sigma Distância do esperado, em desvios-padrão.
- * @param max Maior sigma da tabela, que ancora a escala.
- * @returns Largura em porcentagem, entre 4 e 100.
- */
-function meterWidth(sigma: number, max: number): number {
-  if (max <= 0) return 4;
-  const scaled = Math.log1p(Math.max(0, sigma)) / Math.log1p(max);
-  return Math.max(4, Math.min(100, scaled * 100));
+function buildChart(
+  atual: Array<{ bucket: string; count: number }> | undefined,
+  referencia: Array<{ bucket: string; count: number }> | undefined,
+): ChartBucket[] {
+  if (!atual || atual.length === 0) return [];
+  return atual.map((bucket, index) => {
+    const refBucket = referencia?.[index];
+    const now = bucket.count;
+    const reference = refBucket?.count ?? 0;
+    return {
+      hour: formatHour(bucket.bucket),
+      now,
+      reference,
+      outside: reference > 0 ? now > reference * 1.5 : now > 0,
+    };
+  });
+}
+
+function mapChanges(response: { items: Array<{ started_at: string; kind: string | null; target_value: string | null; owner: string | null }> } | undefined): WindowChange[] {
+  if (!response) return [];
+  return response.items.map((item) => ({
+    hour: formatHour(item.started_at),
+    description: `${item.kind ?? "Mudança"}${item.target_value ? ` · ${item.target_value}` : ""}${item.owner ? ` (${item.owner})` : ""}`,
+  }));
+}
+
+function formatHour(iso: string): string {
+  return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+}
+
+function formatSigned(value: number): string {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toLocaleString("pt-BR")}`;
+}
+
+function formatPercent(ratio: number): string {
+  const sign = ratio > 0 ? "+" : "";
+  return `${sign}${(ratio * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 }
