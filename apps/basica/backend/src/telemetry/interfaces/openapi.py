@@ -855,6 +855,99 @@ def build_spec() -> dict[str, Any]:
                     "responses": {"200": {"description": "Transmissoes"}},
                 }
             },
+            "/api/v1/changes": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Eventos de mudanca de plataforma (deploy) na janela",
+                    "description": (
+                        "So cobre deploy (fonte Tsuru, ver 018_deploy_events.sql). "
+                        "O dataset nao tem log discreto de mudanca para autoscale "
+                        "nem WAF, so serie de metrica."
+                    ),
+                    "parameters": [
+                        _parameter("from", "Inicio da janela, por started_at.", format="date-time"),
+                        _parameter("to", "Fim da janela.", format="date-time"),
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 2000,
+                                "default": 200,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Eventos de deploy"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/references/stable-window": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Janela de referencia sem incidente (Comparar)",
+                    "description": (
+                        "Caminha para tras em incrementos de duration_minutes "
+                        "ate achar uma janela sem sobreposicao com "
+                        "gold.v_incident_window, ou desiste apos 200 passos."
+                    ),
+                    "parameters": [
+                        {
+                            "name": "duration_minutes",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1440,
+                                "default": 60,
+                            },
+                        },
+                        _parameter(
+                            "before",
+                            "Nao propor janela terminando depois disto. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {"200": {"description": "Janela encontrada, ou found=false"}},
+                }
+            },
+            "/api/v1/references/last-live-peak": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Ultima transmissao ao vivo antes de um instante (Comparar)",
+                    "parameters": [
+                        _parameter(
+                            "before",
+                            "Nao propor evento comecando depois disto. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {"200": {"description": "Evento encontrado, ou found=false"}},
+                }
+            },
+            "/api/v1/timeline": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Seis raias de fonte para a tela Timeline",
+                    "description": (
+                        "Quatro raias de serie (NPAW, Prometheus, New Relic, "
+                        "Apollo), uma de deploy (Tsuru) e uma de incidente "
+                        "(ServiceNow). Sem periodo, usa as 3h antes de sim.now()."
+                    ),
+                    "parameters": [
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                    ],
+                    "responses": {
+                        "200": {"description": "Raias"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
             "/api/v1/anomalies": {
                 "get": {
                     "tags": ["Gold"],

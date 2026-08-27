@@ -140,6 +140,39 @@ class GoldRepository:
             [*params, min(limite or self._teto, self._teto)],
         )
 
+    def lane_series(
+        self, sources: list[str], desde: datetime, ate: datetime, *, limite: int = 2000
+    ) -> list[dict[str, Any]]:
+        """Le pontos de `gold.v_feature_bucket` para um grupo de fontes.
+
+        Usado para montar uma raia da Timeline que agrega mais de uma fonte
+        real sob um rotulo so (ex.: "NPAW" cobre `npaw`, `youbora` e
+        `youbora_player_live` -- ver `interfaces/http.py::timeline`).
+
+        Args:
+            sources (list[str]): Fontes a incluir.
+            desde (datetime): Inicio da janela.
+            ate (datetime): Fim da janela.
+            limite (int): Teto de pontos.
+
+        Returns:
+            list[dict[str, Any]]: Pontos em ordem cronologica.
+        """
+        if not sources:
+            return []
+        return self._all(
+            sql.SQL(
+                """
+                SELECT bucket_ts, source, entity, metric, value
+                  FROM gold.v_feature_bucket
+                 WHERE source = ANY(%s) AND bucket_ts >= %s AND bucket_ts <= %s
+                 ORDER BY bucket_ts
+                 LIMIT %s
+                """
+            ),
+            [sources, desde, ate, min(limite, self._teto)],
+        )
+
     def sources(self) -> list[dict[str, Any]]:
         """Lista as fontes disponiveis e o quao recente e cada uma.
 
@@ -181,12 +214,22 @@ class GoldRepository:
     # ----------------------------------------------------------------- #
 
     def incidents(
-        self, *, origem: str | None = None, incluir_derivados: bool = False, limite: int = 100
+        self,
+        *,
+        origem: str | None = None,
+        desde: datetime | None = None,
+        ate: datetime | None = None,
+        incluir_derivados: bool = False,
+        limite: int = 100,
     ) -> list[dict[str, Any]]:
         """Le janelas de incidente.
 
         Args:
             origem (str | None): `incidents`, `incident_label` ou `detector`.
+            desde (datetime | None): So janelas que tocam a partir daqui
+                (`ts_end >= desde`). Sem valor, nao filtra por inicio.
+            ate (datetime | None): So janelas que tocam ate aqui
+                (`ts_start <= ate`). Sem valor, nao filtra por fim.
             incluir_derivados (bool): Se inclui os rotulos `detector-derived`.
             limite (int): Teto de janelas.
 
@@ -199,6 +242,13 @@ class GoldRepository:
         if origem:
             onde.append(sql.SQL("origem = %s"))
             params.append(origem)
+
+        if desde is not None:
+            onde.append(sql.SQL("ts_end >= %s"))
+            params.append(desde)
+        if ate is not None:
+            onde.append(sql.SQL("ts_start <= %s"))
+            params.append(ate)
 
         if not incluir_derivados:
             # Sete dos vinte rotulos de incident_label foram criados olhando a
@@ -254,6 +304,114 @@ class GoldRepository:
                 """
             ),
             [limite],
+        )
+
+    def deploy_events(
+        self, *, desde: datetime | None = None, ate: datetime | None = None, limite: int = 200
+    ) -> list[dict[str, Any]]:
+        """Le eventos de mudanca de plataforma (deploy e afins) de `gold.v_deploy_event`.
+
+        So cobre deploy (fonte Tsuru, ver 018_deploy_events.sql) -- o dataset
+        nao tem log discreto de mudanca para autoscale nem WAF, so serie de
+        metrica.
+
+        Args:
+            desde (datetime | None): Inicio da janela, por `started_at`.
+            ate (datetime | None): Fim da janela.
+            limite (int): Teto de eventos.
+
+        Returns:
+            list[dict[str, Any]]: Eventos, do mais recente para o mais antigo.
+        """
+        onde = [sql.SQL("TRUE")]
+        params: list[Any] = []
+        if desde is not None:
+            onde.append(sql.SQL("started_at >= %s"))
+            params.append(desde)
+        if ate is not None:
+            onde.append(sql.SQL("started_at <= %s"))
+            params.append(ate)
+
+        return self._all(
+            sql.SQL(
+                """
+                SELECT event_id, kind, target_type, target_value, owner,
+                       started_at, ended_at, duration_ms, error
+                  FROM gold.v_deploy_event
+                 WHERE {onde}
+                 ORDER BY started_at DESC
+                 LIMIT %s
+                """
+            ).format(onde=sql.SQL(" AND ").join(onde)),
+            [*params, limite],
+        )
+
+    def janela_estavel(
+        self, *, duracao: timedelta, antes: datetime, max_passos: int = 200
+    ) -> dict[str, datetime] | None:
+        """Acha a janela mais recente de `duracao`, terminando antes de `antes`,
+        que nao sobrepoe nenhuma `gold.v_incident_window`.
+
+        Passo a passo -- caminha para tras em incrementos de `duracao`,
+        checando sobreposicao a cada passo -- em vez de uma unica consulta
+        combinatoria: mantem o SQL simples, ao custo de ate `max_passos`
+        idas ao banco no pior caso (janela sem historico estavel suficiente).
+
+        Args:
+            duracao (timedelta): Tamanho da janela procurada.
+            antes (datetime): Nao propor janela terminando depois disto.
+            max_passos (int): Teto de tentativas antes de desistir.
+
+        Returns:
+            dict[str, datetime] | None: `{"ts_start", "ts_end"}` da janela
+                encontrada, ou `None` se nenhuma das `max_passos` tentativas
+                ficou livre de incidente.
+        """
+        fim = antes
+        for _ in range(max_passos):
+            inicio = fim - duracao
+            sobrepoe = self._one(
+                sql.SQL(
+                    """
+                    SELECT 1 FROM gold.v_incident_window
+                     WHERE ts_start < %s AND ts_end > %s
+                     LIMIT 1
+                    """
+                ),
+                [fim, inicio],
+            )
+            if sobrepoe is None:
+                return {"ts_start": inicio, "ts_end": fim}
+            fim = inicio
+        return None
+
+    def ultimo_pico_ao_vivo(self, *, antes: datetime) -> dict[str, Any] | None:
+        """A transmissao ao vivo mais recente que comecou antes de `antes`.
+
+        Args:
+            antes (datetime): Nao propor evento comecando depois disto.
+
+        Returns:
+            dict[str, Any] | None: O confronto (feeds agregados por
+                `event_key`, mesmo cuidado de `live_events`), ou `None`.
+        """
+        return self._one(
+            sql.SQL(
+                """
+                SELECT event_key,
+                       min(ts_start)    AS ts_start,
+                       max(ts_end)      AS ts_end,
+                       min(competition) AS competition,
+                       min(team_home)   AS team_home,
+                       min(team_away)   AS team_away
+                  FROM gold.v_live_event_window
+                 WHERE ts_start <= %s
+                 GROUP BY event_key
+                 ORDER BY max(ts_end) DESC
+                 LIMIT 1
+                """
+            ),
+            [antes],
         )
 
     def anomalies(self, *, run_id: int | None = None, limite: int = 200) -> list[dict[str, Any]]:

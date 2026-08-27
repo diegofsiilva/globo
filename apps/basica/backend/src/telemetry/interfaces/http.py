@@ -289,6 +289,150 @@ def live_events():
     )
 
 
+@api.get("/changes")
+def changes():
+    """Eventos de mudanca de plataforma (deploy) na janela.
+
+    So cobre deploy (fonte Tsuru): o dataset nao tem log discreto de mudanca
+    para autoscale nem WAF, so serie de metrica -- ver 018_deploy_events.sql.
+    """
+    return jsonify(
+        {
+            "items": [
+                {
+                    **item,
+                    "started_at": item["started_at"].isoformat(),
+                    "ended_at": item["ended_at"].isoformat() if item["ended_at"] else None,
+                }
+                for item in gold().deploy_events(
+                    desde=parse_datetime("from"),
+                    ate=parse_datetime("to"),
+                    limite=parse_int("limit", default=200, minimum=1, maximum=2000),
+                )
+            ]
+        }
+    )
+
+
+@api.get("/references/stable-window")
+def stable_window():
+    """Janela de referencia para 'ultima janela estavel' (tela Comparar).
+
+    Devolve `from`/`to` de uma janela recente sem sobreposicao com
+    `gold.v_incident_window`; o cliente usa o par como `from`/`to` de uma
+    segunda chamada a `/metrics/timeseries`.
+    """
+    duracao = timedelta(minutes=parse_int("duration_minutes", default=60, minimum=1, maximum=1440))
+    antes = parse_datetime("before") or gold().clock().sim_now
+    janela = gold().janela_estavel(duracao=duracao, antes=antes)
+    if janela is None:
+        return jsonify({"found": False})
+    return jsonify(
+        {"found": True, "from": janela["ts_start"].isoformat(), "to": janela["ts_end"].isoformat()}
+    )
+
+
+@api.get("/references/last-live-peak")
+def last_live_peak():
+    """Janela de referencia para 'pico ao vivo anterior' (tela Comparar)."""
+    antes = parse_datetime("before") or gold().clock().sim_now
+    evento = gold().ultimo_pico_ao_vivo(antes=antes)
+    if evento is None:
+        return jsonify({"found": False})
+    return jsonify(
+        {
+            "found": True,
+            "event_key": evento["event_key"],
+            "from": evento["ts_start"].isoformat(),
+            "to": evento["ts_end"].isoformat(),
+            "competition": evento["competition"],
+            "team_home": evento["team_home"],
+            "team_away": evento["team_away"],
+        }
+    )
+
+
+LANES_METRICA = {
+    "npaw": {"label": "NPAW", "sources": ["npaw", "youbora", "youbora_player_live"]},
+    "prometheus": {"label": "Prometheus", "sources": ["prometheus"]},
+    "newrelic": {"label": "New Relic", "sources": ["newrelic"]},
+    "apollo": {"label": "Apollo", "sources": ["apollo"]},
+}
+
+
+@api.get("/timeline")
+def timeline():
+    """Seis raias de fonte (rotas-frontend.md §4.4.6).
+
+    Quatro raias de serie de metrica (NPAW, Prometheus, New Relic, Apollo),
+    uma de deploy (Tsuru, `gold.v_deploy_event`) e uma de incidente
+    (ServiceNow, `gold.v_incident_window` com origem `incidents`).
+    `lane_type` muda por raia de proposito -- forcar deploy e incidente no
+    formato de serie temporal perderia duracao, motivo e gravidade. Nome
+    `lane_type` (nao `kind`) de proposito: o mock do frontend ja usa `kind`
+    para o ESTADO de cada barra (`deploy`/`critical`/`neutral`/`empty`), um
+    conceito diferente -- reusar o nome ia confundir quem escrever o adapter.
+    """
+    ate = parse_datetime("to") or gold().clock().sim_now
+    desde = parse_datetime("from") or (ate - timedelta(hours=3))
+
+    lanes = []
+    for chave, config in LANES_METRICA.items():
+        pontos = gold().lane_series(config["sources"], desde, ate)
+        lanes.append(
+            {
+                "source": chave,
+                "label": config["label"],
+                "lane_type": "series",
+                "points": [
+                    {
+                        "bucket_ts": p["bucket_ts"].isoformat(),
+                        "entity": p["entity"],
+                        "metric": p["metric"],
+                        "value": p["value"],
+                    }
+                    for p in pontos
+                ],
+            }
+        )
+
+    lanes.append(
+        {
+            "source": "tsuru",
+            "label": "Tsuru",
+            "lane_type": "events",
+            "points": [
+                {
+                    **evento,
+                    "started_at": evento["started_at"].isoformat(),
+                    "ended_at": evento["ended_at"].isoformat() if evento["ended_at"] else None,
+                }
+                for evento in gold().deploy_events(desde=desde, ate=ate, limite=500)
+            ],
+        }
+    )
+
+    lanes.append(
+        {
+            "source": "servicenow",
+            "label": "ServiceNow",
+            "lane_type": "incidents",
+            "points": [
+                {
+                    **incidente,
+                    "ts_start": incidente["ts_start"].isoformat(),
+                    "ts_end": incidente["ts_end"].isoformat(),
+                }
+                for incidente in gold().incidents(
+                    origem="incidents", desde=desde, ate=ate, limite=500
+                )
+            ],
+        }
+    )
+
+    return jsonify({"window": {"from": desde.isoformat(), "to": ate.isoformat()}, "lanes": lanes})
+
+
 @api.get("/anomalies")
 def anomalies():
     """Anomalias da execucao mais recente do detector.
