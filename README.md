@@ -77,7 +77,7 @@ O dataset do parceiro é um **dump do passado**. Um dashboard "ao vivo" sobre el
 
 Toda linha carrega um `available_at` — o instante em que a informação *ficaria disponível na vida real*, contando a latência da fonte (a NPAW entrega com 28 h de atraso; o Prometheus, com 1 min). E **toda** view `v_*` filtra `available_at <= sim.now()`.
 
-Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem um detector futuro conseguem enxergar um dado antes da hora em que ele existiria.
+Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
 
 Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura-inicial.md`](artefatos/arquitetura-inicial.md).
 
@@ -89,12 +89,12 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-| `/apps/basica/db/migrations` | As 14 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+| `/apps/basica/db/migrations` | As 23 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
 | `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
 | `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
 | `/apps/basica/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
-| `/apps/basica/processing` | Serviço de processamento; hoje um no-op documentado, futura casa do detector |
+| `/apps/basica/processing` | ETL, checkpoints, canário, detector e motor determinístico de hipóteses |
 | `/apps/basica/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
 | `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
@@ -134,7 +134,7 @@ cd g04
 # 2. instalar as dependências dos apps Python
 make -C apps/basica install
 
-# 3. subir um PostgreSQL 16 local e aplicar as 14 migrations
+# 3. subir um PostgreSQL 16 local e aplicar as 23 migrations
 make -C apps/basica db-local
 
 # 4. rodar a suíte de testes (66 do worker + 85 do backend)
@@ -267,7 +267,7 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
-| [Arquitetura](artefatos/arquitetura.md) | Fluxos, modelo de dados, decisões de projeto, segurança, custo e validação |
+| [Arquitetura](artefatos/arquitetura-inicial.md) | Diagrama de implantação, componentes, decisões arquiteturais e plano de deploy na AWS |
 | [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
 | [Infraestrutura](apps/basica/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
 

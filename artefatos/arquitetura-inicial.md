@@ -1,968 +1,545 @@
-# Arquitetura do Argus v3
+# Arquitetura inicial da solução — Argus v3
 
-&emsp; Este artefato reúne, em um único documento, a arquitetura da plataforma de
-Monitoração Agêntica no seu estado atual, batizado internamente de **Argus v3**. Ele
-consolida o que antes estava dividido entre um artefato de arquitetura resumido e o
-plano técnico completo da migração (o antigo `plano-argus-v3.md`, hoje incorporado a
-este documento): o porquê da mudança de arquitetura, o diagrama de implantação dos
-componentes na AWS, a descrição de cada nó e como eles se conectam, o desenho completo
-do banco de dados, a justificativa técnica das decisões de arquitetura e tecnologia
-adotadas, o desenho do ETL (extract, transform, load) incremental, o plano de deploy
-dos recursos AWS, e o registro de riscos e da proveniência de cada decisão.
+&emsp; Este artefato detalha a arquitetura da solução Argus v3: seus componentes,
+tecnologias, fluxos de comunicação, decisões arquiteturais e plano de implantação
+na AWS. O estado descrito considera a implementação consolidada na branch
+`develop`, incluindo ingestão, carga inicial, processamento incremental,
+coordenação por checkpoints, detecção, geração de hipóteses, API de leitura e
+dashboard.
 
-&emsp; O sistema descrito aqui é o resultado de um pivot de escopo em relação ao MVP
-original (ver [`mvp-inicial.md`](mvp-inicial.md)): em vez de um coletor próprio de
-telemetria de frontend, a solução passou a ser um **consumidor de change data capture
-(CDC)** das tabelas já tratadas pelo Argus, o correlator de incidentes já em produção
-na Globo, mantendo-as replicadas e atualizadas na infraestrutura do projeto, e
-derivando delas as camadas analíticas que alimentam o dashboard. A seção 1 detalha essa
-mudança de premissa.
+&emsp; O arquivo segue a ordem dos quatro critérios da entrega. Detalhes de modelo de
+dados e processamento foram mantidos em apêndices para não interromper a leitura do
+relatório principal.
 
----
-
-## 1. Por que a arquitetura mudou
-
-&emsp; A arquitetura anterior (documentada em [`mvp-inicial.md`](mvp-inicial.md)) foi
-desenhada para um firehose de telemetria: API Gateway, SQS, worker Fargate, DynamoDB,
-com Lambda de leitura por cima. Ela funcionava e chegou a ir ao ar. Mas partia de uma
-premissa que o entendimento aprofundado com o parceiro derrubou: a de que o sistema
-**produz** o dado.
-
-&emsp; Na prática, o Argus já existe em produção na Globo e já tem 33 tabelas com o
-dado tratado, desde fonte bruta (Prometheus, New Relic, Apollo, RPaaS, Cloud Armor,
-Tsuru) até camada canônica (`signal_point`, `signal_bucket`), ground truth
-(`incidents`, `incident_label`) e saída do sistema atual (`dashboard_artifact`). O que
-o projeto precisa fazer é **ler dessas tabelas**, replicá-las na infraestrutura do
-grupo, e construir em paralelo um esquema que simule como o fluxo funcionaria em
-produção, mantendo essas tabelas atualizadas ao longo do tempo.
-
-&emsp; Isso muda a natureza do sistema: ele deixa de ser um coletor e passa a ser um
-**consumidor de change data capture com replay**, que recebe as mudanças que a origem
-publica, materializa o estado corrente, e deriva as camadas analíticas a partir disso.
-
-### 1.1 As sete decisões que orientam a arquitetura
-
-| # | Decisão | Consequência |
-|---|---|---|
-| 1 | Substituir o DynamoDB por completo | `dynamodb.tf` sai; toda a persistência vira PostgreSQL |
-| 2 | Carregar as 33 tabelas inteiras, incluindo `prom_point` | 68,7 milhões de linhas; justificativa na seção 1.2 |
-| 3 | Dois fluxos de ingestão | CDC das tabelas já mapeadas e eventos no grain de sessão (um evento por sessão de uso do app, não por tabela do Argus), que chegam por outro fluxo |
-| 4 | Bronze otimizada para mudar, não para performance | O ETL ainda está em aprimoramento; o custo de errar precisa ser baixo |
-| 5 | Carga inicial via Parquet | `tools/etl_dump.py` converte o dump e gera os 33 arquivos (199 MB) |
-| 6 | Não renormalizar `signal_point` | A silver faz canonicalização de tipo e tempo, não normalização multifonte |
-| 7 | Detecção segue embrionária; ETL deixou de ser no-op | O worker de processamento roda o ETL incremental (seção 7); detector e canário seguem no-op, com infraestrutura provisionada e observável para quando chegarem |
-
-### 1.2 Por que `prom_point` entra, apesar de ser 60% das linhas
-
-&emsp; `prom_point` é a tabela-fato do Prometheus, com 41,2 milhões das 68,7 milhões
-de linhas do dump. É camada de fonte bruta, e o `signal_bucket` já traz o Prometheus
-normalizado, então a tentação de deixá-la de fora é real. Três telas do dashboard não
-fecham sem ela:
-
-- **Timeline**: "CDN, Prometheus VTS" é uma das seis raias nomeadas do eixo de tempo,
-  e a cronologia reconstruída tem entradas que são fatos do Prometheus (por exemplo,
-  "p95 na borda do PoP Fortaleza sobe de 368 ms para 412 ms"). O painel lateral conta
-  "fontes com desvio: 3 de 13", as 13 fontes do vocabulário do dataset.
-- **Hipóteses**: o fator de score "ausência de causa concorrente" afirma que CDN,
-  Globo-ID e backend não desviaram na janela. Provar ausência exige a série inteira,
-  não só os pontos anômalos; o motor de descarte consome mais dado bruto que o de
-  detecção, e é ele que separa 4 hipóteses de 11 descartadas.
-- **Comparar**: "p95 de borda 412 ms vs 368 ms, +12%, 1,2σ". O σ vem da distribuição
-  histórica da série.
-
-&emsp; O argumento decisivo é de granularidade. O gráfico da tela Comparar declara
-"bucket de 1 min", e a Timeline resolve eventos em 19:58, 20:00, 20:02, 20:04, 20:06 e
-20:07. O `signal_bucket` é de 15 minutos, o que colapsaria a janela de correlação
-inteira em um único ponto; só o `prom_point` tem cadência de 1 minuto. Soma-se que
-`prom_series.labels_json` traz `pop` em claro (é de lá que sai "PoP Fortaleza") e
-`prom_query.section` dá o agrupamento das raias, e que as fontes NPAW têm cerca de 28 h
-de latência estrutural: para uma tela marcada ao vivo, o sinal de infraestrutura
-quase-real-time é Prometheus (1 min) e `rpaas_bucket` (15 min).
+| Critério | Onde está documentado |
+|---|---|
+| (a) Diagrama de implantação | Seção 2 |
+| (b) Nós, componentes e conexões | Seção 3 |
+| (c) Justificativa da arquitetura e das tecnologias | Seção 4 |
+| (d) Plano detalhado de implantação na AWS | Seção 5 |
 
 ---
 
-## 2. Diagrama de implantação
+## 1. Contexto e escopo
 
-&emsp; A Figura 1 mostra o diagrama de implantação do Argus v3, no padrão UML de nós
-(estereótipo `«device»` para infraestrutura gerenciada como armazenamento, e
-`«execution environment»` para ambientes que executam código próprio) e artefatos de
-software (estereótipo `«artifact»`) hospedados dentro de cada nó. As setas indicam
-caminhos de comunicação entre nós, rotuladas com o protocolo ou mecanismo usado. O nó
-com borda tracejada laranja (`Amazon EventBridge Scheduler`) está marcado como
-planejado: aparece no desenho original da arquitetura, mas ainda não existe como
-recurso Terraform aplicado; ver a pendência registrada na seção 9.
+&emsp; A primeira versão do MVP foi projetada como um coletor de eventos com API
+Gateway, SQS, ECS Fargate e DynamoDB. O aprofundamento com o parceiro mostrou que o
+Argus já mantém 33 tabelas tratadas em produção. A responsabilidade da solução passou
+a ser consumir e reproduzir mudanças dessas tabelas, materializar o estado corrente e
+derivar produtos analíticos para investigação de incidentes.
+
+&emsp; A arquitetura atual possui dois fluxos de entrada independentes:
+
+1. **Mudanças das tabelas do Argus (CDC simulado):** o simulador reproduz alterações
+   do conjunto de dados histórico e publica *change events* em uma fila própria.
+2. **Eventos de sessão:** os eventos emitidos pelas aplicações são recebidos por uma
+   segunda rota e uma segunda fila.
+
+&emsp; Os dois fluxos convergem no RDS PostgreSQL. A partir dele, o serviço de
+processamento constrói as camadas analíticas, publica checkpoints consistentes,
+executa o canário de qualidade, o detector e o motor determinístico de hipóteses. A
+API de leitura expõe somente views autorizadas ao dashboard.
+
+### 1.1 Legenda de estado
+
+- **Implementado:** existe no código e na infraestrutura Terraform de referência.
+- **Condicional:** existe no Terraform, mas depende de variáveis do ambiente.
+- **Planejado:** melhoria arquitetural registrada, ainda sem recurso Terraform.
+
+---
+
+## 2. Diagrama de implantação do sistema
+
+&emsp; A Figura 1 é um diagrama de implantação inspirado na notação UML. Os nós usam
+estereótipos específicos para serviços gerenciados, como `«database»`,
+`«message queue»` e `«object storage»`; `«execution environment»` é reservado aos
+ambientes que executam código da equipe. As setas informam o mecanismo ou protocolo
+de comunicação efetivamente usado.
 
 <div align="center">
 
-<sub>Figura 1 - Diagrama de implantação do Argus v3, com nós, artefatos de software e
-caminhos de comunicação, no estado atual do Terraform em `apps/basica/infra/`</sub>
+<sub>Figura 1 — Implantação do Argus v3 na AWS, região `us-east-1`</sub>
 
-![Diagrama de implantação do Argus v3](assets/arquitetura-implantacao-v3.png)
+![Diagrama de implantação do Argus v3](assets/arquitetura-implantacao-v3.svg)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; O diagrama é organizado da esquerda para a direita seguindo o fluxo do dado: a
-fonte (bucket S3 de origem) alimenta a carga inicial e o simulador; o simulador emite
-change events por HTTPS para a camada de ingestão (API Gateway e SQS); dois serviços
-ECS consomem essas filas e escrevem no RDS PostgreSQL, o nó central que hospeda as
-quatro camadas do desenho medallion (bronze, silver, gold, detect); um serviço de
-processamento roda o ETL incremental sobre esse banco; e a camada de consulta (Lambda
-mais API Gateway) expõe as views a um dashboard estático servido via S3, acessado pelo
-navegador do usuário. Uma faixa transversal na base do diagrama reúne os nós de
-operação, segurança e observabilidade, comuns a todos os serviços acima.
+&emsp; No AWS Academy Learner Lab, a configuração de referência utiliza a VPC e as
+sub-redes públicas da conta, com IP público nas tasks para evitar o custo de um NAT
+Gateway. Isso não abre portas de entrada nos containers: o security group das tasks
+não possui regra de ingresso. O RDS aceita conexões na porta 5432 apenas desse
+security group e, quando configurado para manutenção, do CIDR explícito do
+desenvolvedor. A configuração recomendada para produção é usar sub-redes privadas,
+RDS privado e VPC endpoints ou NAT conforme a política da organização.
 
 ---
 
-## 3. Nós e componentes de software
+## 3. Nós, componentes de software e conexões
 
-&emsp; Esta seção descreve cada nó do diagrama da Figura 1, os artefatos de software
-que ele hospeda, e como se conecta aos nós vizinhos.
+### 3.1 Clientes e fontes externas
 
-### 3.1 Fonte e carga inicial
+&emsp; **Aplicação cliente ou simulador de eventos** envia eventos de sessão à rota
+`POST /v1/events`. **O simulador de CDC**, executado em ECS Fargate, envia mudanças à
+rota `POST /v1/changes`. Os dois caminhos usam HTTPS até o API Gateway.
 
-&emsp; **Amazon S3, bucket `origem/`** (`s3_origem.tf`) é o nó de armazenamento
-imutável e versionado da fonte de dados: o dump `argus_dump.sql.gz` e o Parquet
-derivado (33 arquivos, um por tabela do Argus, gerados por `tools/etl_dump.py`). É a
-partir dele que a carga inicial acontece.
+&emsp; **Navegador do usuário** acessa o site estático pelo endpoint de website do S3
+e consulta os dados pela API de leitura. O endpoint de website do S3 usa **HTTP** na
+configuração atual; a API Gateway usa HTTPS. CloudFront ainda não foi provisionado.
 
-&emsp; **Amazon ECS Fargate, task `loader`** (`ecs_loader.tf`, one-shot, não é um
-serviço de longa duração) lê o Parquet do bucket `origem/` e faz `COPY` em lote direto
-para a corrente de bronze no RDS, sem passar pela API de ingestão: é um caminho de
-carga separado do fluxo de change events, usado uma única vez por ambiente. O loader
-valida o total de linhas carregado contra o `_manifest.json` do Parquet e falha alto em
-caso de divergência.
+### 3.2 Armazenamento de origem e carga inicial
 
-### 3.2 Simulação de produção
+&emsp; O **bucket S3 `origem`** (`s3_origem.tf`) armazena o dump e os 33 arquivos
+Parquet usados na carga inicial. O bucket é versionado e funciona como fonte
+imutável e recuperável do processo de bootstrap.
 
-&emsp; **Amazon ECS Fargate, serviço `simulator`** (`ecs_simulator.tf`) resolve a
-ausência de acesso real ao Argus de produção: ele lê a janela de bronze/silver à frente
-do relógio virtual (`sim.clock`), aplica um injetor de falhas com seed fixa
-(reprodutibilidade), e emite os change events resultantes (`op`/`before`/`after`/`lsn`)
-via HTTPS para a API de ingestão. É esse serviço que faz o papel do CDC que, em
-produção real, viria de fora.
+&emsp; A task Fargate **`loader`** (`ecs_loader.tf`) é executada sob demanda. Ela lê os
+Parquet por `S3 GetObject`, usa `COPY FROM STDIN` pelo driver `psycopg` e valida as
+contagens contra `_manifest.json`. Não é um serviço contínuo e não passa pelas filas
+de ingestão.
 
-### 3.3 Ingestão
+### 3.3 Borda de ingestão e filas
 
-&emsp; **Amazon API Gateway (HTTP API) `events`** (`apigateway.tf` mais
-`apigateway_changes.tf`) expõe duas rotas, `POST /v1/changes` e `POST /v1/events`, cada
-uma integrada diretamente a uma fila SQS via `AWS_PROXY`/`SQS SendMessage`, sem Lambda
-no meio. **Amazon SQS** hospeda as duas filas (`changes` e `events`), cada uma com sua
-própria dead letter queue (DLQ, fila de mensagens que falharam repetidamente),
-redirecionando a mensagem após 5 tentativas de entrega.
+&emsp; O **API Gateway de ingestão** é uma HTTP API com duas rotas. Cada rota possui
+integração direta `SQS-SendMessage`, sem Lambda intermediária:
 
-&emsp; **Amazon ECS Fargate, serviço `merge_worker`** consome a fila `changes` por
-long polling, grava em `bronze.change_log` (append-only) e aplica o `MERGE` por `lsn`
-na corrente de bronze, só aplicando a mudança se o `lsn` recebido for maior que o
-corrente, o que torna o consumo idempotente e tolerante a reentrega do SQS. **Amazon
-ECS Fargate, serviço `event_worker`** é o segundo consumidor, com a mesma estrutura,
-lendo a fila `events` e escrevendo em `bronze.event` (o grain de sessão).
+- `POST /v1/changes` → fila `changes`;
+- `POST /v1/events` → fila `events`.
 
-### 3.4 Persistência em Amazon RDS PostgreSQL
+&emsp; Cada fila possui sua própria **dead-letter queue (DLQ)** e redrive após cinco
+tentativas. A separação impede que uma rajada de CDC bloqueie eventos de sessão e
+permite observar backlog e falhas de cada fluxo de forma independente.
 
-&emsp; O nó central do diagrama é a instância **Amazon RDS PostgreSQL 16**
-(`db.t3.medium`, 100 GB gp3, `rds.tf`), que hospeda o desenho medallion inteiro dentro
-do próprio banco, em vez de espalhar as camadas por serviços gerenciados diferentes:
+### 3.4 Execução na VPC
 
-- **`sim`**: o relógio virtual (`sim.clock`) e a configuração de falhas (`sim.fault`,
-  `sim.run`), consultáveis por qualquer processo via `sim.now()`.
-- **`bronze`**: `change_log` (append-only, chave `lsn` mais `captured_at`, `jsonb`
-  genérico) e a corrente tipada das 33 tabelas do Argus mais `bronze.event`.
-- **`silver`**: canonicalização de tipo e tempo sobre a bronze, com a coluna
-  `available_at` (padrão bitemporal, que separa quando o dado ocorreu de quando ficou
-  visível).
-- **`gold`**: `feature_bucket`, `circadian_state`, `incident_window`,
-  `detection_match`, `live_event_window`, as tabelas que o dashboard de fato lê.
-- **`detect`**: saída do detector de anomalias, por `run_id`.
-- **`etl`**: `watermark_bronze_silver`, `watermark_silver_gold` e `execucoes`, o
-  controle do ETL incremental (seção 7).
-- **views `v_*`**: o recorte que todas as leituras usam, filtrando por
-  `available_at <= sim.now()` para nunca vazar "futuro" do replay.
+&emsp; O cluster **Amazon ECS Fargate** executa quatro serviços e duas tasks
+avulsas:
 
-&emsp; O desenho completo de cada schema, com o DDL relevante, está na seção 5; o
-raciocínio que sustenta separar log e corrente está na seção 4.
+| Componente | Tipo | Responsabilidade |
+|---|---|---|
+| `merge_worker` | serviço | Consome `changes`, grava `bronze.change_log` e aplica o estado corrente por LSN |
+| `event_worker` | serviço | Consome `events`, valida o contrato e grava `bronze.event` |
+| `simulator` | serviço | Controla o relógio virtual e reproduz as mudanças históricas |
+| `processing` | serviço | Executa ETL, checkpoints, qualidade, detecção e hipóteses |
+| `loader` | task avulsa | Realiza a carga inicial das 33 tabelas por Parquet |
+| `migration` | task avulsa | Aplica migrations dentro da VPC quando o RDS não é público |
 
-### 3.5 Processamento
+&emsp; `merge_worker`, `event_worker`, `simulator`, `processing`, `loader`,
+`migration` e a Lambda de leitura usam o security group das tasks. Esse grupo não
+aceita conexões de entrada e possui saída HTTPS para serviços AWS e saída TCP 5432
+para o security group do RDS.
 
-&emsp; **Amazon ECS Fargate, serviço `processing`** roda, dentro do mesmo container,
-duas threads independentes que chamam as funções `etl.executar_bronze_silver()` (a
-cada 60 s) e `etl.executar_silver_gold()` (a cada 900 s) por `JDBC/SQL`, cada chamada
-sendo um ciclo atômico, com watermark e dado avançando no mesmo commit. O detector de
-anomalias (uma média móvel exponencialmente ponderada, EWMA, sensível ao ciclo
-circadiano do tráfego) e o canário de qualidade seguem no-op: a infraestrutura já está
-provisionada e observável, mas a lógica ainda não foi implementada. O desenho completo
-do ETL incremental está na seção 7.
+### 3.5 Persistência e processamento
+
+&emsp; O nó central é o **Amazon RDS PostgreSQL 16**, dimensionado por padrão como
+`db.t3.medium` com 100 GB gp3. A instância recebe as seguintes camadas lógicas:
+
+| Schema | Responsabilidade |
+|---|---|
+| `sim` | Relógio virtual, execuções e falhas simuladas |
+| `bronze` | Log append-only, estado corrente das 33 tabelas e eventos de sessão |
+| `silver` | Canonicalização temporal e versões imutáveis dos fatos de análise |
+| `gold` | Features, qualidade, hipóteses, evidências e views de leitura |
+| `etl` | Watermarks, execuções e checkpoints publicados |
+| `detect` | Runs, claims, cursor, baseline, anomalias e coordenação da análise |
+
+&emsp; As migrations `001` a `023` constroem esse contrato no estado de referência
+de `develop`. O serviço `processing` executa três atividades concorrentes no mesmo
+container:
+
+1. Bronze → Silver e materialização dos fatos de análise;
+2. Silver → Gold e publicação de checkpoints;
+3. canário de qualidade, detector EWMA, regras, pontuação e persistência de
+   hipóteses.
+
+&emsp; A coordenação da análise fica no PostgreSQL. Reivindicações de posse
+(*claims*), concessões temporárias (*leases*), sinais de vida (*heartbeats*), retomada
+(*takeover*) e tokens de exclusão (*fencing*) impedem duas réplicas de publicar o
+mesmo checkpoint e impedem um worker com concessão expirada de confirmar resultados.
+As conexões Python com o banco usam **PostgreSQL/TCP 5432, SQL por meio de `psycopg`
+e `psycopg_pool`** — não JDBC.
 
 ### 3.6 Consulta e apresentação
 
-&emsp; **AWS Lambda `read_api`** (`api_read.tf`) consulta as views `v_*` via
-`DATABASE_URL` e é exposta por um segundo **Amazon API Gateway (HTTP API) `read`**.
-**Amazon S3, bucket `frontend`** hospeda o dashboard Next.js como website estático
-(export puro, sem servidor). O navegador do usuário acessa o bucket diretamente por
-HTTPS para o dashboard e o API Gateway de leitura para os dados; não há CloudFront na
-frente de nenhum dos dois (ver pendência na seção 9).
+&emsp; O **API Gateway de leitura** invoca a função **Lambda `read_api`**, que executa
+Flask empacotado com `apig-wsgi`. A Lambda entra na VPC com o mesmo security group das
+tasks e consulta o RDS como `argus_api`. Esse usuário herda apenas o papel de leitura
+com `SELECT` nas views públicas; não possui acesso direto às tabelas-base.
+
+&emsp; O **bucket S3 `frontend`** publica o export estático do Next.js. O navegador
+baixa HTML, CSS e JavaScript pelo endpoint HTTP do website e faz chamadas HTTPS à API
+de leitura. Como não existe CloudFront, o dashboard não possui HTTPS próprio na
+configuração atual.
 
 ### 3.7 Operação, segurança e observabilidade
 
-&emsp; Transversal a todos os nós acima: **Amazon ECR** guarda as imagens de container
-de todas as tasks ECS (`loader`, `simulator`, `merge_worker`, `event_worker`,
-`processing`); **AWS IAM** define as roles e policies por serviço, com separação entre
-execution role e task role; **Amazon CloudWatch** concentra os log groups e um
-conjunto de alarmes de métrica (DLQ não vazia, backlog de fila, serviço fora do ar,
-5xx da API, CPU, armazenamento e conexões do RDS, `lag_sim` e heartbeat por fonte);
-**Amazon SNS** recebe os alarmes do CloudWatch e distribui por e-mail. O **Amazon
-EventBridge Scheduler** aparece no desenho original como o mecanismo que dispararia o
-processamento e o detector por agendamento, mas ainda não tem recurso Terraform
-aplicado: hoje o serviço `processing` roda como um serviço de longa duração com laços
-internos, não como uma execução agendada.
+&emsp; O **Amazon ECR** mantém quatro imagens: `worker`, `simulator`, `processing` e
+`loader`. Os dois workers compartilham a imagem `worker`, mas usam comandos distintos.
+O **IAM** separa execution role e task role quando a conta permite criar roles; no
+Learner Lab, a `LabRole` é reutilizada por limitação do ambiente.
+
+&emsp; O **CloudWatch** recebe logs e métricas de API Gateway, Lambda, ECS, SQS e RDS.
+Os alarmes cobrem DLQs, idade das filas, serviços abaixo do número desejado de tasks,
+erros das APIs, CPU, armazenamento e conexões do RDS, atraso do relógio virtual,
+fontes silenciosas e falhas ou backlog do motor de análise. O **SNS** distribui os
+alarmes quando há uma assinatura confirmada.
+
+&emsp; **CloudFront e EventBridge Scheduler são planejados, mas não estão
+provisionados.** O processamento atual usa laços internos de longa duração no serviço
+ECS; o diagrama representa o EventBridge apenas como evolução possível.
+
+### 3.8 Matriz de conexões
+
+| Origem | Destino | Comunicação | Finalidade |
+|---|---|---|---|
+| Simulador | API Gateway de ingestão | HTTPS `POST /v1/changes` | Publicar mudanças reproduzidas |
+| Aplicação cliente | API Gateway de ingestão | HTTPS `POST /v1/events` | Publicar eventos de sessão |
+| API Gateway | SQS | Integração AWS `SQS-SendMessage` | Enfileirar sem Lambda intermediária |
+| SQS `changes` | `merge_worker` | AWS SDK, long polling | Consumir mudanças |
+| SQS `events` | `event_worker` | AWS SDK, long polling | Consumir eventos |
+| S3 `origem` | `loader` | HTTPS `S3 GetObject` | Ler Parquet e manifesto |
+| Componentes Python | RDS | PostgreSQL/TCP 5432 via `psycopg` | Persistência, ETL e consulta |
+| Navegador | S3 `frontend` | HTTP `GET` | Baixar o dashboard estático |
+| Navegador | API Gateway de leitura | HTTPS `GET` | Consultar dados e hipóteses |
+| API Gateway de leitura | Lambda `read_api` | Invocação AWS | Executar a API Flask |
+| ECR | Tasks Fargate | HTTPS | Baixar imagens dos containers |
+| Serviços | CloudWatch/SNS | Logs, métricas e alarmes | Operação e notificação |
 
 ---
 
-## 4. O princípio que sustenta a arquitetura de camadas
+## 4. Justificativa da arquitetura e das tecnologias
 
-&emsp; A bronze precisa acomodar a Globo acrescentar uma coluna nova ao longo do
-tempo, sem que isso vire migração. Isso é resolvido pela separação entre log e
-corrente: o `bronze.change_log` guarda `jsonb` genérico, que absorve qualquer coluna
-nova sem DDL; a partir dele, um `MERGE` por `lsn` popula a corrente (tipada), que
-alimenta a silver, que alimenta a gold. Enquanto o log estiver íntegro, `TRUNCATE` em
-silver e gold seguido de replay reconstrói tudo. É isso que torna a iteração do ETL
-barata: mudar uma transformação não custa migração de dado, custa um rebuild.
+### 4.1 Estilo arquitetural e relação com microsserviços
 
-> **Requisito de projeto.** Nenhuma tabela de silver ou gold pode conter informação
-> que não seja derivável do `change_log`. Se precisar, ela vira uma coluna do log.
+&emsp; A solução adota uma **arquitetura distribuída, orientada a eventos e baseada
+em serviços**. Ingestão, simulação, carga, processamento, leitura e apresentação
+possuem unidades de execução separadas. As filas desacoplam produtores e consumidores
+no tempo, e cada serviço pode ser implantado ou interrompido sem interromper todos os
+demais.
 
-&emsp; Dois corolários importantes decorrem disso:
+&emsp; Apesar dessa separação, a solução **não implementa microsserviços estritos**.
+Os serviços compartilham uma instância PostgreSQL e um modelo de dados coordenado por
+migrations. Essa é uma decisão deliberada para o MVP e para o Learner Lab: evita custo
+operacional, duplicação de dados e transações distribuídas, enquanto preserva
+fronteiras claras de responsabilidade. Uma evolução para bancos independentes por
+serviço só se justificaria quando autonomia organizacional, escala ou isolamento de
+falhas compensassem essa complexidade.
 
-1. **As telas nunca consultam bronze.** Elas leem `gold.v_*`. Isso desacopla o
-   desempenho do dashboard do tamanho do `prom_point`, e é o que faz a classe da
-   instância RDS deixar de ser um bloqueio de projeto.
-2. **A bronze corrente é tipada, com escape.** Cada tabela tem as colunas conhecidas
-   tipadas mais um `_extra jsonb`. Coluna nova cai no `_extra` sem DDL, e vira promoção
-   explícita a coluna real quando estabilizar. É o desenho que dá plano de execução
-   bom para as telas ao vivo e custo zero para absorver mudança de schema.
+### 4.2 PostgreSQL em vez de DynamoDB
+
+&emsp; O DynamoDB atendia ao MVP quando a aplicação controlava o formato dos eventos.
+O CDC de 33 tabelas heterogêneas exige joins, constraints, SQL analítico, transações e
+reconstrução das camadas. O PostgreSQL também permite manter o log genérico em
+`jsonb`, o estado corrente tipado e as views temporais no mesmo mecanismo de
+consistência.
+
+### 4.3 API Gateway integrado diretamente ao SQS
+
+&emsp; As rotas de entrada não executam regra de negócio na borda. Por isso, integrar
+o API Gateway diretamente ao SQS elimina uma Lambda intermediária, reduz custo e
+remove um ponto de falha sem perder comportamento necessário. A validação e a
+idempotência permanecem nos workers consumidores.
+
+### 4.4 Duas filas e dois workers
+
+&emsp; Mudanças de tabelas e eventos de sessão possuem contratos, volumes e destinos
+diferentes. Filas e consumidores separados evitam bloqueio entre fluxos, produzem
+métricas independentes e permitem evolução ou escalabilidade horizontal por serviço.
+O custo é a duplicação de alguns recursos SQS e ECS, aceitável diante do isolamento
+obtido.
+
+### 4.5 Lambda para leitura e Fargate para processamento contínuo
+
+&emsp; A API de leitura é intermitente e adequada ao modelo sob demanda da Lambda. Os
+workers usam consulta longa (*long polling*), pools de conexão e laços contínuos; por
+isso, Fargate oferece um ciclo de vida mais previsível. O Terraform atual usa
+`desired_count` fixo e **não configura Application Auto Scaling**. O Fargate permite
+adicionar escalabilidade horizontal posteriormente, mas essa capacidade não deve ser
+descrita como já implementada.
+
+### 4.6 Processamento determinístico no mesmo serviço
+
+&emsp; ETL, checkpoints e análise são threads diferentes dentro do serviço
+`processing`. A consistência não depende de memória compartilhada: transações,
+watermarks, claims, leases e fencing residem no PostgreSQL. Essa escolha reutiliza uma
+task definition e um conjunto de alarmes, sem criar filas ou serviços adicionais para
+atividades cuja coordenação já é transacional.
+
+### 4.7 Adaptações de rede ao Learner Lab
+
+&emsp; A variável `db_publicly_accessible` possui valor padrão `false`. O arquivo de
+exemplo do Learner Lab altera explicitamente o valor para `true` e restringe o acesso
+ao CIDR informado em `db_allowed_cidr`; `0.0.0.0/0` é recusado pela validação. Da mesma
+forma, `assign_public_ip = true` evita o NAT Gateway, mas o security group das tasks
+continua sem regras de entrada. Essas concessões são próprias do laboratório e não
+representam a postura recomendada para produção.
+
+### 4.8 Limitação do website S3
+
+&emsp; O site estático em S3 reduz custo e permanece disponível quando os serviços do
+laboratório são pausados. A contrapartida é o endpoint HTTP, sem certificado e sem
+autenticação na borda. CloudFront com HTTPS, política de cache e controle de acesso é
+uma melhoria planejada para um ambiente produtivo.
 
 ---
 
-## 5. Schemas do banco
+## 5. Plano detalhado de implantação na AWS
 
-&emsp; As migrations vivem em `apps/basica/db/migrations/`, aplicadas por
-`tools/migrate.py` (um runner mínimo com `psycopg`, com controle em
-`public.schema_migrations`). O Terraform não cria schema: provisiona a instância e
-para aí. Separar as duas coisas é o que permite iterar o DDL sem `terraform apply`.
+### 5.1 Pré-requisitos e segurança do estado
 
-```
-001_schemas_e_extensoes.sql
-002_sim_relogio_e_falhas.sql
-003_bronze_change_log.sql
-004_bronze_corrente_argus.sql      (33 tabelas, geradas)
-005_bronze_event.sql               (grain de sessão)
-006_silver.sql
-007_gold.sql
-008_detect.sql
-009_views_v.sql
-010_merge_e_etl.sql                (funções de MERGE e de build das camadas)
-011_poda_de_particao_nas_views.sql (ensina o planner a ignorar o futuro)
-012_indice_de_observabilidade.sql  (lag_sim sem varrer o change_log)
-013_relogio_pausavel.sql           (run pausado congela sim.now())
-014_catalogo_de_fontes.sql         (/sources sem agregar 4,9 milhões de buckets)
-015_etl_incremental.sql            (watermarks e os dois workers de ETL)
-```
+1. Configurar AWS CLI, Docker, Terraform, Python 3.12, `uv`, Node.js 20 e `make`.
+2. Confirmar a conta e a sessão com `aws sts get-caller-identity` e uma chamada com
+   permissão real, como `aws ec2 describe-vpcs`.
+3. Definir `AWS_PROFILE` e `AWS_REGION=us-east-1` antes de executar Terraform.
+4. Copiar `terraform.tfvars.example` para `terraform.tfvars` e preencher role,
+   senhas e CIDR; o arquivo não deve ser versionado.
+5. Preferir backend remoto para o `terraform.tfstate` e revisar o account ID antes de
+   cada aplicação em uma nova sessão do Learner Lab.
 
-&emsp; As migrations `010` a `015` apareceram na implementação e na validação contra a
-carga real, não no planejamento original. O `MERGE` do change log e o `build_*` de
-cada camada precisavam existir como função no banco, e não como SQL montado em Python,
-por duas razões: o loader e o merge worker aplicam a mesma regra de idempotência (só
-sobrescreve quando o `_lsn` que chega é maior que o corrente), e duas cópias dela
-divergiriam; além disso, `gold.rebuild_tudo()` precisa ser chamável de um `psql`
-avulso, sem subir aplicação nenhuma. As migrations `011` e `012` corrigem planos de
-execução medidos já com 68,7 milhões de linhas; a `013` torna a pausa do run e do
-relógio atômica; a `014` substitui a agregação de 47,4 s de `/sources` por um catálogo
-derivado pequeno; e a `015` implementa a ETL incremental por watermark que a seção 7
-documenta. Até ali, o único caminho para popular silver/gold era
-`gold.rebuild_tudo()`, que varre as tabelas de origem inteiras a cada chamada.
+&emsp; O state **não deve ser apagado ou “resetado” enquanto ainda representar
+recursos existentes**. Se o Learner Lab fornecer outra conta, primeiro deve-se
+confirmar a mudança do account ID, preservar uma cópia do state anterior e iniciar um
+backend, chave ou workspace correspondente à nova conta. Descartar o state sem essa
+verificação pode duplicar recursos e retirar seu gerenciamento do Terraform.
 
-### 5.1 `sim`, o relógio virtual
+### 5.2 Recursos provisionados
 
-&emsp; Define "o presente" para todo o resto do sistema, numa linha só, travada por
-`CHECK`.
+| Recurso AWS | Finalidade | Arquivo Terraform principal |
+|---|---|---|
+| API Gateway HTTP API | Ingestão e leitura | `apigateway*.tf`, `api_read.tf` |
+| SQS + DLQs | Buffer e redrive dos dois fluxos | `sqs.tf`, `sqs_changes.tf` |
+| ECS Fargate | Workers, simulador, processamento, loader e migration | `ecs*.tf` |
+| ECR | Quatro imagens de container | `ecr.tf` |
+| RDS PostgreSQL 16 | Persistência transacional e analítica | `rds.tf` |
+| S3 `origem` | Dump, Parquet e manifesto | `s3_origem.tf` |
+| S3 `frontend` | Website estático | `frontend_s3.tf` |
+| Lambda | API de leitura Flask | `api_read.tf` |
+| IAM | Roles e policies | `iam.tf` |
+| CloudWatch + SNS | Logs, métricas, alarmes e notificações | `observability.tf` |
 
-```sql
-CREATE TABLE sim.clock (
-  id          smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-  sim_now     timestamptz NOT NULL,
-  speed       numeric     NOT NULL DEFAULT 1.0,  -- 1.0 = tempo real; 60 = 1 min/s
-  anchor_wall timestamptz NOT NULL,              -- relógio de parede no último set
-  updated_at  timestamptz NOT NULL DEFAULT now()
-);
+### 5.3 Ordem de implantação
 
--- Deriva o instante virtual do relógio de parede: não precisa de tick.
-CREATE FUNCTION sim.now() RETURNS timestamptz LANGUAGE sql STABLE AS $$
-  SELECT sim_now + (now() - anchor_wall) * speed FROM sim.clock WHERE id = 1;
-$$;
+#### Passo 1 — preparar e validar os artefatos
 
-CREATE TABLE sim.run (
-  run_id     bigserial PRIMARY KEY,
-  seed       bigint      NOT NULL,   -- injeção de falhas determinística
-  t0         timestamptz NOT NULL,
-  t1         timestamptz NOT NULL,
-  speed      numeric     NOT NULL,
-  status     text        NOT NULL,   -- pending | running | paused | done
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE sim.fault (
-  fault_id bigserial PRIMARY KEY,
-  run_id   bigint REFERENCES sim.run,
-  kind     text  NOT NULL,   -- error_spike | latency | source_outage | ...
-  target   jsonb NOT NULL,   -- {source, entity, metric} ou {device_model, uf}
-  ts_start timestamptz NOT NULL,
-  ts_end   timestamptz NOT NULL,
-  params   jsonb NOT NULL DEFAULT '{}'
-);
+```bash
+make -C apps/basica install
+make -C apps/basica lambda-build
+make -C apps/basica lint
 ```
 
-&emsp; `sim.now()` é `STABLE`, não `IMMUTABLE`: o planner pode avaliá-la uma vez por
-statement, mas não pode cachear o resultado entre statements. Marcar como `IMMUTABLE`
-congelaria o relógio dentro de uma view. A `seed` em `sim.run` é o que torna a
-injeção de falhas reprodutível: duas execuções com a mesma seed produzem a mesma
-sequência de falhas, o que permite comparar dois detectores sobre exatamente o mesmo
-cenário.
+&emsp; O pacote da Lambda precisa existir antes do `terraform plan`. O lint valida
+Python e formatação/estrutura do Terraform antes de qualquer alteração na AWS.
 
-### 5.2 `bronze.change_log`, o log append-only
+#### Passo 2 — criar a infraestrutura com os serviços desligados
 
-&emsp; Genérico de propósito: cobre as 33 tabelas com schemas diferentes e absorve
-coluna nova sem DDL.
-
-```sql
-CREATE TABLE bronze.change_log (
-  lsn          bigserial   NOT NULL,
-  source_table text        NOT NULL,
-  op           char(1)     NOT NULL CHECK (op IN ('i','u','d','r')),  -- r = snapshot
-  pk           jsonb       NOT NULL,
-  before       jsonb,
-  after        jsonb,
-  captured_at  timestamptz NOT NULL,   -- quando a origem observou a mudança
-  received_at  timestamptz NOT NULL DEFAULT now(),
-  run_id       bigint,
-  PRIMARY KEY (lsn)
-) PARTITION BY RANGE (lsn);
+```bash
+cd apps/basica/infra
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform validate
+terraform plan \
+  -var="worker_desired_count=0" \
+  -var="processing_desired_count=0" \
+  -var="simulator_desired_count=0"
+terraform apply \
+  -var="worker_desired_count=0" \
+  -var="processing_desired_count=0" \
+  -var="simulator_desired_count=0"
 ```
 
-&emsp; Partições de 10 milhões em `lsn`, mais uma `DEFAULT`. Índice em
-`(source_table, lsn)` para o replay por tabela. Não há índice em `after`: o log é
-escrito e relido em ordem, nunca consultado ad-hoc, então indexar `jsonb` aqui custaria
-escrita sem comprar leitura. A distinção entre `captured_at` e `received_at` é o que
-permite medir o `lag_sim`: quanto tempo virtual o pipeline está atrasado em relação à
-origem.
+&emsp; Esse passo cria VPC bindings, security groups, RDS, buckets, filas, APIs,
+cluster ECS, repositórios ECR, Lambda, alarmes e task definitions sem iniciar
+containers cujas imagens ainda não foram publicadas.
 
-### 5.3 `bronze` corrente, as 33 tabelas do Argus
+#### Passo 3 — construir e publicar as imagens no ECR
 
-&emsp; Geradas a partir de `data/parquet/_schema.json`, que já tem coluna e tipo das
-33 tabelas. Um gerador (`tools/gen_ddl.py`) monta o DDL em vez de escrever as 33 à
-mão, reaproveitando o mapa MySQL para Arrow que já existe em `tools/etl_dump.py`
-(`ARROW_TYPE`), já que MySQL para PostgreSQL é o mesmo exercício.
-
-&emsp; O padrão, com `signal_bucket` de exemplo:
-
-```sql
-CREATE TABLE bronze.signal_bucket (
-  bts          bigint  NOT NULL,
-  source       text    NOT NULL,
-  entity       text    NOT NULL,
-  metric       text    NOT NULL,
-  value        double precision,
-  _extra       jsonb   NOT NULL DEFAULT '{}',  -- coluna nova cai aqui, sem DDL
-  _lsn         bigint  NOT NULL,
-  _op          char(1) NOT NULL,
-  _captured_at timestamptz NOT NULL,
-  PRIMARY KEY (bts, source, entity, metric)
-);
+```bash
+cd ../../..
+make -C apps/basica push
 ```
 
-&emsp; A chave primária é a identidade natural documentada no dataset, o que torna o
-`MERGE` idempotente sem precisar de coluna de controle extra.
+&emsp; O comando publica `worker`, `simulator`, `processing` e `loader`. Em versões
+subsequentes, a tag deve identificar o commit para permitir auditoria e rollback.
 
-&emsp; **Atenção ao nome da coluna de tempo.** Não existe um `ts` universal: cada
-tabela herdou o nome da sua fonte (`ts`, `bts`, `hour_ts`, `bucket_ts`,
-`bucket_ts_ms`, `epoch_ms`, `ts_ms`, `timestamp`, `start_ts`, `start_time_ms`,
-`opened_at`, `ts_start`). O gerador lê isso do `_schema.json`; nada no código pode
-assumir `ts`.
+#### Passo 4 — aplicar as migrations e criar o usuário de leitura
 
-&emsp; **Particionadas por RANGE** (`bigint` epoch_ms, diária, com partição
-`DEFAULT`):
+&emsp; No Learner Lab, com o RDS público restrito ao CIDR do desenvolvedor:
 
-| Tabela | Linhas |
+```bash
+make -C apps/basica db-url
+# exportar DATABASE_URL conforme a saída anterior
+make -C apps/basica migrate
+DB_READER_PASSWORD='<senha do terraform.tfvars>' make -C apps/basica db-reader
+```
+
+&emsp; Com RDS privado, as migrations podem ser executadas pela task `migration`
+dentro da VPC:
+
+```bash
+cd apps/basica/infra
+terraform output -raw migration_run_command | bash
+```
+
+&emsp; As migrations são aplicadas somente depois que o RDS e a imagem
+`processing` existem. Esse ordenamento corrige a dependência que estava invertida na
+versão anterior do documento.
+
+#### Passo 5 — executar a carga inicial
+
+```bash
+make -C apps/basica origem-sync
+make -C apps/basica load
+```
+
+&emsp; A task `loader` lê os 33 Parquet, usa `COPY FROM STDIN`, executa `ANALYZE` e
+compara as contagens com `_manifest.json`. O simulador deve permanecer desligado até
+a conclusão dessa etapa.
+
+#### Passo 6 — ativar os serviços
+
+```bash
+cd apps/basica/infra
+terraform apply
+cd ../../..
+make -C apps/basica sim-on
+```
+
+&emsp; O primeiro `apply` ativa os workers e o processamento conforme os valores do
+`terraform.tfvars`. O simulador é ligado separadamente após a carga para não tentar
+reproduzir mudanças sobre tabelas vazias.
+
+#### Passo 7 — publicar o dashboard
+
+```bash
+make -C apps/basica env
+make -C apps/basica frontend-install
+make -C apps/basica frontend-deploy
+```
+
+&emsp; A URL da API é incorporada ao build do Next.js. A saída de
+`frontend-deploy` informa o endpoint HTTP público do website S3.
+
+### 5.4 Verificação pós-implantação
+
+```bash
+make -C apps/basica smoke
+make -C apps/basica postman
+make -C apps/basica count
+make -C apps/basica dlq
+make -C apps/basica logs SERVICO=processing
+```
+
+&emsp; Além dos comandos, devem ser verificados:
+
+- migrations `001` a `023` registradas como aplicadas;
+- 33 tabelas carregadas com contagens iguais ao `_manifest.json`;
+- mensagem sintética chegando à bronze e atravessando o ETL;
+- publicação de checkpoint Gold e conclusão de um run de análise;
+- views ocultando linhas com `available_at > sim.now()`;
+- Lambda consultando somente como usuário de leitura;
+- DLQs vazias, serviços estáveis e alarmes sem falha ativa;
+- dashboard acessível por HTTP e chamadas da API respondendo por HTTPS.
+
+### 5.5 Rollback e recuperação
+
+- Os serviços ECS usam *deployment circuit breaker* com reversão da task definition.
+- Imagens devem usar tags imutáveis por commit para permitir retorno à versão
+  anterior.
+- Migrations são progressivas; antes de mudanças destrutivas deve ser criado um
+  snapshot do RDS e preparado um plano de correção *forward-only*.
+- `terraform plan` deve ser revisado antes de todo apply. Destruições inesperadas
+  bloqueiam a implantação.
+- Em laboratório, `make pause` reduz os serviços a zero sem apagar o RDS. O comando
+  de destruição remove banco, filas e buckets e não faz parte do fluxo normal de
+  rollback.
+
+---
+
+## 6. Riscos e limitações conhecidas
+
+| Risco ou limitação | Situação e mitigação |
 |---|---|
-| `prom_point` | 41.191.820 |
-| `signal_point` | 18.218.743 |
-| `signal_bucket` | 4.936.530 |
-| `ca_point` | 1.399.048 |
-| `device_hourly` | 933.436 |
-| `operation_metrics` | 788.556 |
-
-&emsp; As outras 27 são pequenas o bastante para tabela simples.
-
-> **Nulos conhecidos.** Em `rpaas_bucket`, as colunas `p50_ms`, `p90_ms`, `p95_ms`,
-> `p99_ms` e `latency_samples` vêm 100% nulas nas 52.560 linhas, o que apaga o sinal
-> que separaria "borda lenta" de "borda falhando". As colunas foram mantidas e o fato
-> registrado em `COMMENT ON COLUMN`, para que ninguém redescubra isso na análise.
-
-### 5.4 `bronze.event`, o grain de sessão
-
-&emsp; O segundo fluxo de ingestão. Envelope comum tipado (é por ele que as telas
-Explorar e Recorte filtram), com campos específicos do tipo em `payload`.
-
-```sql
-CREATE TABLE bronze.event (
-  event_id            text        NOT NULL,
-  ts                  timestamptz NOT NULL,
-  event_name          text        NOT NULL,  -- request | screen_view | session
-                                             -- video_view | vitals | error
-  session_id          text        NOT NULL,
-  device_id           text,
-  user_id             text,
-  app_bucket          text,
-  app_env             text,
-  app_target          text,
-  app_version         text,
-  device_manufacturer text,
-  device_model        text,
-  device_model_year   integer,
-  device_os           text,
-  device_os_version   text,
-  route_path          text,
-  route_params        jsonb,
-  duration            double precision,
-  payload             jsonb NOT NULL DEFAULT '{}',  -- request_*, media_*,
-                                                    -- error_*, capabilities_*
-  _lsn                bigint NOT NULL,
-  _captured_at        timestamptz NOT NULL,
-  PRIMARY KEY (ts, event_id)
-) PARTITION BY RANGE (ts);
-```
-
-&emsp; O envelope sai do schema real dos exports do BI e dos modelos Pydantic que já
-existem em `apps/basica/worker/src/argus_worker/models.py`. Reusar `EVENT_TYPES` e o
-fallback `GenericEvent`, que já resolve `event_name` desconhecido, é o mecanismo que
-sustenta o requisito de suportar o parque de TVs que atualiza devagar: schema estrito
-viraria perda de dado em massa. `tools/events_csv_to_json.py` faz a ponte de CSV para
-JSON, incluindo a correção de timezone (o BI renderiza em BRT sem indicar) e o typo
-`Dobly` para `Dolby` do fornecedor.
-
-> **Item em aberto, não bloqueante.** As telas Explorar e Recorte filtram por UF e
-> ISP, e o schema dos seis eventos não tem nenhum dos dois; o `request` carrega apenas
-> `x-country-code: BR`. Ou o outro fluxo do Argus traz esses campos, ou vira
-> enriquecimento na silver. Fica para resolver com o parceiro quando o fluxo for
-> especificado; o `payload jsonb` acomoda os campos sem migração quando aparecerem.
-
-### 5.5 `silver`, canonicalização e `available_at`
-
-&emsp; Sem renormalização (decisão 6 da seção 1.1): `signal_point` e `signal_bucket`
-chegam prontos da origem e são consumidos como vêm; o `build_signal_db.py` original não
-é reimplementado. O que a silver faz é quatro coisas:
-
-1. Converte `bigint` epoch_ms para `timestamptz`. Todo timestamp do dataset é
-   milissegundo UTC, não segundo, não ISO, não horário de Brasília.
-2. Converte as exceções em texto ISO-8601 para `timestamptz`: `signal_meta.
-   last_run_at`, `cdn_entity_tier.updated_at`, `investigation_feedback.
-   investigated_at` e as colunas das tabelas `*_run` legadas.
-3. Converte `tags text` para `jsonb`, tolerando falha de parse: é JSON na maioria das
-   fontes, mas a string literal `"live"` aparece em `youbora_player_live`, e `NULL`
-   em várias outras.
-4. Carimba `available_at`, o que faz o replay ser honesto.
-
-```sql
-CREATE TABLE silver.source_latency (
-  source    text PRIMARY KEY,
-  latency   interval NOT NULL,
-  rationale text
-);
--- youbora_* / npaw : 28h    latência estrutural do batch BigQuery
--- newrelic         : 5min ou 1h, granularidade mista
--- prometheus       : 1min
--- default          : 0
-
-CREATE TABLE silver.signal_point (
-  ts           timestamptz NOT NULL,
-  source       text NOT NULL,
-  entity       text NOT NULL,
-  metric       text NOT NULL,
-  value        double precision,
-  tags         jsonb,
-  available_at timestamptz NOT NULL,   -- ts + source_latency
-  _lsn         bigint NOT NULL,
-  PRIMARY KEY (ts, source, entity, metric)
-) PARTITION BY RANGE (ts);
-
-CREATE TABLE silver.session_event ( ... );  -- mesmo tratamento sobre bronze.event
-```
-
-&emsp; `available_at` é o que impede vazamento de futuro: uma métrica NPAW das 21 h só
-fica visível à 01 h do dia seguinte, exatamente como em produção. Sem isso, qualquer
-detector "acerta" usando dado que ele não teria em tempo real, e o resultado da
-avaliação vira ficção.
-
-### 5.6 `gold`, features e janelas
-
-```sql
-CREATE TABLE gold.feature_bucket (
-  bucket_ts    timestamptz NOT NULL,   -- 15 min, alinhado ao signal_bucket
-  source       text NOT NULL,
-  entity       text NOT NULL,
-  metric       text NOT NULL,
-  value        double precision,
-  hora_brt     smallint NOT NULL,      -- para modelar o ciclo circadiano
-  dow          smallint NOT NULL,      -- para modelar o ciclo semanal
-  tem_jogo     boolean  NOT NULL DEFAULT false,   -- feature exógena
-  available_at timestamptz NOT NULL,
-  PRIMARY KEY (bucket_ts, source, entity, metric)
-) PARTITION BY RANGE (bucket_ts);
-
-CREATE TABLE gold.circadian_state (    -- estado EWMA do baseline, estritamente causal
-  series_key text NOT NULL,
-  hora_brt   smallint NOT NULL,
-  mean       double precision,
-  var        double precision,
-  n          integer,
-  updated_at timestamptz NOT NULL,
-  PRIMARY KEY (series_key, hora_brt)
-);
-
-CREATE TABLE gold.live_event_window (  -- calendário de transmissões ao vivo
-  event_key   text NOT NULL,           -- identidade do confronto, estável entre feeds
-  tid         integer NOT NULL,
-  ts_start    timestamptz NOT NULL,
-  ts_end      timestamptz NOT NULL,
-  slug        text,
-  channel     text,
-  competition text,
-  sport       text,
-  team_home   text,
-  team_away   text,
-  event_date  date NOT NULL,           -- dia de programação em BRT
-  first_seen  timestamptz,
-  PRIMARY KEY (tid, ts_start)
-);
-
-CREATE TABLE gold.incident_window (
-  window_id  bigserial PRIMARY KEY,
-  ts_start   timestamptz NOT NULL,
-  ts_end     timestamptz NOT NULL,
-  origem     text NOT NULL,            -- incidents | incident_label | detector
-  ref_id     text,
-  verdict    text,                     -- internal | external | mixed
-  severity   text,
-  provenance text
-);
-
-CREATE TABLE gold.detection_match (
-  window_id    bigint REFERENCES gold.incident_window,
-  run_id       bigint,
-  detection_id bigint,
-  lead_time_s  integer,                -- negativo = detectou antes do ticket
-  matched      boolean NOT NULL,
-  PRIMARY KEY (window_id, run_id, detection_id)
-);
-```
-
-&emsp; `gold.source_series` é um catálogo derivado de `feature_bucket`, com uma linha
-por `(source, entity, metric)` e o primeiro `available_at`. Ele existe porque listar
-fontes com dois `count(DISTINCT ...)` sobre os 4,9 milhões de buckets levou 47,4 s no
-RDS do Learner Lab (o ambiente de treinamento da AWS Academy usado pelo grupo, cuja
-conta é temporária e reseta a cada nova sessão), acima do timeout de 30 s da API. A
-view `gold.v_source_series` preserva o corte do relógio virtual; o catálogo é
-reconstruído junto de `gold.rebuild_tudo()` e não cria uma segunda fonte de verdade.
-
-&emsp; **`gold.live_event_window` tem duas armadilhas no ETL.** Primeira: `tid` 994 e
-995 não são o mesmo canal em horários diferentes, são feeds simultâneos com jogos
-diferentes, porque a Globo transmite partidas distintas em praças distintas no mesmo
-horário. Agrupar por `start_ts` funde dois jogos num só; agrupar por `event_key` é o
-correto. Segunda: popular `tem_jogo` com `EXISTS`, nunca com `JOIN`, porque o join
-duplica o bucket justamente por causa dos dois feeds. E `slug` chega sempre como
-`globo` (a família), enquanto a QoE vem por praça (`globo-rj`, `globo-sp`), então o
-casamento é `LIKE 'globo%'`, tratado como agregado nacional, não como praça
-específica.
-
-&emsp; **`gold.incident_window` carrega `provenance` de propósito.** Sete dos vinte
-rótulos de `incident_label` são `detector-derived`, criados olhando a saída do próprio
-Argus. Avaliar um detector novo contra eles mede concordância com o baseline, não
-acurácia: um modelo que encontre incidentes reais que o Argus perdeu seria penalizado.
-A coluna existe para que a filtragem seja obrigatória e visível no schema, não uma
-lembrança de quem escreve a query.
-
-### 5.7 `detect`, saída do detector, por `run_id`
-
-```sql
-CREATE TABLE detect.run (
-  run_id      bigserial PRIMARY KEY,
-  sim_run_id  bigint REFERENCES sim.run,
-  detector    text  NOT NULL,
-  params      jsonb NOT NULL,
-  started_at  timestamptz,
-  finished_at timestamptz
-);
-
-CREATE TABLE detect.anomaly (
-  run_id    bigint REFERENCES detect.run,
-  bucket_ts timestamptz NOT NULL,
-  source    text NOT NULL,
-  entity    text NOT NULL,
-  metric    text NOT NULL,
-  z         double precision,
-  score     double precision,
-  n_sources smallint,
-  PRIMARY KEY (run_id, bucket_ts, source, entity, metric)
-);
-```
-
-&emsp; Tabelas criadas desde já, sem lógica que as popule (decisão 7 da seção 1.1). O
-`run_id` entra desde já porque é o que permite rodar dois detectores sobre a mesma
-janela e comparar; retrofitar identificador de execução depois seria caro.
-
-### 5.8 As views `v_*`, o recorte do presente
-
-```sql
-CREATE VIEW gold.v_feature_bucket AS
-  SELECT * FROM gold.feature_bucket
-   WHERE available_at <= sim.now();
-```
-
-&emsp; Uma view por tabela consultável. É o único caminho de leitura da API: a Lambda
-não recebe permissão de `SELECT` nas tabelas base, então a barreira contra vazamento de
-futuro é do banco, imposta por `GRANT`, não da aplicação. A aplicação pode esquecer o
-filtro; o `GRANT` não.
+| Website S3 usa HTTP | CloudFront com HTTPS é evolução planejada |
+| RDS público no exemplo do Learner Lab | Acesso limitado ao CIDR; padrão da variável continua `false` |
+| Tasks em sub-redes públicas no laboratório | Security group sem ingress; produção deve preferir sub-redes privadas |
+| Estado local do Terraform | Preferir backend remoto; nunca descartar state sem validar conta e recursos |
+| Classe `db.t3.medium` indisponível no laboratório | Confirmar oferta antes do apply; avaliar `small` ou `micro` |
+| EventBridge não provisionado | O processamento roda em laços internos no ECS |
+| Escalabilidade automática não configurada | `desired_count` é fixo; escalabilidade horizontal é evolução futura |
+| Propagação de deletes para Silver/Gold | Validar e implementar política explícita antes de depender desse comportamento |
+| APIs sem autenticação completa | Restringir origens não substitui autenticação; adicionar authorizer em produção |
 
 ---
 
-## 6. Justificativa da arquitetura e das tecnologias
+## 7. Conclusão
 
-### 6.1 RDS PostgreSQL com camadas bronze, silver e gold, não DynamoDB single-table
+&emsp; A arquitetura atende ao objetivo de reproduzir dois fluxos assíncronos,
+preservar a história das mudanças, gerar camadas analíticas consistentes e expor
+resultados auditáveis ao dashboard. Os componentes implantáveis estão separados por
+responsabilidade, mas compartilham o PostgreSQL de forma deliberada para reduzir custo
+e complexidade no MVP. O plano de implantação respeita as dependências reais entre
+Terraform, ECR, migrations, carga inicial, serviços e frontend.
 
-&emsp; O DynamoDB single-table fazia sentido quando o sistema controlava o schema dos
-eventos que ele mesmo produzia. Consumindo CDC de 33 tabelas heterogêneas, com colunas
-que a Globo pode acrescentar a qualquer momento sem aviso, a exigência mudou: o
-armazenamento precisa acomodar mudança de schema sem migração. A separação entre
-`bronze.change_log` e a corrente tipada (seção 4) resolve isso, e sustenta uma garantia
-mais forte: nenhuma tabela de silver ou gold pode conter informação que não seja
-derivável do `change_log`. Essa propriedade não existe de graça em DynamoDB, e é o
-motivo direto de adotar um banco relacional com camadas explícitas em vez de manter o
-modelo single-table.
+&emsp; CloudFront, autenticação completa, sub-redes privadas e auto scaling permanecem
+como evoluções. Esses itens não devem ser apresentados como implementados no estado
+atual.
 
-### 6.2 Integração direta entre API Gateway e SQS, sem Lambda intermediária
+---
 
-&emsp; As rotas `POST /v1/changes` e `POST /v1/events` usam integração `AWS_PROXY`
-direto para SQS (`SQS SendMessage`), sem uma Lambda de recepção no meio. O simulador é
-o único emissor conhecido, e o contrato do payload já é o formato interno de change
-event: não há transformação nem validação de negócio a fazer na borda que justifique
-uma função adicional. Cada Lambda a mais nesse caminho seria custo e mais um ponto de
-falha sem ganho de comportamento, então a integração direta do API Gateway com o SQS
-foi preferida à alternativa mais comum (API Gateway, Lambda, SQS).
+## Apêndice A — Modelo de dados
 
-### 6.3 Dois workers, duas filas, sem duplicar a API
+&emsp; A bronze separa o `change_log` append-only do estado corrente tipado. Essa
+separação permite acomodar novas colunas no log sem migration imediata e reconstruir
+as camadas derivadas. A Silver canonicaliza tempo e mantém versões de fatos por LSN.
+A Gold materializa features, qualidade, hipóteses e evidências. Views públicas aplicam
+a barreira temporal `available_at <= sim.now()` e limitam o acesso da API.
 
-&emsp; A escolha de duas filas (`changes` e `events`) e dois serviços ECS consumidores
-(`merge_worker` e `event_worker`), em vez de uma fila única com um worker que decide o
-destino pelo conteúdo da mensagem, separa duas responsabilidades: mudança de estado da
-tabela de origem (`change_log` para corrente) e evento de sessão (`bronze.event`), em
-unidades de deploy e escala independentes, sem acoplar a lógica de roteamento a um
-único processo. O custo dessa escolha é infraestrutura duplicada (duas filas, dois
-serviços); o ganho é que cada worker pode escalar, falhar e ser reimplantado sem afetar
-o outro.
+&emsp; O conjunto inclui 33 tabelas de origem e aproximadamente 68,7 milhões de
+linhas. A tabela `prom_point` é mantida porque oferece a granularidade de um minuto
+necessária à timeline e às comparações; `signal_bucket`, com quinze minutos, não
+preserva sozinho a sequência temporal exigida pelas telas.
 
-### 6.4 ETL incremental como threads dentro de um único serviço ECS
+---
 
-&emsp; O ETL incremental roda como duas threads dentro do mesmo container
-`processing` já provisionado, em vez de dois serviços ECS novos. A atomicidade de cada
-ciclo mora no banco: cada chamada a `etl.executar_*()` é uma única transação SQL, com
-watermark e dado avançando juntos, então threads bastam para orquestrar a cadência, e
-evitam Terraform novo (task definition, log group, alarme de `RunningTaskCount`) para
-algo que não precisa de isolamento de processo. O desenho completo, incluindo a regra
-de guarda descoberta durante a implementação, está na seção 7.
+## Apêndice B — ETL, checkpoints e coordenação
 
-### 6.5 Lambda para leitura, ECS Fargate para os workers
+&emsp; O ETL Bronze → Silver avança por LSN. O ETL Silver → Gold avança por
+`available_at` com margem de segurança. Watermark, linhas produzidas e execução são
+confirmados na mesma transação.
 
-&emsp; A camada de leitura (`read_api`) roda em Lambda, enquanto ingestão,
-processamento e simulação rodam em ECS Fargate. A diferença de perfil de carga
-justifica a diferença de tecnologia: leitura de dashboard é intermitente e
-correlacionada ao uso humano, um encaixe natural para o modelo de invocação sob
-demanda da Lambda. Os workers de ingestão e o ETL, por outro lado, mantêm conexão de
-pool com o RDS e um ciclo de vida contínuo (long polling, laços com cadência fixa);
-cold start de Lambda e o limite de conexões simultâneas ao banco tornariam esse padrão
-caro e frágil em Lambda. Fargate também foi a escolha original do worker de ingestão
-desde o MVP anterior, motivada pela sazonalidade forte do tráfego da Globo (picos em
-eventos ao vivo, shows e ofertas), um padrão que Lambda, com limite de concorrência por
-conta, atenderia pior que containers de vida longa com auto scaling próprio.
+&emsp; Cada ciclo Gold concluído publica um checkpoint append-only com
+`ready_through` e `source_lsn`. O motor de análise captura uma fotografia consistente,
+executa qualidade, EWMA e regras determinísticas e só publica o resultado se ainda
+possuir o token de exclusão (*fencing token*). Retentativas preservam `input_lsn` e
+`sim_now`, evitando resultados diferentes para a mesma entrada.
 
-### 6.6 Decisões de infraestrutura
-
-&emsp; **Rede.** O RDS é publicamente acessível por padrão de ambiente de laboratório
-(`var.db_publicly_accessible`, default `false`, ligado via `tfvars` do Learner Lab),
-com ingress na porta 5432 restrito a um CIDR configurável, nunca `0.0.0.0/0`:
-
-```hcl
-resource "aws_security_group_rule" "rds_from_dev" {
-  count = var.db_allowed_cidr != "" ? 1 : 0
-  # ingress 5432 apenas do CIDR informado, nunca 0.0.0.0/0
-}
+```text
+bronze.change_log
+        ↓
+silver.analysis_fact_version
+        ↓
+etl.gold_checkpoint
+        ↓
+claim + fotografia consistente
+        ↓
+qualidade → EWMA → regras → pontuação
+        ↓
+commit protegido por fencing
+        ↓
+views públicas → Lambda → dashboard
 ```
 
-&emsp; A alternativa de produção (RDS privado, Lambda dentro da VPC) fica documentada
-como a postura correta, mas custa cold start de ENI na Lambda e impede inspecionar o
-banco sem bastion, um custo que não se justifica em ambiente de desenvolvimento ou
-laboratório.
-
-&emsp; **Senha.** Dois modos: por padrão, `aws_secretsmanager_secret` com senha gerada
-por `random_password`; se o Secrets Manager for negado pelo ambiente de laboratório,
-cai para uma senha de `tfvars` (gitignored, marcada `sensitive`). Em nenhum caminho a
-senha entra em arquivo versionado.
-
-&emsp; **Dimensionamento da instância.** `db.t3.medium` com 100 GB gp3 foi
-dimensionado para a bronze (cerca de 13 GB) e a silver (cerca de 6 GB, `signal_point`
-duplicado), considerando que o PostgreSQL não comprime heap: os 199 MB de Parquet de
-origem expandem para cerca de 2,1 GB de dados mais 1,2 GB de índice só em
-`prom_point`. O ponto que sustenta essa escolha de instância sem virar gargalo é o
-mesmo do corolário 1 da seção 4: as telas do dashboard nunca leem bronze, só
-`gold.v_*`, o que desacopla o desempenho percebido do tamanho da camada bruta.
-
-&emsp; **Proteção contra destruição.** `deletion_protection` e `skip_final_snapshot`
-seguem `var.environment == "prod"`. Em laboratório, `skip_final_snapshot = true`: um
-snapshot final de uma conta que vai deixar de existir é custo sem valor.
-
 ---
 
-## 7. ETL incremental por watermarks
+## Apêndice C — Proveniência das decisões
 
-&emsp; Até a migration `015`, o único caminho para popular silver e gold era
-`gold.rebuild_tudo()`: um recompute completo das tabelas de origem a cada chamada,
-correto e idempotente (é o que sustenta o teste de rebuild da seção 8.4), mas que não
-escala para rodar a cada 1 a 5 minutos sobre 18 milhões de linhas de `signal_point`. O
-desenho abaixo, registrado primeiro numa publicação interna de apoio ("Watermarks e
-workers de transição de camada", 20 de agosto de 2026) e implementado na migration
-`015_etl_incremental.sql`, substitui isso por dois workers incrementais, cada um dono
-do seu watermark, sem tocar nas funções `build_*` existentes além de acrescentar
-parâmetros de faixa com `DEFAULT` (compatível com `gold.rebuild_tudo()`, que continua
-chamando sem argumento nenhum).
-
-| Worker | Watermark | Marcador | Cadência | Tabela de controle |
-|---|---|---|---|---|
-| bronze para silver | `etl.watermark_bronze_silver` | sequencial (`lsn`) | 60 s | `etl.execucoes` |
-| silver para gold | `etl.watermark_silver_gold` | temporal (`available_at`, com margem que sempre reabre) | 900 s | `etl.execucoes` |
-
-&emsp; Cada ciclo é uma única chamada SQL (`etl.executar_bronze_silver()` ou
-`etl.executar_silver_gold()`): lê o watermark com `SELECT ... FOR UPDATE`, chama os
-`build_*` na faixa certa, grava o resultado em `etl.execucoes` e avança o watermark,
-tudo no mesmo commit, para que dado e watermark nunca fiquem inconsistentes entre si.
-
-### 7.1 Onde este desenho diverge da publicação original
-
-1. **Schema `etl`, não tabelas soltas.** A publicação original propunha
-   `etl_watermark_bronze_silver` como tabela solta; aqui viraram
-   `etl.watermark_bronze_silver` e assim por diante, num schema `etl` novo,
-   consistente com a separação por schema que já organiza `bronze`, `silver`, `gold`,
-   `sim` e `detect`.
-2. **`live_event_window` e `incident_window` continuam de tabela inteira** dentro do
-   ciclo silver para gold, em vez de também janelados por `available_at`. As origens
-   (`bronze.live_event`, `bronze.incidents`, `bronze.incident_label`) são pequenas,
-   centenas a poucos milhares de linhas, contra os quase 5 milhões de
-   `signal_bucket`; recomputá-las por inteiro a cada ciclo custa menos do que o
-   esforço de as tornar incrementais compraria. Só `gold.build_feature_bucket` ganhou
-   janela.
-3. **Watermark `silver_gold` semeado em 1º de julho de 2026, não em epoch.** A
-   publicação original semeava 1º de janeiro de 1970. Como não há dado possível antes
-   do limite inferior das partições de silver e gold, semear em epoch faria o primeiro
-   dreno percorrer cerca de 56 anos em janelas de minutos até achar a primeira linha
-   real, correto, só que muito lento.
-4. **Dois workers, uma task ECS.** A publicação original (e o registro histórico do
-   pivot, anterior a este documento) descrevia dois workers como unidades separadas,
-   plausivelmente dois `RunTask` do EventBridge Scheduler. O que existe hoje
-   (`ecs_processing.tf`) é um único serviço ECS sempre ativo, de laço próprio, não
-   agendado por scheduler. Os dois workers viraram duas threads dentro do mesmo
-   container (`argus_processing/__main__.py`), cada uma com seu laço, seu watermark e
-   sua cadência, sem interferir uma na outra. Criar dois serviços ECS novos exigiria
-   Terraform novo para separar uma cadência que duas threads já resolvem, já que a
-   atomicidade de cada ciclo mora no banco (uma chamada SQL), não em memória
-   compartilhada.
-5. **Guarda de configuração nova, não prevista na publicação original.**
-   `p_janela_max_segundos` (silver para gold) precisa ser estritamente maior que
-   `margem_seguranca`; senão, o watermark não apenas trava, ele regride a cada
-   chamada, porque a margem é subtraída nas duas pontas do ciclo (na leitura e no novo
-   watermark). `etl.executar_silver_gold()` hoje falha alto (`RAISE EXCEPTION`) se
-   essa condição não for satisfeita, em vez de deixar o worker girar para trás
-   silenciosamente até alguém notar que a gold parou de crescer. Default em produção:
-   `janela_max_segundos = 14400` (4h) contra `margem_seguranca = 2h`, dando 2h de
-   progresso real por ciclo mesmo com backlog.
-6. **Índice novo.** `silver.signal_bucket` não tinha índice em `available_at` (a
-   migration `006` indexou `signal_point` e `session_event`, mas não
-   `signal_bucket`), uma lacuna inofensiva enquanto o único leitor era o rebuild
-   completo. O worker incremental filtra por `available_at` a cada ciclo; a migration
-   `015` acrescenta o índice `signal_bucket_disponivel`.
-
-### 7.2 Limitação conhecida, fora do escopo desta mudança
-
-&emsp; Nem `gold.rebuild_tudo()` nem os novos `build_*` incrementais removem de
-silver/gold uma linha cujo registro de origem foi apagado na bronze (o merge do log
-processa `op = 'd'` fazendo `DELETE` na bronze corrente, mas os `build_*` são
-`INSERT ... ON CONFLICT DO UPDATE`, nunca `DELETE`). Não é uma regressão desta
-mudança, o comportamento já existia antes do ETL incremental, mas o desenho
-incremental o torna mais visível, por rodar em produção de verdade em vez de só em
-teste pontual. Fica registrado como pendência para decisão futura, não corrigido nesta
-entrega.
-
----
-
-## 8. Plano de deploy detalhado com recursos AWS
-
-### 8.1 Inventário de mudanças no Terraform (`apps/basica/infra/`)
-
-&emsp; A tabela a seguir resume o que foi removido, criado e modificado em relação à
-arquitetura anterior (DynamoDB), servindo de checklist do que o `terraform plan`
-precisa mostrar.
-
-**Removido**
-
-| Arquivo | Motivo |
+| Origem | Contribuição |
 |---|---|
-| `dynamodb.tf` | Toda a persistência migrou para o RDS PostgreSQL (seção 6.1) |
-
-**Novo**
-
-| Arquivo | Conteúdo |
-|---|---|
-| `rds.tf` | Subnet group, parameter group, security group, `aws_db_instance`, gestão de senha |
-| `s3_origem.tf` | Bucket `origem/` com versionamento, para o dump e o Parquet imutáveis |
-| `sqs_changes.tf` | Fila de change events e DLQ, espelhando `sqs.tf` |
-| `apigateway_changes.tf` | Rota `POST /v1/changes` para SQS, integração direta sem Lambda |
-| `ecs_simulator.tf` | Serviço do simulador (relógio, falhas com seed fixa, emissor) |
-| `ecs_processing.tf` | Serviço do worker de processamento (ETL incremental; detector/canário no-op) |
-| `ecs_loader.tf` | Task definition one-shot da carga inicial |
-
-**Modificado**
-
-| Arquivo | Mudança |
-|---|---|
-| `ecs.tf` | Workers de merge e evento passam a falar PostgreSQL (`DATABASE_URL` no lugar de `EVENTS_TABLE_NAME`); egress 5432 liberado para o security group do RDS |
-| `api_read.tf` | Lambda passa a ler as views (`DATABASE_URL` no lugar de `GSI1_SHARDS`) |
-| `iam.tf` | Sai `dynamodb:*`; entram `secretsmanager:GetSecretValue` e `s3:GetObject` restrito a `origem/` |
-| `observability.tf` | Sai o alarme de throttle do DynamoDB; entram alarmes de CPU, armazenamento e conexões do RDS, `lag_sim` e heartbeat por fonte |
-| `variables.tf`, `locals.tf`, `outputs.tf` | Bloco de variáveis do DynamoDB sai, entra o do RDS; outputs passam a expor o endpoint do RDS e a URL de `/v1/changes` |
-
-### 8.2 Carga inicial
-
-&emsp; A carga inicial segue a cadeia `argus_dump.sql.gz` (fonte de verdade), depois
-`tools/etl_dump.py`, depois Parquet (199 MB, 33 tabelas, formato de transporte),
-depois `aws s3 sync` para `s3://<nome>-origem-<conta>/parquet/`, depois a task ECS
-`loader` (one-shot), que lê os arquivos em batches via `pyarrow` e faz `COPY ...
-FROM STDIN` na corrente de bronze, gravando também `change_log` com `op = 'r'`
-(snapshot). Os requisitos não negociáveis dessa carga são: `COPY` por lote, nunca
-`INSERT` linha a linha; índices criados depois da carga de cada tabela; `ANALYZE` ao
-final; e validação obrigatória contra o `row_counts` do `_manifest.json`, onde
-divergência é falha, não aviso. O alvo de tempo é 20 a 30 minutos para as 68,7 milhões
-de linhas, dimensionado para caber com folga numa sessão do Learner Lab.
-
-### 8.3 Ordem de execução
-
-| # | Passo |
-|---|---|
-| 1 | Migrations do schema (001 a 015) escritas e validadas contra PostgreSQL 16 local (Docker) |
-| 2 | `tools/migrate.py` aplica as migrations no ambiente alvo |
-| 3 | Terraform: `rds.tf` e `s3_origem.tf` primeiro, com `terraform plan` isolado |
-| 4 | Terraform: remoção do DynamoDB e ajuste de `iam.tf`, `observability.tf` e `api_read.tf` |
-| 5 | Loader e carga inicial; validação contra `_manifest.json` |
-| 6 | Serviços `merge_worker` e `event_worker` |
-| 7 | Serviço `simulator` |
-| 8 | Serviço `processing` (ETL incremental) |
-| 9 | Lambda de leitura sobre as views |
-
-&emsp; Os passos 1 e 2 são pré-condição para todo o resto. Os blocos 3 e 4 (Terraform
-de persistência) e a preparação do Parquet para o passo 5 são independentes entre si e
-podem ser tocados em paralelo por pessoas diferentes.
-
-### 8.4 Verificação pós-deploy
-
-&emsp; **Schemas.** Subir PostgreSQL 16 local, rodar as migrations e checar:
-
-```sql
-SELECT sim.now();                       -- avança sozinho, conforme o speed
-
-SELECT table_schema, count(*)
-  FROM information_schema.tables
- WHERE table_schema IN ('bronze','silver','gold','sim','detect')
- GROUP BY table_schema;
-
--- a view não pode enxergar o futuro:
-INSERT INTO gold.feature_bucket (..., available_at)
-VALUES (..., sim.now() + interval '1 hour');
-SELECT count(*) FROM gold.v_feature_bucket;   -- deve ignorar a linha inserida
-```
-
-&emsp; **Rebuild**, a propriedade que sustenta a decisão da seção 4, precisa ser
-testada:
-
-```sql
-TRUNCATE silver.signal_point, gold.feature_bucket CASCADE;
--- replay do change_log: as contagens voltam idênticas
-```
-
-&emsp; **Carga.** `row_counts` do `_manifest.json` igual a `count(*)` das 33 tabelas
-de bronze; divergência é falha, não aviso.
-
-&emsp; **Terraform.** `make lint` (já roda `terraform fmt -check`), `terraform
-validate`, e `terraform plan` revisado antes do apply. O plan deve mostrar destroy
-apenas da tabela DynamoDB e dos recursos IAM associados a ela; qualquer outra
-destruição no plan é sinal de erro.
-
-&emsp; **Fim a fim.** `POST /v1/changes` com um change event sintético aparece em
-`bronze.change_log`, é mesclado na corrente, processado pelo ETL, e só fica visível em
-`gold.v_*` quando `sim.now()` ultrapassar o `available_at`.
-
-&emsp; **Learner Lab.** Antes do apply, buscar o account ID com `aws sts
-get-caller-identity --profile g4` e atualizar `existing_role_arn` no tfvars. Para
-confirmar que a sessão está viva de verdade, usar uma chamada com permissão real, como
-`aws ec2 describe-vpcs --profile g4`: o `get-caller-identity` continua respondendo
-normalmente mesmo depois de a credencial ser cancelada. O provider do Terraform usa a
-cadeia padrão de credenciais, portanto também é obrigatório executar `export
-AWS_PROFILE=g4 AWS_REGION=us-east-1` antes de `plan` ou `apply`; passar `--profile`
-apenas nos comandos da CLI não afeta o Terraform.
-
----
-
-## 9. Riscos e pendências conhecidas
-
-| Risco / pendência | Mitigação / situação |
-|---|---|
-| Cada nova sessão do Learner Lab pode vir com conta zerada e limitar ou negar a classe de instância do RDS | `db.t3.medium` já foi confirmado disponível na sessão usada para o deploy atual; plano B é `db.t3.small`/`micro`, sustentável porque as telas leem `gold.v_*` e nunca `bronze` (seção 4). Confirmar de novo com `aws rds describe-orderable-db-instance-options --engine postgres --profile g4` a cada nova sessão, e resetar o `terraform.tfstate` antes de aplicar |
-| Carga de 68,7 milhões de linhas não caber na sessão do laboratório | Parquet mais `COPY` (20 a 30 min); loader idempotente e retomável por tabela, usando `_manifest.json` como checkpoint |
-| Secrets Manager negado no laboratório | `var.db_password_from_secrets_manager = false` cai para senha via tfvars |
-| UF e ISP ausentes no schema de evento (seção 5.4) | Não bloqueia: o `payload jsonb` acomoda os campos quando o outro fluxo do Argus for especificado |
-| CloudFront aparece no desenho original da arquitetura, mas não foi implementado | O bucket S3 do frontend atende como website estático; CloudFront fica registrado como melhoria futura |
-| Amazon EventBridge Scheduler não tem recurso Terraform aplicado | O serviço `processing` roda como serviço de longa duração com laços internos, não como execução agendada (seção 3.7) |
-| `build_*`/`gold.rebuild_tudo()` não propagam `DELETE` de bronze para silver/gold | Limitação conhecida e não corrigida, os dois só fazem upsert; pré-existente à introdução do ETL incremental (seção 7.2) |
-
----
-
-## 10. Proveniência das decisões
-
-&emsp; Para que a revisão consiga auditar o porquê de cada escolha:
-
-| Origem | O que definiu |
-|---|---|
-| `ARGUS v3, CDC, replay e camada gold em AWS.pdf` | A arquitetura-alvo: RDS PostgreSQL, bronze log mais corrente, silver com `available_at`, gold com `feature_bucket`, `circadian_state`, `incident_window`, `detection_match` e `live_event_window`, views `v_*`, simulador com relógio virtual, ingestão por `POST /v1/changes` |
-| Conversas com o parceiro (Globo) | A virada de premissa de ler das tabelas que já existem em vez de produzir o dado; o segundo fluxo com grain de sessão |
-| `DATASET.md` v1.3 (documentação do dump) | Convenções de tempo, identidade das chaves, dicionário de dados, vocabulários e armadilhas conhecidas do dump |
-| Telas do dashboard | A justificativa de `prom_point` (seção 1.2) e o grain exigido pelas telas Explorar e Recorte |
-| EDA do dump (`notebooks/eda_argus.ipynb`) | Os nulos de `rpaas_bucket`, a exclusão mútua entre UF e ISP em `geo_hourly`, e a sobreposição fraca entre rótulos e telemetria |
-| `apps/basica/infra/` (arquitetura anterior) | Os padrões mantidos: flag de Learner Lab, nenhuma facilidade em arquivo versionado, separação entre execution role e task role, alarmes por sintoma |
-
----
-
-## 11. Conclusão
-
-&emsp; A arquitetura descrita neste artefato reflete um sistema que já saiu do papel:
-o pivot de DynamoDB para RDS PostgreSQL com camadas bronze, silver e gold, o simulador
-de produção com relógio virtual, e o ETL incremental por watermarks estão
-implementados e mergeados em `develop`, com suíte de testes própria (worker,
-simulador, processamento e backend) e `make lint` passando. As pendências registradas
-na seção 9, CloudFront, o EventBridge Scheduler e a propagação de `DELETE`, não
-bloqueiam o funcionamento atual do pipeline, mas ficam como próximos passos explícitos
-para a evolução do projeto junto ao parceiro Globo.
+| [Lucidchart — UML Deployment Diagram](https://www.lucidchart.com/pages/uml-deployment-diagram) | Notação-base de nós, ambientes de execução, artefatos e caminhos de comunicação |
+| Conversas com o parceiro | Mudança de produtor de telemetria para consumidor de dados já tratados |
+| Documentação do conjunto de dados | Chaves, tempos, fontes, vocabulários e limitações conhecidas |
+| Análise exploratória | Volumes, nulos, granularidades e relações disponíveis |
+| Telas do dashboard | Recortes temporais, dimensões e nível de detalhe necessário |
+| Código e migrations de `develop` | Estado implementado de ingestão, ETL, checkpoints, detector e hipóteses |
+| Terraform em `apps/basica/infra` | Topologia AWS, rede, segurança, observabilidade e ordem operacional |
