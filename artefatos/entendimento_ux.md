@@ -1,6 +1,6 @@
 ## 1. Contexto e escopo do projeto
 
-&emsp; Essa primeira versão do docuemnto teve como foco principal o desenvolvimento de um entendimento do usuário e elaboração de um protótipo de alta fidelidade, não possuindo um grande enfoque na elaboração dos wireframes de baixa fidelidade. O objetivo do protótipo é permitir a validação das User Stories e dos fluxos de navegação planejados, antes de qualquer decisão de implementação.
+&emsp; Essa primeira versão do documento teve como foco principal o desenvolvimento de um entendimento do usuário e elaboração de um protótipo de alta fidelidade, não possuindo um grande enfoque na elaboração dos wireframes de baixa fidelidade. O objetivo do protótipo é permitir a validação das User Stories e dos fluxos de navegação planejados, antes de qualquer decisão de implementação.
 
 &emsp; O projeto consiste no desenvolvimento de uma plataforma que atua como ponto central para o recebimento, o processamento e a consulta de eventos de telemetria das aplicações de front-end do Globoplay. Esses eventos são produzidos por diferentes fontes e componentes, como login, player de vídeo e CDN, e podem chegar a partir de dispositivos modernos ou legados.
 
@@ -54,7 +54,7 @@
 
 </div>
 
-&emsp; No suporte Nível 2 do Globoplay, Mariana Souza, 28 anos, lida com chamados que precisam ser qualificados antes de chegar às equipes técnicas. A plataforma entra em sua rotina como apoio à triagem, oferecendo eventos e contexto para transformar relatos pouco específicos em evidências mais objetivas. Sua necessidade principal é reconstruir a sessão com rapidez e comparar o caso com recortes relevantes, como dispositivo, região ou tipo de evento. Com isso, Mariana ganha mais segurança para decidir se o chamado parece isolado, recorrente ou mal direcionado, mantendo a análise humana como parte central do processo.
+&emsp; No suporte Nível 2 do Globoplay, Mariana Souza, 28 anos, lida com chamados que precisam ser qualificados antes de chegar às equipes técnicas. A plataforma entra em sua rotina como apoio à triagem, oferecendo eventos e contexto para transformar relatos pouco específicos em evidências mais objetivas. Sua necessidade principal é reconstruir a sessão com rapidez, comparar o caso com recortes relevantes, como dispositivo, região ou tipo de evento, e encaminhar o chamado com evidências suficientes para a equipe responsável. Com isso, Mariana ganha mais segurança para decidir se o chamado parece isolado, recorrente ou mal direcionado, mantendo a análise humana como parte central do processo.
 
 ### 3.3 Persona 3 - Luísa Silva dos Santos, assinante do Globoplay
 
@@ -77,7 +77,7 @@
 | Persona | Relação com a solução | Principais necessidades | Benefício esperado |
 |---|---|---|---|
 | Rafael Santos | Usuário direto | Consulta centralizada, filtros, cobertura de dispositivos legados, comparação com referências históricas para distinguir anomalias de sazonalidade e apoio à formulação de hipóteses | Redução do tempo de identificação e análise de falhas |
-| Mariana Souza | Usuária direta (operacional) | Timeline unificada, filtros por dispositivo e região, visibilidade de dispositivos legados | Encaminhamento assertivo de chamados e redução do tempo de resolução |
+| Mariana Souza | Usuária direta (operacional) | Timeline unificada, filtros por dispositivo e região, visibilidade de dispositivos legados e registro do recorte investigado para encaminhamento | Encaminhamento assertivo de chamados e redução do tempo de resolução |
 | Luísa Silva dos Santos | Usuária indireta | Estabilidade, compatibilidade e cobertura de eventos em dispositivos legados | Melhoria da experiência em dispositivos antigos |
 
 &emsp; Assim, as decisões de UX devem equilibrar profundidade técnica e clareza operacional. O protótipo precisa permitir análises detalhadas para investigação de incidentes, mas também oferecer caminhos simples para triagem e encaminhamento de problemas, mantendo como referência o efeito dessas decisões na experiência do assinante.
@@ -102,21 +102,21 @@
 
 &emsp; As cinco histórias classificadas como **Must** sustentam os fluxos centrais do protótipo. A US01 orienta a consulta integrada e a correlação de fontes no Fluxo 1; as US02, US07 e US08 orientam a segmentação por dispositivo e região no Fluxo 2; e a US05 orienta a comparação com referências históricas no Fluxo 3. As demais histórias delimitam incrementos planejados e aparecem como lacunas rastreáveis na seção 5.7, entre elas a US09, que registra explicitamente o encaminhamento de chamados apontado como benefício de Mariana na tabela 3.4.
 
-### 4.1 Verificação INVEST das histórias (Independente e Estimável)
+### 4.1 Verificação INVEST das histórias
 
-&emsp; As colunas "Dor atendida" e "Critérios de aceite" da tabela 4 concentravam, na versão anterior, a verificação de todos os princípios INVEST em uma única célula, dificultando a auditoria isolada dos critérios Independente e Estimável. A tabela abaixo torna essa verificação explícita para cada história.
+&emsp; Para evitar que a verificação INVEST fique implícita dentro de uma única célula de critérios de aceite, a tabela abaixo registra, por história, como cada princípio é atendido ou quais dependências ainda precisam ser resolvidas. Essa separação torna auditáveis principalmente os critérios **Independente** e **Estimável**, apontados como pontos de atenção na avaliação.
 
-| US | Independente | Estimável |
-|---|---|---|
-| US01 | Sim: não depende da conclusão de nenhuma outra história; consome diretamente os eventos já centralizados pela ingestão. | Sim: os critérios de aceite descrevem elementos de interface objetivos (origem, tipo, timestamp, linha do tempo unificada). |
-| US02 | Sim: o filtro por dispositivo é um componente autônomo, ainda que reutilize a mesma base de consulta da US01. | Sim: a lista de atributos de filtro (plataforma, fabricante, modelo, versão) é finita e conhecida. |
-| US03 | Parcial: depende de uma definição prévia de "volume esperado" por dispositivo e componente, ainda não especificada em nenhum outro artefato. | Parcial: a estimativa fica condicionada à definição do cálculo de volume esperado, hoje em aberto. |
-| US04 | Sim: o painel de integridade da ingestão é um componente isolado, independente das demais histórias de consulta. | Parcial: depende da definição dos limiares operacionais de atraso, descarte e deduplicação, ainda não detalhados. |
-| US05 | Sim: a comparação histórica não depende da conclusão de outra história para ser implementada. | Sim: os critérios de aceite especificam elementos concretos (seleção de referência, valores atual e de referência, destaque de desvio, eventos no intervalo). |
-| US06 | Sim: a consulta de timeline por sessão é uma funcionalidade autônoma de busca e visualização. | Sim: os critérios de aceite fixam os tipos de evento mínimos e a ordenação cronológica exigida. |
-| US07 | Sim: o filtro por modelo e região é um componente independente, análogo à US02. | Sim: os critérios de aceite descrevem combinação de filtros e cálculo de taxa de erro do recorte. |
-| US08 | Sim: a verificação de eventos por dispositivo legado não depende de outra história para existir. | Sim: os critérios de aceite especificam os campos exibidos por registro (modelo, versão, horário, tipo). |
-| US09 | Parcial: depende de um recorte já isolado (US02, US07 ou US08) para ter o que anexar ao chamado. | Parcial: depende da definição da integração com o sistema de chamados (ex.: ServiceNow), ainda não detalhada tecnicamente. |
+| US | Independente | Negociável | Valiosa | Estimável | Pequena | Testável |
+|---|---|---|---|---|---|---|
+| US01 | Sim: consome diretamente os eventos centralizados. | Sim: fontes e campos exibidos podem variar por iteração. | Sim: reduz a fragmentação da investigação de Rafael. | Sim: origem, tipo, timestamp e timeline são escopo objetivo. | Sim: limita-se à consulta integrada. | Sim: a tela deve reunir fontes, registros e linha temporal. |
+| US02 | Sim: filtros por dispositivo podem ser entregues como componente autônomo. | Sim: atributos de filtro podem ser priorizados conforme dados disponíveis. | Sim: inclui dispositivos com baixa cobertura na análise. | Sim: plataforma, fabricante, modelo e versão são atributos finitos. | Sim: restringe-se à filtragem e comparação por dispositivo. | Sim: dispositivos modernos e legados devem aparecer no mesmo recorte. |
+| US03 | Parcial: depende da definição de "volume esperado". | Sim: o cálculo de cobertura pode ser refinado com o parceiro. | Sim: evidencia pontos cegos de instrumentação. | Parcial: a estimativa depende da regra de volume esperado. | Parcial: pode crescer se incluir previsão de tráfego. | Sim: deve exibir recebido, esperado e recortes abaixo do limite. |
+| US04 | Sim: painel de integridade é isolado das consultas analíticas. | Sim: limites operacionais podem ser ajustados por ambiente. | Sim: evita decisões com dados incompletos ou duplicados. | Parcial: depende dos limiares de atraso, descarte e deduplicação. | Sim: concentra-se em saúde da ingestão. | Sim: deve mostrar atualidade, atraso, descartes, deduplicações e desvios. |
+| US05 | Sim: comparação histórica pode ser implementada sem outra história. | Sim: referências e envelopes podem ser ajustados por contexto. | Sim: reduz falsos positivos para Rafael. | Sim: seleção de referência, valores comparados e desvios são verificáveis. | Sim: escopo restrito à comparação entre janelas. | Sim: deve destacar pontos fora do envelope e eventos entre janelas. |
+| US06 | Sim: busca de sessão e timeline individual são autônomas. | Sim: tipos mínimos de evento podem evoluir. | Sim: transforma relatos subjetivos em evidências para Mariana. | Sim: tipos mínimos e ordenação cronológica estão definidos. | Sim: cobre uma sessão específica. | Sim: deve localizar sessão e listar eventos em ordem. |
+| US07 | Sim: filtros por modelo e região independem de outras histórias. | Sim: dimensões de agrupamento podem ser negociadas. | Sim: separa caso isolado de padrão regional ou por dispositivo. | Sim: combinação de filtros e taxa de erro têm cálculo delimitado. | Sim: limita-se ao recorte modelo-região. | Sim: deve combinar filtros, exibir volume, taxa e manter o recorte. |
+| US08 | Sim: consulta de eventos por dispositivo legado é autônoma. | Sim: campos exibidos podem variar conforme telemetria disponível. | Sim: evita encaminhamentos sem evidência suficiente. | Sim: modelo, versão, horário e tipo são campos objetivos. | Sim: foca em um recorte de dispositivo legado. | Sim: deve listar registros recebidos com os campos definidos. |
+| US09 | Parcial: depende de um recorte já identificado para anexar evidências. | Sim: formato do encaminhamento pode variar conforme ferramenta usada. | Sim: reduz retrabalho entre suporte e equipe técnica. | Parcial: depende da definição da integração com o sistema de chamados. | Sim: limita-se a registrar ou anexar contexto da triagem. | Parcial: será plenamente testável quando o destino do chamado for definido. |
 
 ## 5. Protótipo de Front-End
 
