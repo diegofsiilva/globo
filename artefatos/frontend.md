@@ -34,47 +34,67 @@
 
 ### 1.3 Capturas de tela
 
-&emsp; As capturas abaixo mostram as seis áreas operacionais (Agora, Explorar, Comparar, Hipóteses, Timeline e Recorte) com a interface renderizada em navegador, e não apenas por inspeção estática do código. Assim como nas demais telas mockadas discutidas neste artefato, os dados exibidos são os snapshots sintéticos de `_mocks/scenario.ts` (indicados na própria interface pela etiqueta "MOCK · SNAPSHOT").
+&emsp; As capturas abaixo foram produzidas diretamente a partir da implementação executável das seis áreas operacionais. Os dados apresentados vêm dos cenários sintéticos de `_mocks/scenario.ts` e são identificados na interface pela etiqueta "MOCK · SNAPSHOT".
 
-- Ambiente: `next dev` local (Turbopack), porta 4180, resolução 1440×900 (desktop) e 390×844 (mobile);
-- Data da captura: 26/08/2026;
-- Ferramenta: Google Chrome headless (`--headless=new --screenshot`);
-- Comando executado: `NEXT_PUBLIC_API_URL=http://127.0.0.1:9 NEXT_PUBLIC_HYPOTHESES_SOURCE=mock npm run dev -- -p 4180`.
+- Ambiente: `next dev` local (Turbopack), porta 4182;
+- Data da captura: 27/08/2026;
+- Fonte de hipóteses: `NEXT_PUBLIC_HYPOTHESES_SOURCE=mock`.
 
+#### 1.3.1 Agora
 
-**Agora**: visão operacional com degradação ativa, sinais em desvio e minigráficos de tendência (pequenos gráficos de barras, sem eixos, que mostram a variação recente de cada sinal):
+&emsp; A tela Agora apresenta o estado operacional mais urgente do recorte selecionado. O destaque superior resume a degradação ativa, seu alcance e a diferença em relação ao baseline; abaixo, os sinais são ordenados por sessões impactadas e mostram valor atual, referência, desvio, tendência e ação de investigação.
 
-![Captura de tela da área Agora](./assets/captura_agora.png)
+![Tela Agora com degradação ativa, indicadores e sinais operacionais](./assets/captura_agora.png)
 
-**Explorar**: exploração de eventos por tipo, com leitura guiada em três passos:
+<p align="center"><sub>Figura 1 — Visão operacional da tela Agora.</sub></p>
 
-![Captura de tela da área Explorar](./assets/captura_explorar.png)
+#### 1.3.2 Explorar
 
-**Comparar**: comparação com quatro janelas de referência e significância estatística (σ):
+&emsp; A tela Explorar conduz a investigação em três etapas: escolher o tipo de evento, localizar quando o comportamento mudou e identificar onde o sinal se concentra. O usuário pode ajustar a janela temporal, alternar dimensões como modelo, UF, ISP, versão e rota, além de consultar erros associados ao recorte.
 
-![Captura de tela da área Comparar](./assets/captura_comparar.png)
+![Tela Explorar com seleção de evento, janela temporal e agrupamentos](./assets/captura_explorar.png)
 
-**Hipóteses**: hipóteses de causa provável ranqueadas, com fatores ponderados e evidências:
+<p align="center"><sub>Figura 2 — Exploração temporal e dimensional dos eventos.</sub></p>
 
-![Captura de tela da área Hipóteses](./assets/captura_hipoteses.png)
+#### 1.3.3 Comparar
 
-**Timeline**: cronologia do incidente cruzando seis fontes de dados:
+&emsp; A tela Comparar posiciona o período atual diante de referências como o mesmo horário do dia anterior, a semana passada ou a última janela estável. O gráfico evidencia pontos fora do envelope histórico, enquanto a tabela quantifica a variação e a significância de cada métrica.
 
-![Captura de tela da área Timeline](./assets/captura_timeline.png)
+![Tela Comparar com referências históricas, gráfico e métricas de significância](./assets/captura_comparar.png)
 
-**Recorte**: mapa de calor por família de dispositivo × região e sugestões de ajuste:
+<p align="center"><sub>Figura 3 — Comparação do comportamento atual com referências históricas.</sub></p>
 
-![Captura de tela da área Recorte](./assets/captura_recorte.png)
+#### 1.3.4 Hipóteses
 
-&emsp; As duas capturas a seguir mostram variações de tema e viewport, ambas sobre a mesma tela (Agora):
+&emsp; A tela Hipóteses organiza possíveis causas por relevância e mantém as alternativas descartadas visíveis. Ao selecionar uma hipótese, o painel lateral explica a composição do score por coincidência temporal, especificidade do recorte, ausência de causa concorrente e precedente histórico, além de listar as evidências consultadas.
 
-**Tema claro**: a alternância de tema (`next-themes`) preserva o layout e os dados:
+![Tela Hipóteses com causas prováveis, composição do score e evidências](./assets/captura_hipoteses.png)
 
-![Captura de tela da área Agora em tema claro](./assets/captura_agora_tema_claro.png)
+<p align="center"><sub>Figura 4 — Hipóteses ranqueadas e justificadas por evidências.</sub></p>
 
-**Viewport mobile (390×844)**: em telas estreitas, a interface recolhe a navegação em um ícone de hambúrguer, resume a barra de escopo em "Escopo · N filtros" e reorganiza os sinais em cartões empilhados:
+#### 1.3.5 Timeline
 
-![Captura de tela da área Agora em viewport mobile](./assets/captura_agora_mobile.png)
+&emsp; A tela Timeline cruza as fontes Deploy, Player QoE, CDN, Backend, Identidade e Incidentes em um mesmo eixo temporal. A janela destacada ajuda a reconhecer coincidências entre mudanças técnicas e degradações, enquanto a cronologia reconstruída oferece uma alternativa textual ao gráfico.
+
+![Tela Timeline com seis fontes, janela de correlação e cronologia reconstruída](./assets/captura_timeline.png)
+
+<p align="center"><sub>Figura 5 — Correlação cronológica das fontes do incidente.</sub></p>
+
+#### 1.3.6 Recorte
+
+&emsp; A tela Recorte delimita a população afetada e informa sessões, participação no tráfego, concentração dos erros e número de UFs envolvidas. O mapa de calor cruza família de dispositivo e região, e o painel lateral antecipa o efeito de possíveis ajustes sobre a especificidade e a cobertura.
+
+![Tela Recorte com indicadores, mapa de calor e sugestões de ajuste](./assets/captura_recorte.png)
+
+<p align="center"><sub>Figura 6 — Delimitação da população afetada.</sub></p>
+
+#### 1.3.7 Viewport mobile
+
+&emsp; A captura mobile demonstra a adaptação da tela Agora para um viewport de 390×844. Nesse formato, a navegação lateral dá lugar a um cabeçalho compacto e o conteúdo passa a ocupar uma única coluna, preservando a leitura do alerta principal e dos indicadores sem exigir rolagem horizontal.
+
+![Tela Agora no viewport mobile de 390 por 844 pixels](./assets/captura_agora_mobile.png)
+
+<p align="center"><sub>Figura 7 — Adaptação da tela Agora ao viewport mobile.</sub></p>
 
 ## 2. Organização e qualidade do código
 
