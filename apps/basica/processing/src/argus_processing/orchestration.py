@@ -122,6 +122,14 @@ def reivindicar_trabalho(
 
     with db.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
+            """
+            INSERT INTO detect.manifest (manifest_hash, payload, code_version)
+            VALUES (%s, %s, 'legacy-stage-1')
+            ON CONFLICT (manifest_hash) DO NOTHING
+            """,
+            (manifest_hash, Jsonb(dict(params or {}))),
+        )
+        cur.execute(
             "SELECT pg_try_advisory_xact_lock(%s) AS adquirido",
             (CLAIM_ADVISORY_LOCK_KEY,),
         )
@@ -131,7 +139,7 @@ def reivindicar_trabalho(
         cur.execute(
             """
             SELECT gc.checkpoint_id, gc.sim_run_id, gc.source_lsn,
-                   sim.now() AS sim_now, clock_timestamp() AS agora
+                   gc.ready_through AS sim_now, clock_timestamp() AS agora
               FROM etl.gold_checkpoint AS gc
              ORDER BY gc.checkpoint_id DESC
              LIMIT 1
@@ -192,11 +200,11 @@ def reivindicar_trabalho(
             INSERT INTO detect.run (
               sim_run_id, detector, params, checkpoint_id, manifest_hash,
               sim_now, status, claimed_by, lease_expires_at, heartbeat_at,
-              fencing_token, attempt, retry_of, input_lsn, input_digest
+              fencing_token, attempt, retry_of, input_lsn, input_digest, stream_key
             ) VALUES (
               %s, %s, %s, %s, %s,
               %s, 'claimed', %s, %s, %s,
-              %s, %s, %s, %s, %s
+              %s, %s, %s, %s, %s, %s
             )
             RETURNING run_id, checkpoint_id, manifest_hash, sim_now, claimed_by,
                       lease_expires_at, heartbeat_at, fencing_token, attempt,
@@ -217,6 +225,11 @@ def reivindicar_trabalho(
                 retry_of,
                 checkpoint["source_lsn"],
                 input_digest,
+                (
+                    f"sim:{checkpoint['sim_run_id']}"
+                    if checkpoint["sim_run_id"] is not None
+                    else "live"
+                ),
             ),
         )
         novo = cur.fetchone()
