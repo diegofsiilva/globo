@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { ScreenFrame } from "../_components/screen-frame";
-import { scopeSummary, timelineScope } from "./_mocks/scenario";
+import { QueryProvider } from "@/providers/query-provider";
 import { TimelineContent } from "./_components/timeline-content";
 
 export const metadata: Metadata = {
@@ -8,15 +7,11 @@ export const metadata: Metadata = {
   description: "Seis fontes de telemetria e infraestrutura sobre um eixo temporal único",
 };
 
-/** Compõe a rota demonstrativa de timeline correlacionada. */
+/** Compõe a rota de timeline correlacionada. */
 export default function TimelinePage() {
   return (
-    <ScreenFrame
-      filters={timelineScope.map((chip) => ({ ...chip, options: [chip.value] }))}
-      scopeSummary={scopeSummary}
-      operational={{ title: "Timeline correlacionada", scope: scopeSummary }}
-    >
+    <QueryProvider>
       <TimelineContent />
-    </ScreenFrame>
+    </QueryProvider>
   );
 }
