@@ -133,6 +133,10 @@ def register_cors(app: Flask) -> None:
             response.headers["Cache-Control"] = "public, max-age=5"
         elif path.endswith("/facets") or path.endswith("/series/facets"):
             response.headers["Cache-Control"] = "public, max-age=60"
+        elif path.endswith("/signals"):
+            # O detector trabalha em buckets; recalcular o baseline de sete
+            # dias em cada polling de 30 s nao revela informacao nova.
+            response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=30"
         return response
 
 

@@ -1164,6 +1164,11 @@ def build_spec() -> dict[str, Any]:
                         _parameter(
                             "window_hours", "Janela em horas ate sim.now().", type="integer"
                         ),
+                        _parameter(
+                            "window_minutes",
+                            "Janela em minutos ate sim.now(), para periodos menores que uma hora.",
+                            type="integer",
+                        ),
                         _parameter("limit", "Teto de grupos (1-1000).", type="integer"),
                     ],
                     "responses": {
@@ -1195,6 +1200,11 @@ def build_spec() -> dict[str, Any]:
                         _parameter(
                             "window_hours", "Janela em horas ate sim.now().", type="integer"
                         ),
+                        _parameter(
+                            "window_minutes",
+                            "Janela em minutos ate sim.now(), para periodos menores que uma hora.",
+                            type="integer",
+                        ),
                     ],
                     "responses": {"200": {"description": "Baldes da serie"}},
                 }
@@ -1224,13 +1234,24 @@ def build_spec() -> dict[str, Any]:
                                 "metric, hora_brt, dow ou tem_jogo. Obrigatorio."
                             ),
                         ),
-                        _parameter("metric", "Metrica a agregar."),
+                        _parameter(
+                            "metric",
+                            "Metrica a agregar. Repetivel para devolver varias "
+                            "metricas no mesmo scan.",
+                        ),
                         _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
                         _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
                         _parameter(
                             "window_hours", "Janela em horas ate sim.now().", type="integer"
                         ),
-                        _parameter("limit", "Teto de celulas (1-2000).", type="integer"),
+                        _parameter(
+                            "window_minutes",
+                            "Janela em minutos ate sim.now(), para periodos menores que uma hora.",
+                            type="integer",
+                        ),
+                        _parameter(
+                            "limit", "Teto de celulas por metrica (1-2000).", type="integer"
+                        ),
                     ],
                     "responses": {
                         "200": {"description": "Celulas do cruzamento"},

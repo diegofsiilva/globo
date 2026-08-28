@@ -48,34 +48,36 @@ export function RecorteContent() {
 
   // Sessões e taxa são métricas com unidades distintas. `error_rate_pct` já
   // chega em percentual; dividi-la por sessões novamente gerava os 0% falsos.
-  const totalQuery = useQuery({
-    queryKey: ["recorte", "crosstab", "total", scope],
-    queryFn: ({ signal }) =>
-      fetchCrosstab(
-        {
-          dimensionX: DIMENSION_X,
-          dimensionY: DIMENSION_Y,
-          metric: "sessions",
-          limit: 1000,
-          scope,
-        },
+  const heatmapQuery = useQuery({
+    queryKey: ["recorte", "crosstab", scope],
+    queryFn: async ({ signal }) => {
+      const base = {
+        dimensionX: DIMENSION_X,
+        dimensionY: DIMENSION_Y,
+        limit: 1000,
+        scope,
+      };
+      const combined = await fetchCrosstab(
+        { ...base, metrics: ["sessions", "error_rate_pct"] },
         signal,
-      ),
-    refetchInterval: 30_000,
-  });
-  const errorQuery = useQuery({
-    queryKey: ["recorte", "crosstab", "error", scope],
-    queryFn: ({ signal }) =>
-      fetchCrosstab(
-        {
-          dimensionX: DIMENSION_X,
-          dimensionY: DIMENSION_Y,
-          metric: "error_rate_pct",
-          limit: 1000,
-          scope,
-        },
-        signal,
-      ),
+      );
+      const metrics = new Set(combined.cells.map((cell) => cell.metric).filter(Boolean));
+      if (metrics.has("sessions") && metrics.has("error_rate_pct")) return combined;
+
+      // Compatibilidade durante deploy gradual: a API anterior aceita apenas
+      // uma metrica e nao devolve seu nome em cada celula.
+      const [sessions, errors] = await Promise.all([
+        fetchCrosstab({ ...base, metric: "sessions" }, signal),
+        fetchCrosstab({ ...base, metric: "error_rate_pct" }, signal),
+      ]);
+      return {
+        ...sessions,
+        cells: [
+          ...sessions.cells.map((cell) => ({ ...cell, metric: "sessions" })),
+          ...errors.cells.map((cell) => ({ ...cell, metric: "error_rate_pct" })),
+        ],
+      };
+    },
     refetchInterval: 30_000,
   });
   const eventsQuery = useQuery({
@@ -89,9 +91,18 @@ export function RecorteContent() {
     enabled: Boolean(selectedSessionId),
   });
 
+  const totalCells = useMemo(
+    () => (heatmapQuery.data?.cells ?? []).filter((cell) => cell.metric === "sessions"),
+    [heatmapQuery.data],
+  );
+  const errorCells = useMemo(
+    () => (heatmapQuery.data?.cells ?? []).filter((cell) => cell.metric === "error_rate_pct"),
+    [heatmapQuery.data],
+  );
+
   const { hours, families, cellValues, scaleMax, trueMax } = useMemo(
-    () => buildHeatmap(totalQuery.data?.cells ?? [], errorQuery.data?.cells ?? []),
-    [totalQuery.data, errorQuery.data],
+    () => buildHeatmap(totalCells, errorCells),
+    [totalCells, errorCells],
   );
   const activeHour = hour ?? hours[0] ?? null;
   const ranking = useMemo(
@@ -106,10 +117,10 @@ export function RecorteContent() {
 
   // Soma das sessões nas células devolvidas e taxa geral ponderada pelo volume.
   // "% do tráfego" do mock original foi removida porque não há esse contrato.
-  const totalEvents = sumCells(totalQuery.data?.cells);
+  const totalEvents = sumCells(totalCells);
   const errorShare = weightedErrorRate(cellValues);
 
-  const primary = totalQuery;
+  const primary = heatmapQuery;
   const operationalState = primary.isLoading
     ? "loading"
     : primary.isError && !primary.data
@@ -140,8 +151,7 @@ export function RecorteContent() {
             )
           : undefined,
         onRetry: () => {
-          totalQuery.refetch();
-          errorQuery.refetch();
+          heatmapQuery.refetch();
         },
       }}
     >

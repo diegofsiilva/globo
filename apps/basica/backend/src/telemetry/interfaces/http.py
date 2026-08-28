@@ -216,12 +216,16 @@ def series():
 
 
 def _escopo_da_query() -> dict[str, str]:
-    """Le da query string os filtros de dimensao da serie."""
+    """Le os filtros escalares de dimensao da serie.
+
+    Um parametro repetido representa uma lista da operacao, como as metricas
+    do crosstab, e nao deve virar igualdade pelo primeiro valor.
+    """
     escopo = {}
     for dimensao in GoldRepository.DIMENSOES:
-        valor = request.args.get(dimensao)
-        if valor:
-            escopo[dimensao] = valor
+        valores = [valor for valor in request.args.getlist(dimensao) if valor]
+        if len(valores) == 1:
+            escopo[dimensao] = valores[0]
     return escopo
 
 

@@ -232,9 +232,7 @@ class GoldRepository:
                 params.append(ate)
         return onde, params
 
-    def _escopo(
-        self, escopo: dict[str, str] | None
-    ) -> tuple[list[sql.SQL], list[Any]]:
+    def _escopo(self, escopo: dict[str, str] | None) -> tuple[list[sql.SQL], list[Any]]:
         """Traduz o escopo da barra de filtros em predicados."""
         onde: list[sql.SQL] = []
         params: list[Any] = []
@@ -496,13 +494,7 @@ class GoldRepository:
             if nome not in self.DIMENSOES:
                 raise ValueError(f"dimensao invalida: {nome}")
 
-        metricas = (
-            [metric]
-            if isinstance(metric, str)
-            else list(metric)
-            if metric
-            else []
-        )
+        metricas = [metric] if isinstance(metric, str) else list(metric) if metric else []
         varias_metricas = len(metricas) > 1
 
         onde = [sql.SQL("TRUE")]
@@ -525,14 +517,25 @@ class GoldRepository:
             celulas = self._all(
                 sql.SQL(
                     """
-                    SELECT {x}::text AS x, {y}::text AS y, metric,
-                           {agregacao} AS value,
-                           count(*)    AS points
-                      FROM gold.v_feature_bucket
-                     WHERE {onde}
-                     GROUP BY 1, 2, 3
-                     ORDER BY value DESC NULLS LAST
-                     LIMIT %s
+                    WITH agregado AS (
+                      SELECT {x}::text AS x, {y}::text AS y, metric,
+                             {agregacao} AS value,
+                             count(*)    AS points
+                        FROM gold.v_feature_bucket
+                       WHERE {onde}
+                       GROUP BY 1, 2, 3
+                    ),
+                    ranqueado AS (
+                      SELECT agregado.*,
+                             row_number() OVER (
+                               PARTITION BY metric ORDER BY value DESC NULLS LAST
+                             ) AS posicao
+                        FROM agregado
+                    )
+                    SELECT x, y, metric, value, points
+                      FROM ranqueado
+                     WHERE posicao <= %s
+                     ORDER BY metric, value DESC NULLS LAST
                     """
                 ).format(
                     x=sql.Identifier(dimension_x),

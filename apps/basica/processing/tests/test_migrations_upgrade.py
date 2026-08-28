@@ -12,13 +12,14 @@ from psycopg.conninfo import conninfo_to_dict
 MIGRATIONS = Path(__file__).resolve().parents[2] / "db" / "migrations"
 
 
-def test_instalacao_da_suite_chega_ate_022(database_url):
+def test_instalacao_da_suite_aplica_todas_as_migrations(database_url):
     with psycopg.connect(database_url) as conn:
         versions = conn.execute(
             "SELECT version FROM schema_migrations ORDER BY version"
         ).fetchall()
-    assert versions[-1][0].startswith("022_")
-    assert len(versions) == 22
+
+    esperadas = [path.stem for path in sorted(MIGRATIONS.glob("*.sql"))]
+    assert [version for (version,) in versions] == esperadas
 
 
 def test_upgrade_017_para_022_em_banco_existente(database_url):

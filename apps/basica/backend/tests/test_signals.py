@@ -54,6 +54,12 @@ def test_sem_dado_devolve_lista_vazia(client, pool):
     assert resposta.json == {"items": []}
 
 
+def test_resposta_permite_cache_curto_entre_pollings(client, pool):
+    resposta = client.get(f"/api/v1/signals?{JANELA_QS}")
+
+    assert resposta.headers["Cache-Control"] == ("public, max-age=30, stale-while-revalidate=30")
+
+
 def test_caso_de_uso_antecipa_limiar_ao_repositorio():
     """O banco deve descartar séries normais antes de montar as tendências."""
 

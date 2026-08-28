@@ -570,7 +570,9 @@ def test_series_facets_rejeita_dimensao_desconhecida(client):
 
 
 def test_series_breakdown_soma_contagem(client, com_agregados):
-    corpo = client.get("/api/v1/series/breakdown?dimension=entity&metric=sessions").get_json()
+    corpo = client.get(
+        "/api/v1/series/breakdown?dimension=entity&metric=sessions&source=youbora_device"
+    ).get_json()
     grupos = {g["key"]: g["value"] for g in corpo["groups"]}
     # Tres baldes de cada: contagem SOMA.
     assert grupos == {"iPhone": 3000.0, "iPad": 600.0}
@@ -579,7 +581,7 @@ def test_series_breakdown_soma_contagem(client, com_agregados):
 
 def test_series_breakdown_media_taxa(client, com_agregados):
     corpo = client.get(
-        "/api/v1/series/breakdown?dimension=entity&metric=error_rate_pct"
+        "/api/v1/series/breakdown?dimension=entity&metric=error_rate_pct&source=youbora_device"
     ).get_json()
     grupos = {g["key"]: g["value"] for g in corpo["groups"]}
     # Tres baldes de 2%: a media e 2%, e nao a soma 6%.
@@ -588,7 +590,7 @@ def test_series_breakdown_media_taxa(client, com_agregados):
 
 def test_series_breakdown_por_metrica_escolhe_agregacao_por_grupo(client, com_agregados):
     """Sem filtro de metrica, cada grupo tem unidade propria."""
-    corpo = client.get("/api/v1/series/breakdown?dimension=metric").get_json()
+    corpo = client.get("/api/v1/series/breakdown?dimension=metric&source=youbora_device").get_json()
     grupos = {g["key"]: g["value"] for g in corpo["groups"]}
     assert grupos["sessions"] == 3600.0
     assert grupos["error_rate_pct"] == 2.0
@@ -596,7 +598,7 @@ def test_series_breakdown_por_metrica_escolhe_agregacao_por_grupo(client, com_ag
 
 def test_series_breakdown_aplica_escopo(client, com_agregados):
     corpo = client.get(
-        "/api/v1/series/breakdown?dimension=metric&entity=iPad"
+        "/api/v1/series/breakdown?dimension=metric&entity=iPad&source=youbora_device"
     ).get_json()
     grupos = {g["key"]: g["value"] for g in corpo["groups"]}
     assert grupos["sessions"] == 600.0
@@ -607,7 +609,9 @@ def test_series_breakdown_exige_dimensao(client):
 
 
 def test_series_timeseries_agrupa_em_baldes(client, com_agregados):
-    corpo = client.get("/api/v1/series/timeseries?metric=sessions&interval=60").get_json()
+    corpo = client.get(
+        "/api/v1/series/timeseries?metric=sessions&interval=60&source=youbora_device"
+    ).get_json()
     assert corpo["interval_minutes"] == 60
     assert len(corpo["buckets"]) == 3
     assert corpo["total"] == 3600.0
@@ -615,7 +619,7 @@ def test_series_timeseries_agrupa_em_baldes(client, com_agregados):
 
 def test_series_crosstab_cruza_duas_dimensoes(client, com_agregados):
     corpo = client.get(
-        "/api/v1/series/crosstab?dimension_x=entity&dimension_y=metric"
+        "/api/v1/series/crosstab?dimension_x=entity&dimension_y=metric&source=youbora_device"
     ).get_json()
     celulas = {(c["x"], c["y"]): c["value"] for c in corpo["cells"]}
     assert celulas[("iPhone", "sessions")] == 3000.0
@@ -635,9 +639,35 @@ def test_series_crosstab_rejeita_dimensao_injetada(client):
 
 def test_series_timeseries_quebra_por_metrica(client, com_agregados):
     """Cada balde traz o valor por metrica, para volume e erro na mesma serie."""
-    corpo = client.get("/api/v1/series/timeseries?interval=60").get_json()
+    corpo = client.get("/api/v1/series/timeseries?interval=60&source=youbora_device").get_json()
     primeiro = corpo["buckets"][0]
     assert primeiro["by_metric"]["sessions"] == 1200.0
     # Taxa entra por media e NAO soma no `value` do balde.
     assert primeiro["by_metric"]["error_rate_pct"] == 2.0
     assert primeiro["value"] == 1200.0
+
+
+def test_series_crosstab_agrega_duas_metricas_num_scan(client, com_agregados):
+    """Parametro repetido devolve cada unidade separada sem virar escopo."""
+    corpo = client.get(
+        "/api/v1/series/crosstab?dimension_x=entity&dimension_y=hora_brt"
+        "&metric=sessions&metric=error_rate_pct&source=youbora_device"
+    ).get_json()
+
+    assert {celula["metric"] for celula in corpo["cells"]} == {
+        "sessions",
+        "error_rate_pct",
+    }
+
+
+def test_series_crosstab_limita_cada_metrica_sem_uma_excluir_a_outra(client, com_agregados):
+    corpo = client.get(
+        "/api/v1/series/crosstab?dimension_x=entity&dimension_y=hora_brt"
+        "&metric=sessions&metric=error_rate_pct&source=youbora_device&limit=1"
+    ).get_json()
+
+    assert len(corpo["cells"]) == 2
+    assert {celula["metric"] for celula in corpo["cells"]} == {
+        "sessions",
+        "error_rate_pct",
+    }

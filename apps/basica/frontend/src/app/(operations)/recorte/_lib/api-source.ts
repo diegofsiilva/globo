@@ -8,7 +8,7 @@
 import { getJson, withScope, type EventScope } from "@/lib/events/query";
 import type { ApiEvent } from "@/lib/events/api";
 
-export type CrosstabCell = { x: string; y: string; count: number };
+export type CrosstabCell = { x: string; y: string; count: number; metric?: string };
 
 export type CrosstabResponse = {
   dimension_x: string;
@@ -35,6 +35,8 @@ export type CrosstabFilters = {
   dimensionX: string;
   dimensionY: string;
   metric?: string;
+  /** Repetido na query string para agregar varias metricas no mesmo scan. */
+  metrics?: string[];
   from?: string;
   to?: string;
   limit?: number;
@@ -55,7 +57,11 @@ export async function fetchCrosstab(
     dimension_y: filters.dimensionY,
     limit: String(filters.limit ?? 400),
   });
-  if (filters.metric) params.set("metric", filters.metric);
+  if (filters.metrics?.length) {
+    for (const metric of filters.metrics) params.append("metric", metric);
+  } else if (filters.metric) {
+    params.set("metric", filters.metric);
+  }
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
   withScope(params, filters.scope ?? {});
@@ -63,7 +69,7 @@ export async function fetchCrosstab(
   const bruto = await getJson<{
     dimension_x: string;
     dimension_y: string;
-    cells: { x: string; y: string; value: number | null; points: number }[];
+    cells: { x: string; y: string; metric?: string; value: number | null; points: number }[];
   }>("/api/v1/series/crosstab", params, signal, "ARG-CROSSTAB");
 
   return {
@@ -73,6 +79,7 @@ export async function fetchCrosstab(
       x: celula.x,
       y: celula.y,
       count: celula.value ?? 0,
+      metric: celula.metric,
     })),
   };
 }

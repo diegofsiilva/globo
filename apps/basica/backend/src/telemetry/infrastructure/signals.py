@@ -27,6 +27,7 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+
 class SignalsRepository:
     """Le desvios ativos de ``gold.v_feature_bucket``."""
 
@@ -53,9 +54,7 @@ class SignalsRepository:
         self._baseline_horas = baseline_hours
         self._max_series_ativas = max_active_series
 
-    def desvios(
-        self, desde: datetime, ate: datetime, limiar: float = 2.0
-    ) -> list[dict[str, Any]]:
+    def desvios(self, desde: datetime, ate: datetime, limiar: float = 2.0) -> list[dict[str, Any]]:
         """Compara cada bucket da janela com a media/desvio da mesma hora do
         dia numa janela anterior.
 
@@ -97,29 +96,31 @@ class SignalsRepository:
                 -- Isso basta para decidir se a serie continua desviada agora;
                 -- calcular as seis horas de baseline para todas as series era
                 -- o principal custo da rota e estourava os 30 s da Lambda.
-                base_ultimo AS (
-                  SELECT b.source, b.entity, b.metric, b.hora_brt,
-                         avg(b.value)         AS media,
-                         stddev_samp(b.value) AS desvio,
-                         count(*)             AS n
-                    FROM gold.v_feature_bucket b
-                    JOIN ultimo u
-                      ON u.source = b.source AND u.entity = b.entity
-                     AND u.metric = b.metric AND u.hora_brt = b.hora_brt
-                   WHERE b.bucket_ts >= %s AND b.bucket_ts < %s
-                     AND b.value IS NOT NULL
-                     AND NOT (b.source = ANY(%s))
-                   GROUP BY b.source, b.entity, b.metric, b.hora_brt
+                avaliados AS MATERIALIZED (
+                  SELECT u.bucket_ts, u.source, u.entity, u.metric, u.value,
+                         u.hora_brt, b.media, b.desvio, b.n,
+                         CASE
+                           WHEN b.desvio IS NULL OR b.desvio = 0 OR b.n < 3 THEN NULL
+                           ELSE (u.value - b.media) / b.desvio
+                         END AS z
+                    FROM ultimo u
+                    CROSS JOIN LATERAL (
+                      SELECT avg(h.value)         AS media,
+                             stddev_samp(h.value) AS desvio,
+                             count(*)             AS n
+                        FROM gold.v_feature_bucket h
+                       WHERE h.source = u.source
+                         AND h.entity = u.entity
+                         AND h.metric = u.metric
+                         AND h.hora_brt = u.hora_brt
+                         AND h.bucket_ts >= %s AND h.bucket_ts < %s
+                         AND h.value IS NOT NULL
+                    ) b
                 ),
                 ativos AS MATERIALIZED (
-                  SELECT u.source, u.entity, u.metric,
-                         abs((u.value - b.media) / b.desvio) AS magnitude
-                    FROM ultimo u
-                    JOIN base_ultimo b
-                      ON b.source = u.source AND b.entity = u.entity
-                     AND b.metric = u.metric AND b.hora_brt = u.hora_brt
-                   WHERE b.desvio IS NOT NULL AND b.desvio <> 0 AND b.n >= 3
-                     AND abs((u.value - b.media) / b.desvio) >= %s
+                  SELECT source, entity, metric, abs(z) AS magnitude
+                    FROM avaliados
+                   WHERE z IS NOT NULL AND abs(z) >= %s
                    ORDER BY magnitude DESC
                    LIMIT %s
                 ),
@@ -168,7 +169,6 @@ class SignalsRepository:
                 excluidas,
                 baseline_desde,
                 desde,
-                excluidas,
                 limiar,
                 self._max_series_ativas,
                 baseline_desde,
