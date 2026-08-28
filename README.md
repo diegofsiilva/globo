@@ -79,11 +79,7 @@ Toda linha carrega um `available_at` — o instante em que a informação *ficar
 
 Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
 
-<<<<<<< HEAD
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura-inicial.md`](artefatos/arquitetura-inicial.md).
-=======
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/basica/infra/README.md).
->>>>>>> develop
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura do Argus v3](artefatos/arquitetura-inicial.md), no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/basica/infra/README.md).
 
 > **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
@@ -93,20 +89,12 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-<<<<<<< HEAD
-| `/apps/basica/db/migrations` | As 23 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
-=======
-| `/apps/basica/db/migrations` | As 22 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
->>>>>>> develop
+| `/apps/basica/db/migrations` | As 26 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
 | `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
 | `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
 | `/apps/basica/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
-<<<<<<< HEAD
-| `/apps/basica/processing` | ETL, checkpoints, canário, detector e motor determinístico de hipóteses |
-=======
-| `/apps/basica/processing` | ETL, canário, detector e motor determinístico das 11 famílias de hipótese |
->>>>>>> develop
+| `/apps/basica/processing` | ETL, checkpoints, canário, detector e motor determinístico das 11 famílias de hipótese |
 | `/apps/basica/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
 | `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
@@ -146,7 +134,7 @@ cd g04
 # 2. instalar as dependências dos apps Python
 make -C apps/basica install
 
-# 3. subir um PostgreSQL 16 local e aplicar as 23 migrations
+# 3. subir um PostgreSQL 16 local e aplicar as 26 migrations
 make -C apps/basica db-local
 
 # 4. rodar a suíte de testes (66 do worker + 85 do backend)
@@ -280,12 +268,8 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
-<<<<<<< HEAD
-| [Arquitetura](artefatos/arquitetura-inicial.md) | Diagrama de implantação, componentes, decisões arquiteturais e plano de deploy na AWS |
-=======
 | [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
 | [Frontend](apps/basica/frontend/README.md) | Rotas, estrutura App Router, fontes de dados e comandos de validação |
->>>>>>> develop
 | [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
 | [Infraestrutura](apps/basica/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
 
