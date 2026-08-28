@@ -1,3 +1,10 @@
+/**
+ * Um destino da navegação.
+ *
+ * `index` é o número exibido ao lado do rótulo ("01", "02"). É dado, e não
+ * derivado da posição no array: a ordem de exibição pode mudar sem renumerar as
+ * telas, e o operador que aprendeu "a 04 é Hipóteses" continua certo.
+ */
 export type NavigationItem = {
   href: string;
   index: string;

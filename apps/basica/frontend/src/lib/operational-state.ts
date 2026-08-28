@@ -33,6 +33,16 @@ export type QueryFailure = {
 
 /** Erro tipado usado pelos adapters de consulta sem alterar o contrato de sucesso. */
 export class QuerySourceError extends Error {
+  /**
+   * @param message Texto exibido ao operador. Descreve o que aconteceu com a
+   *   consulta, não a exceção interna que a originou.
+   * @param kind Classificação da falha; decide qual estado a moldura desenha.
+   * @param reference Código citado ao relatar o problema, com o `X-Request-Id`
+   *   da resposta quando a API chegou a responder.
+   * @param retryable Se "tentar de novo" tem chance de mudar o resultado. Falso
+   *   em 401/403 e em resposta malformada — oferecer o botão ali só faria o
+   *   operador repetir uma ação que já se sabe que falha.
+   */
   constructor(
     message: string,
     readonly kind: QueryFailureKind,

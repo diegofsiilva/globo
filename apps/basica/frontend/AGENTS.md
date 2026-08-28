@@ -22,6 +22,13 @@ detalhe, no `README.md` deste diretório.
    bundle apontando para o próprio domínio devolveria o HTML da página no lugar
    do JSON, e o erro só apareceria no navegador do usuário. Suba sempre por
    `make -C .. frontend-dev` ou `frontend-build`, que injetam a variável.
+
+   **O token, ao contrário, NUNCA entra no bundle.** Ele é colado pelo operador
+   na tela de acesso e vive só em `sessionStorage` (`lib/api/session.ts`). Não
+   crie uma `NEXT_PUBLIC_*` para ele: seria servida a qualquer visitante da
+   distribuição, e anularia a autenticação inteira. `tests/contracts/acesso.test.ts`
+   barra essa mudança.
+
 2. **Cor fixa em `*.styles.ts` é bug** — não responde ao tema. Existe um único
    vocabulário de tokens, o canônico do bloco `@theme` em `app/globals.css`
    (`--foreground`, `--muted-foreground`, `--border`, `--surface`, `--primary`,
@@ -29,23 +36,29 @@ detalhe, no `README.md` deste diretório.
    removidos; não reintroduza. As exceções são o `meta[theme-color]` em
    `theme-toggle.tsx` e os gaps responsivos `--explore-section-gap` /
    `--explore-block-gap`, que são espaçamento.
-3. **Tipografia tem seis degraus**, tokens `--text-*` no `globals.css`:
+3. **Toda requisição passa por `lib/api/client.ts`.** Não chame `fetch` direto
+   num adapter. O cliente compartilhado acrescenta o `Authorization`, derruba a
+   sessão em 401/403 — é o que faz o portão de acesso reagir a um token expirado
+   vindo de qualquer tela — e traduz falha de rede, timeout e resposta não-JSON
+   em `QuerySourceError`. Um `fetch` solto seria a tela que falha com 401 num
+   momento em que o resto do dashboard funciona.
+4. **Tipografia tem seis degraus**, tokens `--text-*` no `globals.css`:
    `text-micro` (12px), `text-label` (13px), `text-body` (14px), `text-section`
    (16px, h2), `text-subhead` (20px) e `text-display` (28px). Não invente
    tamanho fora da escala.
-4. **Código de rota fica junto da rota**, em `_components`, `_lib` e `_mocks`.
+5. **Código de rota fica junto da rota**, em `_components`, `_lib` e `_mocks`.
    Só contrato ou adapter consumido por mais de uma fronteira sobe para
    `src/lib`. Cada `page.tsx` é Server Component de composição e metadata.
-5. **Dados de fixture ficam em `_mocks/`**, explicitamente separados do que veio
+6. **Dados de fixture ficam em `_mocks/`**, explicitamente separados do que veio
    da API. Não misture mock no caminho de dados real.
-6. **`QueryProvider` envolve só a página que consulta no cliente**, não a árvore
+7. **`QueryProvider` envolve só a página que consulta no cliente**, não a árvore
    inteira.
-7. **O conjunto shadcn é fechado**: `button`, `badge`, `select`, `toggle-group`,
+8. **O conjunto shadcn é fechado**: `button`, `badge`, `select`, `toggle-group`,
    `sheet`, `separator`, `input`, `tooltip`, `table`, `skeleton` e `alert`.
    Radix dá comportamento e semântica; cores, radius e estados vêm dos tokens
    Argus, sem o tema visual padrão do shadcn. Componha as telas com `cn()` de
    `src/lib/utils.ts` em vez de adicionar primitiva nova.
-8. **Export estático.** Nada de rota de API, middleware, ISR ou
+9. **Export estático.** Nada de rota de API, middleware, ISR ou
    `dynamic = "force-dynamic"` — o build tem que continuar gerando `out/`.
 
 ## Rotas

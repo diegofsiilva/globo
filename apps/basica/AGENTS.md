@@ -106,6 +106,17 @@ ao relógio do processo.
 - **Docstrings PEP 257 em Python e JSDoc em JavaScript/TypeScript.** Todo módulo
   tem cabeçalho descritivo e toda função documenta parâmetros, retorno e
   comportamento.
+
+  **A regra é verificada, não confiada.** `ruff` com o conjunto `D` (convenção
+  Google) em todos os apps Python, e `jsdoc/require-jsdoc` no ESLint do
+  frontend — os dois entram no `make check`. Ficam de fora, por decisão
+  explícita nos respectivos arquivos de configuração: `tests/**`, os fixtures em
+  `_mocks/` e as primitivas shadcn em `components/ui/`. Nesses lugares o nome do
+  teste ou do componente já é a descrição, e exigir um bloco produziria linhas
+  que repetem o identificador.
+
+  Num código tipado, o que falta na documentação é o **porquê** — não repita o
+  que a assinatura já diz.
 - **Comentário explica o porquê, não o quê.** O padrão do repositório é comentar
   a decisão não óbvia (por que a porta é 55432, por que `boto3` saiu do backend)
   e deixar o resto falar por si. Não remova esses comentários ao refatorar.

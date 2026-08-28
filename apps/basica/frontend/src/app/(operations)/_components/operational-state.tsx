@@ -16,6 +16,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { QueryFailure } from "@/lib/operational-state";
 import { useOperationsUi, type OperationalState } from "./operations-ui-context";
 
+/**
+ * O que a moldura precisa saber para escolher entre os sete estados.
+ *
+ * As três ações são opcionais e independentes porque nem todo estado as admite:
+ * `onRetry` não faz sentido numa falha não-retentável, `onResetFilters` só existe
+ * quando o vazio pode ter vindo do recorte, e `onUseCached` só quando há dado
+ * anterior a exibir.
+ *
+ * `missingSources` alimenta o estado `partial`: a tela mostra o que tem e diz
+ * quais fontes faltaram, em vez de esconder tudo ou fingir que o conjunto está
+ * completo.
+ */
 export type OperationalPresentation = {
   state?: OperationalState;
   title: string;
@@ -28,6 +40,17 @@ export type OperationalPresentation = {
   onUseCached?: () => void;
 };
 
+/**
+ * Escolhe o que renderizar: o conteúdo ou um dos estados operacionais.
+ *
+ * O estado forçado por query string (`?estado=empty`) tem precedência sobre o
+ * real. É o que permite demonstrar e revisar cada estado sem reproduzir a
+ * condição — derrubar a API só para ver a tela de erro custaria mais que a
+ * revisão.
+ *
+ * @param children Conteúdo exibido quando o estado é `ready` ou `refreshing`.
+ * @param presentation Estado, título, escopo, falha e ações disponíveis.
+ */
 export function OperationalStateBoundary({
   children,
   presentation,

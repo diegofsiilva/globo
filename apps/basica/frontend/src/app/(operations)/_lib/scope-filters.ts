@@ -27,6 +27,7 @@ export const scopeFilterDefs = [
   { id: "match", label: "com jogo", field: "tem_jogo" },
 ] as const;
 
+/** Um chip de escopo já resolvido: o campo, o valor escolhido e as opções. */
 export type ScopeFilter = {
   id: string;
   label: string;
@@ -37,6 +38,13 @@ export type ScopeFilter = {
   options: string[];
 };
 
+/**
+ * Tudo que uma tela precisa para desenhar e operar a barra de escopo.
+ *
+ * `scope` é o recorte pronto para virar query string; `count` é quantos campos
+ * de fato restringem a consulta, e não quantos chips existem — é o que a moldura
+ * usa para dizer "3 filtros ativos" sem contar os que estão em "todos".
+ */
 export type ScopeFiltersState = {
   active: ScopeFilter[];
   scope: EventScope;

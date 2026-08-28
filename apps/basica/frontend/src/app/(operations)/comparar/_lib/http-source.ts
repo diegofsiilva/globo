@@ -19,6 +19,14 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   return apiFetch<T>(path, { tag: "CMP", signal });
 }
 
+/**
+ * Deploys e mudanças de configuração na janela.
+ *
+ * @param from Início da janela, em ISO 8601.
+ * @param to Fim da janela, em ISO 8601.
+ * @param signal Aborta quando a tela desmonta ou a janela muda.
+ * @returns As mudanças ordenadas por início.
+ */
 export function fetchChanges(
   from: string,
   to: string,
@@ -28,6 +36,14 @@ export function fetchChanges(
   return getJson(`/api/v1/changes?${params}`, signal);
 }
 
+/**
+ * A janela sem incidente mais recente, para servir de referência "estável".
+ *
+ * @param durationMinutes Duração pedida.
+ * @param signal Aborta quando a tela desmonta.
+ * @returns A janela encontrada, ou `found: false` — que é resultado legítimo:
+ *   pode não existir período sem incidente daquele tamanho no histórico.
+ */
 export function fetchStableWindow(
   durationMinutes: number,
   signal?: AbortSignal,
@@ -36,6 +52,13 @@ export function fetchStableWindow(
   return getJson(`/api/v1/references/stable-window?${params}`, signal);
 }
 
+/**
+ * A última transmissão ao vivo, para servir de referência "pico".
+ *
+ * @param signal Aborta quando a tela desmonta.
+ * @returns A janela da transmissão com competição e times, que entram no rótulo
+ *   — "pico" sozinho não diz ao operador contra o que ele está comparando.
+ */
 export function fetchLastLivePeak(signal?: AbortSignal): Promise<LastLivePeakResponse> {
   return getJson(`/api/v1/references/last-live-peak`, signal);
 }

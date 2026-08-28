@@ -1,5 +1,14 @@
 /** Tipos do adapter HTTP da tela Comparar. */
 
+/**
+ * As quatro referências que a tela sabe resolver.
+ *
+ * `ontem` e `semana` são deslocamentos fixos. `estavel` e `pico` são calculados
+ * pela API a partir do dado real — a janela sem incidente mais recente e a
+ * última transmissão ao vivo. Sem essas duas, só haveria âncoras de calendário,
+ * e comparar uma terça normal com a final de um campeonato levaria à conclusão
+ * errada.
+ */
 export type ReferenceId = "ontem" | "semana" | "estavel" | "pico";
 
 /** Um balde da série temporal, com a quebra opcional por métrica. */

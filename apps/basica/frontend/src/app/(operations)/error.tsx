@@ -6,6 +6,17 @@ import { Button } from "@/components/ui/button";
 
 const isProduction = process.env.NODE_ENV === "production";
 
+/**
+ * Fronteira de erro de renderização das telas operacionais.
+ *
+ * Diferente do estado `error` da moldura: aquele trata falha de CONSULTA, este
+ * trata exceção durante a renderização. Fica no route group para que o shell e a
+ * navegação sobrevivam — uma tela que quebra não deve levar o resto junto.
+ *
+ * @param error Exceção capturada; `digest` é o identificador que o Next gera e
+ *   que o operador pode citar.
+ * @param reset Remonta o segmento da rota.
+ */
 export default function OperationsError({
   error,
   reset,

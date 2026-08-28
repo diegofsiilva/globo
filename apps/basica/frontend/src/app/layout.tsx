@@ -18,11 +18,18 @@ const ibmPlexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
+/** Metadados padrão do documento, herdados por toda rota que não os sobrescreva. */
 export const metadata: Metadata = {
   title: "Monitoração Agêntica · Globoplay",
   description: "Análise de eventos de telemetria do Globoplay",
 };
 
+/**
+ * Cor da barra do navegador, por esquema de cor do sistema.
+ *
+ * Precisa acompanhar o tema: sem isto, a barra fica clara sobre um dashboard
+ * escuro no iOS, e a emenda entre as duas aparece como uma faixa branca no topo.
+ */
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f3f2ef" },

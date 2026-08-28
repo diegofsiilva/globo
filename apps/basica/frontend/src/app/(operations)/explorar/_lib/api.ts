@@ -4,6 +4,14 @@ import { getJson, withScope, type EventScope } from "@/lib/events/query";
 
 export type { EventScope };
 
+/**
+ * Um grupo do agrupamento, já normalizado para o que a tela desenha.
+ *
+ * `average_duration_ms` vem sempre `null`: `gold.feature_bucket` guarda valor
+ * por métrica, não duração por evento. O campo permanece no tipo porque a coluna
+ * existe na tabela da tela — exibir "—" é honesto, remover a coluna esconderia
+ * uma limitação do dado.
+ */
 export type BreakdownGroup = {
   key: string;
   count: number;
@@ -11,6 +19,7 @@ export type BreakdownGroup = {
   average_duration_ms: number | null;
 };
 
+/** Agrupamento por uma dimensão da série, com o total da janela. */
 export type BreakdownResponse = {
   dimension: string;
   total: number;
@@ -38,18 +47,37 @@ type SeriesTimeseriesResponse = {
   }[];
 };
 
+/**
+ * Um balde da série temporal.
+ *
+ * `by_event_name` mantém o nome herdado da versão que lia evento por sessão. No
+ * dado agregado a chave é a MÉTRICA (`sessions`, `error_rate_pct`, `p95_ms`);
+ * o adapter faz a tradução para que os componentes da tela não mudassem junto
+ * com a fonte.
+ */
 export type TimeseriesBucket = {
   bucket: string;
   count: number;
   by_event_name: Record<string, number>;
 };
 
+/** Série temporal em baldes regulares, com o total da janela. */
 export type TimeseriesResponse = {
   interval_minutes: number;
   total: number;
   buckets: TimeseriesBucket[];
 };
 
+/**
+ * Agrupa a série por uma dimensão.
+ *
+ * @param dimension Dimensão do agrupamento (`source`, `entity`, `metric`,
+ *   `hora_brt`, `dow`).
+ * @param window Janela consultada, em ISO 8601.
+ * @param scope Recorte cumulativo; chaves vazias não entram na query string.
+ * @param signal Aborta quando a tela desmonta ou o filtro muda.
+ * @returns Os grupos ordenados pelo servidor, com o total.
+ */
 export async function fetchBreakdown(
   dimension: string,
   window: { from: string; to: string },
@@ -80,6 +108,15 @@ export async function fetchBreakdown(
   };
 }
 
+/**
+ * Série temporal agregada da janela.
+ *
+ * @param window Janela consultada, em ISO 8601.
+ * @param intervalMinutes Largura de cada balde.
+ * @param scope Recorte cumulativo.
+ * @param signal Aborta quando a tela desmonta ou o filtro muda.
+ * @returns Os baldes com o valor total e a quebra por métrica.
+ */
 export async function fetchTimeseries(
   window: { from: string; to: string },
   intervalMinutes: number,

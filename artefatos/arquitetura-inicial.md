@@ -1,4 +1,4 @@
-# Arquitetura inicial da solução — Argus v3
+# Arquitetura inicial da solução 
 
 &emsp; Este artefato detalha a arquitetura da solução Argus v3: seus componentes,
 tecnologias, fluxos de comunicação, decisões arquiteturais e plano de implantação
@@ -73,7 +73,7 @@ de comunicação efetivamente usado.
 
 <div align="center">
 
-<sub>Figura 1 — Implantação do Argus v3 na AWS, região `us-east-1`</sub>
+<sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
 
 ![Diagrama de implantação do Argus v3](assets/arquitetura-implantacao-v3.svg)
 

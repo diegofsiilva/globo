@@ -39,6 +39,7 @@ export type SignalItem = {
   trend: number[];
 };
 
+/** Resposta de `/api/v1/signals`, do maior desvio para o menor. */
 export type SignalsResponse = {
   items: SignalItem[];
   /** Tamanho de `items`, não um total da base — a consulta não chega a apurá-lo. */

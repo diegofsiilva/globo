@@ -1,3 +1,4 @@
+/** Um tipo de evento na barra de seleção, com a contagem já formatada. */
 export type EventKind = {
   count: number;
   id: string;
@@ -15,6 +16,12 @@ export type EventKind = {
  */
 export type GroupBy = "Dispositivo" | "Fonte" | "Métrica" | "Hora" | "Dia da semana";
 
+/**
+ * Uma linha do agrupamento: o rótulo do grupo e as suas medidas.
+ *
+ * `delta` vem como texto, e não número, porque carrega o sinal e a unidade já
+ * formatados para leitura direta na tabela.
+ */
 export type ExplorationRow = {
   delta: string;
   errorRate: number;
@@ -22,6 +29,7 @@ export type ExplorationRow = {
   label: string;
 };
 
+/** Um erro recorrente, com contagem e participação já formatadas. */
 export type FrequentError = {
   count: string;
   id: string;
