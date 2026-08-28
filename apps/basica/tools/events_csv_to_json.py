@@ -55,7 +55,7 @@ RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 
 def to_snake(column: str) -> str:
-    """"App Model Year" -> "app_model_year".
+    """Normaliza um cabecalho do CSV: `App Model Year` vira `app_model_year`.
 
     Args:
         column (str): Nome original da coluna no CSV.
@@ -77,7 +77,10 @@ def parse_timestamp(raw: str) -> str:
     Returns:
         str: String formatada em ISO 8601 UTC.
     """
-    naive = datetime.strptime(raw.strip(), "%B %d, %Y %H:%M:%S")
+    # O CSV do BI nao carrega fuso nenhum no texto; quem sabe o fuso e o
+    # exportador, e ele esta em EVENT_TZ. Por isso o strptime aqui e naive DE
+    # PROPOSITO -- a linha seguinte e que aplica o fuso certo.
+    naive = datetime.strptime(raw.strip(), "%B %d, %Y %H:%M:%S")  # noqa: DTZ007
     utc = naive.replace(tzinfo=EVENT_TZ).astimezone(ZoneInfo("UTC"))
     return utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 

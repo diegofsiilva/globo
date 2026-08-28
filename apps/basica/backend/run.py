@@ -11,7 +11,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent
 SOURCE_ROOT = BACKEND_ROOT / "src"
 RUNTIME_REQUIREMENTS = (
     "Flask>=3.1,<4",
-    "boto3>=1.35,<2",
+    "psycopg[binary,pool]>=3.2,<4",
 )
 
 if str(SOURCE_ROOT) not in sys.path:
@@ -41,15 +41,36 @@ load_local_environment(BACKEND_ROOT.parent / ".env")
 
 
 def ensure_runtime_dependencies() -> None:
-    """Garante que as dependências necessárias estejam instaladas em um ambiente Python limpo.
+    """Garante que as dependências de runtime estejam disponíveis para importação.
+
+    Se algo faltar e o interpretador não estiver em um ambiente virtual, orienta a
+    criar um em vez de tentar instalar no Python do sistema, o que falha em
+    distribuições com PEP 668 (``externally-managed-environment``).
 
     Raises:
-        RuntimeError: Se a instalação automática via pip falhar.
+        RuntimeError: Se a instalação automática via pip falhar dentro de um venv.
+        SystemExit: Se faltar dependência e não houver um ambiente virtual ativo.
     """
-    required_modules = ("flask", "boto3")
+    required_modules = ("flask", "psycopg")
     missing = [module for module in required_modules if find_spec(module) is None]
     if not missing:
         return
+
+    venv_hint = (
+        "Rode 'apps/basica/backend/scripts/dev.sh' (Linux/macOS) ou "
+        "'apps/basica/backend/scripts/dev.ps1' (Windows), que criam o .venv e "
+        "instalam as dependencias. Alternativa: 'make -C apps/basica api'."
+    )
+
+    if sys.prefix == sys.base_prefix:
+        print(
+            f"Dependencias ausentes: {', '.join(missing)}.\n"
+            "Este e o Python do sistema; instalar pacotes nele falha em "
+            f"distribuicoes com PEP 668.\n{venv_hint}",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise SystemExit(1)
 
     print(
         f"Preparando o backend pela primeira vez (dependencias ausentes: {', '.join(missing)})...",
@@ -67,9 +88,11 @@ def ensure_runtime_dependencies() -> None:
             ]
         )
     except subprocess.CalledProcessError as error:
+        manual_command = " ".join(f'"{requirement}"' for requirement in RUNTIME_REQUIREMENTS)
         raise RuntimeError(
-            "Nao foi possivel instalar as dependencias automaticamente. "
-            "Verifique sua conexao e execute o arquivo novamente."
+            "A instalacao automatica das dependencias falhou. Instale manualmente "
+            f"com '{sys.executable} -m pip install {manual_command}'. "
+            f"Se o pip recusar por ambiente gerenciado (PEP 668): {venv_hint}"
         ) from error
 
 

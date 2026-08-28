@@ -1,14 +1,61 @@
 {
   "info": {
-    "name": "Argus — telemetria (GET e POST)",
-    "description": "Testes das duas APIs implantadas na AWS.\n\n- **POST** vai para a API de ingestão (API Gateway → SQS → worker ECS → DynamoDB).\n- **GET** vai para a API de leitura (API Gateway → Lambda → DynamoDB).\n\nA pasta 3 fecha o ciclo: confirma no GET os eventos que a pasta 2 enviou por POST, provando o caminho ponta a ponta e a idempotência da ingestão.\n\nAs URLs vêm do environment e nunca são versionadas — veja `environment.example.json`.",
+    "name": "Argus, API de leitura e ingestão",
+    "description": "Coleção unificada atualizada em 27/08/2026. As pastas 0, 1 e 4 a 13 cobrem todas as 33 rotas declaradas em apps/basica/backend, inclusive hipóteses, com caminho feliz e erros 4xx quando a rota recebe entrada validável. A API de leitura não implementa autenticação; por isso 401/403 não são aplicáveis. As pastas 2 e 3 preservam os testes legados de ingestão e estão fora do escopo do artefato backend.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "noauth"
+  },
   "variable": [
-    { "key": "session_e2e", "value": "" },
-    { "key": "device_e2e", "value": "" },
-    { "key": "ts_e2e", "value": "" },
-    { "key": "tentativas", "value": "0" }
+    {
+      "key": "session_e2e",
+      "value": ""
+    },
+    {
+      "key": "device_e2e",
+      "value": ""
+    },
+    {
+      "key": "ts_e2e",
+      "value": ""
+    },
+    {
+      "key": "tentativas",
+      "value": "0"
+    },
+    {
+      "key": "read_url",
+      "value": ""
+    },
+    {
+      "key": "ingest_url",
+      "value": ""
+    },
+    {
+      "key": "from",
+      "value": ""
+    },
+    {
+      "key": "to",
+      "value": ""
+    },
+    {
+      "key": "event_id_existente",
+      "value": ""
+    },
+    {
+      "key": "hypothesis_id",
+      "value": ""
+    },
+    {
+      "key": "hypothesis_run_id",
+      "value": ""
+    },
+    {
+      "key": "feedback_key",
+      "value": ""
+    }
   ],
   "event": [
     {
@@ -28,6 +75,140 @@
           "  // for byte a byte idêntico. Um timestamp dinâmico geraria outro id.",
           "  pm.collectionVariables.set('ts_e2e', new Date().toISOString().replace(/\\.\\d{3}Z$/, 'Z'));",
           "  pm.collectionVariables.set('tentativas', '0');",
+          "}",
+          "if (!pm.collectionVariables.get('feedback_key')) {",
+          "  pm.collectionVariables.set('feedback_key', pm.variables.replaceIn('{{$guid}}'));",
+          "}",
+          "// Requests herdados têm URL estruturada com base_url; sincroniza-a com read_url.",
+          "pm.collectionVariables.set('base_url', pm.variables.get('read_url'));"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// As pastas 2 e 3 pertencem à ingestão legada e mantêm seus próprios asserts.",
+          "const legado = /^(AVISO|2\\.|3\\.)/.test(pm.info.requestName);",
+          "if (!legado) {",
+          "  const statusEsperado = {",
+          "    'Favicon': 204,",
+          "    '1.10 Erro: período inválido devolve 422': 422,",
+          "    '1.11 Erro: sessão inexistente devolve 404': 404,",
+          "    '9.3 Erro: sessão inexistente': 404,",
+          "    '9.4 Erro: limite de sessão inválido': 422,",
+          "    '9.6 Erro: evento inexistente': 404,",
+          "    '9.8 Erro: limite de aparelho inválido': 422,",
+          "    '9.10 Erro: breakdown sem dimensão': 422,",
+          "    '9.12 Erro: crosstab sem dimensões': 422,",
+          "    '9.14 Erro: intervalo de timeseries inválido': 422,",
+          "    '9.16 Erro: facet sensível': 422,",
+          "    '10.2 Erro: limite da série inválido': 422,",
+          "    '10.4 Erro: dimensão de facet inválida': 422,",
+          "    '10.6 Erro: breakdown da série sem dimensão': 422,",
+          "    '10.8 Erro: intervalo da série inválido': 422,",
+          "    '10.10 Erro: crosstab da série sem dimensões': 422,",
+          "    '10.13 Erro: limite de incidentes inválido': 422,",
+          "    '10.15 Erro: limite de eventos ao vivo inválido': 422,",
+          "    '10.17 Erro: limite de anomalias inválido': 422,",
+          "    '11.2 Erro: janela de sinais inválida': 422,",
+          "    '11.4 Erro: data de mudanças inválida': 422,",
+          "    '11.6 Erro: duração de janela estável inválida': 422,",
+          "    '11.8 Erro: data de pico ao vivo inválida': 422,",
+          "    '11.10 Erro: data da timeline inválida': 422,",
+          "    '12.2 Erro: limite de runs inválido': 422,",
+          "    '12.4 Erro: família de hipótese inválida': 422,",
+          "    '12.6 Erro: hipótese inexistente': 404,",
+          "    '12.7 Criar feedback': 201,",
+          "    '12.8 Reenvio idempotente do feedback': 200,",
+          "    '12.9 Erro: verdict de feedback inválido': 422,",
+          "    '12.10 Erro: conflito de idempotência': 409,",
+          "    '12.11 Erro: feedback para hipótese inexistente': 404",
+          "  };",
+          "  const esperado = statusEsperado[pm.info.requestName] || 200;",
+          "  pm.test(`status HTTP esperado (${esperado})`, () => pm.response.to.have.status(esperado));",
+          "  pm.test('responde em menos de 3s (RNF02)', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+          "",
+          "  if (esperado >= 400) {",
+          "    const problema = pm.response.json();",
+          "    pm.test('erro segue Problem Details', () => {",
+          "      pm.expect(pm.response.headers.get('Content-Type')).to.include('problem+json');",
+          "      pm.expect(problema.status).to.eql(esperado);",
+          "      pm.expect(problema).to.have.all.keys('type', 'title', 'status', 'detail', 'instance', ...(problema.field ? ['field'] : []));",
+          "    });",
+          "  } else if (esperado !== 204 && pm.info.requestName !== 'Swagger UI') {",
+          "    pm.test('resposta possui corpo JSON', () => {",
+          "      pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "      pm.expect(() => pm.response.json()).to.not.throw();",
+          "    });",
+          "  }",
+          "",
+          "  const chaves = {",
+          "    'Índice da API': ['service', 'status', 'endpoints'],",
+          "    'Readiness (banco)': ['status'],",
+          "    'Relógio virtual': ['sim_now', 'speed', 'updated_at'],",
+          "    'OpenAPI spec': ['openapi', 'paths'],",
+          "    'Liveness': ['status'],",
+          "    '9.1 Buscar eventos': ['items', 'next_cursor', 'query'],",
+          "    '9.2 Linha do tempo da sessão': ['session_id', 'events', 'summary', 'query'],",
+          "    '9.5 Detalhar evento': ['event_id', 'event_name', 'attributes'],",
+          "    '9.7 Histórico do aparelho': ['items', 'next_cursor', 'query'],",
+          "    '9.9 Breakdown de eventos': ['groups', 'total'],",
+          "    '9.11 Crosstab de eventos': ['dimension_x', 'dimension_y', 'cells'],",
+          "    '9.13 Timeseries de eventos': ['buckets', 'total'],",
+          "    '9.15 Facets de eventos': ['facets'],",
+          "    '10.1 Listar série Gold': ['items', 'count'],",
+          "    '10.3 Facets da série': ['facets'],",
+          "    '10.5 Breakdown da série': ['groups'],",
+          "    '10.7 Timeseries da série': ['interval_minutes', 'buckets', 'total'],",
+          "    '10.9 Crosstab da série': ['cells'],",
+          "    '10.11 Listar fontes': ['items'],",
+          "    '10.12 Listar incidentes': ['items', 'count'],",
+          "    '10.14 Listar eventos ao vivo': ['items', 'count'],",
+          "    '10.16 Listar anomalias': ['items', 'count'],",
+          "    '11.1 Listar sinais': ['items'],",
+          "    '11.3 Listar mudanças': ['items'],",
+          "    '11.5 Obter janela estável': ['found'],",
+          "    '11.7 Obter último pico ao vivo': ['found'],",
+          "    '11.9 Obter timeline operacional': ['window', 'lanes'],",
+          "    '12.1 Listar execuções de hipóteses': ['items', 'count'],",
+          "    '12.3 Listar hipóteses': ['items', 'count'],",
+          "    '12.5 Detalhar hipótese': ['hypothesis_id', 'features', 'evidence'],",
+          "    '12.7 Criar feedback': ['feedback_id', 'created', 'reviewer_verified'],",
+          "    '12.8 Reenvio idempotente do feedback': ['feedback_id', 'created', 'reviewer_verified']",
+          "  };",
+          "  if (chaves[pm.info.requestName]) {",
+          "    const corpo = pm.response.json();",
+          "    pm.test('contrato mínimo da resposta', () => chaves[pm.info.requestName].forEach(chave => pm.expect(corpo).to.have.property(chave)));",
+          "  }",
+          "  if (pm.info.requestName === '9.1 Buscar eventos') {",
+          "    const items = pm.response.json().items;",
+          "    pm.test('massa contém evento para os testes encadeados', () => pm.expect(items).to.be.an('array').that.is.not.empty);",
+          "    if (items.length) {",
+          "      pm.collectionVariables.set('sessao_existente', items[0].session_id);",
+          "      pm.collectionVariables.set('aparelho_existente', items[0].device_id);",
+          "      pm.collectionVariables.set('event_id_existente', items[0].event_id);",
+          "    }",
+          "  }",
+          "  if (pm.info.requestName === 'Relógio virtual') {",
+          "    const ate = new Date(pm.response.json().sim_now);",
+          "    const desde = new Date(ate.getTime() - 7 * 24 * 60 * 60 * 1000);",
+          "    pm.collectionVariables.set('from', desde.toISOString());",
+          "    pm.collectionVariables.set('to', ate.toISOString());",
+          "  }",
+          "  if (pm.info.requestName === '12.1 Listar execuções de hipóteses') {",
+          "    const items = pm.response.json().items;",
+          "    pm.test('massa contém run publicado', () => pm.expect(items).to.be.an('array').that.is.not.empty);",
+          "    if (items.length) pm.collectionVariables.set('hypothesis_run_id', items[0].run_id);",
+          "  }",
+          "  if (pm.info.requestName === '12.3 Listar hipóteses') {",
+          "    const items = pm.response.json().items;",
+          "    pm.test('massa contém hipótese publicada', () => pm.expect(items).to.be.an('array').that.is.not.empty);",
+          "    if (items.length) pm.collectionVariables.set('hypothesis_id', items[0].hypothesis_id);",
+          "  }",
+          "  if (pm.info.requestName === '12.7 Criar feedback') pm.test('feedback foi criado', () => pm.expect(pm.response.json().created).to.eql(true));",
+          "  if (pm.info.requestName === '12.8 Reenvio idempotente do feedback') pm.test('reenvio não duplicou', () => pm.expect(pm.response.json().created).to.eql(false));",
           "}"
         ]
       }
@@ -35,15 +216,92 @@
   ],
   "item": [
     {
-      "name": "1. GET — API de leitura",
+      "name": "0. Diagnóstico",
+      "item": [
+        {
+          "name": "Índice da API",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Readiness (banco)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/health/ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Relógio virtual",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/clock",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "clock"
+              ]
+            }
+          }
+        },
+        {
+          "name": "OpenAPI spec",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/openapi.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "openapi.json"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Leitura, eventos e métricas",
       "item": [
         {
           "name": "1.1 Saúde da API",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{read_url}}/health/ready", "host": ["{{read_url}}"], "path": ["health", "ready"] },
-            "description": "Sonda de readiness: confirma que a Lambda alcança o DynamoDB."
+            "url": {
+              "raw": "{{read_url}}/health/ready",
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Sonda de readiness: confirma que a API alcança o RDS PostgreSQL."
           },
           "event": [
             {
@@ -59,17 +317,28 @@
           ]
         },
         {
-          "name": "1.2 Busca sem filtro (table:scan)",
+          "name": "1.2 Busca sem filtro (particao_por_tempo)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/events?limit=50",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "events"],
-              "query": [{ "key": "limit", "value": "50" }]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
             },
-            "description": "Sem session_id, device_id ou event_name não há chave de partição, então a API varre a tabela. O bloco `query` da resposta expõe essa escolha e o custo dela."
+            "description": "Sem session_id, device_id ou event_name, a consulta cai na janela de tempo padrão (RNF02), usa o índice por `ts`."
           },
           "event": [
             {
@@ -80,7 +349,7 @@
                   "const corpo = pm.response.json();",
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
                   "pm.test('devolve uma página de eventos', () => pm.expect(corpo.items).to.be.an('array'));",
-                  "pm.test('usa a estratégia table:scan', () => pm.expect(corpo.query.strategy).to.eql('table:scan'));",
+                  "  pm.test('usa a estrategia particao_por_tempo', () => pm.expect(corpo.query.strategy).to.eql('particao_por_tempo'));",
                   "pm.test('expõe o custo da consulta', () => {",
                   "  pm.expect(corpo.query.scanned).to.be.at.least(corpo.query.returned);",
                   "});",
@@ -97,20 +366,32 @@
           ]
         },
         {
-          "name": "1.3 Busca por tipo (gsi1:fanout)",
+          "name": "1.3 Busca por tipo (indice_tipo_e_tempo)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/events?event_name=error&limit=20",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "events"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
               "query": [
-                { "key": "event_name", "value": "error" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "event_name",
+                  "value": "error"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             },
-            "description": "Com event_name a API usa a GSI1, disparando uma query por (dia × shard) em paralelo."
+            "description": "Com event_name, a consulta usa o índice por tipo e tempo, uma única query, não fan-out (isso era comportamento do DynamoDB v2)."
           },
           "event": [
             {
@@ -120,11 +401,11 @@
                 "exec": [
                   "const corpo = pm.response.json();",
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
-                  "pm.test('usa a GSI1 com fan-out', () => pm.expect(corpo.query.strategy).to.eql('gsi1:fanout'));",
+                  "  pm.test('usa o indice_tipo_e_tempo', () => pm.expect(corpo.query.strategy).to.eql('indice_tipo_e_tempo'));",
                   "pm.test('o filtro foi aplicado', () => {",
                   "  corpo.items.forEach(e => pm.expect(e.event_name).to.eql('error'));",
                   "});",
-                  "pm.test('o fan-out dispara mais de uma query', () => pm.expect(corpo.query.queries).to.be.above(1));",
+                  "  pm.test('resolve em uma unica query (Postgres, nao ha fan-out)', () => pm.expect(corpo.query.queries).to.eql(1));",
                   "pm.test('responde em menos de 3s (RNF02)', () => pm.expect(pm.response.responseTime).to.be.below(3000));"
                 ]
               }
@@ -132,14 +413,21 @@
           ]
         },
         {
-          "name": "1.4 Linha do tempo da sessão (table:session)",
+          "name": "1.4 Linha do tempo da sessão (indice_sessao)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/sessions/{{sessao_existente}}",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "sessions", "{{sessao_existente}}"]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "{{sessao_existente}}"
+              ]
             },
             "description": "Consulta mais barata do sistema: uma partição. É a tela de investigação de incidente."
           },
@@ -151,7 +439,7 @@
                 "exec": [
                   "const corpo = pm.response.json();",
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
-                  "pm.test('usa a tabela, não índice', () => pm.expect(corpo.query.strategy).to.eql('table:session'));",
+                  "  pm.test('usa o indice_sessao', () => pm.expect(corpo.query.strategy).to.eql('indice_sessao'));",
                   "pm.test('resolve em uma única query', () => pm.expect(corpo.query.queries).to.eql(1));",
                   "pm.test('a linha do tempo é cronológica', () => {",
                   "  const horarios = corpo.events.map(e => e.occurred_at);",
@@ -164,16 +452,23 @@
           ]
         },
         {
-          "name": "1.5 Histórico do aparelho (gsi2:device)",
+          "name": "1.5 Histórico do aparelho (indice_aparelho)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/devices/{{aparelho_existente}}",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "devices", "{{aparelho_existente}}"]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices",
+                "{{aparelho_existente}}"
+              ]
             },
-            "description": "Atravessa sessões: o histórico de um aparelho ao longo do tempo, pela GSI2."
+            "description": "Histórico de um aparelho ao longo do tempo, pelo índice por device_id."
           },
           "event": [
             {
@@ -183,7 +478,7 @@
                 "exec": [
                   "const corpo = pm.response.json();",
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
-                  "pm.test('usa a GSI2', () => pm.expect(corpo.query.strategy).to.eql('gsi2:device'));",
+                  "  pm.test('usa o indice_aparelho', () => pm.expect(corpo.query.strategy).to.eql('indice_aparelho'));",
                   "pm.test('todos os eventos são do aparelho pedido', () => {",
                   "  const esperado = pm.collectionVariables.get('aparelho_existente');",
                   "  corpo.items.forEach(e => pm.expect(e.device_id).to.eql(esperado));",
@@ -200,11 +495,23 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/facets?field=event_name&field=device_manufacturer",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "facets"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "facets"
+              ],
               "query": [
-                { "key": "field", "value": "event_name" },
-                { "key": "field", "value": "device_manufacturer" }
+                {
+                  "key": "field",
+                  "value": "event_name"
+                },
+                {
+                  "key": "field",
+                  "value": "device_manufacturer"
+                }
               ]
             },
             "description": "Alimenta o autocompletar dos filtros do dashboard (RF10)."
@@ -237,14 +544,27 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/metrics/breakdown?dimension=device_manufacturer&limit=10",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "metrics", "breakdown"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "breakdown"
+              ],
               "query": [
-                { "key": "dimension", "value": "device_manufacturer" },
-                { "key": "limit", "value": "10" }
+                {
+                  "key": "dimension",
+                  "value": "device_manufacturer"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
               ]
             },
-            "description": "O DynamoDB não tem GROUP BY: a agregação acontece na aplicação (RF11)."
+            "description": "A agregação roda no banco via GROUP BY, direto sobre a silver, ainda não há camada gold pré-agregada para sessão/evento (RF11; ver mapa-tratamentos-bronze-silver-gold.md)."
           },
           "event": [
             {
@@ -271,16 +591,35 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/metrics/timeseries?interval=60&compare=true&from={{janela_de}}&to={{janela_ate}}",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "metrics", "timeseries"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "timeseries"
+              ],
               "query": [
-                { "key": "interval", "value": "60" },
-                { "key": "compare", "value": "true" },
-                { "key": "from", "value": "{{janela_de}}" },
-                { "key": "to", "value": "{{janela_ate}}" }
+                {
+                  "key": "interval",
+                  "value": "60"
+                },
+                {
+                  "key": "compare",
+                  "value": "true"
+                },
+                {
+                  "key": "from",
+                  "value": "{{janela_de}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{janela_ate}}"
+                }
               ]
             },
-            "description": "Com compare=true a API devolve também a janela anterior de mesma duração e a variação entre as duas (RF14) — é o que permite dizer 'os erros dobraram'."
+            "description": "Com compare=true a API devolve também a janela anterior de mesma duração e a variação entre as duas (RF14), é o que permite dizer 'os erros dobraram'."
           },
           "event": [
             {
@@ -321,11 +660,23 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/events?event_name=request&limit=20",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "events"],
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
               "query": [
-                { "key": "event_name", "value": "request" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "event_name",
+                  "value": "request"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             },
             "description": "RNF10. O worker grava o evento cru, com user_id e o header authorization; a remoção acontece na SAÍDA da API. Este teste é a trava dessa garantia."
@@ -364,9 +715,20 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/events?from=ontem",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "events"],
-              "query": [{ "key": "from", "value": "ontem" }]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "ontem"
+                }
+              ]
             },
             "description": "Erro de cliente no formato Problem Details (RFC 7807), apontando o campo culpado."
           },
@@ -395,8 +757,15 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/sessions/sessao-que-nao-existe",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "sessions", "sessao-que-nao-existe"]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "sessao-que-nao-existe"
+              ]
             }
           },
           "event": [
@@ -414,14 +783,37 @@
       ]
     },
     {
-      "name": "2. POST — API de ingestão",
+      "name": "2. POST, API de ingestão",
       "item": [
+        {
+          "name": "AVISO, não verificado nesta rodada",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "",
+              "host": [
+                ""
+              ]
+            },
+            "description": "Esta pasta (POST, API de ingestão) não foi revisada nesta etapa. O trabalho desta rodada cobriu só a API de LEITURA (apps/basica/backend). Os testes abaixo assumem a integração API Gateway -> SQS direta descrita em plano-argus-v3.md; confirmar contra apps/basica/worker antes de rodar em CI."
+          }
+        },
         {
           "name": "2.1 Evento único",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"timestamp\": \"{{ts_e2e}}\",\n  \"event_name\": \"error\",\n  \"session_id\": \"{{session_e2e}}\",\n  \"device_id\": \"{{device_e2e}}\",\n  \"app_target\": \"dom-postman-teste\",\n  \"app_version\": \"2026.3.0\",\n  \"app_env\": \"production\",\n  \"device_manufacturer\": \"Postman\",\n  \"device_model\": \"COLLECTION-RUNNER\",\n  \"device_os\": \"Newman\",\n  \"route_path\": \"vod\",\n  \"duration\": 1.5,\n  \"error_name\": \"Erro de teste do Postman\",\n  \"error_message\": \"Evento sintetico da colecao de testes\",\n  \"error_stack\": \"postman:1_0001\"\n}"
@@ -452,8 +844,18 @@
           "name": "2.2 Lote de três eventos",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"events\": [\n    {\n      \"timestamp\": \"{{ts_e2e}}\",\n      \"event_name\": \"screen_view\",\n      \"session_id\": \"{{session_e2e}}\",\n      \"device_id\": \"{{device_e2e}}\",\n      \"route_path\": \"home\",\n      \"app_target\": \"dom-postman-teste\"\n    },\n    {\n      \"timestamp\": \"{{ts_e2e}}\",\n      \"event_name\": \"video_view\",\n      \"session_id\": \"{{session_e2e}}\",\n      \"device_id\": \"{{device_e2e}}\",\n      \"action\": \"open\",\n      \"media_id\": \"4452349\",\n      \"media_kind\": \"live\",\n      \"media_ads\": true\n    },\n    {\n      \"timestamp\": \"{{ts_e2e}}\",\n      \"event_name\": \"vitals\",\n      \"session_id\": \"{{session_e2e}}\",\n      \"device_id\": \"{{device_e2e}}\",\n      \"action\": \"frozen\",\n      \"duration\": 4.2\n    }\n  ]\n}"
@@ -473,11 +875,21 @@
           ]
         },
         {
-          "name": "2.3 Reenvio idêntico — idempotência",
+          "name": "2.3 Reenvio idêntico, idempotência",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"timestamp\": \"{{ts_e2e}}\",\n  \"event_name\": \"error\",\n  \"session_id\": \"{{session_e2e}}\",\n  \"device_id\": \"{{device_e2e}}\",\n  \"app_target\": \"dom-postman-teste\",\n  \"app_version\": \"2026.3.0\",\n  \"app_env\": \"production\",\n  \"device_manufacturer\": \"Postman\",\n  \"device_model\": \"COLLECTION-RUNNER\",\n  \"device_os\": \"Newman\",\n  \"route_path\": \"vod\",\n  \"duration\": 1.5,\n  \"error_name\": \"Erro de teste do Postman\",\n  \"error_message\": \"Evento sintetico da colecao de testes\",\n  \"error_stack\": \"postman:1_0001\"\n}"
@@ -500,8 +912,18 @@
           "name": "2.4 Tipo de evento desconhecido",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"timestamp\": \"{{ts_e2e}}\",\n  \"event_name\": \"postman_probe\",\n  \"session_id\": \"{{session_e2e}}\",\n  \"device_id\": \"{{device_e2e}}\",\n  \"campo_que_o_backend_nunca_viu\": \"preservado\",\n  \"outro_campo_novo\": 42\n}"
@@ -521,16 +943,26 @@
           ]
         },
         {
-          "name": "2.5 Payload inválido — rejeição assíncrona",
+          "name": "2.5 Payload inválido, rejeição assíncrona",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": { "raw": "{{ingest_url}}", "host": ["{{ingest_url}}"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingest_url}}",
+              "host": [
+                "{{ingest_url}}"
+              ]
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"event_name\": \"error\",\n  \"sem_timestamp\": true,\n  \"sem_session_id\": true,\n  \"sem_device_id\": true\n}"
             },
-            "description": "ACHADO IMPORTANTE, e contraintuitivo.\n\nEste payload é inválido: faltam timestamp, session_id e device_id. Ainda assim a resposta é **HTTP 200**.\n\nO motivo: a integração direta API Gateway → SQS não tem request validator (só o REST API tem, o HTTP API não), então o payload entra cru na fila e quem valida é o worker. A rejeição é assíncrona — o evento vai para a DLQ com o motivo anexado.\n\nÉ uma troca deliberada: para telemetria, aceitar rápido e validar depois é melhor que segurar a TV do usuário esperando validação. Mas quem consome a API precisa saber que 200 aqui significa 'enfileirado', não 'válido'.\n\nVerificação: `make dlq` mostra os eventos rejeitados com o motivo."
+            "description": "ACHADO IMPORTANTE, e contraintuitivo.\n\nEste payload é inválido: faltam timestamp, session_id e device_id. Ainda assim a resposta é **HTTP 200**.\n\nO motivo: a integração direta API Gateway → SQS não tem request validator (só o REST API tem, o HTTP API não), então o payload entra cru na fila e quem valida é o worker. A rejeição é assíncrona, o evento vai para a DLQ com o motivo anexado.\n\nÉ uma troca deliberada: para telemetria, aceitar rápido e validar depois é melhor que segurar a TV do usuário esperando validação. Mas quem consome a API precisa saber que 200 aqui significa 'enfileirado', não 'válido'.\n\nVerificação: `make dlq` mostra os eventos rejeitados com o motivo."
           },
           "event": [
             {
@@ -561,10 +993,17 @@
             "header": [],
             "url": {
               "raw": "{{read_url}}/api/v1/sessions/{{session_e2e}}",
-              "host": ["{{read_url}}"],
-              "path": ["api", "v1", "sessions", "{{session_e2e}}"]
+              "host": [
+                "{{read_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "{{session_e2e}}"
+              ]
             },
-            "description": "Fecha o ciclo: consulta pela API de LEITURA a sessão que a pasta 2 criou pela API de INGESTÃO.\n\nEspera 5 eventos únicos:\n- 1 de 2.1 (error)\n- 3 de 2.2 (screen_view, video_view, vitals)\n- 1 de 2.4 (tipo desconhecido)\n\nO reenvio de 2.3 NÃO conta — mesma chave, overwrite. E o payload inválido de 2.5 também não: foi para a DLQ.\n\nA requisição repete a si mesma enquanto o worker não tiver processado a fila (long polling de 20s)."
+            "description": "Fecha o ciclo: consulta pela API de LEITURA a sessão que a pasta 2 criou pela API de INGESTÃO.\n\nEspera 5 eventos únicos:\n- 1 de 2.1 (error)\n- 3 de 2.2 (screen_view, video_view, vitals)\n- 1 de 2.4 (tipo desconhecido)\n\nO reenvio de 2.3 NÃO conta, mesma chave, overwrite. E o payload inválido de 2.5 também não: foi para a DLQ.\n\nA requisição repete a si mesma enquanto o worker não tiver processado a fila (long polling de 20s)."
           },
           "event": [
             {
@@ -615,6 +1054,793 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "4. Agora, sinais",
+      "item": [
+        {
+          "name": "Sinais ativos (janela padrão, 6h)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/signals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "signals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sinais ativos (janela explícita)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/signals?from={{from}}&to={{to}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "signals"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Facets para os filtros da barra de escopo (plataforma/fabricante/app)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/facets?field=device_os&field=device_manufacturer&field=app_version&field=uf",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "facets"
+              ],
+              "query": [
+                {
+                  "key": "field",
+                  "value": "device_os"
+                },
+                {
+                  "key": "field",
+                  "value": "device_manufacturer"
+                },
+                {
+                  "key": "field",
+                  "value": "app_version"
+                },
+                {
+                  "key": "field",
+                  "value": "uf"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Comparar, referências e mudanças",
+      "item": [
+        {
+          "name": "Janela atual x anterior (compare=true)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/metrics/timeseries?interval=60&compare=true&from={{from}}&to={{to}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "timeseries"
+              ],
+              "query": [
+                {
+                  "key": "interval",
+                  "value": "60"
+                },
+                {
+                  "key": "compare",
+                  "value": "true"
+                },
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Referência: última janela estável",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/references/stable-window?duration_minutes=60",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "references",
+                "stable-window"
+              ],
+              "query": [
+                {
+                  "key": "duration_minutes",
+                  "value": "60"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Referência: último pico ao vivo",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/references/last-live-peak",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "references",
+                "last-live-peak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mudanças (change events, só deploy/Tsuru, ver nota no rotas-frontend.md)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/changes?from={{from}}&to={{to}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "changes"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Timeline",
+      "item": [
+        {
+          "name": "Seis raias (janela padrão, 3h)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/timeline",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "timeline"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Seis raias (janela explícita)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/timeline?from={{from}}&to={{to}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "timeline"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Timeline de uma sessão (modo alternativo, já existia)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/sessions/{{sessao_existente}}?limit=200",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "{{sessao_existente}}"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "200"
+                }
+              ],
+              "variable": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Recorte, heatmap",
+      "item": [
+        {
+          "name": "Heatmap device_model x uf (total)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/metrics/crosstab?dimension_x=device_model&dimension_y=uf&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "crosstab"
+              ],
+              "query": [
+                {
+                  "key": "dimension_x",
+                  "value": "device_model"
+                },
+                {
+                  "key": "dimension_y",
+                  "value": "uf"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Heatmap device_model x uf (só erros, combine com a de cima p/ taxa)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/metrics/crosstab?dimension_x=device_model&dimension_y=uf&event_name=error&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "crosstab"
+              ],
+              "query": [
+                {
+                  "key": "dimension_x",
+                  "value": "device_model"
+                },
+                {
+                  "key": "dimension_y",
+                  "value": "uf"
+                },
+                {
+                  "key": "event_name",
+                  "value": "error"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Amostra de sessões do recorte",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/events?event_name=error&from={{from}}&to={{to}}&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "event_name",
+                  "value": "error"
+                },
+                {
+                  "key": "from",
+                  "value": "{{from}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{to}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Filtros de região/operadora (uf/isp)",
+      "item": [
+        {
+          "name": "Events filtrado por uf",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/events?uf=RJ&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "uf",
+                  "value": "RJ"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "IMPORTANTE: hoje nenhum dos 6 tipos de evento reais popula uf/isp no dataset (ver rotas-frontend.md §1.1), este request deve devolver items:[] até existir enriquecimento de origem. Ele testa o MECANISMO do filtro, não dado real ainda."
+          }
+        },
+        {
+          "name": "Breakdown por uf (já funcionava antes do fix de filtro)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{read_url}}/api/v1/metrics/breakdown?dimension=uf",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "breakdown"
+              ],
+              "query": [
+                {
+                  "key": "dimension",
+                  "value": "uf"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Eventos e métricas — cobertura por rota",
+      "description": "Caminhos felizes e erros de validação das rotas de eventos. As três primeiras consultas encadeiam IDs reais obtidos da busca inicial.",
+      "item": [
+        {
+          "name": "9.1 Buscar eventos",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/events?limit=50",
+            "description": "RF08/RF09. Espera 200, página não vazia e bloco query; guarda IDs reais para os casos seguintes."
+          }
+        },
+        {
+          "name": "9.2 Linha do tempo da sessão",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/sessions/{{sessao_existente}}?limit=200",
+            "description": "RF16. Espera 200 com eventos, resumo e estratégia de consulta da sessão."
+          }
+        },
+        {
+          "name": "9.3 Erro: sessão inexistente",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/sessions/sessao-inexistente-postman",
+            "description": "RF16. Espera 404 no formato Problem Details."
+          },
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('sessão inexistente devolve 404', () => pm.response.to.have.status(404));"]}}]
+        },
+        {
+          "name": "9.4 Erro: limite de sessão inválido",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/sessions/{{sessao_existente}}?limit=0",
+            "description": "RF16. Espera 422 para limite fora da faixa."
+          }
+        },
+        {
+          "name": "9.5 Detalhar evento",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/sessions/{{sessao_existente}}/events/{{event_id_existente}}",
+            "description": "RF16. Espera 200 com o evento real guardado pelo caso 9.1."
+          }
+        },
+        {
+          "name": "9.6 Erro: evento inexistente",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/sessions/{{sessao_existente}}/events/evento-inexistente-postman",
+            "description": "RF16. Espera 404 no formato Problem Details."
+          }
+        },
+        {
+          "name": "9.7 Histórico do aparelho",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/devices/{{aparelho_existente}}?limit=50",
+            "description": "RF16. Espera 200 com página de eventos do aparelho real."
+          }
+        },
+        {
+          "name": "9.8 Erro: limite de aparelho inválido",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/devices/{{aparelho_existente}}?limit=0",
+            "description": "RF16. Espera 422 para limite fora da faixa."
+          }
+        },
+        {
+          "name": "9.9 Breakdown de eventos",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/metrics/breakdown?dimension=event_name&limit=20",
+            "description": "RF11. Espera 200 com grupos e total."
+          }
+        },
+        {
+          "name": "9.10 Erro: breakdown sem dimensão",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/metrics/breakdown",
+            "description": "RF11. Espera 422 porque dimension é obrigatório."
+          }
+        },
+        {
+          "name": "9.11 Crosstab de eventos",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/metrics/crosstab?dimension_x=device_manufacturer&dimension_y=event_name&limit=100",
+            "description": "RF11/RF16. Espera 200 com células do heatmap."
+          }
+        },
+        {
+          "name": "9.12 Erro: crosstab sem dimensões",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/metrics/crosstab",
+            "description": "RF11/RF16. Espera 422 porque as duas dimensões são obrigatórias."
+          }
+        },
+        {
+          "name": "9.13 Timeseries de eventos",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/metrics/timeseries?interval=60",
+            "description": "RF12/RF14. Espera 200 com buckets e total."
+          }
+        },
+        {
+          "name": "9.14 Erro: intervalo de timeseries inválido",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/metrics/timeseries?interval=0",
+            "description": "RF12/RF14. Espera 422 para intervalo fora da faixa."
+          }
+        },
+        {
+          "name": "9.15 Facets de eventos",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/facets?field=event_name&field=device_manufacturer",
+            "description": "RF10. Espera 200 com listas de valores existentes."
+          }
+        },
+        {
+          "name": "9.16 Erro: facet sensível",
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/facets?field=user_id",
+            "description": "RF10/RNF10. Espera 422: user_id não pode ser exposto como facet."
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Série Gold e contexto operacional",
+      "description": "Cobertura das consultas sobre gold.v_feature_bucket e das fontes de contexto.",
+      "item": [
+        {
+          "name": "10.1 Listar série Gold",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series?window_hours=24&limit=100","description":"RF12. Espera 200 com items e count."}
+        },
+        {
+          "name": "10.2 Erro: limite da série inválido",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series?limit=0","description":"RF12. Espera 422 para limite fora da faixa."}
+        },
+        {
+          "name": "10.3 Facets da série",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/facets?field=source&field=entity&field=metric","description":"RF10. Espera 200 com facets da série Gold."}
+        },
+        {
+          "name": "10.4 Erro: dimensão de facet inválida",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/facets?field=device_os","description":"RF10. Espera 422 para dimensão que não pertence ao grain da série."}
+        },
+        {
+          "name": "10.5 Breakdown da série",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/breakdown?dimension=source&limit=100","description":"RF11/RF12. Espera 200 com groups."}
+        },
+        {
+          "name": "10.6 Erro: breakdown da série sem dimensão",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/breakdown","description":"RF11/RF12. Espera 422 porque dimension é obrigatório."}
+        },
+        {
+          "name": "10.7 Timeseries da série",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/timeseries?interval=60","description":"RF12/RF14. Espera 200 com buckets agregados."}
+        },
+        {
+          "name": "10.8 Erro: intervalo da série inválido",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/timeseries?interval=0","description":"RF12/RF14. Espera 422 para intervalo fora da faixa."}
+        },
+        {
+          "name": "10.9 Crosstab da série",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/crosstab?dimension_x=entity&dimension_y=metric&limit=400","description":"RF11/RF16. Espera 200 com células da série Gold."}
+        },
+        {
+          "name": "10.10 Erro: crosstab da série sem dimensões",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/crosstab?dimension_x=entity","description":"RF11/RF16. Espera 422 porque faltou dimension_y."}
+        },
+        {
+          "name": "10.11 Listar fontes",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/sources","description":"Suporte. Espera 200 com fontes disponíveis."}
+        },
+        {
+          "name": "10.12 Listar incidentes",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/incidents?limit=100","description":"RF13/RF16. Espera 200 com janelas de incidente não derivadas."}
+        },
+        {
+          "name": "10.13 Erro: limite de incidentes inválido",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/incidents?limit=0","description":"RF13/RF16. Espera 422 para limite fora da faixa."}
+        },
+        {
+          "name": "10.14 Listar eventos ao vivo",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/live-events?limit=50","description":"RF14/RF16. Espera 200 com calendário de transmissões."}
+        },
+        {
+          "name": "10.15 Erro: limite de eventos ao vivo inválido",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/live-events?limit=0","description":"RF14/RF16. Espera 422 para limite fora da faixa."}
+        },
+        {
+          "name": "10.16 Listar anomalias",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/anomalies?limit=200","description":"RF13/RF15. Espera 200 com items e count, ainda que vazios."}
+        },
+        {
+          "name": "10.17 Erro: limite de anomalias inválido",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/anomalies?limit=0","description":"RF13/RF15. Espera 422 para limite fora da faixa."}
+        }
+      ]
+    },
+    {
+      "name": "11. Sinais, mudanças, referências e timeline",
+      "description": "Cobertura das rotas operacionais usadas por Agora, Comparar e Timeline.",
+      "item": [
+        {
+          "name": "11.1 Listar sinais",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/signals","description":"RF15. Espera 200 com lista de desvios ativos."}
+        },
+        {
+          "name": "11.2 Erro: janela de sinais inválida",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/signals?from=ontem","description":"RF15. Espera 422 para data fora do ISO 8601."}
+        },
+        {
+          "name": "11.3 Listar mudanças",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/changes","description":"RF16. Espera 200 com eventos de deploy disponíveis."}
+        },
+        {
+          "name": "11.4 Erro: data de mudanças inválida",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/changes?from=ontem","description":"RF16. Espera 422 para data fora do ISO 8601."}
+        },
+        {
+          "name": "11.5 Obter janela estável",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/references/stable-window?duration_minutes=60","description":"RF14. Espera 200 e indicador found."}
+        },
+        {
+          "name": "11.6 Erro: duração de janela estável inválida",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/references/stable-window?duration_minutes=0","description":"RF14. Espera 422 para duração fora da faixa."}
+        },
+        {
+          "name": "11.7 Obter último pico ao vivo",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/references/last-live-peak","description":"RF14. Espera 200 e indicador found."}
+        },
+        {
+          "name": "11.8 Erro: data de pico ao vivo inválida",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/references/last-live-peak?before=ontem","description":"RF14. Espera 422 para data fora do ISO 8601."}
+        },
+        {
+          "name": "11.9 Obter timeline operacional",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/timeline","description":"RF16. Espera 200 com janela e seis raias."}
+        },
+        {
+          "name": "11.10 Erro: data da timeline inválida",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/timeline?from=ontem","description":"RF16. Espera 422 para data fora do ISO 8601."}
+        }
+      ]
+    },
+    {
+      "name": "12. Hipóteses — RF17",
+      "description": "Cobertura prioritária das quatro rotas adicionadas nesta sprint. Os casos são encadeados: listagens guardam IDs reais e o mesmo idempotency_key é usado para provar criação, replay e conflito.",
+      "item": [
+        {
+          "name": "12.1 Listar execuções de hipóteses",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypothesis-runs?limit=50","description":"RF17. Espera 200, lista de runs publicados e guarda run_id."}
+        },
+        {
+          "name": "12.2 Erro: limite de runs inválido",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypothesis-runs?limit=0","description":"RF17. Espera 422 para limite fora da faixa."}
+        },
+        {
+          "name": "12.3 Listar hipóteses",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypotheses?limit=50","description":"RF17. Espera 200, lista de hipóteses publicadas e guarda hypothesis_id."}
+        },
+        {
+          "name": "12.4 Erro: família de hipótese inválida",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypotheses?family=familia_inexistente","description":"RF17. Espera 422 para enum fora da lista permitida."}
+        },
+        {
+          "name": "12.5 Detalhar hipótese",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}","description":"RF17. Espera 200 com features, evidências e qualidade das fontes."}
+        },
+        {
+          "name": "12.6 Erro: hipótese inexistente",
+          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypotheses/2147483647","description":"RF17. Espera 404 no formato Problem Details."}
+        },
+        {
+          "name": "12.7 Criar feedback",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}/feedback",
+            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"confirmed\",\n  \"note\": \"validado pela collection Postman\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"},
+            "description": "RF17. Espera 201 na primeira submissão e reviewer_verified=false. Usa dados sintéticos, sem identidade real."
+          }
+        },
+        {
+          "name": "12.8 Reenvio idempotente do feedback",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}/feedback",
+            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"confirmed\",\n  \"note\": \"validado pela collection Postman\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"},
+            "description": "RF17. Espera 200 e created=false para o replay byte a byte idêntico."
+          }
+        },
+        {
+          "name": "12.9 Erro: verdict de feedback inválido",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}/feedback",
+            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"talvez\",\n  \"idempotency_key\": \"{{$guid}}\"\n}"},
+            "description": "RF17. Espera 422 para verdict fora do enum."
+          }
+        },
+        {
+          "name": "12.10 Erro: conflito de idempotência",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}/feedback",
+            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"rejected\",\n  \"note\": \"payload diferente com a mesma chave\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"},
+            "description": "RF17. Espera 409 ao reutilizar a chave com conteúdo diferente."
+          }
+        },
+        {
+          "name": "12.11 Erro: feedback para hipótese inexistente",
+          "request": {
+            "method": "POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "url": "{{read_url}}/api/v1/hypotheses/2147483647/feedback",
+            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"confirmed\",\n  \"idempotency_key\": \"{{$guid}}\"\n}"},
+            "description": "RF17. Espera 404 para hipótese não publicada."
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Operação e documentação",
+      "description": "Rotas sem entrada de negócio; não há caso 4xx de validação aplicável.",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {"method":"GET","url":"{{read_url}}/health/live","description":"Operação. Espera 200 sem consultar o banco."}
+        },
+        {
+          "name": "Favicon",
+          "request": {"method":"GET","url":"{{read_url}}/favicon.ico","description":"Operação. Espera 204 sem corpo."}
+        },
+        {
+          "name": "Swagger UI",
+          "request": {"method":"GET","url":"{{read_url}}/docs","description":"Operação. Espera 200 e HTML do Swagger UI."},
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('serve HTML do Swagger UI', () => {","  pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');","  pm.expect(pm.response.text()).to.include('SwaggerUIBundle');","});"]}}]
         }
       ]
     }

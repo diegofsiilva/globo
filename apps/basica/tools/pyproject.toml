@@ -1,0 +1,56 @@
+# Ambiente das ferramentas de linha de comando (ETL, gerador de DDL, migrations).
+#
+# Separado do worker e da API de proposito: estas ferramentas rodam na maquina
+# de quem desenvolve, nunca dentro de um container de producao, e arrastar
+# pyarrow (~100 MB) para a imagem do worker seria pagar por dependencia que ele
+# nao usa.
+[project]
+name = "argus-tools"
+version = "0.1.0"
+description = "Ferramentas de dados do Argus: dump -> Parquet, DDL e migrations"
+requires-python = ">=3.12"
+dependencies = [
+    "pyarrow>=17",
+    "psycopg[binary]>=3.2",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.6"]
+
+[tool.ruff]
+line-length = 90
+
+[tool.ruff.lint]
+# O default do ruff (E4/E7/E9/F) mais `I` e `D`, e nao o conjunto dos apps.
+#
+# `tools/` sao scripts de operacao, nao biblioteca: `build_notebook.py` embute
+# celulas de notebook como strings longas, e ligar `E501` aqui produziria
+# dezenas de avisos sobre conteudo que nao e codigo. O que importa nesta pasta
+# e que cada script diga o que faz -- que e o `D`.
+select = ["E4", "E7", "E9", "F", "I", "D"]
+
+# `D` (pydocstyle) transforma a convencao do AGENTS.md ("todo modulo, classe,
+# funcao e metodo documentado") em algo que o `make check` verifica. Sem isto a
+# regra dependia de revisao humana, e 78 funcoes tinham passado sem docstring.
+#
+# Convencao Google: e a que os Args/Returns/Raises do repositorio ja seguem.
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Testes descrevem o cenario no NOME e, quando precisam, num comentario. Exigir
+# docstring em cada `test_*` produziria centenas de linhas que repetem o nome da
+# funcao -- ruido que ensina a ignorar o proprio aviso.
+"tests/**" = [
+  "D100", "D101", "D102", "D103", "D104",
+  # Estilo de docstring tambem sai. O docstring de um teste e prosa que explica
+  # o CENARIO ("so os buckets seguidos acima do limiar, contados do fim pra
+  # tras"), e a frase util raramente cabe numa linha de resumo. Espremer isso
+  # no formato de API pioraria o texto que existe para ser lido.
+  "D205", "D209", "D400", "D401", "D403", "D415",
+  # `__init__` de dublê e docstring que abre com uma string citada
+  # (`""" "unknown" e valor REAL do parque`) tambem ficam de fora: o primeiro
+  # nao tem o que documentar alem do proprio nome da classe, e o segundo e uma
+  # citacao intencional do valor testado.
+  "D107", "D210",
+]

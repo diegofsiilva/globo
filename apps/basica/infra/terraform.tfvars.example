@@ -1,57 +1,85 @@
 # Copie para terraform.tfvars e ajuste. terraform.tfvars esta no .gitignore.
 #
-# O passo a passo do primeiro apply esta em artefatos/mvp-inicial.md §6.
+# O passo a passo do primeiro apply esta em artefatos/plano-argus-v3.md, §5 e §9.
 
 region      = "us-east-1"
 environment = "dev"
 
 # --- AWS Academy / Learner Lab ----------------------------------------------
-# Descomente as tres linhas abaixo se estiver aplicando num Learner Lab. Sao as
-# duas unicas concessoes que o ambiente exige; numa conta normal, deixe como
-# esta (roles dedicadas com permissao minima e chave KMS gerenciada).
+# As tres concessoes que o Learner Lab exige. Numa conta normal, comente as tres
+# secoes: o padrao cria roles dedicadas com permissao minima, guarda a senha do
+# banco no Secrets Manager e mantem o RDS privado.
 #
 # O lab nega iam:CreateRole e obriga a reusar a LabRole, que ja confia em
-# apigateway.amazonaws.com e ecs-tasks.amazonaws.com. Monte o ARN com:
+# apigateway.amazonaws.com, ecs-tasks.amazonaws.com, lambda.amazonaws.com e
+# rds.amazonaws.com.
 #
-#   echo "arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/LabRole"
+# ATENCAO: o id da conta MUDA a cada sessao nova do laboratorio. Confira com
 #
-# create_iam_roles  = false
-# existing_role_arn = "arn:aws:iam::<sua-conta>:role/LabRole"
+#   aws sts get-caller-identity --profile g4 --query Account --output text
 #
-# O lab nao provisiona a chave gerenciada aws/dynamodb e o CreateTable falha com
-# "KMS validation error ... does not exist". Com false a tabela usa a chave
-# AWS-owned -- continua criptografada em repouso.
+# e atualize a linha abaixo antes do apply. E confirme que a sessao esta viva
+# de verdade com uma chamada que exija permissao real --
+# `aws ec2 describe-vpcs --profile g4` --, porque o get-caller-identity
+# continua respondendo normalmente mesmo depois de a credencial ser cancelada.
+create_iam_roles  = false
+existing_role_arn = "arn:aws:iam::000000000000:role/LabRole"
+
+# --- Banco ------------------------------------------------------------------
+# Confirme que o laboratorio libera a classe antes do apply:
 #
-# dynamodb_kms_managed_key = false
+#   aws rds describe-orderable-db-instance-options --engine postgres \
+#     --engine-version 16.15 --profile g4 --region us-east-1 \
+#     --query 'OrderableDBInstanceOptions[].DBInstanceClass' --output text
+#
+# Plano B se a classe for negada: db.t3.small ou micro. Continua viavel porque
+# as telas leem gold.v_* e nunca bronze -- o tamanho de prom_point nao entra no
+# caminho de leitura do dashboard.
+db_instance_class    = "db.t3.medium"
+db_allocated_storage = 100
+
+# O lab pode negar o Secrets Manager. Com false, a senha vem da linha abaixo --
+# que esta neste arquivo justamente porque ele NAO e versionado.
+db_password_from_secrets_manager = false
+db_password                      = "troque-por-uma-senha-longa-de-verdade"
+
+# Publico + CIDR do seu IP: e o que permite rodar as migrations e inspecionar o
+# banco da sua maquina sem bastion. NUNCA 0.0.0.0/0 (a validacao recusa).
+# Descubra o seu IP com: curl -s ifconfig.me
+db_publicly_accessible = true
+db_allowed_cidr        = "203.0.113.10/32"
+
+# --- Usuario de leitura da API ----------------------------------------------
+# Precisa ser a MESMA senha que voce passar em DB_READER_PASSWORD ao rodar
+#   make db-reader
+# O Terraform nao cria este usuario (as migrations criam), entao os dois lados
+# so concordam se voce usar o mesmo valor nos dois.
+read_api_db_user     = "argus_api"
+read_api_db_password = "outra-senha-longa-so-para-leitura"
 
 # --- Rede -------------------------------------------------------------------
 # Vazio usa a VPC/subnets default da conta.
-# vpc_id     = "vpc-0123456789abcdef0"
-# subnet_ids = ["subnet-aaa", "subnet-bbb"]
-
 # true = subnet publica com IP publico, sem NAT Gateway (economiza ~US$ 32/mes).
-# false exige subnet privada com NAT ou VPC endpoints -- ver infra/README.md.
 assign_public_ip = true
 
-# --- DynamoDB ---------------------------------------------------------------
-retention_days = 90
-
-# Shards da GSI1. Precisa ser IGUAL ao GSI1_SHARDS do worker.
-# 1 em dev facilita a leitura; 10+ em producao evita particao quente.
-gsi1_shards = 10
-
-# --- Worker -----------------------------------------------------------------
+# --- Servicos ---------------------------------------------------------------
 worker_desired_count = 1
 worker_cpu           = 256
 worker_memory        = 512
 
-# Aponte para o SHA do commit em vez de "latest" para deploy rastreavel.
-# worker_image_tag = "sha-abc1234"
+# O simulador comeca DESLIGADO: ele so faz sentido depois de a carga inicial ter
+# rodado. Ligue com `make sim-on` quando as 33 tabelas estiverem cheias.
+simulator_desired_count = 0
+simulator_speed         = 60
+
+# O container de processamento e no-op (decisao 7). 1 mantem a infraestrutura
+# observavel; 0 economiza credito enquanto nao ha logica la dentro.
+processing_desired_count = 1
 
 # --- Alarmes ----------------------------------------------------------------
 # Sem e-mail, o topico SNS e criado mas ninguem e avisado.
 # alarm_email = "voce@exemplo.com"
 
-# --- Producao ---------------------------------------------------------------
-# api_cors_allow_origins = ["https://seu-dominio.com.br"]
-# container_insights     = "enabled"
+# --- Privacidade ------------------------------------------------------------
+# Salt do hash de user_id na saida da API (RNF10).
+user_id_hash_salt = "troque-este-valor"

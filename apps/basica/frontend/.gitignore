@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,14 +11,18 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage/
+playwright-report/
+test-results/
 
 # next.js
-/.next/
-/out/
+# Sem barra inicial de proposito: a regra ancorada so pegava o .next da raiz
+# do pacote, e um .next gerado um nivel abaixo aparecia como arquivo novo.
+.next/
+out/
 
 # production
-/build
+build/
 
 # misc
 .DS_Store

@@ -1,0 +1,11 @@
+{
+  "strip_suffixes": ["-gcp-prod", "-aws-prod", "-production", "-prod"],
+  "aliases": {
+    "playback.video.globo.com": "playback",
+    "playback-legacy.video.globo.com": "playback",
+    "playback-api": "playback",
+    "playback-api-gcp-prod": "playback",
+    "globo": "globo"
+  },
+  "prefix_relations": [{"parent": "globo", "prefix": "globo-"}]
+}
