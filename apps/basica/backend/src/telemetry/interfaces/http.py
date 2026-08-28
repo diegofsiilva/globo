@@ -15,6 +15,7 @@ from telemetry.application.use_cases import (
     SearchEvents,
 )
 from telemetry.domain.exceptions import ValidationError
+from telemetry.infrastructure.gold import GoldRepository
 from telemetry.interfaces.openapi import SWAGGER_UI, build_spec
 from telemetry.ports.event_repository import EventFilters
 
@@ -203,6 +204,114 @@ def series():
     )
 
 
+# --------------------------------------------------------------------------- #
+# Agregacoes sobre a serie (telas Explorar e Recorte)
+#
+# Rotas NOVAS, e nao mudanca de /metrics/*: aquelas leem evento por sessao e
+# continuam com esse contrato. Estas leem `gold.v_feature_bucket`, que e onde
+# a telemetria deste dump realmente esta. Nomes diferentes para dados
+# diferentes -- sobrecarregar a rota antiga esconderia de qual origem veio o
+# numero na tela.
+# --------------------------------------------------------------------------- #
+
+
+def _escopo_da_query() -> dict[str, str]:
+    """Le da query string os filtros de dimensao da serie."""
+    escopo = {}
+    for dimensao in GoldRepository.DIMENSOES:
+        valor = request.args.get(dimensao)
+        if valor:
+            escopo[dimensao] = valor
+    return escopo
+
+
+def _janela_da_query() -> dict[str, Any]:
+    """Recorte temporal compartilhado pelas agregacoes da serie.
+
+    `window_minutes` cobre os periodos da moldura (15 min, 30 min) que nao
+    cabem em `window_hours` inteiro. Ausente, o repositorio cai nas 24 h.
+    """
+    minutos = None
+    if request.args.get("window_minutes") is not None:
+        minutos = parse_int("window_minutes", default=60, minimum=5, maximum=8760 * 60)
+    return {
+        "desde": parse_datetime("from"),
+        "ate": parse_datetime("to"),
+        "janela_horas": parse_int("window_hours", default=24, minimum=1, maximum=8760),
+        "janela_minutos": minutos,
+    }
+
+
+@api.get("/series/facets")
+def series_facets():
+    """Valores distintos das dimensoes da serie, para montar os filtros."""
+    campos = request.args.getlist("field") or ["source", "entity", "metric"]
+    try:
+        facetas = gold().serie_facets(
+            campos, limite=parse_int("limit", default=50, minimum=1, maximum=500)
+        )
+    except ValueError as error:
+        raise ValidationError(str(error), field="field") from error
+    return jsonify({"facets": facetas})
+
+
+@api.get("/series/breakdown")
+def series_breakdown():
+    """Agrupa a serie por uma dimensao (device, fonte, metrica, hora, dia)."""
+    dimension = request.args.get("dimension")
+    if not dimension:
+        raise ValidationError("parametro 'dimension' e obrigatorio", field="dimension")
+    try:
+        return jsonify(
+            gold().serie_breakdown(
+                dimension=dimension,
+                metric=request.args.get("metric") or None,
+                escopo=_escopo_da_query(),
+                limite=parse_int("limit", default=100, minimum=1, maximum=1000),
+                **_janela_da_query(),
+            )
+        )
+    except ValueError as error:
+        raise ValidationError(str(error), field="dimension") from error
+
+
+@api.get("/series/timeseries")
+def series_timeseries():
+    """Serie temporal agregada da telemetria, em baldes regulares."""
+    return jsonify(
+        gold().serie_timeseries(
+            metric=request.args.get("metric") or None,
+            interval_minutes=parse_int("interval", default=60, minimum=5, maximum=1440),
+            escopo=_escopo_da_query(),
+            **_janela_da_query(),
+        )
+    )
+
+
+@api.get("/series/crosstab")
+def series_crosstab():
+    """Cruza duas dimensoes da serie, para o heatmap do Recorte."""
+    dimension_x = request.args.get("dimension_x")
+    dimension_y = request.args.get("dimension_y")
+    if not dimension_x or not dimension_y:
+        raise ValidationError(
+            "parametros 'dimension_x' e 'dimension_y' sao obrigatorios", field="dimension_x"
+        )
+    try:
+        return jsonify(
+            gold().serie_crosstab(
+                dimension_x=dimension_x,
+                dimension_y=dimension_y,
+                metric=request.args.getlist("metric") or None,
+                escopo=_escopo_da_query(),
+                limite=parse_int("limit", default=400, minimum=1, maximum=2000),
+                **_janela_da_query(),
+            )
+        )
+    except ValueError as error:
+        raise ValidationError(str(error), field="dimension_x") from error
+
+
 @api.get("/sources")
 def sources():
     """Fontes disponiveis e quao recente esta cada uma."""
@@ -364,12 +473,26 @@ def timeline():
     para o ESTADO de cada barra (`deploy`/`critical`/`neutral`/`empty`), um
     conceito diferente -- reusar o nome ia confundir quem escrever o adapter.
     """
-    ate = parse_datetime("to") or gold().clock().sim_now
-    desde = parse_datetime("from") or (ate - timedelta(hours=3))
+    ate = parse_datetime("to")
+    desde = parse_datetime("from")
+    if ate is None:
+        ate = gold().clock().sim_now
+    if desde is None:
+        if request.args.get("window_minutes") is not None:
+            desde = ate - timedelta(
+                minutes=parse_int("window_minutes", default=180, minimum=5, maximum=10_080)
+            )
+        else:
+            desde = ate - timedelta(hours=3)
+
+    fontes = [fonte for config in LANES_METRICA.values() for fonte in config["sources"]]
+    por_fonte: dict[str, list] = {fonte: [] for fonte in fontes}
+    for ponto in gold().lane_series(fontes, desde, ate):
+        por_fonte[ponto["source"]].append(ponto)
 
     lanes = []
     for chave, config in LANES_METRICA.items():
-        pontos = gold().lane_series(config["sources"], desde, ate)
+        pontos = [ponto for fonte in config["sources"] for ponto in por_fonte[fonte]]
         lanes.append(
             {
                 "source": chave,

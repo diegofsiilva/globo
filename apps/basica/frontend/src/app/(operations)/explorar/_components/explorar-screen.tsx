@@ -3,21 +3,17 @@
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ScreenFrame,
 } from "../../_components/screen-frame";
 import { useOperationsUi } from "../../_components/operations-ui-context";
+import { useSimClock, windowEndingAt } from "../../_lib/sim-clock";
 import { normalizeQueryFailure } from "@/lib/operational-state";
 import type { EventKind, GroupBy } from "../_lib/types";
-import {
-  fetchBreakdown,
-  fetchFacets,
-  fetchTimeseries,
-  type EventScope,
-} from "../_lib/api";
-import { formatEvents, groupByDimension, scopeFilterDefs } from "../_lib/exploration-config";
+import { fetchBreakdown, fetchTimeseries } from "../_lib/api";
+import { useScopeFilters } from "../../_lib/scope-filters";
+import { formatEvents, groupByDimension, groupByScope } from "../_lib/exploration-config";
 import {
   buildDenseTimeline,
   condenseTimeline,
@@ -52,87 +48,80 @@ const FALLBACK_EVENT: EventKind = {
   count: 0,
 };
 
-/** Janela fixa de 24h terminando agora -- a mesma consultada por todas as chamadas desta tela. */
-function dayWindow() {
-  const to = new Date();
-  return {
-    from: new Date(to.getTime() - historyMinutes * 60_000).toISOString(),
-    to: to.toISOString(),
-  };
-}
-
 /** Visão de exploração de eventos com dados reais da API de leitura. */
 export function ExplorarScreen() {
   const { period, setPeriod } = useOperationsUi();
-  const [activeEvent, setActiveEvent] = useState("error");
-  const [groupBy, setGroupBy] = useState<GroupBy>("Modelo");
-  const [activeFilters, setActiveFilters] = useState<string[]>(
-    scopeFilterDefs.map((filter) => filter.id),
+  const clock = useSimClock();
+  const simNow = clock.snapshot?.simNow ?? null;
+  const dayWindow = useMemo(
+    () => (simNow ? windowEndingAt(simNow, historyMinutes) : null),
+    [simNow],
   );
+  const [activeEvent, setActiveEvent] = useState("error");
+  const [groupBy, setGroupBy] = useState<GroupBy>("Dispositivo");
   const [showGuide, setShowGuide] = useState(true);
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [freeRange, setFreeRange] = useState<{ start: number; end: number } | null>(null);
   const eventTabsRef = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const facetsQuery = useQuery({
-    queryKey: ["explorar", "facets"],
-    queryFn: ({ signal }) => fetchFacets(scopeFilterDefs.map((filter) => filter.field), signal),
-    staleTime: 5 * 60_000,
-  });
+  // O escopo entra vazio: nenhum filtro é pré-selecionado, a pessoa adiciona o
+  // que quiser pelo menu "+ filtro".
+  const scopeFilters = useScopeFilters();
+  const scope = scopeFilters.scope;
 
-  const resolvedFilters = useMemo(
-    () =>
-      scopeFilterDefs.map((filter) => ({
-        ...filter,
-        value: facetsQuery.data?.facets[filter.field]?.[0] ?? "",
-      })),
-    [facetsQuery.data],
-  );
-
-  const scope: EventScope = useMemo(() => {
-    const result: Record<string, string> = {};
-    for (const filter of resolvedFilters) {
-      if (activeFilters.includes(filter.id) && filter.value) {
-        result[filter.field] = filter.value;
-      }
-    }
-    return result;
-  }, [resolvedFilters, activeFilters]);
-
+  // Os "tipos de evento" da especificação (request, video_view, error...) não
+  // existem neste dataset. O eixo equivalente na série agregada é a MÉTRICA
+  // (sessions, error_rate_pct, p95_ms...), que é o que estes cards listam.
   const eventsQuery = useQuery({
-    queryKey: ["explorar", "events", scope],
-    queryFn: ({ signal }) => fetchBreakdown("event_name", dayWindow(), scope, signal),
+    queryKey: ["explorar", "metricas", dayWindow?.to, scope],
+    queryFn: ({ signal }) => fetchBreakdown("metric", dayWindow!, scope, signal),
+    enabled: Boolean(dayWindow),
     refetchInterval: 30_000,
   });
 
   const timeseriesQuery = useQuery({
-    queryKey: ["explorar", "timeseries", scope],
-    queryFn: ({ signal }) => fetchTimeseries(dayWindow(), historyStepMinutes, scope, signal),
+    queryKey: ["explorar", "timeseries", dayWindow?.to, scope],
+    queryFn: ({ signal }) => fetchTimeseries(dayWindow!, historyStepMinutes, scope, signal),
+    enabled: Boolean(dayWindow),
     refetchInterval: 30_000,
   });
 
   const dimension = groupByDimension[groupBy];
+  // Alguns agrupamentos só fazem sentido presos a uma fonte -- ver
+  // `groupByScope`. Sem isso, `entity` misturaria aparelho de TV com pod do
+  // Prometheus na mesma tabela.
+  const dimensionScope = useMemo(
+    () => ({ ...scope, ...(groupByScope[groupBy] ?? {}) }),
+    [scope, groupBy],
+  );
+
   const totalBreakdownQuery = useQuery({
-    queryKey: ["explorar", "breakdown", dimension, scope],
-    queryFn: ({ signal }) => fetchBreakdown(dimension, dayWindow(), scope, signal),
+    queryKey: ["explorar", "breakdown", dimension, dayWindow?.to, dimensionScope],
+    queryFn: ({ signal }) =>
+      fetchBreakdown(dimension, dayWindow!, dimensionScope, signal),
+    enabled: Boolean(dayWindow),
     refetchInterval: 30_000,
   });
   const errorBreakdownQuery = useQuery({
-    queryKey: ["explorar", "breakdown-error", dimension, scope],
+    queryKey: ["explorar", "breakdown-error", dimension, dayWindow?.to, dimensionScope],
     queryFn: ({ signal }) =>
-      fetchBreakdown(dimension, dayWindow(), { ...scope, event_name: "error" }, signal),
+      fetchBreakdown(
+        dimension,
+        dayWindow!,
+        { ...dimensionScope, metric: "error_rate_pct" },
+        signal,
+      ),
+    enabled: Boolean(dayWindow),
     refetchInterval: 30_000,
   });
 
   const primaryQueries = [eventsQuery, timeseriesQuery, totalBreakdownQuery, errorBreakdownQuery];
-  const isLoading = primaryQueries.some((query) => query.isLoading);
+  const isLoading = clock.isLoading || primaryQueries.some((query) => query.isLoading);
   const failedQuery = primaryQueries.find((query) => query.isError);
   const hasAnyData = primaryQueries.every((query) => query.data !== undefined);
   const isRefreshing = !isLoading && primaryQueries.some((query) => query.isFetching);
 
-  // Ancora "agora" à última resposta da timeseries, não a cada re-render.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const now = useMemo(() => new Date(), [timeseriesQuery.data]);
+  // O eixo e as consultas compartilham exatamente a mesma âncora virtual.
+  const now = useMemo(() => simNow ?? new Date(0), [simNow]);
 
   const eventKinds: EventKind[] = useMemo(
     () =>
@@ -151,9 +140,6 @@ export function ExplorarScreen() {
   const windowStart = period === null && freeRange ? freeRange.start : historyLastIndex - presetRangeSteps;
   const windowEnd = period === null && freeRange ? freeRange.end : historyLastIndex;
 
-  const inactiveFilters = resolvedFilters.filter(
-    (filter) => !activeFilters.includes(filter.id),
-  );
   const selectedEvent = eventKinds.find((event) => event.id === activeEvent) ?? eventKinds[0] ?? FALLBACK_EVENT;
 
   const denseTimeline = useMemo(
@@ -165,11 +151,11 @@ export function ExplorarScreen() {
       denseTimeline.map((point) => ({
         bucketTs: point.bucketTs,
         events: point.byEventName[selectedEvent.id] ?? 0,
-        errors: point.byEventName.error ?? 0,
+        errors: point.byEventName.error_rate_pct ?? 0,
       })),
     [denseTimeline, selectedEvent.id],
   );
-  const previewTimeline = useMemo(() => condenseTimeline(denseTimeline.map((p) => ({ events: p.total, errors: p.byEventName.error ?? 0 })), 36), [denseTimeline]);
+  const previewTimeline = useMemo(() => condenseTimeline(denseTimeline.map((p) => ({ events: p.total, errors: p.byEventName.error_rate_pct ?? 0 })), 36), [denseTimeline]);
   const previewMaximum = Math.max(1, ...previewTimeline.map((point) => point.events + point.errors));
 
   const selectedTimeline = eventTimeline.slice(windowStart, windowEnd + 1);
@@ -202,7 +188,9 @@ export function ExplorarScreen() {
     return (totalBreakdownQuery.data?.groups ?? []).map((group) => ({
       label: group.key,
       events: group.count,
-      errorRate: group.count > 0 ? ((errorByKey.get(group.key) ?? 0) / group.count) * 100 : 0,
+      // `/series/breakdown?metric=error_rate_pct` já devolve percentual.
+      // Dividir novamente por sessões produzia os 0% enganosos da interface.
+      errorRate: errorByKey.get(group.key) ?? 0,
       delta: "sem comparação",
     }));
   }, [totalBreakdownQuery.data, errorBreakdownQuery.data]);
@@ -213,15 +201,6 @@ export function ExplorarScreen() {
   const scopeSummary = totalBreakdownQuery.data
     ? `${formatEvents(totalBreakdownQuery.data.total)} eventos no recorte`
     : undefined;
-
-  function removeFilter(id: string) {
-    setActiveFilters((current) => current.filter((filterId) => filterId !== id));
-  }
-
-  function restoreFilter(id: string) {
-    setActiveFilters((current) => [...current, id]);
-    setShowFilterMenu(false);
-  }
 
   /**
    * Move a seleção entre os botões de tipo de evento com as setas, Home e End,
@@ -243,61 +222,17 @@ export function ExplorarScreen() {
     eventTabsRef.current[next]?.focus();
   }
 
-  const scopeContent = (
-    <div className={styles.filterList}>
-      {resolvedFilters
-        .filter((filter) => activeFilters.includes(filter.id))
-        .map((filter) => (
-          <div className={styles.filter} key={filter.id}>
-            <span>{filter.label}</span>
-            <strong>{filter.value || "carregando…"}</strong>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              type="button"
-              aria-label={`Remover filtro ${filter.label}: ${filter.value}`}
-              onClick={() => removeFilter(filter.id)}
-            >
-              <X aria-hidden="true" />
-            </Button>
-          </div>
-        ))}
-      <div className={styles.addFilterWrap}>
-        <Button
-          className={styles.addFilter}
-          variant="outline"
-          size="sm"
-          type="button"
-          aria-expanded={showFilterMenu}
-          onClick={() => setShowFilterMenu((current) => !current)}
-        >
-          <Plus aria-hidden="true" /> filtro
-        </Button>
-        {showFilterMenu && (
-          <div className={styles.filterMenu}>
-            {inactiveFilters.length ? (
-              inactiveFilters.map((filter) => (
-                <Button variant="ghost" type="button" key={filter.id} onClick={() => restoreFilter(filter.id)}>
-                  <span>{filter.label}</span>{filter.value || "carregando…"}
-                </Button>
-              ))
-            ) : (
-              <p>Todos os filtros estão ativos.</p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
   return (
     <ScreenFrame
-      scopeContent={scopeContent}
-      scopeFilterCount={activeFilters.length}
+      filters={scopeFilters.screenFilters}
+      onFilterChange={scopeFilters.onFilterChange}
+      scopeFilterCount={scopeFilters.count}
       scopeSummary={scopeSummary}
-      onClearFilters={() => setActiveFilters([])}
+      onClearFilters={scopeFilters.count ? scopeFilters.clear : undefined}
       operational={{
-        state: isLoading
+        state: clock.error && !clock.snapshot
+          ? "error"
+          : isLoading
           ? "loading"
           : failedQuery && !hasAnyData
             ? "error"
@@ -310,14 +245,19 @@ export function ExplorarScreen() {
                   : "ready",
         title: "Exploração de eventos",
         scope: scopeSummary,
-        failure: failedQuery?.error
+        failure: clock.error
+          ? normalizeQueryFailure(clock.error)
+          : failedQuery?.error
           ? normalizeQueryFailure(
               failedQuery.error,
               failedQuery.dataUpdatedAt ? new Date(failedQuery.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined,
             )
           : undefined,
-        onRetry: () => primaryQueries.forEach((query) => query.refetch()),
-        onResetFilters: () => setActiveFilters(scopeFilterDefs.map((filter) => filter.id)),
+        onRetry: () => {
+          clock.refetch();
+          primaryQueries.forEach((query) => query.refetch());
+        },
+        onResetFilters: scopeFilters.count ? scopeFilters.clear : undefined,
       }}
     >
       <div className={styles.page}>

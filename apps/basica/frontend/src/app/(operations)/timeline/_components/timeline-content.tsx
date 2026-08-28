@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { ScreenFrame } from "../../_components/screen-frame";
 import { useOperationsUi, type ScreenPeriod } from "../../_components/operations-ui-context";
+import { useSimClock, windowEndingAt } from "../../_lib/sim-clock";
 import { normalizeQueryFailure } from "@/lib/operational-state";
 import { fetchTimeline } from "../_lib/http-source";
 import { toChronology, toCorrelationWindow, toTimeAxis, toTimelineRows } from "../_lib/adapt";
@@ -22,11 +23,16 @@ const periodMinutes: Record<ScreenPeriod, number> = {
 /** Reconstrói a sequência do incidente com as fontes que a originaram. */
 export function TimelineContent() {
   const { period: sharedPeriod } = useOperationsUi();
+  const clock = useSimClock();
   const period = sharedPeriod ?? "30 min";
+  const currentWindow = clock.snapshot
+    ? windowEndingAt(clock.snapshot.simNow, periodMinutes[period])
+    : null;
 
   const query = useQuery({
-    queryKey: ["timeline", period],
-    queryFn: ({ signal }) => fetchTimeline(periodWindow(period), signal),
+    queryKey: ["timeline", period, currentWindow?.to],
+    queryFn: ({ signal }) => fetchTimeline(currentWindow!, signal),
+    enabled: Boolean(currentWindow),
     refetchInterval: 30_000,
   });
 
@@ -40,7 +46,9 @@ export function TimelineContent() {
     <ScreenFrame
       scopeSummary={response ? `janela ${period} · ${response.lanes.length} fontes` : undefined}
       operational={{
-        state: query.isLoading
+        state: clock.error && !clock.snapshot
+          ? "error"
+          : clock.isLoading || query.isLoading
           ? "loading"
           : query.isError && !query.data
             ? "error"
@@ -53,13 +61,18 @@ export function TimelineContent() {
                   : "ready",
         title: "Timeline correlacionada",
         scope: response ? `janela ${period} · ${response.lanes.length} fontes` : undefined,
-        failure: query.error
-          ? normalizeQueryFailure(
-              query.error,
-              query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined,
-            )
-          : undefined,
-        onRetry: () => query.refetch(),
+        failure: clock.error
+          ? normalizeQueryFailure(clock.error)
+          : query.error
+            ? normalizeQueryFailure(
+                query.error,
+                query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined,
+              )
+            : undefined,
+        onRetry: () => {
+          clock.refetch();
+          query.refetch();
+        },
       }}
     >
       <header className={styles.heading}>
@@ -147,13 +160,4 @@ export function TimelineContent() {
       )}
     </ScreenFrame>
   );
-}
-
-/** Retorna a janela ISO correspondente ao período selecionado. */
-function periodWindow(period: ScreenPeriod) {
-  const to = new Date();
-  return {
-    from: new Date(to.getTime() - periodMinutes[period] * 60_000).toISOString(),
-    to: to.toISOString(),
-  };
 }

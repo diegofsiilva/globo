@@ -125,6 +125,14 @@ def register_cors(app: Flask) -> None:
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
         response.headers["Access-Control-Max-Age"] = "300"
+        path = request.path
+        if path.endswith("/clock"):
+            # O relogio muda a cada tick do simulador, mas 5 s de cache no
+            # navegador evita um round-trip extra em toda tela que so precisa
+            # alinhar o eixo. As consultas de dado nao dependem desta rota.
+            response.headers["Cache-Control"] = "public, max-age=5"
+        elif path.endswith("/facets") or path.endswith("/series/facets"):
+            response.headers["Cache-Control"] = "public, max-age=60"
         return response
 
 

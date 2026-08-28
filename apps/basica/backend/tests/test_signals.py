@@ -10,6 +10,7 @@ baseline (ver fixture em `conftest.py`).
 from datetime import timedelta
 from urllib.parse import quote
 
+from telemetry.application.signals import LIMIAR_SINAL, GenerateSignals
 from tests.conftest import REFERENCE_NOW
 
 DESDE = REFERENCE_NOW - timedelta(hours=1)
@@ -51,6 +52,22 @@ def test_sem_dado_devolve_lista_vazia(client, pool):
 
     assert resposta.status_code == 200
     assert resposta.json == {"items": []}
+
+
+def test_caso_de_uso_antecipa_limiar_ao_repositorio():
+    """O banco deve descartar séries normais antes de montar as tendências."""
+
+    class Repository:
+        chamada = None
+
+        def desvios(self, desde, ate, limiar):
+            self.chamada = (desde, ate, limiar)
+            return []
+
+    repository = Repository()
+
+    assert GenerateSignals(repository).execute(DESDE, ATE) == {"items": []}
+    assert repository.chamada == (DESDE, ATE, LIMIAR_SINAL)
 
 
 def test_desvio_forte_vira_sinal_critico(client, pool):
@@ -186,13 +203,11 @@ def test_threshold_value_converte_z_para_unidade_nativa(client, pool):
     assert sinal["threshold_value"] == 54  # 50 + 2.0 * 2 (z positivo: limiar acima do baseline)
 
 
-def test_sessions_impacted_e_inteiro(client, seeded, pool):
-    """So confere o tipo/presenca -- a contagem exata depende das fixtures de
-    sessao compartilhadas com o worker, fora do escopo deste arquivo."""
+def test_sessions_impacted_indisponivel_sem_vinculo_causal(client, seeded, pool):
+    """feature_bucket não possui session_id para atribuir sessões ao sinal."""
     _inserir_baseline(pool, [48, 50, 52])
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
 
     sinal = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"][0]
 
-    assert isinstance(sinal["sessions_impacted"], int)
-    assert sinal["sessions_impacted"] >= 0
+    assert sinal["sessions_impacted"] is None

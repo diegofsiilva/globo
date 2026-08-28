@@ -17,7 +17,7 @@ export const hypothesesScenario: HypothesesReport = {
     { id: "regiao", label: "região", value: "Nordeste" },
     { id: "app", label: "app", value: "2026.3.0" },
   ],
-  summary: { sessions: 41_209, trafficShare: 3.1, sources: 6 },
+  summary: { hypotheses: 4, families: 4, sources: 6 },
   hypotheses: [
     {
       id: "player-build",
@@ -33,6 +33,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Coincidência temporal com deploy",
           weight: 0.32,
           contribution: 29.4,
+          value: 0.919,
+          applicability: "available" as const,
           rationale:
             "Tsuru registra deploy do build às 19:58. Desvio começa às 20:04 — 6 min, dentro da janela de propagação típica (4–9 min).",
         },
@@ -41,6 +43,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Especificidade do recorte",
           weight: 0.28,
           contribution: 25.1,
+          value: 0.896,
+          applicability: "available" as const,
           rationale:
             "94% dos erros vêm de 3,1% do tráfego. O recorte casa exatamente com a condição de fallback: webOS ≤ 3.9 sem suporte a DRM live.",
         },
@@ -49,6 +53,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Ausência de causa concorrente",
           weight: 0.22,
           contribution: 18.0,
+          value: 0.818,
+          applicability: "available" as const,
           rationale:
             "CDN, Globo-ID e backend sem desvio no mesmo intervalo e nas mesmas UFs. Nenhum evento de borda no Cloud Armor.",
         },
@@ -57,6 +63,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Precedente histórico",
           weight: 0.18,
           contribution: 14.5,
+          value: 0.806,
+          applicability: "available" as const,
           rationale:
             "ServiceNow INC0492117 (mar/2026): mesmo sintoma, mesmo recorte, causa fechada como regressão de player.",
         },
@@ -82,6 +90,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Concentração geográfica",
           weight: 0.3,
           contribution: 21.6,
+          value: 0.72,
+          applicability: "available" as const,
           rationale:
             "71% das sessões afetadas estão no Nordeste, região servida majoritariamente pelo PoP de Fortaleza.",
         },
@@ -90,6 +100,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Correlação com métrica de borda",
           weight: 0.28,
           contribution: 19.4,
+          value: 0.693,
+          applicability: "available" as const,
           rationale:
             "p95 do tempo até o primeiro byte sobe de 180 ms para 402 ms às 20:02, dois minutos antes da primeira falha de play.",
         },
@@ -98,6 +110,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Coincidência temporal",
           weight: 0.24,
           contribution: 13.2,
+          value: 0.55,
+          applicability: "available" as const,
           rationale:
             "A subida na borda precede o desvio, mas o mesmo PoP serve VOD sem erro no intervalo.",
         },
@@ -106,6 +120,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Precedente histórico",
           weight: 0.18,
           contribution: 9.8,
+          value: 0.544,
+          applicability: "available" as const,
           rationale:
             "INC0448903 (jan/2026): degradação no mesmo PoP, porém com impacto uniforme entre plataformas.",
         },
@@ -131,6 +147,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Correlação com tempo de início de play",
           weight: 0.34,
           contribution: 15.3,
+          value: 0.45,
+          applicability: "available" as const,
           rationale:
             "p95 do início de play sobe 1,4 s no recorte, mas a curva já subia antes do deploy.",
         },
@@ -139,6 +157,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Coincidência temporal",
           weight: 0.26,
           contribution: 10.7,
+          value: 0.412,
+          applicability: "available" as const,
           rationale: "Pico de chamadas de autorização às 19:47, dezessete minutos antes do desvio.",
         },
         {
@@ -146,6 +166,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Especificidade do recorte",
           weight: 0.22,
           contribution: 8.6,
+          value: 0.391,
+          applicability: "available" as const,
           rationale:
             "Erros de autorização aparecem em todas as plataformas, não apenas em webOS 3.x.",
         },
@@ -154,6 +176,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Precedente histórico",
           weight: 0.18,
           contribution: 6.4,
+          value: 0.356,
+          applicability: "available" as const,
           rationale: "Sem incidente equivalente nos últimos doze meses.",
         },
       ],
@@ -178,6 +202,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Abrangência do sintoma",
           weight: 0.34,
           contribution: 8.1,
+          value: 0.238,
+          applicability: "available" as const,
           rationale:
             "Falha de empacotamento atingiria todas as plataformas no mesmo canal; 96,9% do tráfego segue normal.",
         },
@@ -186,6 +212,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Coincidência temporal",
           weight: 0.26,
           contribution: 6.2,
+          value: 0.238,
+          applicability: "available" as const,
           rationale: "Nenhum evento de reinício de encoder registrado na janela.",
         },
         {
@@ -193,6 +221,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Correlação com a origem",
           weight: 0.22,
           contribution: 5.3,
+          value: 0.241,
+          applicability: "available" as const,
           rationale: "Manifestos servidos pela origem respondem 200 em todas as amostras coletadas.",
         },
         {
@@ -200,6 +230,8 @@ export const hypothesesScenario: HypothesesReport = {
           label: "Precedente histórico",
           weight: 0.18,
           contribution: 3.4,
+          value: 0.189,
+          applicability: "available" as const,
           rationale: "INC0501774 (jun/2026) teve assinatura distinta: erro 3_3007, não 6_6002.",
         },
       ],

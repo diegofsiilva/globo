@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { QueryProvider } from "@/providers/query-provider";
 import { AgoraScreen } from "./_components/agora-screen";
 
 export const metadata: Metadata = {
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 
 /** Compõe a rota demonstrativa Agora. */
 export default function AgoraPage() {
-  return <AgoraScreen />;
+  return (
+    <QueryProvider>
+      <AgoraScreen />
+    </QueryProvider>
+  );
 }

@@ -13,6 +13,7 @@ import {
   type ScreenPeriod,
 } from "../../_components/screen-frame";
 import { useOperationsUi } from "../../_components/operations-ui-context";
+import { useSimClock, windowEndingAt } from "../../_lib/sim-clock";
 import { normalizeQueryFailure } from "@/lib/operational-state";
 import { fetchHypotheses } from "../_lib/hypotheses-source";
 import { factorStrength } from "../_lib/score";
@@ -42,12 +43,18 @@ const factorShades = [
 /** Causas prováveis do recorte, ranqueadas e com o score decomposto. */
 export function HipotesesScreen() {
   const { period: sharedPeriod } = useOperationsUi();
+  const clock = useSimClock();
   const period = sharedPeriod ?? "30 min";
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const currentWindow = useMemo(
+    () => clock.snapshot ? windowEndingAt(clock.snapshot.simNow, periodMinutes[period]) : null,
+    [clock.snapshot, period],
+  );
 
   const report = useQuery({
-    queryKey: ["hypotheses", period],
-    queryFn: ({ signal }) => fetchHypotheses(periodWindow(period), signal),
+    queryKey: ["hypotheses", period, currentWindow?.to],
+    queryFn: ({ signal }) => fetchHypotheses(currentWindow!, signal),
+    enabled: Boolean(currentWindow),
     refetchInterval: 30_000,
   });
 
@@ -59,7 +66,9 @@ export function HipotesesScreen() {
       filters={scopeFilters(report.data)}
       scopeSummary={scopeSummary(report.data)}
       operational={{
-        state: report.isLoading
+        state: clock.error && !clock.snapshot
+          ? "error"
+          : clock.isLoading || report.isLoading
           ? "loading"
           : report.isError && !report.data
             ? "error"
@@ -72,15 +81,23 @@ export function HipotesesScreen() {
                   : "ready",
         title: "Hipóteses de causa provável",
         scope: scopeSummary(report.data),
-        failure: report.error ? normalizeQueryFailure(report.error, report.dataUpdatedAt ? new Date(report.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined) : undefined,
-        onRetry: () => report.refetch(),
+        failure: clock.error
+          ? normalizeQueryFailure(clock.error)
+          : report.error
+            ? normalizeQueryFailure(report.error, report.dataUpdatedAt ? new Date(report.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined)
+            : undefined,
+        onRetry: () => {
+          clock.refetch();
+          report.refetch();
+        },
       }}
     >
       <header className={styles.header}>
         <h1>Hipóteses de causa provável</h1>
         {report.data && (
           <p>
-            {report.data.generated} geradas · {report.data.discarded} descartadas · janela{" "}
+            {report.data.generated} geradas
+            {report.data.discarded > 0 && ` · ${report.data.discarded} descartadas`} · janela{" "}
             {report.data.window.label}
           </p>
         )}
@@ -201,9 +218,12 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
             <div className={styles.factorHead}>
               <strong>{factor.label}</strong>
               <span>
-                peso {factor.weight.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ·
-                contribui{" "}
-                {factor.contribution.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} pts
+                peso {factor.weight.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ·{" "}
+                {factor.applicability === "available"
+                  ? `contribui ${factor.contribution.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} pts`
+                  : factor.applicability === "not_applicable"
+                    ? "não se aplica"
+                    : "indisponível"}
               </span>
             </div>
             <div className={styles.meter}>
@@ -252,18 +272,18 @@ function scopeFilters(report?: HypothesesReport): ScreenFilter[] {
   }));
 }
 
-/** Formata a volumetria do recorte exibida à direita da barra de escopo. */
+/** Formata a volumetria do recorte exibida à direita da barra de escopo.
+ *
+ * Conta hipótese, família e fonte -- e não sessão nem % de tráfego, que o
+ * motor não calcula. Aqueles dois vinham do mock e não têm equivalente em
+ * `gold.v_hypothesis`; exibi-los exigiria inventar número.
+ */
 function scopeSummary(report?: HypothesesReport): string | undefined {
   if (!report) return undefined;
-  const share = report.summary.trafficShare.toLocaleString("pt-BR", { minimumFractionDigits: 1 });
-  return `${report.summary.sessions.toLocaleString("pt-BR")} sessões · ${share}% do tráfego · ${report.summary.sources} fontes cruzadas`;
-}
-
-/** Retorna a janela ISO correspondente ao período selecionado. */
-function periodWindow(period: ScreenPeriod) {
-  const to = new Date();
-  return {
-    from: new Date(to.getTime() - periodMinutes[period] * 60_000).toISOString(),
-    to: to.toISOString(),
-  };
+  const { hypotheses, families, sources } = report.summary;
+  return [
+    `${hypotheses.toLocaleString("pt-BR")} ${hypotheses === 1 ? "hipótese" : "hipóteses"}`,
+    `${families} ${families === 1 ? "família" : "famílias"}`,
+    `${sources} ${sources === 1 ? "fonte cruzada" : "fontes cruzadas"}`,
+  ].join(" · ");
 }

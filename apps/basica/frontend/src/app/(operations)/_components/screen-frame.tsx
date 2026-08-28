@@ -13,6 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { OperationalStateBoundary, type OperationalPresentation } from "./operational-state";
+import { ALL_SCOPE_VALUES } from "../_lib/scope-filters";
 import { screenFrameStyles as styles } from "./screen-frame.styles";
 
 export { SCREEN_PERIODS, type ScreenPeriod } from "./operations-ui-context";
@@ -124,7 +125,7 @@ function ScopeFilters({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">todos</SelectItem>
+                <SelectItem value={ALL_SCOPE_VALUES}>todos</SelectItem>
                 {filter.options.map((option) => (
                   <SelectItem value={option} key={option}>{option}</SelectItem>
                 ))}

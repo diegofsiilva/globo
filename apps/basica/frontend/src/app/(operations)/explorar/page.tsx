@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { QueryProvider } from "@/providers/query-provider";
 import { ExplorarScreen } from "./_components/explorar-screen";
 
 export const metadata: Metadata = {
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 
 /** Compõe a rota demonstrativa de exploração temporal. */
 export default function ExplorarPage() {
-  return <ExplorarScreen />;
+  return (
+    <QueryProvider>
+      <ExplorarScreen />
+    </QueryProvider>
+  );
 }

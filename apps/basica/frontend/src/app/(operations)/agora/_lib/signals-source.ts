@@ -22,7 +22,7 @@ export type SignalItem = {
   consecutive_buckets_over_threshold: number;
   detected_at: string;
   time_since_detection_seconds: number;
-  sessions_impacted: number;
+  sessions_impacted: number | null;
   direction: "subindo" | "descendo" | "estavel";
   trend: number[];
 };
@@ -166,7 +166,7 @@ export function toSignalDeviation(item: SignalItem): SignalDeviation {
     current: formatNumber(item.current_value),
     baseline: formatNumber(item.baseline),
     delta: deltaLabel,
-    sessions: item.sessions_impacted.toLocaleString("pt-BR"),
+    sessions: item.sessions_impacted?.toLocaleString("pt-BR") ?? "não disponível",
     threshold:
       item.threshold_value != null
         ? `${formatNumber(item.threshold_value)} (z ≥ ${formatNumber(item.threshold_z)})`
@@ -210,7 +210,7 @@ export function toActiveDegradation(item: SignalItem) {
     title: item.title,
     detectedAt: formatTime(item.detected_at),
     failureRate: formatNumber(item.current_value),
-    impactedSessions: item.sessions_impacted.toLocaleString("pt-BR"),
+    impactedSessions: item.sessions_impacted?.toLocaleString("pt-BR") ?? "não disponível",
     baselineMultiplier: item.multiplier != null ? `×${formatNumber(item.multiplier)}` : "—",
     openFor: formatDuration(item.time_since_detection_seconds),
   };

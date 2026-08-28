@@ -6,18 +6,23 @@ import { MobileOperationsNavigation, OperationsNavigation } from "./operations-n
 import { OperationsUiProvider, SCREEN_PERIODS, useOperationsUi } from "./operations-ui-context";
 import { operationsLayoutStyles as styles } from "./operations-layout.styles";
 import { ThemeToggle } from "./theme-toggle";
+import { projectedSimNow, SimClockProvider, useSimClock } from "../_lib/sim-clock";
 
 export function OperationsShell({ children }: { children: ReactNode }) {
   return (
-    <OperationsUiProvider>
-      <ShellContent>{children}</ShellContent>
-    </OperationsUiProvider>
+    <SimClockProvider>
+      <OperationsUiProvider>
+        <ShellContent>{children}</ShellContent>
+      </OperationsUiProvider>
+    </SimClockProvider>
   );
 }
 
 function ShellContent({ children }: { children: ReactNode }) {
   const { period, setPeriod } = useOperationsUi();
+  const { snapshot } = useSimClock();
   const clock = useClock();
+  const liveLabel = snapshot?.speed === 0 ? "Simulação pausada" : "Ao vivo simulado";
 
   return (
     <div className={styles.appShell}>
@@ -34,7 +39,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         <div className={styles.controlRow} aria-label="Atualização e período">
           <p className={styles.liveStatus} aria-live="off">
             <span data-live-dot aria-hidden="true" />
-            Ao vivo <span className="hidden sm:inline">· {clock}</span>
+            {liveLabel} <span className="hidden sm:inline">· {clock}</span>
           </p>
           <ToggleGroup
             type="single"
@@ -59,17 +64,24 @@ function ShellContent({ children }: { children: ReactNode }) {
 }
 
 function useClock(): string {
+  const { snapshot } = useSimClock();
   const [clock, setClock] = useState("--:--:--");
 
   useEffect(() => {
-    const update = () => setClock(new Date().toLocaleTimeString("pt-BR"));
+    const update = () => {
+      setClock(
+        snapshot
+          ? projectedSimNow(snapshot).toLocaleTimeString("pt-BR")
+          : "--:--:--",
+      );
+    };
     const firstTick = window.setTimeout(update, 0);
     const timer = window.setInterval(update, 1_000);
     return () => {
       window.clearTimeout(firstTick);
       window.clearInterval(timer);
     };
-  }, []);
+  }, [snapshot]);
 
   return clock;
 }

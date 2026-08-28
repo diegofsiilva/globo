@@ -524,3 +524,120 @@ def test_timeline_janela_padrao_e_tres_horas(client, pool):
 
     raias = {raia["source"]: raia for raia in client.get("/api/v1/timeline").json["lanes"]}
     assert len(raias["prometheus"]["points"]) == 0  # fora das 3h padrao
+
+
+# --------------------------------------------------------------------------- #
+# Agregacoes sobre a serie (/api/v1/series/*), que servem Explorar e Recorte
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def com_agregados(pool):
+    """Duas entidades, uma metrica de contagem e uma de taxa, em tres baldes."""
+    linhas = []
+    for hora in range(3):
+        momento = REFERENCE_NOW - timedelta(hours=hora + 1)
+        for entidade, sessoes in (("iPhone", 1000.0), ("iPad", 200.0)):
+            linhas.extend(
+                [
+                    (momento, "youbora_device", entidade, "sessions", sessoes, momento),
+                    (momento, "youbora_device", entidade, "error_rate_pct", 2.0, momento),
+                ]
+            )
+    with pool.connection() as conn:
+        conn.cursor().executemany(
+            """
+            INSERT INTO gold.feature_bucket
+              (bucket_ts, source, entity, metric, value, hora_brt, dow,
+               tem_jogo, available_at)
+            VALUES (%s, %s, %s, %s, %s,
+                    extract(hour from %s)::int, 1, false, %s)
+            """,
+            [(t, s, e, m, v, t, a) for (t, s, e, m, v, a) in linhas],
+        )
+    return pool
+
+
+def test_series_facets_lista_dimensoes(client, com_agregados):
+    corpo = client.get("/api/v1/series/facets?field=entity&field=metric").get_json()
+    assert set(corpo["facets"]["entity"]) == {"iPhone", "iPad"}
+    assert set(corpo["facets"]["metric"]) == {"sessions", "error_rate_pct"}
+
+
+def test_series_facets_rejeita_dimensao_desconhecida(client):
+    resposta = client.get("/api/v1/series/facets?field=device_os")
+    assert resposta.status_code == 422
+
+
+def test_series_breakdown_soma_contagem(client, com_agregados):
+    corpo = client.get("/api/v1/series/breakdown?dimension=entity&metric=sessions").get_json()
+    grupos = {g["key"]: g["value"] for g in corpo["groups"]}
+    # Tres baldes de cada: contagem SOMA.
+    assert grupos == {"iPhone": 3000.0, "iPad": 600.0}
+    assert corpo["total"] == 3600.0
+
+
+def test_series_breakdown_media_taxa(client, com_agregados):
+    corpo = client.get(
+        "/api/v1/series/breakdown?dimension=entity&metric=error_rate_pct"
+    ).get_json()
+    grupos = {g["key"]: g["value"] for g in corpo["groups"]}
+    # Tres baldes de 2%: a media e 2%, e nao a soma 6%.
+    assert grupos == {"iPhone": 2.0, "iPad": 2.0}
+
+
+def test_series_breakdown_por_metrica_escolhe_agregacao_por_grupo(client, com_agregados):
+    """Sem filtro de metrica, cada grupo tem unidade propria."""
+    corpo = client.get("/api/v1/series/breakdown?dimension=metric").get_json()
+    grupos = {g["key"]: g["value"] for g in corpo["groups"]}
+    assert grupos["sessions"] == 3600.0
+    assert grupos["error_rate_pct"] == 2.0
+
+
+def test_series_breakdown_aplica_escopo(client, com_agregados):
+    corpo = client.get(
+        "/api/v1/series/breakdown?dimension=metric&entity=iPad"
+    ).get_json()
+    grupos = {g["key"]: g["value"] for g in corpo["groups"]}
+    assert grupos["sessions"] == 600.0
+
+
+def test_series_breakdown_exige_dimensao(client):
+    assert client.get("/api/v1/series/breakdown").status_code == 422
+
+
+def test_series_timeseries_agrupa_em_baldes(client, com_agregados):
+    corpo = client.get("/api/v1/series/timeseries?metric=sessions&interval=60").get_json()
+    assert corpo["interval_minutes"] == 60
+    assert len(corpo["buckets"]) == 3
+    assert corpo["total"] == 3600.0
+
+
+def test_series_crosstab_cruza_duas_dimensoes(client, com_agregados):
+    corpo = client.get(
+        "/api/v1/series/crosstab?dimension_x=entity&dimension_y=metric"
+    ).get_json()
+    celulas = {(c["x"], c["y"]): c["value"] for c in corpo["cells"]}
+    assert celulas[("iPhone", "sessions")] == 3000.0
+    assert celulas[("iPad", "error_rate_pct")] == 2.0
+
+
+def test_series_crosstab_exige_as_duas_dimensoes(client):
+    assert client.get("/api/v1/series/crosstab?dimension_x=entity").status_code == 422
+
+
+def test_series_crosstab_rejeita_dimensao_injetada(client):
+    resposta = client.get(
+        "/api/v1/series/crosstab?dimension_x=entity&dimension_y=1;DROP TABLE gold.feature_bucket"
+    )
+    assert resposta.status_code == 422
+
+
+def test_series_timeseries_quebra_por_metrica(client, com_agregados):
+    """Cada balde traz o valor por metrica, para volume e erro na mesma serie."""
+    corpo = client.get("/api/v1/series/timeseries?interval=60").get_json()
+    primeiro = corpo["buckets"][0]
+    assert primeiro["by_metric"]["sessions"] == 1200.0
+    # Taxa entra por media e NAO soma no `value` do balde.
+    assert primeiro["by_metric"]["error_rate_pct"] == 2.0
+    assert primeiro["value"] == 1200.0

@@ -35,7 +35,6 @@ export const heatmap: Array<{ family: string; rates: string[] }> = [
   { family: "Android TV", rates: ["1,8%", "2,4%", "1,5%", "1,4%", "1,3%"] },
   { family: "iOS / tvOS", rates: ["0,9%", "1,1%", "0,8%", "0,7%", "0,7%"] },
 ];
-
 export const adjustments: CutAdjustment[] = [
   { title: "Restringir a ISP – Oi Fibra", result: "especificidade +12 · cobertura −38%", critical: true },
   { title: "Expandir para webOS 4.x", result: "especificidade −41 · dilui o sinal" },
@@ -94,13 +93,3 @@ export const samples: SessionSample[] = [
   session("ses-f28a77", "20:06:07", "43LJ5500", "WebOS 3.8.0", "error", "dash_shaka_playback:6_6002"),
   session("ses-55d104", "20:06:41", "55UJ6300", "WebOS 3.8.0", "video_view", "start timeout · live"),
 ];
-
-/** Recorte analisado, exibido na barra de escopo. */
-export const cutScope = [
-  { key: "plataforma", label: "plataforma", value: "webOS 3.x" },
-  { key: "fabricante", label: "fabricante", value: "LG" },
-  { key: "regiao", label: "região", value: "Nordeste" },
-  { key: "app", label: "app", value: "2026.3.0" },
-];
-
-export const scopeSummary = "41.209 sessões · 3,1% do tráfego · 6 fontes cruzadas";

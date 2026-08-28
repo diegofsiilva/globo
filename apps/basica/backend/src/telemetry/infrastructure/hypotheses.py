@@ -125,10 +125,53 @@ class HypothesisRepository:
         )
         has_more = len(rows) > limit
         items = rows[:limit]
+        self._anexar_composicao(items)
         return {
             "items": items,
             "next_cursor": _encode_cursor(items[-1]) if has_more and items else None,
         }
+
+    def _anexar_composicao(self, items: list[dict[str, Any]]) -> None:
+        """Anexa `features` e `evidence` a cada item da pagina.
+
+        A tela de Hipoteses desenha a decomposicao do score em TODOS os itens
+        da lista (a faixa de contribuicao de cada fator), nao so no selecionado.
+        Sem isto o front teria que pedir `/hypotheses/<id>` item a item -- N+1
+        de invocacoes de Lambda a cada refetch. Aqui sao duas consultas por
+        pagina, com `= ANY`, independente do tamanho dela.
+
+        Args:
+            items (list[dict[str, Any]]): Itens da pagina, alterados no lugar.
+        """
+        if not items:
+            return
+        ids = [item["hypothesis_id"] for item in items]
+
+        # `features` ja vem agregado em jsonb por gold.v_hypothesis_detail
+        # (022_hypothesis_views.sql). O usuario da API so tem GRANT nas views
+        # `v_*`, entao a leitura passa por ela e nao por gold.hypothesis_feature.
+        features = self._all(
+            sql.SQL(
+                "SELECT hypothesis_id, features FROM gold.v_hypothesis_detail "
+                "WHERE hypothesis_id = ANY(%s)"
+            ),
+            [ids],
+        )
+        por_id = {linha["hypothesis_id"]: linha["features"] for linha in features}
+
+        evidencias: dict[int, list[dict[str, Any]]] = {}
+        for linha in self._all(
+            sql.SQL(
+                "SELECT * FROM gold.v_hypothesis_evidence WHERE hypothesis_id = ANY(%s) "
+                "ORDER BY polarity, event_at, evidence_id"
+            ),
+            [ids],
+        ):
+            evidencias.setdefault(linha["hypothesis_id"], []).append(linha)
+
+        for item in items:
+            item["features"] = por_id.get(item["hypothesis_id"], [])
+            item["evidence"] = evidencias.get(item["hypothesis_id"], [])
 
     def detail(self, hypothesis_id: int) -> dict[str, Any] | None:
         row = self._one(

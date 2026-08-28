@@ -58,7 +58,7 @@ export function OperationalStateBoundary({
   return (
     <>
       {demoState !== null && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-info/60 bg-info/8 px-4 py-3 text-sm">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-panel border border-info/60 bg-info/8 px-4 py-3 text-sm">
           <span className="flex items-center gap-2">
             <Badge variant="outline" className="border-info text-info">Modo de demonstração</Badge>
             Estado <strong className="font-mono">{demoState}</strong> aplicado somente à interface.
@@ -126,7 +126,7 @@ function LoadingState({ title }: { title: string }) {
         <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
         Consultando fontes para {title.toLocaleLowerCase("pt-BR")}…
       </div>
-      <div className="grid gap-px border border-border bg-border md:grid-cols-2">
+      <div className="grid gap-px overflow-hidden rounded-panel border border-border bg-border md:grid-cols-2">
         {[0, 1, 2, 3].map((item) => (
           <div className="space-y-4 bg-background p-5" key={item}>
             <Skeleton className="h-3 w-32" />

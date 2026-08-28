@@ -1109,6 +1109,135 @@ def build_spec() -> dict[str, Any]:
                     },
                 }
             },
+            "/api/v1/series/facets": {
+                "get": {
+                    "tags": ["Serie"],
+                    "summary": "Valores distintos das dimensoes da serie",
+                    "description": (
+                        "Alimenta os filtros de escopo e os agrupamentos das "
+                        "telas Explorar e Recorte. Le da serie agregada, e nao "
+                        "de evento por sessao: este dataset nao tem evento por "
+                        "sessao, so telemetria por hora e dimensao."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "field",
+                            (
+                                "Dimensao de `gold.v_feature_bucket`: source, entity, "
+                                "metric, hora_brt, dow ou tem_jogo. Repetivel."
+                            ),
+                        ),
+                        _parameter(
+                            "limit", "Teto de valores por dimensao (1-500).", type="integer"
+                        ),
+                    ],
+                    "responses": {
+                        "200": {"description": "Valores por dimensao"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/series/breakdown": {
+                "get": {
+                    "tags": ["Serie"],
+                    "summary": "Agrupa a serie por uma dimensao",
+                    "description": (
+                        "Metrica de contagem entra por SOMA e metrica de taxa "
+                        "por MEDIA -- somar percentual nao significa nada. "
+                        "Recorte pode vir por 'from'/'to' (ISO 8601) ou por "
+                        "'window_hours'; sem nenhum dos dois, usa as ultimas "
+                        "24 h ate sim.now(). Qualquer dimensao tambem aceita "
+                        "ser passada como filtro de escopo "
+                        "(ex.: source=youbora_device)."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "dimension",
+                            (
+                                "Dimensao de `gold.v_feature_bucket`: source, entity, "
+                                "metric, hora_brt, dow ou tem_jogo. Obrigatorio."
+                            ),
+                        ),
+                        _parameter("metric", "Metrica a agregar (ex.: sessions, error_rate_pct)."),
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                        _parameter(
+                            "window_hours", "Janela em horas ate sim.now().", type="integer"
+                        ),
+                        _parameter("limit", "Teto de grupos (1-1000).", type="integer"),
+                    ],
+                    "responses": {
+                        "200": {"description": "Grupos com valor e participacao"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/series/timeseries": {
+                "get": {
+                    "tags": ["Serie"],
+                    "summary": "Serie temporal agregada, com quebra por metrica",
+                    "description": (
+                        "Cada balde traz `by_metric`, para a tela desenhar "
+                        "volume e erro na mesma serie sem uma segunda consulta. "
+                        "Os baldes sao alinhados por `date_bin` a uma origem "
+                        "fixa, entao janelas diferentes tem as MESMAS bordas e "
+                        "ficam comparaveis ponto a ponto. Recorte pode vir por "
+                        "'from'/'to' (ISO 8601) ou por 'window_hours'; sem "
+                        "nenhum dos dois, usa as ultimas 24 h ate sim.now(). "
+                        "Qualquer dimensao tambem aceita ser passada como "
+                        "filtro de escopo (ex.: source=youbora_device)."
+                    ),
+                    "parameters": [
+                        _parameter("metric", "Metrica a agregar; sem valor, soma as de contagem."),
+                        _parameter("interval", "Minutos por balde (5-1440).", type="integer"),
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                        _parameter(
+                            "window_hours", "Janela em horas ate sim.now().", type="integer"
+                        ),
+                    ],
+                    "responses": {"200": {"description": "Baldes da serie"}},
+                }
+            },
+            "/api/v1/series/crosstab": {
+                "get": {
+                    "tags": ["Serie"],
+                    "summary": "Cruza duas dimensoes da serie (heatmap do Recorte)",
+                    "description": (
+                        "Recorte pode vir por 'from'/'to' (ISO 8601) ou por "
+                        "'window_hours'; sem nenhum dos dois, usa as ultimas 24 h "
+                        "ate sim.now(). Qualquer dimensao tambem aceita ser passada "
+                        "como filtro de escopo (ex.: source=youbora_device)."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "dimension_x",
+                            (
+                                "Dimensao de `gold.v_feature_bucket`: source, entity, "
+                                "metric, hora_brt, dow ou tem_jogo. Obrigatorio."
+                            ),
+                        ),
+                        _parameter(
+                            "dimension_y",
+                            (
+                                "Dimensao de `gold.v_feature_bucket`: source, entity, "
+                                "metric, hora_brt, dow ou tem_jogo. Obrigatorio."
+                            ),
+                        ),
+                        _parameter("metric", "Metrica a agregar."),
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                        _parameter(
+                            "window_hours", "Janela em horas ate sim.now().", type="integer"
+                        ),
+                        _parameter("limit", "Teto de celulas (1-2000).", type="integer"),
+                    ],
+                    "responses": {
+                        "200": {"description": "Celulas do cruzamento"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
             "/health/live": {
                 "get": {
                     "tags": ["Saude"],

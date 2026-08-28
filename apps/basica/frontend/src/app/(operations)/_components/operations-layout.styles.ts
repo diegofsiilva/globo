@@ -4,12 +4,12 @@ export const operationsLayoutStyles = {
   brand:
     "flex min-w-0 items-center gap-2.5 uppercase [&_strong]:truncate [&_strong]:text-[11px] [&_strong]:font-bold [&_strong]:tracking-[0.09em] [&_span]:hidden [&_span]:font-mono [&_span]:text-[10px] [&_span]:tracking-[0.12em] [&_span]:text-muted-foreground sm:[&_span]:inline",
   brandMark:
-    "size-3 shrink-0 bg-primary [border-radius:3px]",
+    "size-3 shrink-0 rounded-mark bg-primary",
   controlRow:
     "flex min-w-0 items-center justify-between gap-2 border-t border-border px-3 sm:justify-end md:border-0 md:px-0",
   identityRow: "flex min-w-0 items-center gap-2 px-3 md:px-0",
   liveStatus:
-    "m-0 flex items-center gap-2 whitespace-nowrap font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-primary md:text-[11px] [&>[data-live-dot]]:size-1.5 [&>[data-live-dot]]:shrink-0 [&>[data-live-dot]]:bg-primary [&>[data-live-dot]]:animate-agora-live-pulse motion-reduce:[&>[data-live-dot]]:animate-none",
+    "m-0 flex items-center gap-2 whitespace-nowrap font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-primary md:text-[11px] [&>[data-live-dot]]:size-1.5 [&>[data-live-dot]]:shrink-0 [&>[data-live-dot]]:rounded-full [&>[data-live-dot]]:bg-primary [&>[data-live-dot]]:animate-agora-live-pulse motion-reduce:[&>[data-live-dot]]:animate-none",
   navigationSlot:
     "fixed bottom-0 left-0 top-24 z-10 hidden w-44 min-w-0 md:block",
   periods:
@@ -19,5 +19,5 @@ export const operationsLayoutStyles = {
   siteHeader:
     "fixed inset-x-0 top-0 z-20 grid h-24 grid-rows-2 border-b border-border bg-background/94 backdrop-blur-md md:h-12 md:grid-cols-[minmax(0,1fr)_auto] md:grid-rows-1 md:items-center md:gap-4 md:px-5",
   skipLink:
-    "fixed left-2 top-2 z-[100] -translate-y-[150%] border border-ring bg-foreground px-3.5 py-2.5 text-xs font-semibold text-background no-underline focus:translate-y-0",
+    "fixed left-2 top-2 z-[100] -translate-y-[150%] rounded-control border border-ring bg-foreground px-3.5 py-2.5 text-xs font-semibold text-background no-underline focus:translate-y-0",
 } as const;

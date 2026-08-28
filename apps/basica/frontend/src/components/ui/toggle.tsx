@@ -6,7 +6,7 @@ import * as TogglePrimitive from "@radix-ui/react-toggle";
 import { cn } from "@/lib/utils";
 
 const toggleVariants = cva(
-  "inline-flex touch-manipulation items-center justify-center border border-transparent font-mono text-[12px] font-medium text-muted-foreground outline-none transition-[background-color,color,border-color] duration-[160ms] hover:bg-surface-raised hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45 data-[state=on]:bg-foreground data-[state=on]:text-background motion-reduce:transition-none md:text-[11px]",
+  "inline-flex touch-manipulation items-center justify-center rounded-control border border-transparent font-mono text-[12px] font-medium text-muted-foreground outline-none transition-[background-color,color,border-color] duration-[160ms] hover:bg-surface-raised hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45 data-[state=on]:bg-foreground data-[state=on]:text-background motion-reduce:transition-none md:text-[11px]",
   {
     variants: {
       variant: {

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { ScreenFrame, type ScreenPeriod } from "../../_components/screen-frame";
 import { useOperationsUi } from "../../_components/operations-ui-context";
+import { useSimClock, windowEndingAt } from "../../_lib/sim-clock";
 import { normalizeQueryFailure } from "@/lib/operational-state";
 import { fetchChanges, fetchTimeseries } from "../_lib/http-source";
 import { resolveReference } from "../_lib/comparar-source";
@@ -37,34 +38,45 @@ const periodMinutes: Record<ScreenPeriod, number> = {
   "24 h": 1_440,
 };
 
+// `sessions` chega com a latência de 28 h da NPAW e deixa as janelas de 15/30
+// min legitimamente vazias. `request_count` é uma contagem recente e existe
+// nos dois lados da comparação, sem misturar métricas de unidades diferentes.
+const COMPARISON_METRIC = "request_count";
+
 /** Compara a janela atual com quatro referências de sazonalidade. */
 export function CompararContent() {
   const { period: sharedPeriod } = useOperationsUi();
+  const clock = useSimClock();
   const period = sharedPeriod ?? "30 min";
   const [reference, setReference] = useState<ReferenceId>("semana");
 
-  const now = useMemo(() => new Date(), [period]);
   const windowMinutes = periodMinutes[period];
-  const from = useMemo(() => new Date(now.getTime() - windowMinutes * 60_000), [now, windowMinutes]);
-  const interval = Math.max(1, Math.round(windowMinutes / 30));
+  const currentWindow = useMemo(
+    () => clock.snapshot ? windowEndingAt(clock.snapshot.simNow, windowMinutes) : null,
+    [clock.snapshot, windowMinutes],
+  );
+  const interval = Math.max(5, Math.round(windowMinutes / 30));
 
   const atual = useQuery({
-    queryKey: ["comparar-atual", from.toISOString(), now.toISOString(), interval],
+    queryKey: ["comparar-atual", currentWindow?.from, currentWindow?.to, interval],
     queryFn: ({ signal }) =>
-      fetchTimeseries({ from: from.toISOString(), to: now.toISOString(), interval }, signal),
+      fetchTimeseries({ ...currentWindow!, interval, metric: COMPARISON_METRIC }, signal),
+    enabled: Boolean(currentWindow),
     refetchInterval: 30_000,
   });
 
   const changesQuery = useQuery({
-    queryKey: ["comparar-changes", from.toISOString(), now.toISOString()],
-    queryFn: ({ signal }) => fetchChanges(from.toISOString(), now.toISOString(), signal),
+    queryKey: ["comparar-changes", currentWindow?.from, currentWindow?.to],
+    queryFn: ({ signal }) => fetchChanges(currentWindow!.from, currentWindow!.to, signal),
+    enabled: Boolean(currentWindow),
     refetchInterval: 30_000,
   });
 
   const referenciaResolvida = useQuery({
-    queryKey: ["comparar-referencia-janela", reference, from.toISOString(), now.toISOString()],
+    queryKey: ["comparar-referencia-janela", reference, currentWindow?.from, currentWindow?.to],
     queryFn: ({ signal }) =>
-      resolveReference(reference, { from: from.toISOString(), to: now.toISOString() }, signal),
+      resolveReference(reference, currentWindow!, signal),
+    enabled: Boolean(currentWindow),
   });
 
   const janelaRef = referenciaResolvida.data;
@@ -72,7 +84,7 @@ export function CompararContent() {
     queryKey: ["comparar-referencia-serie", janelaRef?.from, janelaRef?.to, interval],
     queryFn: ({ signal }) =>
       fetchTimeseries(
-        { from: janelaRef!.from, to: janelaRef!.to, interval },
+        { from: janelaRef!.from, to: janelaRef!.to, interval, metric: COMPARISON_METRIC },
         signal,
       ),
     enabled: Boolean(janelaRef?.found),
@@ -93,8 +105,8 @@ export function CompararContent() {
   const delta = nowTotal !== null && refTotal !== null ? nowTotal - refTotal : null;
   const ratio = nowTotal !== null && refTotal !== null && refTotal > 0 ? delta! / refTotal : null;
 
-  const loading = atual.isLoading;
-  const anyError = atual.isError || changesQuery.isError;
+  const loading = clock.isLoading || atual.isLoading;
+  const anyError = Boolean(clock.error) || atual.isError || changesQuery.isError;
   const scopeSummary = nowTotal !== null ? `${nowTotal.toLocaleString("pt-BR")} eventos na janela` : undefined;
 
   return (
@@ -112,13 +124,19 @@ export function CompararContent() {
                 : "ready",
         title: "Comparação histórica",
         scope: scopeSummary,
-        failure: atual.error
-          ? normalizeQueryFailure(
-              atual.error,
-              atual.dataUpdatedAt ? new Date(atual.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined,
-            )
-          : undefined,
-        onRetry: () => atual.refetch(),
+        failure: clock.error
+          ? normalizeQueryFailure(clock.error)
+          : atual.error
+            ? normalizeQueryFailure(
+                atual.error,
+                atual.dataUpdatedAt ? new Date(atual.dataUpdatedAt).toLocaleTimeString("pt-BR") : undefined,
+              )
+            : undefined,
+        onRetry: () => {
+          clock.refetch();
+          atual.refetch();
+          changesQuery.refetch();
+        },
       }}
     >
       <header className={styles.heading}>

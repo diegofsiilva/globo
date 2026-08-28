@@ -15,7 +15,7 @@ function ToggleGroup({ className, variant, size, children, ...props }: React.Com
   return (
     <ToggleGroupPrimitive.Root
       data-slot="toggle-group"
-      className={cn("flex w-fit items-center divide-x divide-border overflow-hidden rounded-pill border border-border-strong", className)}
+      className={cn("flex w-fit items-center divide-x divide-border overflow-hidden rounded-control border border-border-strong", className)}
       {...props}
     >
       <ToggleGroupContext.Provider value={{ variant, size }}>{children}</ToggleGroupContext.Provider>
@@ -28,7 +28,7 @@ function ToggleGroupItem({ className, variant, size, ...props }: React.Component
   return (
     <ToggleGroupPrimitive.Item
       data-slot="toggle-group-item"
-      className={cn(toggleVariants({ variant: context.variant ?? variant, size: context.size ?? size }), "border-0", className)}
+      className={cn(toggleVariants({ variant: context.variant ?? variant, size: context.size ?? size }), "rounded-none border-0", className)}
       {...props}
     />
   );

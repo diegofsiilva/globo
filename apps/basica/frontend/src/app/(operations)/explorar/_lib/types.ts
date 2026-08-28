@@ -6,7 +6,14 @@ export type EventKind = {
   value: string;
 };
 
-export type GroupBy = "Modelo" | "UF" | "ISP" | "Versão" | "Rota";
+/** Agrupamentos oferecidos pela tela.
+ *
+ * Trocados junto com a fonte de dados: "UF", "Versão" e "Rota" mapeavam
+ * colunas de evento por sessao (`uf`, `app_version`, `route_path`) que este
+ * dataset nao tem. Estes cinco mapeiam dimensoes reais de
+ * `gold.v_feature_bucket` (ver `groupByDimension`).
+ */
+export type GroupBy = "Dispositivo" | "Fonte" | "Métrica" | "Hora" | "Dia da semana";
 
 export type ExplorationRow = {
   delta: string;

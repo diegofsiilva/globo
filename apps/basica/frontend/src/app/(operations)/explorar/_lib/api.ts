@@ -1,15 +1,8 @@
-/** Adapter HTTP da tela Explorar: breakdown, timeseries e facets. */
+/** Adapter HTTP da tela Explorar: breakdown e timeseries. */
 
-import { QuerySourceError } from "@/lib/operational-state";
+import { getJson, withScope, type EventScope } from "@/lib/events/query";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-if (!API_URL) {
-  throw new Error(
-    "NEXT_PUBLIC_API_URL não definida. Rode `make frontend-build` ou exporte a " +
-      "variável antes de `next build`.",
-  );
-}
+export type { EventScope };
 
 export type BreakdownGroup = {
   key: string;
@@ -24,6 +17,27 @@ export type BreakdownResponse = {
   groups: BreakdownGroup[];
 };
 
+/** Forma crua devolvida por `/api/v1/series/breakdown`. */
+type SeriesBreakdownResponse = {
+  dimension: string;
+  metric: string | null;
+  total: number;
+  groups: { key: string; value: number | null; points: number; share: number }[];
+};
+
+/** Forma crua devolvida por `/api/v1/series/timeseries`. */
+type SeriesTimeseriesResponse = {
+  interval_minutes: number;
+  metric: string | null;
+  total: number;
+  buckets: {
+    bucket: string;
+    value: number | null;
+    points: number;
+    by_metric: Record<string, number | null>;
+  }[];
+};
+
 export type TimeseriesBucket = {
   bucket: string;
   count: number;
@@ -36,70 +50,7 @@ export type TimeseriesResponse = {
   buckets: TimeseriesBucket[];
 };
 
-export type FacetsResponse = { facets: Record<string, string[]> };
-
-/** Escopo de filtros cumulativos aceito por `filters_from_query` no backend. */
-export type EventScope = Partial<{
-  event_name: string;
-  device_os: string;
-  device_manufacturer: string;
-  app_version: string;
-  uf: string;
-  isp: string;
-}>;
-
-async function getJson<T>(
-  path: string,
-  params: URLSearchParams,
-  signal: AbortSignal | undefined,
-  reference: string,
-): Promise<T> {
-  const endpoint = `${API_URL.replace(/\/$/, "")}${path}?${params}`;
-  let response: Response;
-
-  try {
-    response = await fetch(endpoint, { signal });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
-    throw new QuerySourceError(
-      "A conexão com a API de leitura está indisponível. Verifique a rede e tente novamente.",
-      "offline",
-      `${reference}-OFFLINE`,
-    );
-  }
-
-  if (!response.ok) {
-    const timeout = response.status === 408 || response.status === 504;
-    throw new QuerySourceError(
-      timeout
-        ? "A API excedeu o tempo limite da consulta."
-        : `A API respondeu com status ${response.status}.`,
-      timeout ? "timeout" : "server",
-      `${reference}-HTTP-${response.status}`,
-      response.status >= 500 || timeout,
-    );
-  }
-
-  try {
-    return (await response.json()) as T;
-  } catch {
-    throw new QuerySourceError(
-      "A API respondeu em um formato que a interface não reconhece.",
-      "invalid-response",
-      `${reference}-INVALID-JSON`,
-      false,
-    );
-  }
-}
-
-function withScope(params: URLSearchParams, scope: EventScope) {
-  for (const [key, value] of Object.entries(scope)) {
-    if (value) params.set(key, value);
-  }
-  return params;
-}
-
-export function fetchBreakdown(
+export async function fetchBreakdown(
   dimension: string,
   window: { from: string; to: string },
   scope: EventScope,
@@ -109,10 +60,27 @@ export function fetchBreakdown(
     new URLSearchParams({ dimension, from: window.from, to: window.to, limit: "100" }),
     scope,
   );
-  return getJson<BreakdownResponse>("/api/v1/metrics/breakdown", params, signal, "ARG-EXP-BREAKDOWN");
+  const bruto = await getJson<SeriesBreakdownResponse>(
+    "/api/v1/series/breakdown",
+    params,
+    signal,
+    "ARG-EXP-BREAKDOWN",
+  );
+  return {
+    dimension: bruto.dimension,
+    total: bruto.total,
+    groups: bruto.groups.map((grupo) => ({
+      key: grupo.key,
+      count: grupo.value ?? 0,
+      share: grupo.share,
+      // A serie agregada nao carrega duracao media -- `gold.feature_bucket`
+      // guarda valor por metrica, nao duracao por evento.
+      average_duration_ms: null,
+    })),
+  };
 }
 
-export function fetchTimeseries(
+export async function fetchTimeseries(
   window: { from: string; to: string },
   intervalMinutes: number,
   scope: EventScope,
@@ -122,11 +90,23 @@ export function fetchTimeseries(
     new URLSearchParams({ from: window.from, to: window.to, interval: String(intervalMinutes) }),
     scope,
   );
-  return getJson<TimeseriesResponse>("/api/v1/metrics/timeseries", params, signal, "ARG-EXP-TIMESERIES");
-}
-
-export function fetchFacets(fields: string[], signal?: AbortSignal): Promise<FacetsResponse> {
-  const params = new URLSearchParams();
-  for (const field of fields) params.append("field", field);
-  return getJson<FacetsResponse>("/api/v1/facets", params, signal, "ARG-EXP-FACETS");
+  const bruto = await getJson<SeriesTimeseriesResponse>(
+    "/api/v1/series/timeseries",
+    params,
+    signal,
+    "ARG-EXP-TIMESERIES",
+  );
+  return {
+    interval_minutes: bruto.interval_minutes,
+    total: bruto.total,
+    buckets: bruto.buckets.map((balde) => ({
+      bucket: balde.bucket,
+      count: balde.value ?? 0,
+      // A tela indexa esse mapa pelo "tipo" selecionado; no dado agregado o
+      // eixo equivalente e a METRICA (sessions, error_rate_pct, p95_ms...).
+      by_event_name: Object.fromEntries(
+        Object.entries(balde.by_metric).map(([nome, valor]) => [nome, valor ?? 0]),
+      ),
+    })),
+  };
 }

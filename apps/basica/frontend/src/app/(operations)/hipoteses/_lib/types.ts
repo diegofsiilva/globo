@@ -3,8 +3,12 @@ export type HypothesisFactor = {
   id: string;
   label: string;
   weight: number;
+  /** Pontos do score que este fator ocupa (a faixa soma o score). */
   contribution: number;
   rationale: string;
+  /** Quanto o fator sustenta a hipótese, 0–1, independente do peso. */
+  value: number | null;
+  applicability: "available" | "unavailable" | "not_applicable";
 };
 
 /** Fonte de evidência consultada para montar uma hipótese. */
@@ -47,7 +51,7 @@ export type HypothesesReport = {
   generated: number;
   discarded: number;
   scope: ScopeChip[];
-  summary: { sessions: number; trafficShare: number; sources: number };
+  summary: { hypotheses: number; families: number; sources: number };
   hypotheses: Hypothesis[];
   discardedHypotheses: DiscardedHypothesis[];
 };

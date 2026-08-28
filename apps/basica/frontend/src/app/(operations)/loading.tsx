@@ -8,7 +8,7 @@ export default function OperationsLoading() {
         <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
         Carregando a próxima etapa da investigação…
       </div>
-      <div className="grid gap-px border border-border bg-border md:grid-cols-2">
+      <div className="grid gap-px overflow-hidden rounded-panel border border-border bg-border md:grid-cols-2">
         {[0, 1, 2, 3].map((item) => (
           <div className="space-y-4 bg-background p-5" key={item}>
             <Skeleton className="h-3 w-32" />

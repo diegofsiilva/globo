@@ -51,7 +51,7 @@ export const timeline = [
 ];
 
 export const explorationGroups: Record<GroupBy, ExplorationRow[]> = {
-  Modelo: [
+  Dispositivo: [
     { label: "49LJ5550-SC", events: 112_408, errorRate: 31.2, delta: "+2.910%" },
     { label: "43LJ5500", events: 88_117, errorRate: 28.7, delta: "+2.410%" },
     { label: "32LJ600B", events: 41_902, errorRate: 24.1, delta: "+1.980%" },
@@ -61,7 +61,7 @@ export const explorationGroups: Record<GroupBy, ExplorationRow[]> = {
     { label: "BTV32D10N5SKH", events: 22_804, errorRate: 1.4, delta: "0%" },
     { label: "UN43T5300", events: 18_902, errorRate: 1.1, delta: "−3%" },
   ],
-  UF: [
+  Fonte: [
     { label: "Bahia", events: 124_610, errorRate: 27.8, delta: "+2.540%" },
     { label: "Pernambuco", events: 98_402, errorRate: 24.2, delta: "+1.870%" },
     { label: "Ceará", events: 81_911, errorRate: 16.4, delta: "+940%" },
@@ -69,20 +69,20 @@ export const explorationGroups: Record<GroupBy, ExplorationRow[]> = {
     { label: "Rio Grande do Norte", events: 38_552, errorRate: 2.4, delta: "+3%" },
     { label: "Paraíba", events: 31_985, errorRate: 1.8, delta: "−1%" },
   ],
-  ISP: [
+  Métrica: [
     { label: "Claro", events: 128_240, errorRate: 29.4, delta: "+2.660%" },
     { label: "Vivo", events: 102_118, errorRate: 21.6, delta: "+1.740%" },
     { label: "Oi", events: 74_823, errorRate: 17.9, delta: "+1.120%" },
     { label: "TIM", events: 48_291, errorRate: 4.8, delta: "+34%" },
     { label: "Brisanet", events: 21_602, errorRate: 2.1, delta: "+4%" },
   ],
-  Versão: [
+  Hora: [
     { label: "2026.3.0", events: 302_118, errorRate: 26.9, delta: "+2.240%" },
     { label: "2026.2.8", events: 96_442, errorRate: 3.8, delta: "+18%" },
     { label: "2026.2.4", events: 44_908, errorRate: 2.2, delta: "+4%" },
     { label: "2026.1.9", events: 21_673, errorRate: 1.7, delta: "−2%" },
   ],
-  Rota: [
+  "Dia da semana": [
     { label: "/playback/start", events: 148_320, errorRate: 30.2, delta: "+2.810%" },
     { label: "/video/live", events: 111_842, errorRate: 24.7, delta: "+1.930%" },
     { label: "/auth/token", events: 61_287, errorRate: 9.4, delta: "+280%" },

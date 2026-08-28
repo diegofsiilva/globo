@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "tw-animate-css";
+@plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -41,11 +41,17 @@
   --color-rank-3: var(--rank-3);
   --color-rank-4: var(--rank-4);
 
-  /* Raios de canto. O front é reto por padrão (button { border-radius: 0 });
-     estes três degraus arredondam só painéis, pills de escopo e badges. */
-  --radius-panel: 12px;
-  --radius-pill: 999px;
-  --radius-badge: 8px;
+  /* Raios de canto. Uma família só, sem canto reto e sem cápsula: cinco
+     degraus que vão da marca de 2 px ao painel de 12 px. Cada superfície
+     aninhada usa o degrau de baixo, para o raio ficar concêntrico
+     (externo = interno + padding) em vez de parecer espremido. Superfície
+     que sangra de ponta a ponta (banda, barra de escopo, linha de tabela)
+     continua reta: ali o canto não existe. */
+  --radius-hairline: 2px;  /* swatch de legenda, medidor, segmento de barra */
+  --radius-mark: 4px;      /* item de menu, chip inline, célula de heatmap */
+  --radius-control: 6px;   /* botão, input, select, grupo segmentado */
+  --radius-badge: 8px;     /* badge, chip de escopo, popover */
+  --radius-panel: 12px;    /* painel, card, bloco emoldurado */
 
   /* Escala tipográfica única das telas. Seis degraus: abaixo de 12px o rótulo
      deixa de ser legível em tela densa, e acima de 28px compete com o h1. */
@@ -195,7 +201,8 @@
 
   button, input, select, textarea { color: inherit; font: inherit; }
   button, a { touch-action: manipulation; }
-  button { border-radius: 0; cursor: pointer; }
+  button { border-radius: var(--radius-control); cursor: pointer; }
+  input, select, textarea { border-radius: var(--radius-control); }
   button:disabled { cursor: not-allowed; }
   h1, h2, h3 { text-wrap: balance; scroll-margin-top: 72px; }
   p { text-wrap: pretty; }
@@ -234,6 +241,7 @@
 .filterMenu {
   border-color: var(--border-strong);
   border-radius: var(--radius-panel);
+  overflow: hidden;
   background: var(--surface);
   box-shadow: 4px 5px 0 color-mix(in srgb, var(--foreground) 13%, transparent);
 }

@@ -1,5 +1,7 @@
 /** Cliente tipado da API de leitura de eventos. */
 
+import { withScope, type EventScope } from "./query";
+
 // A URL da API vem do ambiente de build e nunca fica escrita no código.
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -45,6 +47,8 @@ export type EventQuery = {
   manufacturer?: string;
   from?: string;
   to?: string;
+  /** Recorte declarado na barra de escopo; vazio significa "todo o tráfego". */
+  scope?: EventScope;
 };
 
 /** Consulta eventos aplicando somente os filtros preenchidos. */
@@ -59,6 +63,7 @@ export async function fetchEvents(
   if (filters.manufacturer) params.set("device_manufacturer", filters.manufacturer);
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
+  withScope(params, filters.scope ?? {});
 
   const response = await fetch(`${API_URL}/api/v1/events?${params}`, { signal });
 

@@ -264,14 +264,17 @@ tf-validate: ## Valida a configuracao sem tocar na AWS
 
 .PHONY: tf-plan
 tf-plan: lambda-build ## Mostra o que mudaria na AWS (somente leitura)
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform plan
 
 .PHONY: tf-apply
 tf-apply: lambda-build ## Aplica as mudancas na AWS
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform apply
 
 .PHONY: tf-output
 tf-output: ## Mostra os endpoints e nomes de recurso
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform output
 
 .PHONY: tf-destroy
@@ -279,6 +282,7 @@ tf-destroy: ## Remove TODA a infraestrutura
 	@echo "Isto apaga o BANCO com as 33 tabelas, as filas e os servicos."
 	@echo "O bucket de origem tem versionamento, mas tambem vai."
 	@read -p "Digite 'destruir' para confirmar: " r; [ "$$r" = "destruir" ] || { echo "cancelado."; exit 1; }
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform destroy
 
 .PHONY: lambda-build
@@ -287,6 +291,7 @@ lambda-build: ## Empacota a API de leitura para a Lambda
 
 .PHONY: deploy
 deploy: test-backend lambda-build ## Testa, empacota e publica a API de leitura
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform apply -auto-approve
 	@$(MAKE) --no-print-directory smoke
 

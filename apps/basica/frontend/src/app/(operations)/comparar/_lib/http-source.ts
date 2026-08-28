@@ -78,15 +78,39 @@ export function fetchLastLivePeak(signal?: AbortSignal): Promise<LastLivePeakRes
   return getJson(`/api/v1/references/last-live-peak`, signal);
 }
 
-export function fetchTimeseries(
-  filters: { from: string; to: string; interval: number; compare?: boolean },
+/** Série da janela pedida, sobre `gold.v_feature_bucket`.
+ *
+ * A tela chama uma vez por janela e compara os resultados no cliente, então o
+ * `compare=true` da rota antiga não é necessário aqui. */
+export async function fetchTimeseries(
+  filters: { from: string; to: string; interval: number; metric?: string },
   signal?: AbortSignal,
 ): Promise<TimeseriesResponse> {
   const params = new URLSearchParams({
     from: filters.from,
     to: filters.to,
     interval: String(filters.interval),
+    metric: filters.metric ?? "sessions",
   });
-  if (filters.compare) params.set("compare", "true");
-  return getJson(`/api/v1/metrics/timeseries?${params}`, signal);
+  const bruto = await getJson<{
+    interval_minutes: number;
+    total: number;
+    buckets: {
+      bucket: string;
+      value: number | null;
+      by_metric: Record<string, number | null>;
+    }[];
+  }>(`/api/v1/series/timeseries?${params}`, signal);
+
+  return {
+    interval_minutes: bruto.interval_minutes,
+    total: bruto.total,
+    buckets: bruto.buckets.map((balde) => ({
+      bucket: balde.bucket,
+      count: balde.value ?? 0,
+      by_event_name: Object.fromEntries(
+        Object.entries(balde.by_metric).map(([nome, valor]) => [nome, valor ?? 0]),
+      ),
+    })),
+  };
 }

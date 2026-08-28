@@ -6,7 +6,7 @@ import { useMemo, useRef, useState, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 
-import { adjustments, cutScope } from "../_mocks/scenario";
+import { adjustments } from "../_mocks/scenario";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,44 +22,65 @@ import {
 import { ScreenFrame } from "../../_components/screen-frame";
 import { normalizeQueryFailure } from "@/lib/operational-state";
 import { fetchEvents, type ApiEvent } from "@/lib/events/api";
-import { regionOf } from "@/lib/uf-regions";
 import { fetchCrosstab, fetchSessionTimeline, type CrosstabCell } from "../_lib/api-source";
+import { useScopeFilters } from "../../_lib/scope-filters";
 import { recorteStyles as styles } from "./recorte.styles";
 
-/** Duas dimensões do heatmap. `uf` é código de UF real (ex.: "RJ"), não o
- * nome de região do mock antigo ("Nordeste") -- a série gold/silver não tem
- * granularidade de região NA AGREGAÇÃO (não dá pra pedir "erros por
- * Nordeste" ao crosstab). A coluna mostra UF, que é o dado real, com a
- * região (mapeamento estático, ver lib/uf-regions.ts) como contexto ao lado. */
-const DIMENSION_X = "device_model";
-const DIMENSION_Y = "uf";
+/** Dimensões que realmente existem em `gold.v_feature_bucket`. */
+const DIMENSION_X = "entity";
+const DIMENSION_Y = "hora_brt";
 const SAMPLE_COLUMNS = ["Hora", "Modelo", "SO", "Evento", "Erro"];
 
-type HeatmapCellValue = { total: number; errors: number };
+type HeatmapCellValue = { sessions: number; errorRate: number | null };
 
 /** Declara o recorte afetado e mede o efeito de cada ajuste sobre ele. */
 export function RecorteContent() {
-  const [region, setRegion] = useState<string | null>(null);
+  const [hour, setHour] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const sessionTriggerRef = useRef<HTMLButtonElement | null>(null);
 
-  // Contagem, não taxa: /metrics/crosstab devolve count por célula. A taxa de
-  // erro por (device_model, uf) sai de DUAS chamadas -- total e só erro --
-  // divididas no cliente. Célula sem denominador vira "sem dado", não 0%.
+  // Escopo em branco por padrão: os filtros da barra começam em "todos" e só
+  // recortam a consulta depois que a pessoa escolhe um valor.
+  // O eixo `entity` só representa dispositivo dentro desta fonte. Sem o
+  // recorte inicial, o heatmap misturava pods, vhosts e aparelhos.
+  const scopeFilters = useScopeFilters({ source: "youbora_device" });
+  const scope = scopeFilters.scope;
+
+  // Sessões e taxa são métricas com unidades distintas. `error_rate_pct` já
+  // chega em percentual; dividi-la por sessões novamente gerava os 0% falsos.
   const totalQuery = useQuery({
-    queryKey: ["recorte", "crosstab", "total"],
-    queryFn: ({ signal }) => fetchCrosstab({ dimensionX: DIMENSION_X, dimensionY: DIMENSION_Y }, signal),
+    queryKey: ["recorte", "crosstab", "total", scope],
+    queryFn: ({ signal }) =>
+      fetchCrosstab(
+        {
+          dimensionX: DIMENSION_X,
+          dimensionY: DIMENSION_Y,
+          metric: "sessions",
+          limit: 1000,
+          scope,
+        },
+        signal,
+      ),
     refetchInterval: 30_000,
   });
   const errorQuery = useQuery({
-    queryKey: ["recorte", "crosstab", "error"],
+    queryKey: ["recorte", "crosstab", "error", scope],
     queryFn: ({ signal }) =>
-      fetchCrosstab({ dimensionX: DIMENSION_X, dimensionY: DIMENSION_Y, eventName: "error" }, signal),
+      fetchCrosstab(
+        {
+          dimensionX: DIMENSION_X,
+          dimensionY: DIMENSION_Y,
+          metric: "error_rate_pct",
+          limit: 1000,
+          scope,
+        },
+        signal,
+      ),
     refetchInterval: 30_000,
   });
   const eventsQuery = useQuery({
-    queryKey: ["recorte", "events"],
-    queryFn: ({ signal }) => fetchEvents({ eventName: "error" }, signal),
+    queryKey: ["recorte", "events", scope],
+    queryFn: ({ signal }) => fetchEvents({ eventName: "error", scope }, signal),
     refetchInterval: 30_000,
   });
   const sessionQuery = useQuery({
@@ -68,30 +89,25 @@ export function RecorteContent() {
     enabled: Boolean(selectedSessionId),
   });
 
-  const { regions, families, cellValues } = useMemo(
+  const { hours, families, cellValues, scaleMax, trueMax } = useMemo(
     () => buildHeatmap(totalQuery.data?.cells ?? [], errorQuery.data?.cells ?? []),
     [totalQuery.data, errorQuery.data],
   );
-  const activeRegion = region ?? regions[0] ?? null;
-  const regionIndex = activeRegion ? regions.indexOf(activeRegion) : -1;
+  const activeHour = hour ?? hours[0] ?? null;
   const ranking = useMemo(
     () =>
       families
-        .map((family) => ({ family, rate: rateOf(cellValues, family, activeRegion) }))
+        .map((family) => ({ family, rate: rateOf(cellValues, family, activeHour) }))
         .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1)),
-    [families, cellValues, activeRegion],
+    [families, cellValues, activeHour],
   );
 
   const samples = (eventsQuery.data?.items ?? []).slice(0, 20);
 
-  // Proxy de sessões: soma das células do crosstab total. É contagem de
-  // EVENTOS agrupados por (device_model, uf), não sessão distinta -- o
-  // crosstab não tem essa granularidade. "% do tráfego" do mock original foi
-  // removida: exigiria uma chamada extra sem nenhum filtro de escopo como
-  // linha de base, que não faz parte deste recorte.
+  // Soma das sessões nas células devolvidas e taxa geral ponderada pelo volume.
+  // "% do tráfego" do mock original foi removida porque não há esse contrato.
   const totalEvents = sumCells(totalQuery.data?.cells);
-  const totalErrors = sumCells(errorQuery.data?.cells);
-  const errorShare = totalEvents > 0 ? (totalErrors / totalEvents) * 100 : null;
+  const errorShare = weightedErrorRate(cellValues);
 
   const primary = totalQuery;
   const operationalState = primary.isLoading
@@ -108,12 +124,15 @@ export function RecorteContent() {
 
   return (
     <ScreenFrame
-      filters={cutScope.map((chip) => ({ ...chip, options: [chip.value] }))}
-      scopeSummary={scopeSummaryText(totalEvents, errorShare, regions.length)}
+      filters={scopeFilters.screenFilters}
+      onFilterChange={scopeFilters.onFilterChange}
+      onClearFilters={scopeFilters.count ? scopeFilters.clear : undefined}
+      scopeFilterCount={scopeFilters.count}
+      scopeSummary={scopeSummaryText(totalEvents, errorShare, hours.length)}
       operational={{
         state: operationalState,
         title: "Recorte afetado",
-        scope: scopeSummaryText(totalEvents, errorShare, regions.length),
+        scope: scopeSummaryText(totalEvents, errorShare, hours.length),
         failure: primary.error
           ? normalizeQueryFailure(
               primary.error,
@@ -128,61 +147,92 @@ export function RecorteContent() {
     >
       <header className={styles.heading}>
         <p>Recorte afetado · definição explícita</p>
-        {/* Título estático: não há rota que devolva um resumo textual do
-            escopo ativo -- ver relatório de integração. */}
-        <h1>{cutScope.map((chip) => chip.value).join(" · ")}</h1>
+        {/* O título é o próprio escopo declarado na barra. Sem filtro ativo ele
+            diz isso com todas as letras, em vez de fingir um recorte. */}
+        <h1>
+          {scopeFilters.count
+            ? scopeFilters.active.map((filter) => filter.value).join(" · ")
+            : "Todo o tráfego"}
+        </h1>
         <div className={styles.metrics}>
           <div>
             <strong>{totalEvents.toLocaleString("pt-BR")}</strong>
-            <span>eventos no recorte (proxy de sessões)</span>
+            <span>sessões nas células do recorte</span>
           </div>
           <div>
             <strong>{errorShare === null ? "—" : `${errorShare.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</strong>
-            <span>dos eventos são erro</span>
+            <span>taxa de erro ponderada</span>
           </div>
           <div>
-            <strong>{regions.length || "—"}</strong>
-            <span>UFs no recorte</span>
+            <strong>{hours.length || "—"}</strong>
+            <span>horas BRT no recorte</span>
           </div>
         </div>
       </header>
 
       <div className={styles.grid}>
         <div>
-          <h2 className={styles.sectionLabel}>
-            Taxa de erro por modelo de dispositivo × UF
-          </h2>
+          <div className={styles.heatmapHead}>
+            <h2 className={styles.sectionLabel}>
+              Taxa de erro por dispositivo × hora BRT
+            </h2>
+            {families.length > 0 && (
+              <p className={styles.heatLegend}>
+                <span className="sr-only">
+                  A cor de cada célula indica a taxa de erro relativa à maior célula da grade.
+                </span>
+                <span aria-hidden="true">0%</span>
+                <i
+                  aria-hidden="true"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, color-mix(in srgb, var(--primary) 8%, var(--surface)), var(--primary))",
+                  }}
+                />
+                <span aria-hidden="true">
+                  {scaleMax > 0
+                    ? `${trueMax > scaleMax ? "≥ " : ""}${scaleMax.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`
+                    : "0%"}
+                </span>
+              </p>
+            )}
+          </div>
           {families.length > 0 && (
             <>
-              <div className={`${styles.heatmapScroller} hidden md:block`} aria-label="Taxa de erro por modelo de dispositivo e UF">
-                <div className={styles.heatmap} style={{ gridTemplateColumns: `auto repeat(${regions.length}, 1fr)` }}>
+              <div className={`${styles.heatmapScroller} hidden md:block`} aria-label="Taxa de erro por dispositivo e hora BRT">
+                <div
+                  className={styles.heatmap}
+                  style={{
+                    gridTemplateColumns: `152px repeat(${hours.length}, minmax(40px, 1fr))`,
+                    minWidth: 152 + hours.length * 40,
+                  }}
+                >
                   <div />
-                  {regions.map((uf) => (
-                    <b key={uf} title={regionOf(uf) ?? undefined} style={{ lineHeight: 1.3 }}>
-                      {uf}
-                      {regionOf(uf) && <small style={{ display: "block" }}>{regionOf(uf)}</small>}
+                  {hours.map((hourBrt) => (
+                    <b key={hourBrt} style={{ lineHeight: 1.3 }}>
+                      {hourBrt}h
                     </b>
                   ))}
                   {families.map((family) => (
                     <HeatmapRow
                       key={family}
                       family={family}
-                      regions={regions}
+                      hours={hours}
                       cellValues={cellValues}
+                      scaleMax={scaleMax}
                     />
                   ))}
                 </div>
               </div>
               <div className="grid gap-4 md:hidden">
                 <div>
-                  <label className="mb-2 block font-mono text-xs uppercase tracking-wider text-muted-foreground" id="mobile-region-label">UF</label>
-                  <Select value={activeRegion ?? undefined} onValueChange={setRegion}>
-                    <SelectTrigger className="w-full" aria-labelledby="mobile-region-label"><SelectValue /></SelectTrigger>
+                  <label className="mb-2 block font-mono text-xs uppercase tracking-wider text-muted-foreground" id="mobile-hour-label">Hora BRT</label>
+                  <Select value={activeHour ?? undefined} onValueChange={setHour}>
+                    <SelectTrigger className="w-full" aria-labelledby="mobile-hour-label"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {regions.map((item) => (
+                      {hours.map((item) => (
                         <SelectItem value={item} key={item}>
-                          {item}
-                          {regionOf(item) ? ` · ${regionOf(item)}` : ""}
+                          {item}h
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -192,7 +242,16 @@ export function RecorteContent() {
                   {ranking.map((item, index) => (
                     <li className="flex min-h-14 items-center justify-between gap-4 py-3" key={item.family}>
                       <span className="min-w-0 break-words"><b className="mr-2 font-mono text-muted-foreground">{index + 1}</b>{item.family}</span>
-                      <strong className={clsx("shrink-0 font-mono", index === 0 && "text-critical")}>
+                      <strong className={clsx("flex shrink-0 items-center gap-2 font-mono tabular-nums", index === 0 && "text-critical")}>
+                        {item.rate !== null && (
+                          <i
+                            className={styles.heatSwatch}
+                            style={{
+                              background: `color-mix(in srgb, var(--primary) ${heatMix(item.rate, scaleMax)}%, var(--surface))`,
+                            }}
+                            aria-hidden="true"
+                          />
+                        )}
                         {item.rate === null ? "sem dado" : `${item.rate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
                       </strong>
                     </li>
@@ -377,23 +436,38 @@ function SessionDetail({
 
 function HeatmapRow({
   family,
-  regions,
+  hours,
   cellValues,
+  scaleMax,
 }: {
   family: string;
-  regions: string[];
+  hours: string[];
   cellValues: Map<string, HeatmapCellValue>;
+  scaleMax: number;
 }) {
   return (
     <>
-      <strong>{family}</strong>
-      {regions.map((uf) => {
-        const rate = rateOf(cellValues, family, uf);
-        const region = regionOf(uf);
+      <strong title={family}>{family}</strong>
+      {hours.map((hourBrt) => {
+        const cell = cellValues.get(key(family, hourBrt));
+        const rate = cell?.errorRate ?? null;
+        const sessions = cell?.sessions ?? 0;
+        const mix = heatMix(rate, scaleMax);
+        const ink = mix >= 72;
         return (
           <span
-            key={`${family}-${uf}`}
-            aria-label={`${family}, ${uf}${region ? ` (${region})` : ""}: ${rate === null ? "sem dado" : `${rate.toFixed(1)}%`}`}
+            key={`${family}-${hourBrt}`}
+            className={clsx(
+              ink && (mix >= 88 ? styles.heatInkMax : styles.heatInk),
+              rate === null && "text-muted-foreground",
+            )}
+            style={{
+              background:
+                rate === null
+                  ? "var(--secondary)"
+                  : `color-mix(in srgb, var(--primary) ${mix}%, var(--surface))`,
+            }}
+            aria-label={cellAriaLabel(family, hourBrt, rate, sessions)}
           >
             <span>{rate === null ? "—" : `${rate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}</span>
           </span>
@@ -403,32 +477,75 @@ function HeatmapRow({
   );
 }
 
-/** Junta as células total/erro numa grade única e calcula a taxa por par. */
+/** Junta as células de sessões e taxa numa grade única. */
 function buildHeatmap(totalCells: CrosstabCell[], errorCells: CrosstabCell[]) {
   const cellValues = new Map<string, HeatmapCellValue>();
   for (const cell of totalCells) {
-    cellValues.set(key(cell.x, cell.y), { total: cell.count, errors: 0 });
+    cellValues.set(key(cell.x, cell.y), { sessions: cell.count, errorRate: null });
   }
   for (const cell of errorCells) {
     const existing = cellValues.get(key(cell.x, cell.y));
-    if (existing) existing.errors = cell.count;
-    else cellValues.set(key(cell.x, cell.y), { total: 0, errors: cell.count });
+    if (existing) existing.errorRate = cell.count;
+    else cellValues.set(key(cell.x, cell.y), { sessions: 0, errorRate: cell.count });
   }
 
   const families = Array.from(new Set(totalCells.map((cell) => cell.x))).sort();
-  const regions = Array.from(new Set(totalCells.map((cell) => cell.y))).sort();
-  return { families, regions, cellValues };
+  const hours = Array.from(new Set(totalCells.map((cell) => cell.y))).sort(
+    (a, b) => Number(a) - Number(b),
+  );
+  const scaleMax = robustScaleMax(cellValues);
+  let trueMax = 0;
+  for (const cell of cellValues.values()) {
+    if (cell.errorRate !== null && cell.errorRate > trueMax) trueMax = cell.errorRate;
+  }
+  return { families, hours, cellValues, scaleMax, trueMax };
+}
+
+/** P95 das taxas positivas: um 50% isolado não comprime o restante da grade. */
+function robustScaleMax(cellValues: Map<string, HeatmapCellValue>): number {
+  const rates = Array.from(cellValues.values())
+    .map((cell) => cell.errorRate)
+    .filter((rate): rate is number => rate !== null && rate > 0)
+    .sort((a, b) => a - b);
+  if (rates.length === 0) return 0;
+  const index = Math.min(rates.length - 1, Math.ceil(rates.length * 0.95) - 1);
+  return rates[Math.max(0, index)] ?? 0;
+}
+
+/** Mix de `--primary` na célula: raiz para o meio da escala não virar um degrau. */
+function heatMix(rate: number | null, scaleMax: number): number {
+  if (rate === null) return 0;
+  if (scaleMax <= 0) return 10;
+  return Math.min(100, 10 + Math.sqrt(Math.max(0, rate) / scaleMax) * 90);
+}
+
+function cellAriaLabel(family: string, hourBrt: string, rate: number | null, sessions: number): string {
+  const where = `${family}, ${hourBrt}h BRT`;
+  if (rate === null) return `${where}: sem dado`;
+  const rateText = `${rate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  if (sessions <= 0) return `${where}: ${rateText}`;
+  return `${where}: ${rateText} em ${sessions.toLocaleString("pt-BR")} sessões`;
 }
 
 function key(x: string, y: string): string {
-  return `${x} ${y}`;
+  return JSON.stringify([x, y]);
 }
 
-function rateOf(cellValues: Map<string, HeatmapCellValue>, family: string, region: string | null): number | null {
-  if (!region) return null;
-  const cell = cellValues.get(key(family, region));
-  if (!cell || cell.total === 0) return null;
-  return (cell.errors / cell.total) * 100;
+function rateOf(cellValues: Map<string, HeatmapCellValue>, family: string, hourBrt: string | null): number | null {
+  if (!hourBrt) return null;
+  return cellValues.get(key(family, hourBrt))?.errorRate ?? null;
+}
+
+/** Média ponderada pela quantidade de sessões de cada célula. */
+function weightedErrorRate(cellValues: Map<string, HeatmapCellValue>): number | null {
+  let sessions = 0;
+  let estimatedErrors = 0;
+  for (const cell of cellValues.values()) {
+    if (cell.sessions <= 0 || cell.errorRate === null) continue;
+    sessions += cell.sessions;
+    estimatedErrors += cell.sessions * (cell.errorRate / 100);
+  }
+  return sessions > 0 ? (estimatedErrors / sessions) * 100 : null;
 }
 
 function sumCells(cells: CrosstabCell[] | undefined): number {
@@ -452,7 +569,7 @@ function errorSummary(event: ApiEvent): string {
   return event.event_name;
 }
 
-function scopeSummaryText(totalEvents: number, errorShare: number | null, ufCount: number): string {
+function scopeSummaryText(totalEvents: number, errorShare: number | null, hourCount: number): string {
   const share = errorShare === null ? "sem dado" : `${errorShare.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
-  return `${totalEvents.toLocaleString("pt-BR")} eventos · ${share} de erro · ${ufCount || "—"} UFs`;
+  return `${totalEvents.toLocaleString("pt-BR")} sessões · ${share} de erro · ${hourCount || "—"} horas BRT`;
 }

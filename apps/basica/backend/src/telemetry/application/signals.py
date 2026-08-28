@@ -56,8 +56,7 @@ class GenerateSignals:
         """Inicializa o caso de uso.
 
         Args:
-            repository: `SignalsRepository` (ou equivalente de teste) --
-                reusa `desvios` e `contagem_sessoes`.
+            repository: `SignalsRepository` (ou equivalente de teste).
         """
         self.repository = repository
 
@@ -72,7 +71,7 @@ class GenerateSignals:
             dict[str, Any]: `{"items": [...]}`, do desvio mais forte para o
                 mais fraco.
         """
-        linhas = self.repository.desvios(desde, ate)
+        linhas = self.repository.desvios(desde, ate, LIMIAR_SINAL)
 
         grupos: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
         for linha in linhas:
@@ -139,7 +138,12 @@ class GenerateSignals:
                     "consecutive_buckets_over_threshold": consecutivos,
                     "detected_at": detectado_em.isoformat(),
                     "time_since_detection_seconds": round((ate - detectado_em).total_seconds()),
-                    "sessions_impacted": self.repository.contagem_sessoes(detectado_em, ate),
+                    # feature_bucket não possui session_id. Contar sessões em
+                    # silver.v_session_event aqui exigia agrupar dezenas de
+                    # milhões de eventos sem qualquer vínculo com este sinal,
+                    # além de bloquear toda a resposta. ``None`` comunica a
+                    # indisponibilidade sem inventar uma atribuição causal.
+                    "sessions_impacted": None,
                     "direction": direcao,
                     # Serie bruta (nao so os buckets acima do limiar) para uma
                     # sparkline com contexto de antes/durante o desvio.

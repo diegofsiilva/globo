@@ -1,6 +1,8 @@
 /** Adapter HTTP do relatório de hipóteses de causa provável. */
 
 import type { HypothesesSource } from "./types";
+import type { ApiHypothesesPage } from "./api-types";
+import { toHypothesesReport } from "./mapper";
 import { QuerySourceError } from "@/lib/operational-state";
 
 /** Cria um adapter HTTP preso à URL configurada no build. */
@@ -42,8 +44,12 @@ export function createHttpHypothesesSource(apiUrl: string): HypothesesSource {
       );
     }
 
+    // A API devolve `{count, items}` -- NAO o relatório da tela. Antes daqui
+    // o adapter fazia `return response.json()` cru, e a tela quebrava em
+    // `report.summary.trafficShare` (undefined) assim que saía do mock.
+    let page: ApiHypothesesPage;
     try {
-      return await response.json();
+      page = (await response.json()) as ApiHypothesesPage;
     } catch {
       throw new QuerySourceError(
         "O motor de hipóteses respondeu em um formato que a interface não reconhece.",
@@ -52,5 +58,16 @@ export function createHttpHypothesesSource(apiUrl: string): HypothesesSource {
         false,
       );
     }
+
+    if (!page || !Array.isArray(page.items)) {
+      throw new QuerySourceError(
+        "O motor de hipóteses respondeu sem a lista de hipóteses.",
+        "invalid-response",
+        "ARG-HYP-INVALID-SHAPE",
+        false,
+      );
+    }
+
+    return toHypothesesReport(page, filters);
   };
 }

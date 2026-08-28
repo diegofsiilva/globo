@@ -38,7 +38,7 @@ export function ThemeToggle() {
           size="sm"
           aria-label={label}
           onClick={() => setTheme(nextTheme)}
-          className="h-11 min-h-11 gap-2 rounded-pill px-3 font-mono text-xs uppercase tracking-[0.09em] md:h-8 md:min-h-8 md:text-[11px]"
+          className="h-11 min-h-11 gap-2 px-3 font-mono text-xs uppercase tracking-[0.09em] md:h-8 md:min-h-8 md:text-[11px]"
         >
           {dark ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
           <span className="hidden xl:inline">{targetLabel}</span>

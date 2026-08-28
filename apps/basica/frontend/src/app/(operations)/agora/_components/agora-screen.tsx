@@ -51,6 +51,10 @@ export function AgoraScreen() {
     queryKey: ["agora-signals"],
     queryFn: ({ signal }) => fetchSignals(signal),
     refetchInterval: 30_000,
+    // Uma segunda tentativa automática repete o timeout de 30 s da Lambda e
+    // deixa a tela em loading por quase um minuto. O botão de retry continua
+    // disponível para uma nova tentativa explícita.
+    retry: false,
   });
 
   // Valores reais dos filtros -- consulta separada porque facets muda pouco
@@ -75,9 +79,16 @@ export function AgoraScreen() {
     [items],
   );
 
-  const totalSessions = items.reduce((sum, item) => sum + item.sessions_impacted, 0);
+  const sessionCounts = items.flatMap((item) =>
+    item.sessions_impacted == null ? [] : [item.sessions_impacted],
+  );
+  const totalSessions = sessionCounts.reduce((sum, count) => sum + count, 0);
   const scopeSummary = signals.data
-    ? `${totalSessions.toLocaleString("pt-BR")} sessões monitoradas · ${items.length} sinal(is) avaliado(s)`
+    ? `${items.length} sinal(is) ativo(s)${
+        sessionCounts.length > 0
+          ? ` · ${totalSessions.toLocaleString("pt-BR")} sessões atribuídas`
+          : ""
+      }`
     : undefined;
 
   function updateFilter(key: FilterKey, value: string) {
@@ -346,7 +357,7 @@ export function AgoraScreen() {
                 <SheetDescription className="break-all">{selectedSignal.source} · {selectedSignal.metric}</SheetDescription>
               </SheetHeader>
               <div className="grid gap-6 px-4 pb-8">
-                <dl className="grid grid-cols-2 gap-px border border-border bg-border text-sm">
+                <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-panel border border-border bg-border text-sm">
                   {[
                     ["Valor atual", selectedSignal.current],
                     ["Baseline", selectedSignal.baseline],
