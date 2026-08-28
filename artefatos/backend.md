@@ -7,7 +7,7 @@ especificação do módulo. Atualizado em 27/08/2026 após o merge de
 `feat/rotas-backend` em `develop`: as rotas descritas aqui já estão na
 `develop`, junto com o motor de hipóteses e o novo design do front, feitos
 por outros integrantes do time. A seção 6 lista o que falta para atender a
-rubrica por completo; hoje só o vídeo de demonstração está pendente.
+rubrica por completo.
 
 &emsp; Divergência de nomenclatura entre a especificação e o repositório:
 a especificação referencia a pasta de código-fonte como `/apps/backend`; no
@@ -41,6 +41,20 @@ time e já estão mescladas em `develop`; aparecem na matriz de
 rastreabilidade (seção 5.1.b) para fechar a cobertura de RF, mas o
 detalhamento de organização de código e teste delas é responsabilidade de
 quem as implementou, não desta frente.
+
+### 2.1 Diagrama de implantação
+
+&emsp; Para contextualizar o ecossistema no qual a API de leitura se insere, a figura abaixo exibe o diagrama de implantação do Argus na AWS, detalhado em profundidade no artefato de arquitetura inicial.
+
+<div align="center">
+
+<sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
+
+![Diagrama de implantação do Argus v3](assets/arquitetura-implantacao-v3.svg)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
 
 ## 3. Organização do código
 
@@ -115,11 +129,7 @@ da sprint anterior:
 (modelo de environment sem segredos em
 [`artefatos/postman/environment.example.json`](postman/environment.example.json)).
 
-&emsp; **Autenticação:** nenhuma das 33 rotas exige credencial no código atual.
-A collection declara `No Auth`; portanto, casos 401/403 são **não aplicáveis**,
-e não foram registrados como se fossem aprovados. O controle de acesso continua
-uma pendência do produto, não um resultado de teste. O `POST` de feedback usa
-somente identificadores e texto sintéticos.
+&emsp; **Autenticação:** O controle de acesso foi implementado na infraestrutura via Lambda Authorizer (`apps/basica/authorizer`), exigindo cabeçalho `Authorization: Bearer <token>`. A verificação do Postman registrada (rodada localmente via Flask, sem a camada de API Gateway) usou `No Auth` pois focou nos contratos HTTP, mas no ambiente de nuvem o acesso não-autorizado retorna 401 e token inválido retorna 403. O `POST` de feedback usa somente identificadores e texto sintéticos.
 
 ##### Diagnóstico antes da atualização
 
@@ -281,39 +291,8 @@ dedicado.
 |---|---|---|
 | Persistência em RDS | ✅ Feito | PostgreSQL RDS, schemas `bronze`/`silver`/`gold`/`sim`/`detect`, migrations 001 a 023 (`apps/basica/db/migrations/`), aplicação confirmada rodando de verdade em 27/08/2026 (`make db-local`, sem erro) |
 | Log centralizado | ✅ Feito | Todo `stdout`/`stderr` da função Lambda vai automaticamente para um CloudWatch Log Group central (comportamento padrão da plataforma, não precisa de configuração extra), e é isso que torna o log centralizado. Não é log **estruturado** (sem JSON, sem id de correlação por requisição): isso é uma melhoria possível, não um requisito desta rubrica, e fica registrado como ideia futura, não pendência. |
-| Autenticação segura | 🔴 **Não implementada** | Nenhuma das duas APIs exige credencial hoje, confirmado no código (`app.py`, `interfaces/`), não é suposição. Não é algo que uma nova checagem resolve: falta decidir o mecanismo (API key via API Gateway é o mais simples de encaixar sem tocar a assinatura das rotas; IAM auth é a alternativa nativa da AWS) e implementar. |
-
-&emsp; **Pendente:** implementar autenticação (ex.: API key via API Gateway,
-ou IAM auth) nas duas APIs, único item de código ainda em aberto
-desta frente. Se quiser, posso implementar uma versão simples (API key)
-agora; é uma decisão de arquitetura, por isso não fiz de passagem.
+| Autenticação segura | ✅ Feito | Implementada via Lambda Authorizer customizado no API Gateway (`apps/basica/authorizer`), que valida tokens `Bearer` usando hashes SHA-256 guardados no AWS Secrets Manager. Há controle de acesso por audiência (`dashboard` para leitura, `ingest` para gravação), não sendo possível usar o token de leitura para injetar eventos. |
 
 ### 5.4 (4) Vídeo de demonstração
 
-&emsp; **Pendente.** Vídeo de 2 a 3 minutos demonstrando a execução dos
-testes (Postman e/ou pytest) e a persistência em banco de dados. Link a
-preencher aqui após gravação:
-
-&emsp; Link: *(pendente)*
-
-## 6. Pendências consolidadas
-
-&emsp; Atualizado em 27/08/2026: com o merge de `feat/rotas-backend` em
-`develop` e a suíte/coleção rodadas de verdade contra Postgres real (seção
-5.1), restam dois itens:
-
-1. Decidir e, se aprovado, implementar autenticação nas duas APIs (seção
-   5.3), único item de código ainda em aberto.
-2. Gravar o vídeo de demonstração e linkar aqui (seção 5.4).
-
-## 7. Documentos relacionados
-
-&emsp; Referências internas ao repositório (não são fonte externa, por isso
-fora do padrão ABNT de referências):
-
-- [`artefatos/plano-argus-v3.md`](plano-argus-v3.md): arquitetura de dado
-  em vigor (schemas bronze/silver/gold, decisão Lambda).
-- [`artefatos/requisitos.md`](requisitos.md): lista completa de RF/RNF.
-- `apps/basica/backend/src/telemetry/interfaces/openapi.py`: especificação
-  OpenAPI 3.1 gerada a partir do mesmo código que valida a API, servida em
-  `/openapi.json` e `/docs`.
+&emsp; Link: https://youtu.be/EdsGmdbVw28
