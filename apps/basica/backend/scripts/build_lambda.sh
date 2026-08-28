@@ -59,7 +59,18 @@ fi
 echo "[3/3] compactando"
 mkdir -p "$(dirname "$OUTPUT")"
 rm -f "$OUTPUT"
-(cd "$BUILD_DIR" && zip -qr "$OUTPUT" . -x '*.pyc')
+# O zip precisa ser REPRODUTIVEL, e nao apenas correto.
+#
+# `source_code_hash` no Terraform e o sha256 deste arquivo. Enquanto o zip
+# carregava a data de modificacao de cada arquivo instalado pelo pip, o hash
+# mudava a cada build e TODO `terraform plan` propunha atualizar a Lambda sem
+# que nada tivesse mudado -- exatamente o ruido que impedia usar "plan vazio"
+# como criterio de convergencia.
+#
+# `touch` fixa o mtime numa data constante e `-X` descarta os atributos extras
+# do sistema de arquivos (dono, grupo, timestamps de alta resolucao).
+find "$BUILD_DIR" -exec touch -t 200001010000 {} +
+(cd "$BUILD_DIR" && zip -qrX "$OUTPUT" . -x '*.pyc')
 
 echo
 echo "pacote: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"

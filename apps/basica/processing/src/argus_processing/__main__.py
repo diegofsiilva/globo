@@ -52,6 +52,20 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _env_bool(name: str, default: bool) -> bool:
+    """Le uma variavel de ambiente booleana.
+
+    Aceita as grafias usuais em vez de exigir uma so: o mesmo valor e escrito no
+    Terraform, no `.env` e a mao no `docker run`, e cada um tem o seu costume.
+    Qualquer outra coisa e falso -- inclusive `"false"`, que uma checagem por
+    string nao vazia leria como verdadeiro.
+
+    Args:
+        name (str): Nome da variavel.
+        default (bool): Valor quando a variavel nao esta definida.
+
+    Returns:
+        bool: O valor interpretado.
+    """
     raw = os.getenv(name)
     if raw is None:
         return default

@@ -31,6 +31,18 @@ class InputDigestMismatch(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class CapturedWork:
+    """Um instantaneo de trabalho: o claim mais os fatos ja lidos.
+
+    A captura acontece em `REPEATABLE READ` e ANTES da analise. E o que faz o
+    ciclo inteiro enxergar o mesmo estado do banco mesmo com o ETL escrevendo
+    em paralelo -- sem isso, o detector veria uma janela e as regras veriam
+    outra, e a hipotese citaria evidencia que a anomalia nao considerou.
+
+    `simulator_end` marca ate onde o simulador chegou. Sem ele, o canario
+    avaliaria uma janela alem do que foi emitido e reprovaria TODA fonte por
+    incompletude.
+    """
+
     claim: WorkClaim
     facts: tuple[Fact, ...]
     window_start: dt.datetime
@@ -39,6 +51,14 @@ class CapturedWork:
 
 
 def _claim(row: dict[str, Any]) -> WorkClaim:
+    """Converte uma linha de `detect.run` no claim tipado.
+
+    Args:
+        row (dict[str, Any]): Linha do cursor.
+
+    Returns:
+        WorkClaim: A posse do trabalho, com lease e `fencing_token`.
+    """
     return WorkClaim(
         run_id=row["run_id"],
         checkpoint_id=row["checkpoint_id"],
@@ -56,6 +76,14 @@ def _claim(row: dict[str, Any]) -> WorkClaim:
 
 
 def _fact(row: dict[str, Any]) -> Fact:
+    """Converte uma linha de `silver.analysis_fact_version` num `Fact`.
+
+    Args:
+        row (dict[str, Any]): Linha do cursor.
+
+    Returns:
+        Fact: O fato imutavel usado pelo detector e pelas regras.
+    """
     return Fact(
         fact_key=row["fact_key"],
         version_lsn=row["version_lsn"],
@@ -78,6 +106,22 @@ def _fact(row: dict[str, Any]) -> Fact:
 def register_manifest(
     db: Database, manifest_hash: str, payload: dict[str, Any], code_version: str
 ) -> None:
+    """Grava o manifesto do motor, se ainda nao existir.
+
+    Recalcula o hash a partir do payload e recusa quando diverge do informado.
+    A checagem parece redundante -- o mesmo objeto acabou de produzir os dois --
+    mas ela e o que impede gravar um par (hash, configuracao) inconsistente, que
+    tornaria todo resultado ligado a esse hash irreprodutivel.
+
+    Args:
+        db (Database): Conexao com o banco.
+        manifest_hash (str): Hash calculado pelo `Catalog`.
+        payload (dict[str, Any]): Catalogos e parametros.
+        code_version (str): Versao do codigo.
+
+    Raises:
+        RuntimeError: Se o hash recalculado nao bater com o informado.
+    """
     canonical = json.dumps(
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
@@ -501,6 +545,20 @@ def claim_and_capture(
 
 
 def load_run_input(db: Database, run_id: int) -> tuple[Fact, ...]:
+    """Recarrega EXATAMENTE os fatos que alimentaram um run.
+
+    Le de `detect.run_input_fact`, que registra a versao (`version_lsn`) de cada
+    fato usado. E o que permite reexecutar um run e obter o mesmo resultado
+    mesmo depois de a tabela corrente ter mudado -- reler "os fatos daquela
+    janela" traria as versoes de agora, e a reproducao divergiria.
+
+    Args:
+        db (Database): Conexao com o banco.
+        run_id (int): Execucao consultada.
+
+    Returns:
+        tuple[Fact, ...]: Os fatos na ordem canonica de leitura.
+    """
     rows = db.fetch_all(
         """
         SELECT i.role, f.*
@@ -518,6 +576,24 @@ def load_run_input(db: Database, run_id: int) -> tuple[Fact, ...]:
 def load_baselines(
     db: Database, manifest_hash: str, stream_key: str
 ) -> dict[tuple[str, str, str, int], Baseline]:
+    """Carrega o estado do baseline circadiano de um fluxo.
+
+    A chave inclui `hour_brt`: o baseline e POR HORA DO DIA, e nao uma media
+    unica da serie. Sem essa separacao, o pico normal do horario nobre seria
+    lido como anomalia toda noite, e a madrugada esconderia degradacao real.
+
+    O `manifest_hash` faz parte da chave porque um baseline acumulado sob outra
+    configuracao de detector nao e comparavel com o atual.
+
+    Args:
+        db (Database): Conexao com o banco.
+        manifest_hash (str): Manifesto do motor.
+        stream_key (str): Fluxo analisado.
+
+    Returns:
+        dict[tuple[str, str, str, int], Baseline]: Estado por
+            (fonte, entidade, metrica, hora).
+    """
     rows = db.fetch_all(
         """
         SELECT source, entity, metric, hour_brt, mean, variance, n, last_event_at
@@ -583,6 +659,22 @@ def load_historical_anomalies(
 
 
 def _quality_finding_id(run_id: int, source: str) -> int:
+    """Id deterministico para o finding de qualidade de uma fonte num run.
+
+    Derivado do par (run, fonte) em vez de vir de uma sequence: o mesmo run
+    reexecutado precisa produzir o mesmo id, ou o `ON CONFLICT` da gravacao
+    duplicaria o finding em vez de atualiza-lo.
+
+    Sete bytes, e nao oito: o oitavo levaria o valor alem do `bigint` com sinal
+    do PostgreSQL na metade das vezes.
+
+    Args:
+        run_id (int): Execucao.
+        source (str): Fonte avaliada.
+
+    Returns:
+        int: Identificador estavel, positivo.
+    """
     digest = hashlib.sha256(f"{run_id}:{source}".encode()).digest()
     return int.from_bytes(digest[:7], "big")
 
@@ -594,6 +686,18 @@ def persist_result(
     *,
     duration_ms: int,
 ) -> None:
+    """Grava tudo que o ciclo produziu, numa transacao so.
+
+    Roda dentro de `commit_protegido`, que revalida o `fencing_token` antes do
+    commit. Um worker que perdeu a posse no meio do ciclo falha aqui, em vez de
+    publicar por cima do resultado de quem assumiu o trabalho.
+
+    Args:
+        db (Database): Conexao com o banco.
+        captured (CapturedWork): O trabalho analisado.
+        result (AnalysisResult): Anomalias, baselines, qualidade e hipoteses.
+        duration_ms (int): Duracao do ciclo, para a estatistica do run.
+    """
     claim = captured.claim
     with commit_protegido(db, claim) as conn, conn.cursor(row_factory=dict_row) as cur:
         for (
@@ -665,6 +769,16 @@ def persist_result(
             )
 
         def finding_id(index: int) -> int:
+            """Resolve o id de uma anomalia, ja gravada ou recem-inserida.
+
+            Args:
+                index (int): Posicao em `result.finding_anomalies`.
+
+            Returns:
+                int: O id persistido. Anomalia herdada de um run anterior ja tem
+                    `persisted_id`; a nova so ganha id no INSERT desta
+                    transacao, e e dai que ele vem.
+            """
             anomaly = result.finding_anomalies[index]
             if anomaly.persisted_id is not None:
                 return anomaly.persisted_id
@@ -915,6 +1029,19 @@ def persist_result(
 
 
 def _stream_key(conn: Any, run_id: int) -> str:
+    """Le a `stream_key` de um run usando a conexao ja aberta.
+
+    Recebe a conexao, e nao o `Database`, de proposito: durante `persist_result`
+    a leitura precisa acontecer DENTRO da mesma transacao protegida pelo
+    fencing. Pegar outra conexao do pool leria fora dela.
+
+    Args:
+        conn (Any): Conexao da transacao em curso.
+        run_id (int): Execucao consultada.
+
+    Returns:
+        str: A chave do fluxo.
+    """
     row = conn.execute(
         "SELECT stream_key FROM detect.run WHERE run_id = %s", (run_id,)
     ).fetchone()
@@ -928,6 +1055,20 @@ def promote_manifest(
     *,
     withdraw: bool = False,
 ) -> None:
+    """Publica ou retira um manifesto, por evento append-only.
+
+    O motor sobe em modo sombra: as views de hipotese ficam vazias ate o evento
+    `published` (AGENTS.md, regra 6). `withdrawn` volta a ocultar SEM apagar
+    nada -- o historico de execucoes continua auditavel, e uma retirada pode ser
+    revertida por um `published` novo.
+
+    Args:
+        db (Database): Conexao com o banco.
+        manifest_hash (str): Manifesto afetado.
+        gate_metrics (dict[str, Any]): Metricas que justificaram a decisao,
+            gravadas junto com o evento.
+        withdraw (bool): `True` retira; `False` publica.
+    """
     action = "withdrawn" if withdraw else "published"
     with db.connection() as conn:
         conn.execute(

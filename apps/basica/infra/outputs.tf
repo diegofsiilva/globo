@@ -109,7 +109,14 @@ output "origem_bucket" {
 }
 
 output "docker_push_commands" {
-  description = "Sequencia para publicar TODAS as imagens no ECR."
+  description = <<-EOT
+    Sequencia para publicar TODAS as imagens no ECR.
+
+    Cada imagem recebe duas tags: o SHA do commit, que e o que a task definition
+    referencia, e `latest`, apelido para quem quiser puxar "a mais recente" a
+    mao. Nenhum recurso do Terraform aponta para `latest` -- ver a nota em
+    `variable "worker_image_tag"`.
+  EOT
   value = join("\n", concat(
     [
       join("", [
@@ -125,9 +132,11 @@ output "docker_push_commands" {
         lower(var.worker_cpu_architecture) == "arm64" ? "arm64" : "amd64",
         " \\\n  -f ../", nome, "/Dockerfile \\\n  -t ",
         aws_ecr_repository.images[nome].repository_url, ":",
-        var.worker_image_tag, " ..\n",
+        var.worker_image_tag, " \\\n  -t ",
+        aws_ecr_repository.images[nome].repository_url, ":latest ..\n",
         "docker push ", aws_ecr_repository.images[nome].repository_url, ":",
-        var.worker_image_tag,
+        var.worker_image_tag, "\n",
+        "docker push ", aws_ecr_repository.images[nome].repository_url, ":latest",
       ])
     ]
   ))
@@ -163,6 +172,30 @@ output "migration_run_command" {
   ])
 }
 
+# A MESMA task definition, com `status` no lugar de `aplicar`. Sobrescrever o
+# comando na chamada evita uma segunda task definition que so difere numa
+# palavra -- e que divergiria da primeira no primeiro ajuste de imagem ou de
+# variavel de ambiente.
+#
+# E o caminho canonico para inventariar o que ja rodou no RDS: `make
+# migrate-status` da maquina exigiria o banco publico, que e justamente o que a
+# adequacao do RNF09 removeu.
+output "migration_status_command" {
+  description = "Lista as migrations ja aplicadas no RDS, pela VPC."
+  value = join("", [
+    "aws ecs run-task --profile g4 --region ", var.region,
+    " \\\n  --cluster ", aws_ecs_cluster.main.name,
+    " \\\n  --task-definition ", aws_ecs_task_definition.migration.family,
+    " \\\n  --launch-type FARGATE",
+    " \\\n  --network-configuration 'awsvpcConfiguration={subnets=[",
+    join(",", local.subnet_ids), "],securityGroups=[",
+    aws_security_group.worker.id, "],assignPublicIp=",
+    var.assign_public_ip ? "ENABLED" : "DISABLED", "}'",
+    " \\\n  --overrides '{\"containerOverrides\":[{\"name\":\"migration\",",
+    "\"command\":[\"status\"]}]}'",
+  ])
+}
+
 # --------------------------------------------------------------------------- #
 # Leitura
 # --------------------------------------------------------------------------- #
@@ -173,13 +206,34 @@ output "read_api_url" {
 }
 
 output "frontend_url" {
-  description = "Endereco publico do dashboard. E o link que vai no relatorio e no video."
-  value       = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
+  description = <<-EOT
+    Endereco publico do dashboard, sempre HTTPS. E o link que vai no relatorio
+    e no video.
+
+    Passou a ser o dominio do CloudFront, e nao mais o endpoint de website do
+    S3: aquele so servia HTTP, e a tela de acesso pede um token ao operador.
+  EOT
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
 }
 
 output "frontend_bucket" {
   description = "Bucket do site. Destino do `aws s3 sync` em make frontend-deploy."
   value       = aws_s3_bucket.frontend.id
+}
+
+output "frontend_distribution_id" {
+  description = "Distribuicao CloudFront. `make frontend-deploy` a invalida apos o sync."
+  value       = aws_cloudfront_distribution.frontend.id
+}
+
+output "auth_tokens_secret" {
+  description = "Segredo com os SHA-256 dos tokens Bearer. Preenchido por `make auth-rotate`."
+  value       = aws_secretsmanager_secret.auth_tokens.name
+}
+
+output "ingest_token_secret" {
+  description = "Segredo com o token de ingestao em claro, lido pela task do simulador."
+  value       = aws_secretsmanager_secret.ingest_token.name
 }
 
 output "alarms_topic_arn" {

@@ -397,7 +397,15 @@ resource "aws_cloudwatch_metric_alarm" "rds_conexoes" {
 #
 # Alarma por ausencia (`breaching`): se o worker parou de emitir, o pipeline
 # parou, e um painel silencioso pareceria saudavel.
+#
+# So existe com o simulador LIGADO. Com `simulator_desired_count = 0` nao ha
+# origem emitindo mudanca, ninguem publica `LagSimSeconds`, e `breaching` fazia
+# o alarme entrar em ALARM permanente -- um alarme vermelho descrevendo uma
+# situacao deliberada. Alarme que fica aceso o tempo todo deixa de ser lido, e
+# perde tambem a capacidade de avisar quando o pipeline parar de verdade.
 resource "aws_cloudwatch_metric_alarm" "lag_sim" {
+  count = var.simulator_desired_count > 0 ? 1 : 0
+
   alarm_name          = "${local.name}-lag-sim"
   alarm_description   = "O pipeline esta mais de ${var.alarm_lag_sim_wall_seconds}s de PAREDE atras da origem (${local.lag_sim_limite}s de tempo virtual a speed ${var.simulator_speed})."
   namespace           = "Argus/Ingestion"

@@ -1,9 +1,10 @@
-/** Adapter HTTP de `GET /api/v1/signals` e `GET /api/v1/facets` (tela Agora). */
+/**
+ * Adapter HTTP de `GET /api/v1/signals` e `GET /api/v1/series/facets`
+ * (tela Agora).
+ */
 
-import { QuerySourceError } from "@/lib/operational-state";
+import { apiFetch } from "@/lib/api/client";
 import type { OpenDegradation, SignalDeviation, SignalSeverity } from "../_mocks/scenario";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export type SignalItem = {
   id: string;
@@ -27,75 +28,75 @@ export type SignalItem = {
   trend: number[];
 };
 
-export type SignalsResponse = { items: SignalItem[] };
+export type SignalsResponse = {
+  items: SignalItem[];
+  /** Tamanho de `items`, não um total da base — a consulta não chega a apurá-lo. */
+  count: number;
+  /** Havia mais sinais acima do limiar do que couberam no `limit`. */
+  truncated: boolean;
+};
 
 export type FacetsResponse = { facets: Record<string, string[]> };
 
-/** Consulta `/api/v1/signals`. Sem parâmetro: o servidor usa a janela padrão (6h). */
-export async function fetchSignals(signal?: AbortSignal): Promise<SignalsResponse> {
-  return getJson(`${API_URL}/api/v1/signals`, "SIGNALS", signal);
+/**
+ * Recorte aceito pela tela Agora.
+ *
+ * São as MESMAS dimensões de `gold.v_feature_bucket` que Explorar, Comparar e
+ * Recorte usam. A versão anterior desta tela oferecia plataforma, fabricante,
+ * região e app — dimensões que existem em `bronze.event`, e não na série
+ * agregada que alimenta os sinais. O resultado é que os quatro seletores eram
+ * inertes: o operador escolhia um valor e a lista não mudava, sem nada na
+ * interface dizendo por quê.
+ */
+export type SignalScope = {
+  source?: string;
+  entity?: string;
+  metric?: string;
+  /** `"true"` / `"false"`; ausente significa "com e sem transmissão". */
+  tem_jogo?: string;
+};
+
+/**
+ * Consulta `/api/v1/signals`.
+ *
+ * @param scope Recorte a aplicar. Chaves com `"all"` ou vazias são omitidas —
+ *   o servidor trata ausência como "sem filtro".
+ * @param signal Aborta quando a tela desmonta ou o filtro muda.
+ * @returns Sinais ativos, do maior desvio para o menor.
+ */
+export async function fetchSignals(
+  scope: SignalScope = {},
+  signal?: AbortSignal,
+): Promise<SignalsResponse> {
+  const params = new URLSearchParams();
+  for (const [chave, valor] of Object.entries(scope)) {
+    if (valor && valor !== "all") params.set(chave, valor);
+  }
+  const query = params.toString();
+  return apiFetch(`/api/v1/signals${query ? `?${query}` : ""}`, {
+    tag: "SIGNALS",
+    signal,
+  });
 }
 
-/** Consulta os valores reais de plataforma, fabricante, versão de app e UF
- * para os filtros. `uf` vira região no componente (ver `lib/uf-regions.ts`):
- * a série gold/silver não tem coluna de região nomeada, mas tem UF real. */
+/**
+ * Consulta os valores reais das dimensões da série, para popular os seletores.
+ *
+ * Usa `/api/v1/series/facets` e não `/api/v1/facets`: o primeiro lê
+ * `gold.v_feature_bucket`, que é a mesma fonte dos sinais. O segundo lê
+ * `bronze.event` — as opções viriam de uma tabela que a consulta de sinais não
+ * consulta, e ofereceriam recortes que nunca devolvem resultado.
+ *
+ * @param signal Aborta quando a tela desmonta.
+ * @returns Valores distintos por dimensão.
+ */
 export async function fetchAgoraFacets(signal?: AbortSignal): Promise<FacetsResponse> {
   const params = new URLSearchParams();
-  params.append("field", "device_os");
-  params.append("field", "device_manufacturer");
-  params.append("field", "app_version");
-  params.append("field", "uf");
-  return getJson(`${API_URL}/api/v1/facets?${params}`, "FACETS", signal);
-}
-
-/** Mesmo padrão de tratamento de erro do adapter de Hipóteses
- * (`hipoteses/_lib/http-source.ts`): offline, timeout, erro de servidor e
- * resposta não-JSON viram `QuerySourceError` tipado, para o `ScreenFrame`
- * decidir o estado operacional. */
-async function getJson<T>(url: string, tag: string, signal?: AbortSignal): Promise<T> {
-  if (!API_URL) {
-    throw new QuerySourceError(
-      "NEXT_PUBLIC_API_URL não está configurada.",
-      "server",
-      `ARG-${tag}-NO-URL`,
-      false,
-    );
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(url, { signal });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
-    throw new QuerySourceError(
-      "A conexão com a API está indisponível. Verifique a rede e tente novamente.",
-      "offline",
-      `ARG-${tag}-OFFLINE`,
-    );
-  }
-
-  if (!response.ok) {
-    const timeout = response.status === 408 || response.status === 504;
-    throw new QuerySourceError(
-      timeout
-        ? "A API excedeu o tempo limite da consulta."
-        : `A API respondeu com status ${response.status}.`,
-      timeout ? "timeout" : "server",
-      `ARG-${tag}-HTTP-${response.status}`,
-      response.status >= 500 || timeout,
-    );
-  }
-
-  try {
-    return (await response.json()) as T;
-  } catch {
-    throw new QuerySourceError(
-      "A API respondeu em um formato que a interface não reconhece.",
-      "invalid-response",
-      `ARG-${tag}-INVALID-JSON`,
-      false,
-    );
-  }
+  params.append("field", "source");
+  params.append("field", "entity");
+  params.append("field", "metric");
+  params.append("field", "tem_jogo");
+  return apiFetch(`/api/v1/series/facets?${params}`, { tag: "FACETS", signal });
 }
 
 // --------------------------------------------------------------------------- //

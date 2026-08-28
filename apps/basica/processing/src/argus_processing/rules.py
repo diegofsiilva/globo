@@ -21,6 +21,20 @@ VOLUME_METRICS = {"sessions", "active_sessions", "requests_total", "rpm", "throu
 
 
 def canonical_hash(value: Any) -> str:
+    """Hash estavel de uma estrutura, para deduplicacao e linhagem.
+
+    `sort_keys=True` e o que torna o hash estavel: sem isso, dois dicionarios
+    com o mesmo conteudo em ordem diferente produziriam hashes diferentes, e a
+    mesma hipotese reemitida no ciclo seguinte apareceria como nova. Ordem de
+    dicionario nao pode influir em nada aqui (AGENTS.md, regra 1).
+
+    Args:
+        value (Any): Estrutura serializavel. `default=str` cobre `datetime` e
+            os tipos do psycopg.
+
+    Returns:
+        str: SHA-256 em hexadecimal.
+    """
     encoded = json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
     ).encode()
@@ -28,20 +42,64 @@ def canonical_hash(value: Any) -> str:
 
 
 def _within(left: dt.datetime, right: dt.datetime, minutes: int) -> bool:
+    """Diz se dois instantes estao dentro da mesma janela de correlacao.
+
+    Simetrico (usa valor absoluto): a janela vale nos dois sentidos porque a
+    ordem de chegada nao e a ordem dos eventos -- fontes tem latencias
+    diferentes, e o `available_at` da NPAW fica 28 h atras do Prometheus.
+
+    Args:
+        left (datetime): Um instante.
+        right (datetime): O outro.
+        minutes (int): Meia-largura da janela, em minutos.
+
+    Returns:
+        bool: `True` quando a distancia cabe na janela.
+    """
     return abs((left - right).total_seconds()) <= minutes * 60
 
 
 def _is_qoe(metric: str) -> bool:
+    """Diz se a metrica mede qualidade de experiencia do espectador.
+
+    Args:
+        metric (str): Nome da metrica.
+
+    Returns:
+        bool: `True` para tempo de inicio, buffer, travamento, latencia e
+            quadros descartados -- o que o espectador sente, por oposicao ao
+            que so aparece no grafico de infraestrutura.
+    """
     lower = metric.lower()
     return any(token in lower for token in QOE_TOKENS)
 
 
 def _is_error(metric: str) -> bool:
+    """Diz se a metrica conta falhas.
+
+    Args:
+        metric (str): Nome da metrica.
+
+    Returns:
+        bool: `True` para metricas de erro e de familias 4xx/5xx.
+    """
     lower = metric.lower()
     return "error" in lower or "4xx" in lower or "5xx" in lower
 
 
 def _source_quality(source: str, quality: Mapping[str, SourceQuality]) -> float | None:
+    """Score de qualidade de uma fonte no ciclo.
+
+    Args:
+        source (str): Nome da fonte.
+        quality (Mapping[str, SourceQuality]): Vereditos do canario, por fonte.
+
+    Returns:
+        float | None: O score, ou `None` quando a fonte nao foi avaliada. `None`
+            e diferente de `0.0`: zero significa "avaliada e ruim", e ausencia
+            significa "nao ha o que dizer" -- tratar os dois igual faria o motor
+            penalizar uma hipotese por falta de informacao sobre ela.
+    """
     item = quality.get(source)
     return item.quality_score if item else None
 
@@ -55,6 +113,34 @@ def _corroboration(
     *,
     window_minutes: int,
 ) -> float | None:
+    """Mede o quanto fontes INDEPENDENTES concordam com o mesmo sintoma.
+
+    Duas fontes que leem do mesmo agente nao sao duas confirmacoes: elas erram
+    juntas. Por isso o maximo e tomado por `independence_group` do catalogo, e
+    nao por fonte -- caso contrario, adicionar uma quarta sonda ao mesmo coletor
+    inflaria artificialmente a confianca da hipotese.
+
+    A combinacao e "probabilidade de ao menos um" (1 - produto dos
+    complementos), que satura suavemente: a terceira confirmacao independente
+    soma menos que a segunda, o que e o comportamento desejado.
+
+    Args:
+        facts (Iterable[Fact]): Fatos candidatos a corroborar.
+        subject (Fact | None): Fato central; usado para medir o alinhamento
+            temporal. `None` desliga a atenuacao por distancia.
+        anomalies (tuple[Anomaly, ...]): Anomalias do ciclo. Um fato que TAMBEM
+            e anomalia corrobora com a forca dela; um fato normal corrobora com
+            0.5, porque presenca de dado consistente e evidencia mais fraca que
+            um desvio simultaneo.
+        catalog (Catalog): De onde sai o grupo de independencia.
+        quality (Mapping[str, SourceQuality]): Qualidade por fonte; uma fonte
+            degradada corrobora menos.
+        window_minutes (int): Janela de alinhamento temporal.
+
+    Returns:
+        float | None: Corroboracao em [0, 1], ou `None` quando nenhuma fonte
+            avaliada tinha o que dizer.
+    """
     anomaly_by_fact = {item.fact.fact_key: item for item in anomalies}
     strongest: dict[str, float] = {}
     for fact in facts:
@@ -80,6 +166,20 @@ def _corroboration(
 
 
 def _impact(fact: Fact) -> float | None:
+    """Traduz o tamanho da amostra num fator de impacto em [0, 1].
+
+    Logaritmico e nao linear: a diferenca entre 10 e 100 sessoes afetadas
+    importa muito mais que entre 10.000 e 10.090. Com escala linear, so os
+    maiores POPs jamais apareceriam no topo, e uma degradacao total num POP
+    pequeno ficaria invisivel.
+
+    Args:
+        fact (Fact): Fato central da hipotese.
+
+    Returns:
+        float | None: O impacto normalizado, ou `None` quando a fonte nao
+            informou tamanho de amostra.
+    """
     if fact.sample_size is None:
         return None
     return min(1.0, math.log1p(fact.sample_size) / math.log1p(10_000))
@@ -87,6 +187,16 @@ def _impact(fact: Fact) -> float | None:
 
 @dataclass(frozen=True, slots=True)
 class Candidate:
+    """Uma hipotese ANTES da avaliacao: o formato, sem o score.
+
+    Separar a geracao da avaliacao e o que permite contar quantos candidatos
+    existiam antes de qualquer corte, e e essa contagem que distingue "nao ha
+    hipotese" de "havia candidatos demais e o ciclo parou no teto".
+
+    `required_missing` guarda o que a familia exigia e nao estava disponivel --
+    e o que vira `Feature` com `applicability = "unavailable"`, em vez de zero.
+    """
+
     family: str
     kind: str
     anomaly_index: int | None
@@ -110,6 +220,20 @@ def _facts_related(
     sources: set[str] | None = None,
     predicate=lambda _f: True,
 ) -> list[Fact]:
+    """Fatos vizinhos de um sujeito, no tempo e no escopo.
+
+    Args:
+        subject (Fact): Fato central. Ele proprio nunca entra no resultado.
+        facts (Iterable[Fact]): Universo de fatos do ciclo.
+        catalog (Catalog): De onde sai a relacao entre entidades, que aceita
+            tambem a hierarquia (um POP dentro do cluster que sofreu deploy).
+        minutes (int): Meia-largura da janela temporal.
+        sources (set[str] | None): Restringe as fontes; `None` aceita todas.
+        predicate: Filtro adicional por fato.
+
+    Returns:
+        list[Fact]: Os fatos que satisfazem todas as condicoes.
+    """
     return [
         fact
         for fact in facts
@@ -127,6 +251,18 @@ def build_candidates(
     qualities: tuple[SourceQuality, ...],
     catalog: Catalog,
 ) -> tuple[Candidate, ...]:
+    """Gera os candidatos das 11 familias a partir das anomalias do ciclo.
+
+    Args:
+        anomalies (tuple[Anomaly, ...]): Anomalias detectadas.
+        facts (tuple[Fact, ...]): Todos os fatos da janela, inclusive os
+            normais -- um fato SEM desvio e evidencia contraria valida.
+        qualities (tuple[SourceQuality, ...]): Veredito do canario por fonte.
+        catalog (Catalog): Catalogos e parametros das familias.
+
+    Returns:
+        tuple[Candidate, ...]: Candidatos ainda sem score.
+    """
     candidates: list[Candidate] = []
     anomalous_keys = {item.fact.fact_key for item in anomalies}
     for index, anomaly in enumerate(anomalies):
@@ -621,6 +757,32 @@ def evaluate_candidates(
     max_per_family: int = 2_000,
     max_generated: int = 500,
 ) -> tuple[tuple[Hypothesis, ...], int, int, int]:
+    """Pontua os candidatos e devolve as hipoteses, com as contagens de corte.
+
+    A ordenacao antes do corte e determinista ate o ultimo criterio: forca da
+    anomalia, impacto, familia e, por fim, `canonical_hash` do proprio
+    candidato. O hash como desempate final e o que garante que dois ciclos com
+    a mesma entrada cortem exatamente os mesmos candidatos -- sem ele, a ordem
+    dependeria da iteracao de dicionario e o resultado deixaria de ser
+    reproduzivel (AGENTS.md, regra 1).
+
+    Args:
+        candidates (Iterable[Candidate]): Candidatos gerados.
+        anomalies (tuple[Anomaly, ...]): Anomalias do ciclo, referenciadas por
+            indice pelos candidatos.
+        qualities (tuple[SourceQuality, ...]): Veredito do canario por fonte.
+        catalog (Catalog): Pesos e parametros do score.
+        max_total (int): Teto de candidatos avaliados no ciclo.
+        max_per_family (int): Teto por familia, para que uma familia ruidosa
+            nao consuma sozinha o orcamento das outras.
+        max_generated (int): Teto de hipoteses publicadas.
+
+    Returns:
+        tuple[tuple[Hypothesis, ...], int, int, int]: As hipoteses e os tres
+            contadores -- pre-filtrados, avaliados e truncados. Os contadores
+            fazem parte do resultado, e nao do log: sem eles um ciclo truncado
+            se apresentaria como um ciclo limpo.
+    """
     quality = {item.source: item for item in qualities}
     ordered = sorted(
         candidates,

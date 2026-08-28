@@ -26,4 +26,9 @@ resource "aws_apigatewayv2_route" "post_changes" {
   api_id    = aws_apigatewayv2_api.events.id
   route_key = "POST /v1/changes"
   target    = "integrations/${aws_apigatewayv2_integration.sqs_changes.id}"
+
+  # Mesmo token de ingestao de /v1/events. O simulador o recebe por variavel de
+  # ambiente da task, e nao no `command` -- ver ecs_simulator.tf.
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.events.id
 }

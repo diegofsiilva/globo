@@ -17,6 +17,7 @@ export
 endif
 
 COMMON     := common
+AUTHORIZER := authorizer
 WORKER     := worker
 SIMULATOR  := simulator
 PROCESSING := processing
@@ -51,6 +52,21 @@ UV := uv run --quiet
 # As quatro imagens de container. O build tem contexto em apps/basica/ (e nao na
 # pasta de cada app) porque todas dependem de common/.
 IMAGES := worker simulator processing loader
+
+# A tag que as task definitions referenciam. NUNCA `latest`.
+#
+# Com `latest`, a task definition nao muda quando a imagem muda: o Terraform ve
+# a mesma string, nao propoe nada, e o servico segue rodando o digest antigo. Foi
+# assim que os tres servicos passaram a executar builds diferentes entre si.
+#
+# `-dirty` quando ha alteracao nao commitada: uma imagem construida a partir da
+# arvore suja nao corresponde a nenhum commit, e a tag precisa dizer isso em vez
+# de mentir que corresponde.
+GIT_SHA := $(shell git rev-parse --short=12 HEAD)$(shell git diff --quiet || echo -dirty)
+IMAGE_TAG ?= $(GIT_SHA)
+
+# O Terraform le variavel por TF_VAR_*; `export` aqui vale para todos os alvos.
+export TF_VAR_worker_image_tag = $(IMAGE_TAG)
 
 .PHONY: help
 help: ## Lista os alvos
@@ -137,9 +153,26 @@ migrate: ## Aplica as migrations pendentes (usa DATABASE_URL)
 	cd $(TOOLS) && $(UV) python migrate.py aplicar
 
 .PHONY: migrate-status
-migrate-status: ## Mostra quais migrations ja rodaram
+migrate-status: ## Mostra quais migrations ja rodaram (usa DATABASE_URL)
 	@$(call require_env,DATABASE_URL)
 	cd $(TOOLS) && $(UV) python migrate.py status
+
+# Os dois alvos abaixo rodam a MESMA ferramenta pela task `migration`, dentro da
+# VPC. Sao o caminho para o RDS publicado desde que ele voltou a ser privado: da
+# maquina de quem trabalha nao ha rota ate a porta 5432, e nem deve haver.
+.PHONY: migrate-aws
+migrate-aws: ## Aplica as migrations pendentes no RDS, pela VPC
+	@$(call require_env,AWS_PROFILE)
+	@cd $(INFRA) && terraform output -raw migration_run_command | bash
+	@echo
+	@echo "Acompanhe: make logs SERVICO=processing"
+
+.PHONY: migrate-status-aws
+migrate-status-aws: ## Lista as migrations aplicadas no RDS, pela VPC
+	@$(call require_env,AWS_PROFILE)
+	@cd $(INFRA) && terraform output -raw migration_status_command | bash
+	@echo
+	@echo "Acompanhe: make logs SERVICO=processing"
 
 .PHONY: db-reader
 db-reader: ## Cria o usuario de leitura que a Lambda usa
@@ -161,7 +194,11 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer ## Roda as suites que tem teste
+
+.PHONY: test-authorizer
+test-authorizer: ## Testes do Lambda authorizer (Bearer, audiencias, rotacao)
+	cd $(AUTHORIZER) && uv run --quiet --group dev pytest
 
 # TEST_DATABASE_URL aponta para o banco de teste local por padrao. Os testes que
 # precisam de banco sao PULADOS quando ele nao existe, em vez de quebrarem —
@@ -191,6 +228,7 @@ lint: ## Verifica estilo sem alterar arquivos
 	cd $(PROCESSING) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(LOADER) && $(UV) ruff check src
 	cd $(BACKEND) && $(UV) ruff check src tests
+	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff check handler.py tests
 	cd $(INFRA) && terraform fmt -check -recursive
 
 .PHONY: fmt
@@ -204,6 +242,7 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(PROCESSING) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(LOADER) && ($(UV) ruff check --fix src || true) && $(UV) ruff format src
 	cd $(BACKEND) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
+	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff format handler.py tests
 	cd $(INFRA) && terraform fmt -recursive
 
 .PHONY: check
@@ -250,6 +289,10 @@ images: $(addprefix image-,$(IMAGES)) ## Constroi as quatro imagens (ARM64)
 $(addprefix image-,$(IMAGES)): image-%:
 	docker build --platform linux/arm64 -f $*/Dockerfile -t argus-$*:dev .
 
+.PHONY: image-tag
+image-tag: ## Mostra a tag de imagem deste commit
+	@echo "$(IMAGE_TAG)"
+
 # --------------------------------------------------------------------------- #
 # Infraestrutura
 # --------------------------------------------------------------------------- #
@@ -286,8 +329,24 @@ tf-destroy: ## Remove TODA a infraestrutura
 	cd $(INFRA) && terraform destroy
 
 .PHONY: lambda-build
-lambda-build: ## Empacota a API de leitura para a Lambda
+lambda-build: ## Empacota a API de leitura e o authorizer para a Lambda
 	cd $(BACKEND) && ./scripts/build_lambda.sh
+	cd $(AUTHORIZER) && ./scripts/build_lambda.sh
+
+.PHONY: lambda-hash
+lambda-hash: lambda-build ## Imprime o hash local dos zips (compare com o CodeSha256 publicado)
+	@echo "commit:     $(GIT_SHA)"
+	@echo "read-api:   $$(openssl dgst -sha256 -binary $(BACKEND)/dist/telemetry-read-api.zip | openssl base64)"
+	@echo "authorizer: $$(openssl dgst -sha256 -binary $(AUTHORIZER)/dist/argus-authorizer.zip | openssl base64)"
+	@echo
+	@echo "Publicado na AWS:"
+	@$(call require_env,AWS_PROFILE)
+	@cluster=$$(cd $(INFRA) && terraform output -raw ecs_cluster_name); \
+	 for fn in read-api authorizer; do \
+	   printf "  %-11s %s\n" "$$fn:" \
+	     "$$(aws lambda get-function-configuration --function-name "$$cluster-$$fn" \
+	          --query CodeSha256 --output text --profile $$AWS_PROFILE 2>/dev/null || echo '(ausente)')"; \
+	 done
 
 .PHONY: deploy
 deploy: test-backend lambda-build ## Testa, empacota e publica a API de leitura
@@ -296,9 +355,86 @@ deploy: test-backend lambda-build ## Testa, empacota e publica a API de leitura
 	@$(MAKE) --no-print-directory smoke
 
 .PHONY: push
-push: ## Publica as imagens no ECR e forca novo deploy
+push: ## Publica as imagens no ECR com a tag do commit
 	@$(call require_env,AWS_PROFILE)
+	@case "$(IMAGE_TAG)" in *-dirty) \
+	  echo "erro: a arvore tem alteracao nao commitada ($(IMAGE_TAG))."; \
+	  echo "      Publicar assim gera uma imagem que nao corresponde a commit"; \
+	  echo "      nenhum, e o rollback deixa de ter para onde voltar."; \
+	  exit 1;; esac
+	@echo "publicando com a tag $(IMAGE_TAG)"
 	cd $(INFRA) && terraform output -raw docker_push_commands | bash
+
+# `push` publica; ELE NAO troca a task definition. Quem troca e o `tf-apply`,
+# porque a tag do commit entrou na task definition -- e por isso que o servico
+# passa a rodar o digest novo sem ninguem forcar deploy a mao.
+.PHONY: rollout
+rollout: push tf-apply ## Publica as imagens e aplica as novas task definitions
+	@$(MAKE) --no-print-directory digests
+
+.PHONY: digests
+digests: ## Confere que cada servico roda o digest da tag publicada
+	@$(call require_env,AWS_PROFILE)
+	@cluster=$$(cd $(INFRA) && terraform output -raw ecs_cluster_name); \
+	fail=0; \
+	for servico in event-worker merge-worker processing simulator; do \
+	  td=$$(aws ecs describe-services --cluster "$$cluster" \
+	         --services "$$cluster-$$servico" --profile $$AWS_PROFILE \
+	         --query 'services[0].taskDefinition' --output text 2>/dev/null); \
+	  [ "$$td" = "None" ] && continue; \
+	  img=$$(aws ecs describe-task-definition --task-definition "$$td" \
+	          --profile $$AWS_PROFILE \
+	          --query 'taskDefinition.containerDefinitions[0].image' --output text); \
+	  tag=$${img##*:}; \
+	  if [ "$$tag" = "$(IMAGE_TAG)" ]; then st="ok   "; else st="ATRAS"; fail=1; fi; \
+	  printf "  %s %-14s %s\n" "$$st" "$$servico" "$$tag"; \
+	done; \
+	[ $$fail -eq 0 ] || echo "  esperado: $(IMAGE_TAG)"; \
+	exit $$fail
+
+# --------------------------------------------------------------------------- #
+# Autenticacao (RNF09)
+# --------------------------------------------------------------------------- #
+
+# Gera os dois tokens, grava os HASHES no Secrets Manager e imprime os valores
+# em claro UMA vez. Depois disso nao ha como recupera-los: o que a AWS guarda e
+# o SHA-256, e o unico caminho de volta e gerar tokens novos.
+#
+# Os valores nao passam por arquivo nem por argumento de linha de comando --
+# argumento aparece no `ps` de qualquer processo da maquina e fica no historico
+# do shell.
+.PHONY: auth-rotate
+auth-rotate: ## Gera e publica tokens Bearer novos (invalida os antigos)
+	@$(call require_env,AWS_PROFILE)
+	@echo "Isto INVALIDA os tokens atuais. O dashboard vai pedir o token de novo,"
+	@echo "e o simulador precisa ser reiniciado para pegar o valor novo."
+	@read -p "Digite 'rotacionar' para confirmar: " r; [ "$$r" = "rotacionar" ] || { echo "cancelado."; exit 1; }
+	@hashes_id=$$(cd $(INFRA) && terraform output -raw auth_tokens_secret); \
+	 ingest_id=$$(cd $(INFRA) && terraform output -raw ingest_token_secret); \
+	 dash=$$(openssl rand -hex 32); ing=$$(openssl rand -hex 32); \
+	 dash_h=$$(printf '%s' "$$dash" | openssl dgst -sha256 -r | cut -d' ' -f1); \
+	 ing_h=$$(printf '%s' "$$ing" | openssl dgst -sha256 -r | cut -d' ' -f1); \
+	 aws secretsmanager put-secret-value --profile $$AWS_PROFILE \
+	   --secret-id "$$hashes_id" \
+	   --secret-string "{\"dashboard\":\"$$dash_h\",\"ingest\":\"$$ing_h\"}" >/dev/null; \
+	 aws secretsmanager put-secret-value --profile $$AWS_PROFILE \
+	   --secret-id "$$ingest_id" --secret-string "$$ing" >/dev/null; \
+	 echo; \
+	 echo "  Token de LEITURA  (cole na tela de acesso do dashboard):"; \
+	 echo "    $$dash"; \
+	 echo; \
+	 echo "  Token de INGESTAO (export ARGUS_INGEST_TOKEN=...):"; \
+	 echo "    $$ing"; \
+	 echo; \
+	 echo "  Guarde-os agora. A AWS so tem os hashes."; \
+	 echo "  O authorizer cacheia por 5 min: a troca leva ate esse tempo para valer."
+
+.PHONY: auth-show-ingest
+auth-show-ingest: ## Imprime o token de ingestao (o unico recuperavel)
+	@$(call require_env,AWS_PROFILE)
+	@aws secretsmanager get-secret-value --profile $$AWS_PROFILE \
+	  --secret-id "$$(cd $(INFRA) && terraform output -raw ingest_token_secret)" \
+	  --query SecretString --output text
 
 # --------------------------------------------------------------------------- #
 # Carga inicial
@@ -342,12 +478,28 @@ etl-incremental: ## Roda manualmente UM ciclo do ETL incremental (bronze->silver
 frontend-install: ## Instala as dependencias do dashboard
 	cd $(FRONTEND) && npm ci
 
+# Diz QUAL versao esta publicada, em /build-info.json.
+#
+# Sem isso, ao ver um comportamento estranho na tela publicada nao ha como saber
+# se ela corresponde ao codigo que se esta lendo -- e a resposta padrao vira
+# "publica de novo e ve se muda", que gasta uma sessao de laboratorio.
+#
+# Nao entra endpoint nem id de conta: e um arquivo publico, servido a qualquer
+# visitante da distribuicao.
+.PHONY: frontend-build-info
+frontend-build-info: ## Grava frontend/public/build-info.json com commit e data
+	@printf '{\n  "commit": "%s",\n  "built_at": "%s",\n  "version": "%s"\n}\n' \
+	  "$(GIT_SHA)" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+	  "$$(cd $(FRONTEND) && node -p "require('./package.json').version")" \
+	  > $(FRONTEND)/public/build-info.json
+	@echo "build-info.json: $(GIT_SHA)"
+
 # A URL da API entra no bundle em tempo de build e NUNCA fica escrita no codigo
 # (ver .env.example). Sem ela o build falha de proposito: um bundle apontando
 # para o proprio dominio devolveria o HTML da pagina no lugar do JSON, e o erro
 # so apareceria no navegador do usuario.
 .PHONY: frontend-build
-frontend-build: ## Gera o site estatico do dashboard
+frontend-build: frontend-build-info ## Gera o site estatico do dashboard
 	@$(call require_env,ARGUS_API_URL)
 	@if [ "$(HYPOTHESES_SOURCE)" = "api" ] && [ -z "$(HYPOTHESES_API_URL)" ]; then \
 	  echo "erro: HYPOTHESES_API_URL é obrigatória no modo api."; exit 1; \
@@ -359,10 +511,19 @@ frontend-build: ## Gera o site estatico do dashboard
 	  npm run build
 
 .PHONY: frontend-deploy
-frontend-deploy: frontend-build ## Publica o dashboard no bucket S3
+frontend-deploy: frontend-build ## Publica o dashboard e invalida o CloudFront
 	@$(call require_env,AWS_PROFILE)
 	aws s3 sync $(FRONTEND)/out/ \
 	  "s3://$$(cd $(INFRA) && terraform output -raw frontend_bucket)/" --delete
+	@# Sem a invalidacao, a borda continua servindo o index.html anterior ate o
+	@# TTL vencer -- e o operador abriria a versao velha logo depois do deploy,
+	@# sem nada na tela indicando isso. Os assets tem hash no nome e nao
+	@# precisam ser invalidados; o `/*` cobre tudo e cabe na cota gratuita de
+	@# 1.000 caminhos por mes.
+	@echo "invalidando a distribuicao..."
+	@aws cloudfront create-invalidation --profile $$AWS_PROFILE \
+	  --distribution-id "$$(cd $(INFRA) && terraform output -raw frontend_distribution_id)" \
+	  --paths '/*' --query 'Invalidation.Id' --output text
 	@echo
 	@echo "Dashboard no ar: $$(cd $(INFRA) && terraform output -raw frontend_url)"
 
@@ -382,17 +543,24 @@ frontend-dev: ## Sobe o dashboard local contra a API publicada
 # Testes de API (Postman)
 # --------------------------------------------------------------------------- #
 
+# Os tokens entram como `secret`, e nao `default`: o Postman mascara o valor na
+# interface e o omite ao exportar a colecao. O arquivo continua gitignored --
+# `secret` protege a tela e o compartilhamento acidental, nao o disco.
 .PHONY: postman-env
 postman-env: ## Gera o environment do Postman a partir do .env
 	@$(call require_env,ARGUS_API_URL)
 	@$(call require_env,ARGUS_INGEST_URL)
+	@$(call require_env,ARGUS_READ_TOKEN)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
 	@printf '%s\n' \
 	  '{' \
 	  '  "name": "Argus — lab (gerado, nao versionado)",' \
 	  '  "values": [' \
 	  '    { "key": "read_url", "value": "$(ARGUS_API_URL)", "type": "default", "enabled": true },' \
 	  '    { "key": "ingest_url", "value": "$(ARGUS_INGEST_URL)", "type": "default", "enabled": true },' \
-	  '    { "key": "changes_url", "value": "$(ARGUS_CHANGES_URL)", "type": "default", "enabled": true }' \
+	  '    { "key": "changes_url", "value": "$(ARGUS_CHANGES_URL)", "type": "default", "enabled": true },' \
+	  '    { "key": "read_token", "value": "$(ARGUS_READ_TOKEN)", "type": "secret", "enabled": true },' \
+	  '    { "key": "ingest_token", "value": "$(ARGUS_INGEST_TOKEN)", "type": "secret", "enabled": true }' \
 	  '  ],' \
 	  '  "_postman_variable_scope": "environment"' \
 	  '}' > $(POSTMAN)/environment.json
@@ -403,35 +571,96 @@ postman: postman-env ## Roda a colecao Postman contra as APIs publicadas
 	npx --yes newman@6 run $(POSTMAN)/argus.postman_collection.json \
 	  -e $(POSTMAN)/environment.json --delay-request 1500
 
+# O resumo vai para o repositorio como evidencia; o JSON completo NAO, porque
+# carrega os cabecalhos de cada requisicao -- inclusive o Authorization. O
+# `jq` abaixo extrai so as contagens e o commit.
+.PHONY: postman-evidencia
+postman-evidencia: postman-env ## Roda a colecao e versiona um resumo sanitizado
+	@mkdir -p $(POSTMAN)/evidencias
+	@tmp=$$(mktemp); \
+	npx --yes newman@6 run $(POSTMAN)/argus.postman_collection.json \
+	  -e $(POSTMAN)/environment.json --delay-request 1500 \
+	  --reporters cli,json --reporter-json-export "$$tmp"; \
+	status=$$?; \
+	jq --arg commit "$(GIT_SHA)" --arg data "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{ \
+	  commit: $$commit, executado_em_utc: $$data, ambiente: "AWS (lab)", \
+	  colecao: .collection.info.name, \
+	  requisicoes: .run.stats.requests, \
+	  assertions: .run.stats.assertions, \
+	  duracao_ms: .run.timings.completed - .run.timings.started, \
+	  falhas: [.run.failures[]? | {teste: .error.test, motivo: .error.message}] \
+	}' "$$tmp" > $(POSTMAN)/evidencias/newman-resumo.json; \
+	rm -f "$$tmp"; \
+	echo; echo "resumo em $(POSTMAN)/evidencias/newman-resumo.json"; \
+	exit $$status
+
 # --------------------------------------------------------------------------- #
 # Operacao
 # --------------------------------------------------------------------------- #
 
 .PHONY: smoke
-smoke: ## Verifica a API publicada de ponta a ponta
+smoke: ## Verifica a API publicada: autenticacao, status, latencia e tamanho
 	@$(call require_env,ARGUS_API_URL)
+	@$(call require_env,ARGUS_READ_TOKEN)
 	@echo "Testando $$ARGUS_API_URL"
 	@fail=0; \
+	auth="Authorization: Bearer $$ARGUS_READ_TOKEN"; \
+	echo; echo "  --- autenticacao (RNF09)"; \
+	check() { \
+	  code=$$(curl -s -o /dev/null -w '%{http_code}' "$$@"); \
+	  echo "$$code"; \
+	}; \
+	c=$$(check "$(ARGUS_API_URL)/api/v1/sources"); \
+	if [ "$$c" = "401" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
+	printf "  %s %3s  sem token           (esperado 401)\n" "$$st" "$$c"; \
+	c=$$(check -H "Authorization: Bearer token-invalido" "$(ARGUS_API_URL)/api/v1/sources"); \
+	if [ "$$c" = "403" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
+	printf "  %s %3s  token invalido      (esperado 403)\n" "$$st" "$$c"; \
+	c=$$(check "$(ARGUS_API_URL)/health/live"); \
+	if [ "$$c" = "200" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
+	printf "  %s %3s  /health/live publico (esperado 200)\n" "$$st" "$$c"; \
+	echo; echo "  --- rotas autenticadas (RNF02: teto de 5s)"; \
 	for path in \
 	  "/health/ready" \
 	  "/openapi.json" \
 	  "/api/v1/clock" \
 	  "/api/v1/sources" \
+	  "/api/v1/signals" \
 	  "/api/v1/series?limit=10" \
+	  "/api/v1/series/facets" \
 	  "/api/v1/incidents?limit=5" \
 	  "/api/v1/events?limit=1" \
+	  "/api/v1/changes" \
+	  "/api/v1/timeline" \
 	  "/api/v1/facets?field=event_name"; do \
-	  code=$$(curl -s -o /dev/null -w '%{http_code}' "$(ARGUS_API_URL)$$path"); \
-	  t=$$(curl -s -o /dev/null -w '%{time_total}' "$(ARGUS_API_URL)$$path"); \
-	  if [ "$$code" = "200" ]; then st="ok  "; else st="FALHA"; fail=1; fi; \
-	  printf "  %s %3s %6.2fs  %s\n" "$$st" "$$code" "$$t" "$$path"; \
+	  read -r code t size < <(curl -s -o /dev/null -H "$$auth" \
+	    -w '%{http_code} %{time_total} %{size_download}\n' "$(ARGUS_API_URL)$$path"); \
+	  st="ok   "; \
+	  [ "$$code" = "200" ] || { st="FALHA"; fail=1; }; \
+	  awk -v t="$$t" 'BEGIN{exit !(t > 5)}' && { st="LENTO"; fail=1; }; \
+	  printf "  %s %3s %6.2fs %7s  %s\n" "$$st" "$$code" "$$t" \
+	    "$$(echo $$size | awk '{printf "%.0fKB", $$1/1024}')" "$$path"; \
 	done; \
 	exit $$fail
 
 .PHONY: replay
 replay: ## Reenvia os eventos de exemplo para a API de ingestao
 	@$(call require_env,ARGUS_INGEST_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
 	cd $(TOOLS) && $(UV) python replay_events.py --url "$(ARGUS_INGEST_URL)" --src "$(EVENTS_SRC)"
+
+# Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
+# ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.
+.PHONY: carga
+carga: ## Carga sustentada de ingestao (EVENTOS_POR_MINUTO=1000 MINUTOS=5)
+	@$(call require_env,ARGUS_INGEST_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
+	@epm=$${EVENTOS_POR_MINUTO:-1000}; mins=$${MINUTOS:-5}; \
+	total=$$((epm * mins)); \
+	echo "$$epm ev/min por $$mins min = $$total eventos"; \
+	cd $(TOOLS) && $(UV) python replay_events.py \
+	  --url "$(ARGUS_INGEST_URL)" --src "$(EVENTS_SRC)" \
+	  --repeat $$((total / 6 + 1)) --rate $$(($$epm / 60))
 
 .PHONY: logs
 logs: ## Acompanha os logs de um servico (SERVICO=worker|simulator|processing|loader)

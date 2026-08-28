@@ -62,7 +62,8 @@ def test_spec_nao_documenta_rota_inexistente(app):
 
 def test_valores_aceitos_vem_das_constantes_do_codigo(client):
     """A spec importa as mesmas constantes que o adaptador valida, entao a
-    documentacao nao consegue divergir do que a API aceita de verdade."""
+    documentacao nao consegue divergir do que a API aceita de verdade.
+    """
     spec = client.get("/openapi.json").json
 
     dimension = next(

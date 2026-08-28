@@ -35,6 +35,20 @@ log = logging.getLogger(__name__)
 
 
 def _stream_key(db: Database, run_id: int) -> str:
+    """Le a `stream_key` de um run.
+
+    Args:
+        db (Database): Conexao com o banco.
+        run_id (int): Execucao consultada.
+
+    Returns:
+        str: A chave do fluxo, que junto com o `manifest_hash` identifica o
+            cursor de progresso.
+
+    Raises:
+        RuntimeError: Se o run nao existir mais -- sinal de que outro processo
+            o removeu, e continuar gravaria resultado sob um cursor alheio.
+    """
     row = db.fetch_one("SELECT stream_key FROM detect.run WHERE run_id = %s", (run_id,))
     if row is None:
         raise RuntimeError(f"run {run_id} desapareceu")
@@ -49,10 +63,30 @@ def lease_heartbeat(
     interval_seconds: int,
     lease_seconds: int,
 ):
+    """Renova o lease do claim numa thread enquanto o bloco roda.
+
+    Um ciclo de analise pode passar do tempo do lease. Sem renovacao, outro
+    worker consideraria este abandonado e assumiria o trabalho -- dois runs
+    concorrentes sobre o mesmo cursor publicariam hipoteses inconsistentes.
+
+    O evento devolvido e a via de mao contraria: quando a renovacao FALHA, este
+    processo ja perdeu a posse e precisa parar antes de gravar. Descobrir isso
+    no commit seria tarde.
+
+    Args:
+        db (Database): Conexao com o banco.
+        captured (CapturedWork): Trabalho capturado, com o claim a renovar.
+        interval_seconds (int): Intervalo entre renovacoes.
+        lease_seconds (int): Duracao concedida em cada renovacao.
+
+    Yields:
+        threading.Event: Sinalizado quando o lease e perdido.
+    """
     stop = threading.Event()
     lost = threading.Event()
 
     def loop() -> None:
+        """Renova ate o bloco terminar ou a posse ser perdida."""
         while not stop.wait(interval_seconds):
             if not renovar_lease(db, captured.claim, lease_seconds=lease_seconds):
                 lost.set()
@@ -78,6 +112,29 @@ def run_captured(
     max_candidates_per_family: int = 2_000,
     max_generated: int = 500,
 ) -> AnalysisResult:
+    """Executa o ciclo de analise sobre um trabalho ja capturado.
+
+    Canario -> detector -> regras -> score -> gravacao, tudo sob o lease. A
+    captura acontece ANTES (em `claim_and_capture`), em `REPEATABLE READ`: e o
+    que garante que o ciclo inteiro enxergue o mesmo instantaneo do banco,
+    mesmo com o ETL escrevendo em paralelo.
+
+    Args:
+        db (Database): Conexao com o banco.
+        captured (CapturedWork): Fatos, janela e claim.
+        catalog (Catalog): Catalogos e parametros.
+        heartbeat_seconds (int): Intervalo de renovacao do lease.
+        lease_seconds (int): Duracao concedida em cada renovacao.
+        max_candidates (int): Teto de candidatos avaliados.
+        max_candidates_per_family (int): Teto por familia.
+        max_generated (int): Teto de hipoteses publicadas.
+
+    Returns:
+        AnalysisResult: Anomalias, qualidade, hipoteses e os contadores de corte.
+
+    Raises:
+        RuntimeError: Se a posse for perdida antes de iniciar ou durante o ciclo.
+    """
     if not iniciar_trabalho(db, captured.claim):
         raise RuntimeError(f"run {captured.claim.run_id} perdeu a posse antes de iniciar")
     started = time.monotonic()
@@ -145,6 +202,26 @@ def analyze_once(
     max_candidates_per_family: int = 2_000,
     max_generated: int = 500,
 ) -> bool:
+    """Roda UM ciclo completo: reivindica trabalho, analisa e grava.
+
+    Args:
+        db (Database): Conexao com o banco.
+        metrics (Metrics): Publicador de metricas no CloudWatch.
+        catalog (Catalog): Catalogos e parametros.
+        worker_id (str): Identifica quem detem o claim, para o takeover.
+        code_version (str): Entra no manifesto; ver `Catalog.__init__`.
+        lease_seconds (int): Duracao do lease.
+        heartbeat_seconds (int): Intervalo de renovacao.
+        max_input_rows (int): Teto de linhas capturadas por ciclo.
+        max_candidates (int): Teto de candidatos avaliados.
+        max_candidates_per_family (int): Teto por familia.
+        max_generated (int): Teto de hipoteses publicadas.
+
+    Returns:
+        bool: `True` se havia trabalho e ele foi concluido; `False` quando nao
+            havia nada a fazer -- o laco principal usa isso para decidir entre
+            emendar outro ciclo e dormir.
+    """
     register_manifest(db, catalog.manifest_hash, catalog.manifest_payload, code_version)
     try:
         captured = claim_and_capture(
@@ -232,4 +309,14 @@ def analyze_once(
 
 
 def manifest_summary(catalog: Catalog) -> dict[str, Any]:
+    """Manifesto do motor com o seu hash, para inspecao pela CLI.
+
+    Args:
+        catalog (Catalog): Catalogo carregado.
+
+    Returns:
+        dict[str, Any]: O payload do manifesto mais o `manifest_hash`. Serve
+            para comparar a configuracao de duas execucoes: hashes diferentes
+            significam resultados nao comparaveis.
+    """
     return {"manifest_hash": catalog.manifest_hash, **catalog.manifest_payload}

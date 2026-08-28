@@ -12,6 +12,18 @@ from argus_processing.domain import Fact, SourceQuality
 
 
 def _clamp(value: float) -> float:
+    """Prende um indicador a faixa [0, 1].
+
+    As quatro dimensoes de qualidade sao razoes, e uma fonte que entrega mais
+    buckets do que o esperado produziria completude acima de 1 -- que somaria ao
+    score como se fosse qualidade extra.
+
+    Args:
+        value (float): Razao calculada.
+
+    Returns:
+        float: O valor dentro de [0, 1].
+    """
     return max(0.0, min(1.0, value))
 
 
@@ -23,6 +35,27 @@ def evaluate_quality(
     window_end: dt.datetime,
     simulator_end: dt.datetime | None = None,
 ) -> tuple[SourceQuality, ...]:
+    """Avalia a qualidade de cada fonte na janela do ciclo.
+
+    O canario existe porque uma fonte SILENCIOSA e indistinguivel de uma fonte
+    saudavel sem incidente: as duas produzem zero anomalia. Sem esta medida, o
+    motor concluiria "nada de errado" justamente quando parou de enxergar.
+
+    Args:
+        facts (Iterable[Fact]): Fatos do ciclo. So `kind == "metric"` nos papeis
+            `subject` e `quality` entram na conta.
+        catalog (Catalog): Cadencia esperada e regras por fonte.
+        window_start (datetime): Inicio da janela avaliada.
+        window_end (datetime): Fim da janela avaliada.
+        simulator_end (datetime | None): Ate onde o simulador chegou. Sem isto,
+            a janela avaliada iria alem do que o simulador ja emitiu, e TODA
+            fonte apareceria incompleta -- um alarme de qualidade que so mede o
+            quanto o relogio virtual esta a frente da reproducao.
+
+    Returns:
+        tuple[SourceQuality, ...]: Um veredito por fonte conhecida, inclusive
+            as que nao entregaram nada -- que sao justamente as que importam.
+    """
     by_source: dict[str, list[Fact]] = defaultdict(list)
     for fact in facts:
         if fact.kind == "metric" and fact.role in {"subject", "quality"}:

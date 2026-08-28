@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { limparToken } from "@/lib/api/session";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MobileOperationsNavigation, OperationsNavigation } from "./operations-navigation";
 import { OperationsUiProvider, SCREEN_PERIODS, useOperationsUi } from "./operations-ui-context";
@@ -53,6 +55,19 @@ function ShellContent({ children }: { children: ReactNode }) {
             ))}
           </ToggleGroup>
           <ThemeToggle />
+          {/* Sair descarta o token da aba. Existe porque `sessionStorage`
+              sobrevive à navegação dentro da mesma aba: sem o botão, a única
+              forma de encerrar a sessão seria fechar a aba, e numa máquina
+              compartilhada ninguém lembra de fazer isso. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => limparToken()}
+            title="Encerrar a sessão nesta aba"
+          >
+            Sair
+          </Button>
         </div>
       </header>
       <main className={styles.routeGrid} id="main-content" tabIndex={-1}>

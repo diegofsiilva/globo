@@ -22,7 +22,8 @@ def test_lista_eventos(client, seeded):
 def test_resposta_expoe_o_custo_da_consulta(client, seeded):
     """`scanned` versus `returned` mostra quanto o filtro custou -- num banco
     que cobra por item lido, uma tela barata e uma cara nao podem parecer
-    iguais para quem esta construindo o dashboard."""
+    iguais para quem esta construindo o dashboard.
+    """
     response = client.get("/api/v1/events?limit=2")
 
     query = response.json["query"]
@@ -261,7 +262,8 @@ def test_evento_serializado_traz_hash_e_nao_o_identificador(client, seeded):
 
 def test_tipo_novo_aparece_na_api(client, inserir):
     """O pipeline aceita event_name desconhecido de proposito; se a API o
-    escondesse, o dado entraria no banco e sumiria da tela."""
+    escondesse, o dado entraria no banco e sumiria da tela.
+    """
     inserir(
         {
             # Data fixa, dentro da janela de REFERENCE_NOW: com o relogio real o
@@ -345,7 +347,8 @@ def test_breakdown_por_uf_ja_aceitava_a_dimensao_antes_do_fix(client, pool):
     """`breakdown`/`facets` ja tinham `uf` na whitelist de agrupamento antes
     desta mudanca (`COLUNAS_AGRUPAVEIS` em `postgres.py`) -- o gap era so no
     filtro de busca (`EventFilters`). Este teste documenta que a parte que ja
-    funcionava continua funcionando, sem depender do fix novo."""
+    funcionava continua funcionando, sem depender do fix novo.
+    """
     _inserir_sessao(pool, event_id="e-rj3", session_id="s-rj3", uf="RJ")
     _inserir_sessao(pool, event_id="e-sp3", session_id="s-sp3", uf="SP")
 
@@ -375,7 +378,8 @@ def test_crosstab_agrupa_por_duas_dimensoes(client, seeded):
 def test_crosstab_bate_com_dois_breakdowns_separados(client, seeded):
     """Cada celula do crosstab tem que caber dentro do total do breakdown de
     uma dimensao so -- e a garantia de que o GROUP BY 1, 2 nao esta duplicando
-    nem perdendo linha."""
+    nem perdendo linha.
+    """
     breakdown = client.get("/api/v1/metrics/breakdown?dimension=device_manufacturer&limit=100").json
     crosstab = client.get(
         "/api/v1/metrics/crosstab?dimension_x=device_manufacturer&dimension_y=event_name"
@@ -397,7 +401,8 @@ def test_crosstab_sem_dimension_x_e_422(client, seeded):
 
 def test_crosstab_com_dimensao_invalida_e_422(client, seeded):
     """`session_id`/`device_id` sao filtraveis mas nao agrupaveis -- alta
-    cardinalidade, o mesmo motivo que ja vale para `breakdown`."""
+    cardinalidade, o mesmo motivo que ja vale para `breakdown`.
+    """
     response = client.get(
         "/api/v1/metrics/crosstab?dimension_x=device_manufacturer&dimension_y=session_id"
     )

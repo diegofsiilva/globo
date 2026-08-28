@@ -27,6 +27,23 @@ FAMILIES = {
 
 
 def evaluate(db: Database, catalog: Catalog, args: argparse.Namespace) -> dict:
+    """Reune os criterios de promocao do manifesto atual.
+
+    O motor sobe em modo sombra: as views de hipotese ficam vazias ate um evento
+    `published` (AGENTS.md, regra 6). Esta funcao junta o que decide se esse
+    evento deve ser emitido -- execucoes falhas, divergencia de digest de
+    entrada, truncamento, cobertura das familias e as medidas que so um humano
+    pode confirmar (precisao, latencia da API, SLA de checkpoint, suite).
+
+    Args:
+        db (Database): Conexao com o banco.
+        catalog (Catalog): Manifesto avaliado.
+        args (argparse.Namespace): As medidas informadas na linha de comando.
+
+    Returns:
+        dict: As metricas apuradas mais `failures`, a lista do que reprovou.
+            Lista vazia significa apto a promover.
+    """
     row = db.fetch_one(
         """
         SELECT count(*) FILTER (WHERE r.status = 'failed') AS failed,
@@ -101,6 +118,12 @@ def evaluate(db: Database, catalog: Catalog, args: argparse.Namespace) -> dict:
 
 
 def parser() -> argparse.ArgumentParser:
+    """Monta a linha de comando do `analysisctl`.
+
+    Returns:
+        argparse.ArgumentParser: Parser com `evaluate-and-promote`, `withdraw` e
+            `manifest`.
+    """
     root = argparse.ArgumentParser(prog="analysisctl")
     sub = root.add_subparsers(dest="command", required=True)
     promote = sub.add_parser("evaluate-and-promote")
@@ -115,6 +138,13 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Ponto de entrada da CLI de operacao do motor.
+
+    Returns:
+        int: 0 em sucesso. `evaluate-and-promote` devolve diferente de zero
+            quando algum criterio reprova, e nesse caso NAO promove -- e o que
+            permite encadear o comando num passo de verificacao.
+    """
     args = parser().parse_args()
     catalog = Catalog(os.getenv("IMAGE_TAG", "local"))
     if args.command == "manifest":

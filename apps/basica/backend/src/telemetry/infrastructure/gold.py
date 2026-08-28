@@ -794,8 +794,10 @@ class GoldRepository:
     def janela_estavel(
         self, *, duracao: timedelta, antes: datetime, max_passos: int = 200
     ) -> dict[str, datetime] | None:
-        """Acha a janela mais recente de `duracao`, terminando antes de `antes`,
-        que nao sobrepoe nenhuma `gold.v_incident_window`.
+        """Acha a janela estavel mais recente antes de um instante.
+
+        "Estavel" e uma janela de `duracao` que termina antes de `antes` e nao
+        sobrepoe nenhuma `gold.v_incident_window`.
 
         Passo a passo -- caminha para tras em incrementos de `duracao`,
         checando sobreposicao a cada passo -- em vez de uma unica consulta

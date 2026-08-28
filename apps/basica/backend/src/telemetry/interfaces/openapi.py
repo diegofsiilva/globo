@@ -17,6 +17,8 @@ from typing import Any
 
 from flask import request
 
+from telemetry.application.signals import LIMITE_MAXIMO, LIMITE_PADRAO
+from telemetry.application.timeline import LIMITE_POR_RAIA
 from telemetry.infrastructure.postgres import (
     COLUNAS_AGRUPAVEIS,
     COLUNAS_FILTRAVEIS,
@@ -61,6 +63,15 @@ def _parameter(name: str, description: str, **schema: Any) -> dict[str, Any]:
 
 
 def _hypothesis_paths() -> dict[str, Any]:
+    """Monta o trecho da spec referente ao motor de hipóteses.
+
+    Separado de `build_spec` porque são quatro rotas com parâmetros próprios;
+    inline, elas empurrariam o resto do documento para além do que se lê de uma
+    vez.
+
+    Returns:
+        dict[str, Any]: Mapa de caminho -> operações, pronto para `paths`.
+    """
     hypothesis_id = {
         "name": "hypothesis_id",
         "in": "path",
@@ -1035,13 +1046,34 @@ def build_spec() -> dict[str, Any]:
                         "Quatro raias de serie (NPAW, Prometheus, New Relic, "
                         "Apollo), uma de deploy (Tsuru) e uma de incidente "
                         "(ServiceNow). Sem periodo, usa as 3h antes de sim.now()."
+                        "\n\nCada raia devolve no maximo "
+                        f"{LIMITE_POR_RAIA} entradas. As raias de SERIE sao "
+                        "amostradas em passo uniforme e continuam cobrindo a "
+                        "janela inteira -- cortar o excedente deixaria um "
+                        "buraco no grafico onde ha dado. As raias de deploy e "
+                        "de incidente sao truncadas em ordem cronologica, "
+                        "porque amostrar evento discreto omitiria incidentes "
+                        "sem indicacao na tela."
                     ),
                     "parameters": [
                         _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
                         _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                        _parameter(
+                            "window_minutes",
+                            "Janela em minutos antes de 'to', quando 'from' nao vem.",
+                            type="integer",
+                            minimum=5,
+                            maximum=10080,
+                        ),
                     ],
                     "responses": {
-                        "200": {"description": "Raias"},
+                        "200": {
+                            "description": (
+                                "Raias. Cada uma traz `count` e `truncated`; o "
+                                "`truncated` do topo e verdadeiro se qualquer "
+                                "raia foi reduzida."
+                            )
+                        },
                         "422": {"$ref": "#/components/responses/Invalido"},
                     },
                 }
@@ -1089,7 +1121,12 @@ def build_spec() -> dict[str, Any]:
                         "ULTIMO bucket da janela ainda esta fora do baseline "
                         "horario -- 'ativo agora', nao 'desviou em algum "
                         "momento'. Independente do motor de hipoteses "
-                        "(em desenvolvimento em `feat/hipotese`)."
+                        "(em desenvolvimento em `feat/hipotese`).\n\n"
+                        "Aceita os MESMOS filtros de dimensao das telas "
+                        "Explorar, Comparar e Recorte. O filtro restringe "
+                        "tambem o baseline: comparar uma janela recortada "
+                        "contra um baseline global mediria a diferenca entre "
+                        "os recortes, e nao um desvio."
                     ),
                     "parameters": [
                         _parameter(
@@ -1102,9 +1139,33 @@ def build_spec() -> dict[str, Any]:
                             "Fim da janela, ISO 8601. Sem valor, usa sim.now().",
                             format="date-time",
                         ),
+                        _parameter("source", "Filtra por fonte (prometheus, npaw, ...)."),
+                        _parameter("entity", "Filtra por entidade (POP, app, aparelho)."),
+                        _parameter("metric", "Filtra por metrica (p95_ms, erro_pct, ...)."),
+                        _parameter(
+                            "tem_jogo",
+                            "Filtra por janela com transmissao ao vivo (`true`/`false`).",
+                        ),
+                        _parameter(
+                            "limit",
+                            (
+                                f"Quantos sinais devolver, dos maiores desvios para os "
+                                f"menores. Padrao {LIMITE_PADRAO}, maximo {LIMITE_MAXIMO}."
+                            ),
+                            type="integer",
+                            minimum=1,
+                            maximum=LIMITE_MAXIMO,
+                            default=LIMITE_PADRAO,
+                        ),
                     ],
                     "responses": {
-                        "200": {"description": "Sinais ativos"},
+                        "200": {
+                            "description": (
+                                "Sinais ativos. `count` e o tamanho de `items`; "
+                                "`truncated` avisa que havia mais sinais acima do "
+                                "limiar do que couberam no `limit`."
+                            )
+                        },
                         "422": {"$ref": "#/components/responses/Invalido"},
                     },
                 }
@@ -1278,6 +1339,26 @@ def build_spec() -> dict[str, Any]:
             },
         },
         "components": {
+            "securitySchemes": {
+                "BearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "description": (
+                        "Token de audiencia `dashboard`, apresentado como "
+                        "`Authorization: Bearer <token>`.\n\n"
+                        "A verificacao acontece num Lambda authorizer do API "
+                        "Gateway, antes desta aplicacao ser invocada. Sem o "
+                        "cabecalho a resposta e **401**; com um token que nao "
+                        "confere, **403**.\n\n"
+                        "O token de ingestao e OUTRO e nao vale aqui: ele "
+                        "autoriza apenas `POST /v1/events` e `POST /v1/changes`, "
+                        "na API de ingestao. Separar os dois impede que a "
+                        "credencial exposta no navegador do operador sirva "
+                        "tambem para escrever no pipeline.\n\n"
+                        "Obtenha os tokens com `make -C apps/basica auth-rotate`."
+                    ),
+                }
+            },
             "responses": {
                 "Invalido": {
                     "description": "Parametro invalido",
@@ -1294,6 +1375,18 @@ def build_spec() -> dict[str, Any]:
                             "schema": {"$ref": "#/components/schemas/Problema"}
                         }
                     },
+                },
+                "NaoAutenticado": {
+                    "description": (
+                        "Cabecalho `Authorization` ausente. Resposta do API "
+                        "Gateway, nao desta aplicacao."
+                    )
+                },
+                "NaoAutorizado": {
+                    "description": (
+                        "Token invalido, expirado ou de outra audiencia. "
+                        "Resposta do API Gateway, nao desta aplicacao."
+                    )
                 },
             },
             "schemas": {
@@ -1318,7 +1411,44 @@ def build_spec() -> dict[str, Any]:
     }
     spec["tags"].append({"name": "Hipoteses", "description": "Resultados explicaveis e feedback"})
     spec["paths"].update(_hypothesis_paths())
+    _aplicar_seguranca(spec)
     return spec
+
+
+# A UNICA rota sem autenticacao. Sonda de vida: responde `{"status": "ok"}` fixo,
+# sem tocar no banco, e precisa continuar respondendo mesmo com o Secrets
+# Manager fora. `/health/ready` NAO entra aqui -- ela consulta o banco, e o
+# proprio resultado ja revela se ha dado carregado.
+ROTAS_PUBLICAS = frozenset({"/health/live"})
+
+
+def _aplicar_seguranca(spec: dict[str, Any]) -> None:
+    """Marca todas as operacoes como autenticadas e documenta 401/403.
+
+    Feito em varredura, e nao rota a rota, de proposito: uma rota nova nasce
+    protegida sem que ninguem precise lembrar de acrescentar o bloco. O
+    contrario -- exigir a marcacao em cada operacao -- e como se chega a uma
+    rota publica por esquecimento.
+
+    Args:
+        spec (dict[str, Any]): Especificacao ja montada, alterada no lugar.
+    """
+    # `security` no topo vale para toda operacao que nao declarar a sua.
+    spec["security"] = [{"BearerAuth": []}]
+
+    for caminho, operacoes in spec["paths"].items():
+        publica = caminho in ROTAS_PUBLICAS
+        for metodo, operacao in operacoes.items():
+            if metodo not in {"get", "post", "put", "patch", "delete"}:
+                continue
+            if publica:
+                # Lista vazia SOBRESCREVE o requisito global -- e a forma que a
+                # OpenAPI tem de dizer "esta aqui e aberta".
+                operacao["security"] = []
+                continue
+            operacao.setdefault("responses", {})
+            operacao["responses"]["401"] = {"$ref": "#/components/responses/NaoAutenticado"}
+            operacao["responses"]["403"] = {"$ref": "#/components/responses/NaoAutorizado"}
 
 
 def _server_url() -> str:

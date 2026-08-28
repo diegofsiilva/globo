@@ -2,6 +2,12 @@ export type QueryFailureKind =
   | "offline"
   | "timeout"
   | "server"
+  // 401/403 da API. Categoria própria porque o desfecho é diferente de todas as
+  // outras: não adianta tentar de novo, o operador precisa colar o token
+  // novamente. O `ScreenFrame` não chega a renderizar este estado — o portão de
+  // acesso intercepta antes —, mas o tipo existe para que uma falha de
+  // autenticação nunca seja contada como "servidor fora".
+  | "unauthorized"
   | "invalid-response"
   | "unknown";
 

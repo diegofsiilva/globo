@@ -55,7 +55,7 @@ RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 
 def to_snake(column: str) -> str:
-    """ "App Model Year" -> "app_model_year".
+    """Normaliza um cabecalho do CSV: `App Model Year` vira `app_model_year`.
 
     Args:
         column (str): Nome original da coluna no CSV.

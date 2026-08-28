@@ -246,12 +246,10 @@ def test_view_esconde_run_que_ainda_nao_concluiu(client, pool):
     assert client.get(f"/api/v1/hypotheses/{hypothesis_id}").status_code == 404
 
     with pool.connection() as conn:
-        conn.execute(
-            "UPDATE detect.run SET status = 'completed' WHERE run_id = %s", (run_id,)
-        )
-    assert [
-        item["run_id"] for item in client.get("/api/v1/hypothesis-runs").json["items"]
-    ] == [run_id]
+        conn.execute("UPDATE detect.run SET status = 'completed' WHERE run_id = %s", (run_id,))
+    assert [item["run_id"] for item in client.get("/api/v1/hypothesis-runs").json["items"]] == [
+        run_id
+    ]
 
 
 def test_view_de_evidencia_esconde_o_que_e_posterior_ao_sim_now(pool):

@@ -17,9 +17,9 @@ import {
   type ReactNode,
 } from "react";
 
+import { apiFetch } from "@/lib/api/client";
 import { QuerySourceError } from "@/lib/operational-state";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 const CLOCK_REFRESH_MS = 30_000;
 
 type ClockPayload = {
@@ -115,51 +115,20 @@ export function projectedSimNow(snapshot: ClockSnapshot, browserNow = Date.now()
   return new Date(snapshot.simNow.getTime() + elapsed * snapshot.speed);
 }
 
+/**
+ * Lê o relógio virtual da API.
+ *
+ * @param signal Aborta quando o provider desmonta.
+ * @returns Instante virtual, velocidade e o momento local da leitura — os três
+ *   são necessários para projetar o relógio entre duas consultas.
+ * @throws {QuerySourceError} Quando a API falha ou devolve um instante que não
+ *   é uma data válida.
+ */
 async function fetchClock(signal: AbortSignal): Promise<ClockSnapshot> {
-  if (!API_URL) {
-    throw new QuerySourceError(
-      "NEXT_PUBLIC_API_URL não está configurada no bundle.",
-      "invalid-response",
-      "ARG-CLOCK-NO-URL",
-      false,
-    );
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL.replace(/\/$/, "")}/api/v1/clock`, { signal });
-  } catch (caught) {
-    if (caught instanceof DOMException && caught.name === "AbortError") throw caught;
-    throw new QuerySourceError(
-      "A conexão com o relógio do simulador está indisponível.",
-      "offline",
-      "ARG-CLOCK-OFFLINE",
-    );
-  }
-
-  if (!response.ok) {
-    const timeout = response.status === 408 || response.status === 504;
-    throw new QuerySourceError(
-      timeout
-        ? "A leitura do relógio do simulador excedeu o tempo limite."
-        : `A API do relógio respondeu com status ${response.status}.`,
-      timeout ? "timeout" : "server",
-      `ARG-CLOCK-HTTP-${response.status}`,
-      response.status >= 500 || timeout,
-    );
-  }
-
-  let payload: ClockPayload;
-  try {
-    payload = (await response.json()) as ClockPayload;
-  } catch {
-    throw new QuerySourceError(
-      "A API do relógio respondeu em um formato inválido.",
-      "invalid-response",
-      "ARG-CLOCK-INVALID-JSON",
-      false,
-    );
-  }
+  const payload = await apiFetch<ClockPayload>("/api/v1/clock", {
+    tag: "CLOCK",
+    signal,
+  });
 
   const simNow = new Date(payload.sim_now);
   const updatedAt = new Date(payload.updated_at);

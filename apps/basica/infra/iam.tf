@@ -4,7 +4,9 @@
 #                     imagem do ECR, criar log stream). Nao e o que o seu codigo
 #                     usa.
 #   task role      -> usada pelo CODIGO dentro do container. E aqui que mora a
-#                     permissao de SQS e DynamoDB.
+#                     permissao de SQS e de metrica no CloudWatch. O acesso ao
+#                     banco NAO passa por aqui: e usuario e GRANT no PostgreSQL,
+#                     nao IAM.
 #
 # Separar as duas e o que impede o worker de, por exemplo, sobrescrever imagem no
 # ECR: ele simplesmente nao tem essa credencial.
@@ -124,4 +126,28 @@ resource "aws_iam_role_policy" "task_secret" {
   name   = "db-secret"
   role   = aws_iam_role.task[0].id
   policy = data.aws_iam_policy_document.task_secret[0].json
+}
+
+# O token de ingestao entra na task pelo bloco `secrets` da container
+# definition, e quem o resolve e a EXECUTION role, nao a task role: o ECS busca
+# o valor antes de o container existir. Conceder a task role aqui nao faria a
+# task subir -- ela falharia em `ResourceInitializationError`, sem nenhum log da
+# aplicacao para indicar o motivo.
+data "aws_iam_policy_document" "execution_ingest_token" {
+  count = var.create_iam_roles ? 1 : 0
+
+  statement {
+    sid       = "LerTokenDeIngestao"
+    effect    = "Allow"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [aws_secretsmanager_secret.ingest_token.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "execution_ingest_token" {
+  count = var.create_iam_roles ? 1 : 0
+
+  name   = "ingest-token"
+  role   = aws_iam_role.task_execution[0].id
+  policy = data.aws_iam_policy_document.execution_ingest_token[0].json
 }

@@ -4,9 +4,14 @@ Le os CSVs do BI (ou os JSON ja convertidos), monta o payload e faz POST no
 endpoint publicado pelo Terraform. Serve para validar o fluxo fim a fim depois
 do deploy e para demonstrar a ingestao sem depender de uma TV de verdade.
 
+A ingestao exige `Authorization: Bearer` desde a adequacao do RNF09. O token
+sai do Secrets Manager e entra por variavel de ambiente -- nunca por argumento
+de linha de comando, que ficaria no historico do shell.
+
 Uso:
     # descobre a URL pelo output do Terraform
     URL=$(terraform -chdir=infra output -raw ingest_url)
+    export ARGUS_INGEST_TOKEN=$(make -C apps/basica auth-show-ingest)
 
     python apps/basica/tools/replay_events.py --url "$URL" --src ~/Downloads/Events
     python apps/basica/tools/replay_events.py --url "$URL" --src worker/tests/fixtures --batch
@@ -20,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -58,21 +64,28 @@ def load_events(src: Path) -> list[dict]:
     return events
 
 
-def post(url: str, payload, timeout: float = 10.0) -> tuple[int, str]:
+def post(
+    url: str, payload, timeout: float = 10.0, token: str | None = None
+) -> tuple[int, str]:
     """Realiza uma requisição HTTP POST para a API de ingestão.
 
     Args:
         url (str): Endpoint HTTP de destino.
         payload: Objeto ou lista a ser serializado em JSON.
         timeout (float, optional): Tempo limite em segundos. Padrão é 10.0.
+        token (str | None): Token Bearer de audiência `ingest`. Vem da variável
+            de ambiente `ARGUS_INGEST_TOKEN`, nunca de um argumento de linha de
+            comando: argumento fica no histórico do shell e aparece no `ps` de
+            qualquer processo da máquina.
 
     Returns:
         tuple[int, str]: Par contendo (código de status HTTP, resposta cortada).
     """
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"}, method="POST"
-    )
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, response.read().decode("utf-8", "replace")[:200]
@@ -107,6 +120,14 @@ def main() -> int:
     if not args.url and not args.dry_run:
         raise SystemExit("erro: --url e obrigatorio (ou use --dry-run)")
 
+    token = os.getenv("ARGUS_INGEST_TOKEN")
+    if not args.dry_run and not token:
+        raise SystemExit(
+            "erro: ARGUS_INGEST_TOKEN nao definida.\n"
+            "      A API de ingestao exige Authorization: Bearer (RNF09).\n"
+            "      Pegue o valor com: make -C apps/basica auth-show-ingest"
+        )
+
     events = load_events(args.src)
     print(f"{len(events)} eventos carregados de {args.src}")
 
@@ -125,7 +146,7 @@ def main() -> int:
         lotes = [events] if args.batch else [[e] for e in events]
         for lote in lotes:
             payload = lote if args.batch else lote[0]
-            status, corpo = post(args.url, payload)
+            status, corpo = post(args.url, payload, token=token)
 
             if 200 <= status < 300:
                 enviados += len(lote)
@@ -146,9 +167,9 @@ def main() -> int:
     )
     if enviados:
         print(
-            "\nA API responde 200 assim que o evento entra na fila; a gravacao no\n"
-            "DynamoDB acontece logo depois, de forma assincrona. Confira com:\n"
-            "  aws dynamodb scan --table-name <tabela> --select COUNT"
+            "\nA API responde 202 assim que o evento entra na fila; a gravacao em\n"
+            "bronze.event acontece logo depois, pelo event worker. Confira com:\n"
+            "  make -C apps/basica count"
         )
     return 1 if falhas else 0
 

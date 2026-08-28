@@ -11,14 +11,57 @@ from argus_processing.domain import Anomaly, Baseline, Fact
 
 
 def _transform(value: float, policy: MetricPolicy) -> float:
+    """Leva a metrica para o espaco em que o baseline e calculado.
+
+    Metrica de latencia tem cauda longa a direita: a media e o desvio-padrao no
+    espaco original sao dominados por poucos picos, e o z-score resultante
+    marcaria como anomalia qualquer dia um pouco mais lento. `log1p` comprime a
+    cauda e faz a distribuicao ficar proxima da normal, que e a suposicao do
+    z-score.
+
+    Args:
+        value (float): Valor observado, na unidade nativa.
+        policy (MetricPolicy): Politica da metrica; decide se ha transformacao.
+
+    Returns:
+        float: O valor no espaco do baseline.
+    """
     return math.log1p(max(value, 0.0)) if policy.transform == "log1p" else value
 
 
 def _inverse(value: float, policy: MetricPolicy) -> float:
+    """Traz um valor do espaco do baseline de volta a unidade nativa.
+
+    Usado no que sai para o operador: `expected` precisa ser mostrado em
+    milissegundos, e nao em log de milissegundos.
+
+    Args:
+        value (float): Valor no espaco do baseline.
+        policy (MetricPolicy): Politica da metrica.
+
+    Returns:
+        float: O valor na unidade original.
+    """
     return math.expm1(value) if policy.transform == "log1p" else value
 
 
 def _material(observed: float, expected: float, policy: MetricPolicy) -> bool:
+    """Decide se o desvio e grande o bastante para alguem se importar.
+
+    Exige as DUAS condicoes, absoluta e relativa, de proposito. So relativa
+    dispararia com 1 ms virando 3 ms numa serie muito estavel; so absoluta
+    dispararia com 50 ms de variacao numa metrica que normalmente oscila 500 ms.
+    Um z-score alto significa "estatisticamente incomum", que nao e o mesmo que
+    "operacionalmente relevante".
+
+    Args:
+        observed (float): Valor observado.
+        expected (float): Valor esperado pelo baseline.
+        policy (MetricPolicy): Limiares de materialidade da metrica.
+
+    Returns:
+        bool: `True` quando o desvio passa nos dois limiares.
+    """
     absolute = abs(observed - expected)
     relative = absolute / max(abs(expected), 1e-12)
     return (
@@ -28,6 +71,21 @@ def _material(observed: float, expected: float, policy: MetricPolicy) -> bool:
 
 
 def _bad_direction(observed: float, expected: float, policy: MetricPolicy) -> bool:
+    """Decide se o desvio aponta para o lado RUIM da metrica.
+
+    A direcao importa: taxa de erro caindo e boa noticia, latencia caindo
+    tambem. Sem este filtro o motor abriria hipotese para explicar uma melhora,
+    e o operador gastaria a atencao dele nisso.
+
+    Args:
+        observed (float): Valor observado.
+        expected (float): Valor esperado pelo baseline.
+        policy (MetricPolicy): Politica da metrica; `direction` e `up`, `down`
+            ou qualquer outro valor para "os dois lados importam".
+
+    Returns:
+        bool: `True` quando o desvio e na direcao indesejada.
+    """
     if policy.direction == "up":
         return observed > expected
     if policy.direction == "down":

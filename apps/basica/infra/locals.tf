@@ -34,6 +34,7 @@ locals {
   task_execution_role_arn = var.create_iam_roles ? aws_iam_role.task_execution[0].arn : var.existing_role_arn
   task_role_arn           = var.create_iam_roles ? aws_iam_role.task[0].arn : var.existing_role_arn
   read_api_role_arn       = var.create_iam_roles ? aws_iam_role.read_api[0].arn : var.existing_role_arn
+  authorizer_role_arn     = var.create_iam_roles ? aws_iam_role.authorizer[0].arn : var.existing_role_arn
 
   db_password = (
     var.db_password_from_secrets_manager
@@ -84,6 +85,16 @@ locals {
   # 60: um unico minuto de parede processando um lote ja da 3600 s virtuais.
   lag_sim_limite = var.alarm_lag_sim_wall_seconds * var.simulator_speed
 
+  # Origens aceitas no CORS da API de leitura. O dominio do dashboard entra
+  # sozinho -- deixar isso a cargo de uma variavel preenchida a mao era o que
+  # mantinha `["*"]` no ambiente publicado.
+  #
+  # Nao ha ciclo entre os dois recursos: a distribuicao nao referencia a API de
+  # leitura (ver a nota do `connect-src` em frontend_s3.tf).
+  dashboard_origins = concat(
+    ["https://${aws_cloudfront_distribution.frontend.domain_name}"],
+    var.dashboard_origins_extra,
+  )
 }
 
 data "aws_caller_identity" "current" {}

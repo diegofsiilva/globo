@@ -31,8 +31,30 @@ LIMIAR_SINAL = 2.0
 LIMIAR_WARNING = 2.5
 LIMIAR_CRITICAL = 4.0
 
+# Quantos sinais a rota devolve quando `limit` nao vem na query string. A tela
+# Agora mostra os desvios mais fortes numa lista rolavel; 25 cabe na primeira
+# dobra e mantem a resposta abaixo dos 100 KB exigidos pelo RNF02.
+LIMITE_PADRAO = 25
+
+# Teto aceito em `limit`. Acima disso a resposta cresce sem que a tela tenha
+# onde mostrar, e o payload passa do orcamento de banda da rota.
+LIMITE_MAXIMO = 100
+
 
 def _severidade(z: float) -> str:
+    """Classifica a magnitude do desvio em faixas.
+
+    Args:
+        z (float): Z-score do último bucket. O sinal (positivo ou negativo) não
+            importa: uma métrica muito ABAIXO do baseline é tão anômala quanto
+            uma muito acima -- taxa de reprodução que despenca é degradação.
+
+    Returns:
+        str: `critical`, `warning` ou `stable`. `stable` aqui significa
+            "desviado, mas na faixa mais fraca que ainda conta como sinal", e
+            não "sem desvio" -- o que está abaixo de `LIMIAR_SINAL` nem chega a
+            virar sinal.
+    """
     magnitude = abs(z)
     if magnitude >= LIMIAR_CRITICAL:
         return "critical"
@@ -42,6 +64,18 @@ def _severidade(z: float) -> str:
 
 
 def _signal_id(source: str, entity: str, metric: str) -> str:
+    """Identificador estável de um sinal.
+
+    Args:
+        source (str): Fonte da métrica.
+        entity (str): Entidade observada (POP, app, aparelho).
+        metric (str): Nome da métrica.
+
+    Returns:
+        str: Os 16 primeiros caracteres do SHA-256 da tripla. Estável entre
+            consultas, que é o que permite ao frontend manter o painel lateral
+            aberto no mesmo sinal enquanto a lista é atualizada a cada 30 s.
+    """
     # Sem ancora de tempo no hash: um sinal e identidade do GRUPO, nao de um
     # pico especifico -- o mesmo sinal, consultado de novo minutos depois,
     # deve manter o mesmo id.
@@ -60,18 +94,32 @@ class GenerateSignals:
         """
         self.repository = repository
 
-    def execute(self, desde: datetime, ate: datetime) -> dict[str, Any]:
+    def execute(
+        self,
+        desde: datetime,
+        ate: datetime,
+        *,
+        escopo: dict[str, str] | None = None,
+        limite: int = LIMITE_PADRAO,
+    ) -> dict[str, Any]:
         """Gera a lista de sinais ativos na janela.
 
         Args:
             desde (datetime): Inicio da janela analisada.
             ate (datetime): Fim da janela analisada.
+            escopo (dict[str, str] | None): Filtros de dimensao (`source`,
+                `entity`, `metric`, `tem_jogo`) repassados ao repositorio.
+            limite (int): Quantos sinais devolver, do desvio mais forte para o
+                mais fraco.
 
         Returns:
-            dict[str, Any]: `{"items": [...]}`, do desvio mais forte para o
-                mais fraco.
+            dict[str, Any]: `{"items": [...], "count": n, "truncated": bool}`.
+                `count` e o tamanho de `items` — o que a tela recebeu, e nao
+                uma contagem total que a consulta nao chega a apurar.
+                `truncated` avisa que existiam mais sinais acima do limiar do
+                que couberam na resposta.
         """
-        linhas = self.repository.desvios(desde, ate, LIMIAR_SINAL)
+        linhas = self.repository.desvios(desde, ate, LIMIAR_SINAL, escopo=escopo)
 
         grupos: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
         for linha in linhas:
@@ -152,4 +200,12 @@ class GenerateSignals:
             )
 
         sinais.sort(key=lambda s: abs(s["z"]), reverse=True)
-        return {"items": sinais}
+        # O corte acontece DEPOIS da ordenacao por magnitude: a tela Agora
+        # existe para mostrar o que esta pior, entao truncar antes de ordenar
+        # devolveria um recorte arbitrario com cara de ranking.
+        visiveis = sinais[:limite]
+        return {
+            "items": visiveis,
+            "count": len(visiveis),
+            "truncated": len(sinais) > limite,
+        }

@@ -31,4 +31,30 @@ line-length = 90
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "D"]
+
+# `D` (pydocstyle) transforma a convencao do AGENTS.md ("todo modulo, classe,
+# funcao e metodo documentado") em algo que o `make check` verifica. Sem isto a
+# regra dependia de revisao humana, e 78 funcoes tinham passado sem docstring.
+#
+# Convencao Google: e a que os Args/Returns/Raises do repositorio ja seguem.
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Testes descrevem o cenario no NOME e, quando precisam, num comentario. Exigir
+# docstring em cada `test_*` produziria centenas de linhas que repetem o nome da
+# funcao -- ruido que ensina a ignorar o proprio aviso.
+"tests/**" = [
+  "D100", "D101", "D102", "D103", "D104",
+  # Estilo de docstring tambem sai. O docstring de um teste e prosa que explica
+  # o CENARIO ("so os buckets seguidos acima do limiar, contados do fim pra
+  # tras"), e a frase util raramente cabe numa linha de resumo. Espremer isso
+  # no formato de API pioraria o texto que existe para ser lido.
+  "D205", "D209", "D400", "D401", "D403", "D415",
+  # `__init__` de dublê e docstring que abre com uma string citada
+  # (`""" "unknown" e valor REAL do parque`) tambem ficam de fora: o primeiro
+  # nao tem o que documentar alem do proprio nome da classe, e o segundo e uma
+  # citacao intencional do valor testado.
+  "D107", "D210",
+]
