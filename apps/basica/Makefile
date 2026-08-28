@@ -414,7 +414,34 @@ push: ## Publica as imagens no ECR com a tag do commit
 	  echo "      nenhum, e o rollback deixa de ter para onde voltar."; \
 	  exit 1;; esac
 	@echo "publicando com a tag $(IMAGE_TAG)"
-	cd $(INFRA) && terraform output -raw docker_push_commands | bash
+	@# A tag vem do Makefile, e a URL do repositorio vem do `terraform output`.
+	@#
+	@# Nao use `docker_push_commands` aqui. `terraform output` le do STATE, e nao
+	@# da configuracao: enquanto o apply que introduziu a tag por SHA nao rodar,
+	@# aquele output ainda descreve `:latest`. Publicar por ele deixaria o ECR sem
+	@# a tag que as task definitions novas referenciam, e o apply seguinte
+	@# derrubaria os servicos em ImagePullBackOff -- com a causa aparecendo como
+	@# "imagem nao encontrada", longe da linha que a originou.
+	@#
+	@# `ecr_repository_urls` nao tem esse problema: a URL de um repositorio nao
+	@# muda, entao o valor em state e sempre o correto.
+	@$(call require_env,AWS_PROFILE)
+	@set -e; \
+	registry=$$(cd $(INFRA) && terraform output -json ecr_repository_urls \
+	  | python3 -c "import json,sys; print(json.load(sys.stdin)['worker'].split('/')[0])"); \
+	aws ecr get-login-password --region $${AWS_REGION:-us-east-1} --profile $$AWS_PROFILE \
+	  | docker login --username AWS --password-stdin "$$registry"; \
+	urls=$$(cd $(INFRA) && terraform output -json ecr_repository_urls); \
+	for nome in $(IMAGES); do \
+	  url=$$(printf '%s' "$$urls" | python3 -c "import json,sys; print(json.load(sys.stdin)['$$nome'])"); \
+	  echo; echo "--- $$nome"; \
+	  docker build --platform linux/arm64 -f $$nome/Dockerfile \
+	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" .; \
+	  docker push "$$url:$(IMAGE_TAG)"; \
+	  docker push "$$url:latest"; \
+	done
+	@echo
+	@echo "publicadas com a tag $(IMAGE_TAG). Agora rode: make tf-apply"
 
 # `push` publica; ELE NAO troca a task definition. Quem troca e o `tf-apply`,
 # porque a tag do commit entrou na task definition -- e por isso que o servico
@@ -459,6 +486,13 @@ auth-rotate: ## Gera e publica tokens Bearer novos (invalida os antigos)
 	@$(call require_env,AWS_PROFILE)
 	@echo "Isto INVALIDA os tokens atuais. O dashboard vai pedir o token de novo,"
 	@echo "e o simulador precisa ser reiniciado para pegar o valor novo."
+	@# Os dois segredos so existem depois do apply que os cria, e `terraform
+	@# output` le do state. Sem esta checagem, a mensagem seria "Output not
+	@# found", que nao diz o que fazer.
+	@cd $(INFRA) && terraform output -raw auth_tokens_secret >/dev/null 2>&1 || { \
+	  echo "erro: os segredos ainda nao existem na AWS."; \
+	  echo "      Rode 'make tf-apply' antes -- e o apply que os cria."; \
+	  exit 1; }
 	@read -p "Digite 'rotacionar' para confirmar: " r; [ "$$r" = "rotacionar" ] || { echo "cancelado."; exit 1; }
 	@hashes_id=$$(cd $(INFRA) && terraform output -raw auth_tokens_secret); \
 	 ingest_id=$$(cd $(INFRA) && terraform output -raw ingest_token_secret); \
