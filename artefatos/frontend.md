@@ -124,6 +124,16 @@
 
 <p align="center"><sub>Figura 14 — Tela Agora no viewport tablet de 768 px.</sub></p>
 
+### 1.4 Demonstração em vídeo
+
+&emsp; O vídeo abaixo registra a interface em execução e complementa as capturas estáticas da seção anterior.
+
+<p align="center">
+  <a href="https://drive.google.com/file/d/1HltsgZBqs5GeT-ADOx9BUANbAv2kHGSW/view?usp=sharing">Assistir à demonstração da interface (Google Drive)</a>
+</p>
+
+<p align="center"><sub>Vídeo 1 — Demonstração da interface do Argus.</sub></p>
+
 ## 2. Organização e qualidade do código
 
 &emsp; O código-fonte do front-end está localizado em [`apps/basica/frontend`](../apps/basica/frontend). A especificação original cita `/apps/frontend`; optou-se por manter a estrutura atual do monorepo, onde o frontend coexiste com a API de leitura, o worker e a infraestrutura do MVP.
