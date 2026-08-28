@@ -572,8 +572,10 @@ function formatTime(iso: string): string {
 
 function errorSummary(event: ApiEvent): string {
   const attributes = event.attributes as Record<string, unknown>;
+  const code = attributes?.["error_code"];
   const name = attributes?.["error_name"];
   const message = attributes?.["error_message"];
+  if (typeof code === "string" && code) return code;
   if (typeof name === "string" && name) return name;
   if (typeof message === "string" && message) return message;
   return event.event_name;

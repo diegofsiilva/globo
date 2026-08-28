@@ -194,7 +194,7 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend ## Roda as suites que tem teste
 
 .PHONY: test-authorizer
 test-authorizer: ## Testes do Lambda authorizer (Bearer, audiencias, rotacao)
@@ -219,6 +219,40 @@ test-simulator: ## Testes do relogio e do emissor do simulador
 test-processing: ## Testes do ETL incremental (watermarks, workers)
 	cd $(PROCESSING) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-$(PG_TEST_URL)} $(UV) pytest
 
+.PHONY: test-frontend
+test-frontend: ## Testes de contratos e componentes do dashboard
+	cd $(FRONTEND) && npm test
+
+# Mesma regra dos testes Python que dependem de banco: sem a dependencia, o
+# alvo PULA em vez de quebrar. `make check` numa maquina sem docker ou sem o
+# Chromium do Playwright continua validando lint, tipos, unitarios e Terraform,
+# em vez de falhar por infraestrutura ausente e ensinar o time a ignorar o
+# portao.
+# Recipe de UMA linha logica so, de proposito: cada linha de recipe roda no seu
+# proprio shell, entao um `exit 0` numa linha de guarda encerraria apenas
+# aquela linha e o make seguiria para a proxima -- rodando exatamente o que a
+# guarda queria evitar.
+.PHONY: test-frontend-e2e
+test-frontend-e2e: ## Teste integrado dashboard -> Flask -> PostgreSQL local
+	@set -e; \
+	if ! docker exec $(PG_CONTAINER) psql -U argus -d argus_test -qc "SELECT 1" >/dev/null 2>&1; then \
+	  echo "  pulado: PostgreSQL local ausente (rode 'make -C apps/basica db-local')."; \
+	  exit 0; \
+	fi; \
+	if ! (cd $(FRONTEND) && npx playwright install --dry-run chromium >/dev/null 2>&1); then \
+	  echo "  pulado: Chromium do Playwright ausente (rode 'npx playwright install chromium')."; \
+	  exit 0; \
+	fi; \
+	$(MAKE) --no-print-directory migrate DATABASE_URL=$(PG_TEST_URL); \
+	docker exec -i $(PG_CONTAINER) psql -v ON_ERROR_STOP=1 -U argus -d argus_test \
+	  < $(FRONTEND)/tests/e2e/fixture.sql; \
+	cd $(FRONTEND) && \
+	  NEXT_PUBLIC_API_URL="http://127.0.0.1:5100" \
+	  NEXT_PUBLIC_HYPOTHESES_SOURCE="api" \
+	  NEXT_PUBLIC_HYPOTHESES_API_URL="http://127.0.0.1:5100" \
+	  npm run build -- --webpack; \
+	npm run test:e2e
+
 .PHONY: lint
 lint: ## Verifica estilo sem alterar arquivos
 	cd $(TOOLS) && $(UV) ruff check . && $(UV) ruff format --check .
@@ -229,6 +263,7 @@ lint: ## Verifica estilo sem alterar arquivos
 	cd $(LOADER) && $(UV) ruff check src
 	cd $(BACKEND) && $(UV) ruff check src tests
 	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff check handler.py tests
+	cd $(FRONTEND) && npm run lint
 	cd $(INFRA) && terraform fmt -check -recursive
 
 .PHONY: fmt
@@ -246,7 +281,23 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(INFRA) && terraform fmt -recursive
 
 .PHONY: check
-check: lint test tf-validate ## Tudo que a CI deveria rodar
+check: lint test frontend-build-check test-frontend-e2e tf-validate ## Tudo que a CI deveria rodar
+
+# O build do dashboard faz parte do portao, e nao so o lint.
+#
+# O `next build` roda o TypeScript e a geracao estatica das sete rotas. Um erro
+# de tipo num Server Component ou uma rota que deixou de exportar passa pelo
+# eslint e so aparece aqui -- ou, sem este alvo, no deploy.
+#
+# A URL e um placeholder: o objetivo e compilar, nao falar com a API. O build
+# falha de proposito sem `NEXT_PUBLIC_API_URL` (ver frontend/AGENTS.md, regra 1),
+# entao alguma URL precisa existir.
+.PHONY: frontend-build-check
+frontend-build-check: ## Compila o dashboard com URL de placeholder (portao de CI)
+	cd $(FRONTEND) && \
+	  NEXT_PUBLIC_API_URL="https://api.invalido.local" \
+	  NEXT_PUBLIC_HYPOTHESES_SOURCE="mock" \
+	  npm run build
 
 # --------------------------------------------------------------------------- #
 # Desenvolvimento
