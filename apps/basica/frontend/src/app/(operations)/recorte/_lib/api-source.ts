@@ -8,14 +8,24 @@
 import { getJson, withScope, type EventScope } from "@/lib/events/query";
 import type { ApiEvent } from "@/lib/events/api";
 
+/** Uma célula do heatmap: o par de dimensões e o valor agregado. */
 export type CrosstabCell = { x: string; y: string; count: number; metric?: string };
 
+/** Cruzamento de duas dimensões da série, no formato do heatmap. */
 export type CrosstabResponse = {
   dimension_x: string;
   dimension_y: string;
   cells: CrosstabCell[];
 };
 
+/**
+ * Detalhe de uma sessão individual.
+ *
+ * **Sem lastro neste dump.** O dataset do Argus tem telemetria agregada por
+ * hora, não evento por sessão; a rota existe e o contrato está correto, mas
+ * responde vazio. Mantido porque o dashboard foi escrito contra o contrato
+ * final — quando houver ingestão de evento real, a tela funciona sem mudança.
+ */
 export type SessionTimelineResponse = {
   session_id: string;
   events: ApiEvent[];
@@ -31,6 +41,13 @@ export type SessionTimelineResponse = {
   next_cursor: string | null;
 };
 
+/**
+ * Filtros do heatmap.
+ *
+ * `metric` e `metrics` coexistem: o primeiro pede uma agregação única, o segundo
+ * pede várias no MESMO scan da tabela. Duas consultas separadas varreriam a
+ * janela duas vezes.
+ */
 export type CrosstabFilters = {
   dimensionX: string;
   dimensionY: string;

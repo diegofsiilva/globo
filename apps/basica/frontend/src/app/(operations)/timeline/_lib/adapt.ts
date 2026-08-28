@@ -150,6 +150,13 @@ export function toChronology(response: TimelineApiResponse): ChronologyEntry[] {
   return entries.map(({ hour, source, description }) => ({ hour, source, description }));
 }
 
+/**
+ * A janela de correlação exibida abaixo das raias.
+ *
+ * `band` vem `null` quando nenhuma raia tem ponto na janela — nesse caso não há
+ * o que destacar, e desenhar uma faixa de largura zero sugeriria um sinal
+ * pontual que não existe.
+ */
 export type CorrelationWindow = {
   label: string;
   description: string;

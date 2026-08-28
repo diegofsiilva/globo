@@ -19,8 +19,13 @@ o `../../README.md` é a documentação para humanos.
 3. **Nenhum segredo entra no repositório.** URL de API, id de conta AWS,
    endpoint de RDS e senha nunca vão para código, teste, doc ou mensagem de
    commit. Os valores saem de `terraform output` e vivem em `.env`, que é
-   gitignored; `.env.example` mostra apenas as chaves. Enquanto as APIs não
-   tiverem autenticação, a URL é a única barreira de acesso aos dados.
+   gitignored; `.env.example` mostra apenas as chaves.
+
+   As três APIs exigem `Authorization: Bearer` desde a adequação do RNF09. Os dois
+   tokens saem de `make auth-rotate`, que os imprime uma única vez; a AWS guarda
+   apenas o SHA-256 de cada um. Token não entra em código, teste, doc, commit,
+   print, vídeo nem no bundle do dashboard — no navegador ele vive só em
+   `sessionStorage`, colado pelo operador na tela de acesso.
 4. **A AWS é um AWS Academy Learner Lab.** Todo comando `aws` leva
    `--profile g4`; o Terraform não aceita `--profile` e lê `AWS_PROFILE` /
    `AWS_REGION`. O id da conta do lab muda a cada sessão nova: confira com
@@ -101,6 +106,17 @@ ao relógio do processo.
 - **Docstrings PEP 257 em Python e JSDoc em JavaScript/TypeScript.** Todo módulo
   tem cabeçalho descritivo e toda função documenta parâmetros, retorno e
   comportamento.
+
+  **A regra é verificada, não confiada.** `ruff` com o conjunto `D` (convenção
+  Google) em todos os apps Python, e `jsdoc/require-jsdoc` no ESLint do
+  frontend — os dois entram no `make check`. Ficam de fora, por decisão
+  explícita nos respectivos arquivos de configuração: `tests/**`, os fixtures em
+  `_mocks/` e as primitivas shadcn em `components/ui/`. Nesses lugares o nome do
+  teste ou do componente já é a descrição, e exigir um bloco produziria linhas
+  que repetem o identificador.
+
+  Num código tipado, o que falta na documentação é o **porquê** — não repita o
+  que a assinatura já diz.
 - **Comentário explica o porquê, não o quê.** O padrão do repositório é comentar
   a decisão não óbvia (por que a porta é 55432, por que `boto3` saiu do backend)
   e deixar o resto falar por si. Não remova esses comentários ao refatorar.

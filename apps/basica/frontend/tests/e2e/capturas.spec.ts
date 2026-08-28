@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import path from "node:path";
 
+import { abrirSessao } from "./sessao";
+
 const assetsDir = path.resolve(process.cwd(), "../../../artefatos/assets");
 
 const routes = [
@@ -13,6 +15,8 @@ const routes = [
 ] as const;
 
 async function openIntegratedRoute(page: Page, route: string, heading: string, theme: string) {
+  // Sem sessão, toda captura registraria a tela de acesso.
+  await abrirSessao(page);
   await page.addInitScript((selectedTheme) => {
     localStorage.setItem("argus-theme", selectedTheme);
   }, theme);

@@ -3,9 +3,11 @@
 # Flask empacotado em Lambda (via apig-wsgi) atras de um HTTP API proprio,
 # separado do de ingestao. Os dois sao servicos diferentes: um recebe evento de
 # TV em volume alto e nao pode recusar nada, o outro serve consulta para uma
-# tela interna e vai precisar de autenticacao. Separar deixa throttling, CORS e
-# authorizer independentes -- e HTTP API cobra por requisicao, nao por API,
-# entao ter dois nao custa a mais.
+# tela interna. Separar deixa throttling, CORS e authorizer independentes -- e
+# HTTP API cobra por requisicao, nao por API, entao ter dois nao custa a mais.
+#
+# A separacao passou a valer tambem para a credencial: cada API aceita apenas a
+# sua audiencia de token (`dashboard` aqui, `ingest` la). Ver auth.tf.
 #
 # Lambda e nao Fargate porque o padrao de uso e intermitente: alguem abre o
 # dashboard, faz algumas consultas e fecha. Um container ocioso 24/7 custaria
@@ -61,7 +63,7 @@ resource "aws_lambda_function" "read_api" {
       USER_ID_HASH_SALT    = var.user_id_hash_salt
       DEFAULT_WINDOW_HOURS = tostring(var.read_api_default_window_hours)
       MAX_ITEMS_SCANNED    = tostring(var.read_api_max_items_scanned)
-      CORS_ORIGINS         = join(",", var.dashboard_origins)
+      CORS_ORIGINS         = join(",", local.dashboard_origins)
       LOG_LEVEL            = var.worker_log_level
     }
   }
@@ -138,10 +140,11 @@ resource "aws_apigatewayv2_api" "read" {
   # preflight OPTIONS sem acordar a Lambda -- resposta mais rapida e uma
   # invocacao a menos por consulta do navegador.
   cors_configuration {
-    allow_origins = var.dashboard_origins
-    allow_methods = ["GET", "POST", "OPTIONS"]
-    allow_headers = ["content-type", "authorization"]
-    max_age       = 300
+    allow_origins  = local.dashboard_origins
+    allow_methods  = ["GET", "POST", "OPTIONS"]
+    allow_headers  = ["content-type", "authorization", "x-request-id"]
+    expose_headers = ["x-request-id"]
+    max_age        = 300
   }
 
   tags = {
@@ -164,12 +167,21 @@ resource "aws_apigatewayv2_route" "read_proxy" {
   api_id    = aws_apigatewayv2_api.read.id
   route_key = "ANY /{proxy+}"
   target    = "integrations/${aws_apigatewayv2_integration.read.id}"
+
+  # O proxy cobre TODAS as rotas de dado, a documentacao e o readiness. A unica
+  # excecao e `GET /health/live`, declarada em auth.tf como rota explicita --
+  # no API Gateway a rota especifica vence o proxy.
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.read.id
 }
 
 resource "aws_apigatewayv2_route" "read_root" {
   api_id    = aws_apigatewayv2_api.read.id
   route_key = "ANY /"
   target    = "integrations/${aws_apigatewayv2_integration.read.id}"
+
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.read.id
 }
 
 # A rota explicita vence o proxy e recebe um limite proprio: feedback e a unica
@@ -178,6 +190,12 @@ resource "aws_apigatewayv2_route" "hypothesis_feedback" {
   api_id    = aws_apigatewayv2_api.read.id
   route_key = "POST /api/v1/hypotheses/{hypothesis_id}/feedback"
   target    = "integrations/${aws_apigatewayv2_integration.read.id}"
+
+  # Declarar a rota explicitamente faz ela perder a autorizacao herdada do
+  # proxy: no API Gateway cada rota carrega a sua. Sem estas duas linhas, a
+  # unica ESCRITA da API seria tambem a unica sem autenticacao.
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.read.id
 }
 
 resource "aws_lambda_permission" "read_api" {

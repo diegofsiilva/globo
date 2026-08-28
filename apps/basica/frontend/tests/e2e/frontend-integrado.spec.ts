@@ -1,7 +1,45 @@
 import { expect, test } from "@playwright/test";
 
+import { abrirSessao, TOKEN_DE_TESTE } from "./sessao";
+
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await abrirSessao(page);
+});
+
+test.describe("acesso", () => {
+  // Este bloco NÃO abre a sessão: é justamente o que ele testa.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("[E2E-00] sem token o painel não carrega, e o token colado dá acesso", async ({
+    browser,
+  }) => {
+    const contexto = await browser.newContext();
+    const page = await contexto.newPage();
+
+    await page.goto("/agora/");
+
+    // Nenhuma tela é montada: nem a moldura, nem a navegação, nem uma consulta.
+    await expect(page.getByRole("heading", { name: "Acesso ao painel" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sinais em desvio agora" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Explorar/ })).toHaveCount(0);
+
+    // Um valor com a forma errada é recusado na própria tela, sem ir à rede.
+    await page.getByLabel("Token de leitura").fill("token-curto");
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await expect(page.getByText("O token não tem o formato esperado")).toBeVisible();
+
+    // Com o token válido, o painel monta.
+    await page.getByLabel("Token de leitura").fill(TOKEN_DE_TESTE);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await expect(page.getByRole("heading", { name: "Sinais em desvio agora" })).toBeVisible();
+
+    // Sair devolve o operador à tela de acesso.
+    await page.getByRole("button", { name: "Sair" }).click();
+    await expect(page.getByRole("heading", { name: "Acesso ao painel" })).toBeVisible();
+
+    await contexto.close();
+  });
 });
 
 test("[E2E-01] a entrada redireciona e a navegação alcança as seis áreas", async ({ page }) => {

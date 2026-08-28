@@ -175,7 +175,7 @@ Os testes usam um SQS falso (moto) mas um PostgreSQL **de verdade**, porque a pa
 
 Com `make db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são **pulados** em vez de quebrarem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
 
-> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore` — o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). Enquanto as APIs não tiverem autenticação, a URL é a única barreira de acesso aos dados.
+> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore` — o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). As três APIs exigem `Authorization: Bearer` (RNF09); os tokens saem de `make -C apps/basica auth-rotate` e nunca entram no repositório, nem no bundle do dashboard.
 
 Outros alvos úteis, todos com o prefixo `make -C apps/basica`: `lint`, `check`, `smoke`, `dlq`, `pause` e `resume`.
 

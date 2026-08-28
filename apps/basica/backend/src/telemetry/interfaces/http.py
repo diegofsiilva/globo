@@ -5,6 +5,7 @@ from typing import Any
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
+from telemetry.application.timeline import LIMITE_POR_RAIA, amostrar_raia
 from telemetry.application.use_cases import (
     GetBreakdown,
     GetCrosstab,
@@ -497,11 +498,15 @@ def timeline():
     lanes = []
     for chave, config in LANES_METRICA.items():
         pontos = [ponto for fonte in config["sources"] for ponto in por_fonte[fonte]]
+        pontos.sort(key=lambda p: p["bucket_ts"])
+        visiveis, truncada = amostrar_raia(pontos)
         lanes.append(
             {
                 "source": chave,
                 "label": config["label"],
                 "lane_type": "series",
+                "count": len(visiveis),
+                "truncated": truncada,
                 "points": [
                     {
                         "bucket_ts": p["bucket_ts"].isoformat(),
@@ -509,46 +514,61 @@ def timeline():
                         "metric": p["metric"],
                         "value": p["value"],
                     }
-                    for p in pontos
+                    for p in visiveis
                 ],
             }
         )
 
+    # Um a mais que o teto para distinguir "sao exatamente 100" de "sao 100 e o
+    # banco parou de contar" -- a mesma tecnica de /signals.
+    deploys = gold().deploy_events(desde=desde, ate=ate, limite=LIMITE_POR_RAIA + 1)
     lanes.append(
         {
             "source": "tsuru",
             "label": "Tsuru",
             "lane_type": "events",
+            "count": min(len(deploys), LIMITE_POR_RAIA),
+            "truncated": len(deploys) > LIMITE_POR_RAIA,
             "points": [
                 {
                     **evento,
                     "started_at": evento["started_at"].isoformat(),
                     "ended_at": evento["ended_at"].isoformat() if evento["ended_at"] else None,
                 }
-                for evento in gold().deploy_events(desde=desde, ate=ate, limite=500)
+                for evento in deploys[:LIMITE_POR_RAIA]
             ],
         }
     )
 
+    incidentes = gold().incidents(
+        origem="incidents", desde=desde, ate=ate, limite=LIMITE_POR_RAIA + 1
+    )
     lanes.append(
         {
             "source": "servicenow",
             "label": "ServiceNow",
             "lane_type": "incidents",
+            "count": min(len(incidentes), LIMITE_POR_RAIA),
+            "truncated": len(incidentes) > LIMITE_POR_RAIA,
             "points": [
                 {
                     **incidente,
                     "ts_start": incidente["ts_start"].isoformat(),
                     "ts_end": incidente["ts_end"].isoformat(),
                 }
-                for incidente in gold().incidents(
-                    origem="incidents", desde=desde, ate=ate, limite=500
-                )
+                for incidente in incidentes[:LIMITE_POR_RAIA]
             ],
         }
     )
 
-    return jsonify({"window": {"from": desde.isoformat(), "to": ate.isoformat()}, "lanes": lanes})
+    return jsonify(
+        {
+            "window": {"from": desde.isoformat(), "to": ate.isoformat()},
+            "limit_per_lane": LIMITE_POR_RAIA,
+            "truncated": any(lane["truncated"] for lane in lanes),
+            "lanes": lanes,
+        }
+    )
 
 
 @api.get("/anomalies")

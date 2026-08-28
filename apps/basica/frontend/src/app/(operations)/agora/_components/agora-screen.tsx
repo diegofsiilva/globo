@@ -19,7 +19,6 @@ import {
 } from "../../_components/screen-frame";
 import { useOperationsUi } from "../../_components/operations-ui-context";
 import { normalizeQueryFailure } from "@/lib/operational-state";
-import { regionsFromUfs } from "@/lib/uf-regions";
 import type { SignalDeviation } from "../_mocks/scenario";
 import {
   fetchAgoraFacets,
@@ -30,14 +29,23 @@ import {
 } from "../_lib/signals-source";
 import { agoraStyles as styles } from "./agora.styles";
 
-type FilterKey = "app" | "manufacturer" | "platform" | "region";
+/**
+ * Dimensões da série que `GET /api/v1/signals` realmente aceita.
+ *
+ * Antes eram `plataforma`, `fabricante`, `região` e `app`. Aquelas colunas
+ * existem em `bronze.event`, e não em `gold.v_feature_bucket`, que é a fonte
+ * dos sinais — os quatro seletores ficavam interativos e não mudavam nada na
+ * lista. Estas quatro são filtradas no SQL, e o filtro vale também para o
+ * baseline.
+ */
+type FilterKey = "source" | "entity" | "metric" | "tem_jogo";
 type Filters = Record<FilterKey, string>;
 
 const initialFilters: Filters = {
-  app: "all",
-  manufacturer: "all",
-  platform: "all",
-  region: "all",
+  source: "all",
+  entity: "all",
+  metric: "all",
+  tem_jogo: "all",
 };
 
 /** Visão operacional em tempo real, com sinais vindos de `GET /api/v1/signals`. */
@@ -48,8 +56,11 @@ export function AgoraScreen() {
   const { hrefWithDemoState } = useOperationsUi();
 
   const signals = useQuery({
-    queryKey: ["agora-signals"],
-    queryFn: ({ signal }) => fetchSignals(signal),
+    // Os filtros entram na chave: mudar o recorte é uma consulta diferente, e
+    // não uma reordenação do que já veio. Sem isso o TanStack Query serviria o
+    // resultado do recorte anterior enquanto busca o novo.
+    queryKey: ["agora-signals", filters],
+    queryFn: ({ signal }) => fetchSignals(filters, signal),
     refetchInterval: 30_000,
     // Uma segunda tentativa automática repete o timeout de 30 s da Lambda e
     // deixa a tela em loading por quase um minuto. O botão de retry continua
@@ -66,10 +77,9 @@ export function AgoraScreen() {
   });
 
   const items = useMemo(() => signals.data?.items ?? [], [signals.data]);
-  // GET /api/v1/signals não aceita parâmetro de escopo (gold.feature_bucket
-  // não tem dimensão de dispositivo/região) -- os filtros abaixo continuam
-  // interativos, mas NÃO alteram a consulta. É uma limitação de dado, não
-  // um bug: documentada em rotas-frontend.md §1.1.
+  // A filtragem acontece no SQL, não aqui: `fetchSignals` recebe o recorte e a
+  // consulta já volta restrita. Filtrar em memória traria a janela inteira do
+  // banco a cada polling de 30 s.
   const visibleSignals = useMemo(() => items.map(toSignalDeviation), [items]);
   const topSignal = items[0];
   const hasActiveDegradation = Boolean(topSignal && topSignal.severity !== "stable");
@@ -85,6 +95,8 @@ export function AgoraScreen() {
   const totalSessions = sessionCounts.reduce((sum, count) => sum + count, 0);
   const scopeSummary = signals.data
     ? `${items.length} sinal(is) ativo(s)${
+        signals.data.truncated ? " (lista truncada)" : ""
+      }${
         sessionCounts.length > 0
           ? ` · ${totalSessions.toLocaleString("pt-BR")} sessões atribuídas`
           : ""
@@ -99,17 +111,15 @@ export function AgoraScreen() {
     setFilters(initialFilters);
   }
 
-  // Região deriva de UF real (facets?field=uf), não de lista fixa: a série
-  // gold/silver não tem coluna de região nomeada, mas tem UF -- ver
-  // lib/uf-regions.ts. GET /api/v1/signals não aceita nenhum destes filtros
-  // (gold.feature_bucket não tem dimensão de dispositivo/UF/região); eles
-  // continuam interativos, mas NÃO alteram a consulta -- limitação de dado
-  // documentada em rotas-frontend.md §1.1, não um bug.
+  // As opções saem de `/api/v1/series/facets`, a MESMA view que alimenta os
+  // sinais. Assim todo valor oferecido é um valor que existe na série: um
+  // seletor populado de outra tabela ofereceria recortes que nunca devolvem
+  // resultado, e o operador leria isso como "não há problema agora".
   const filterDefinitions: Array<{ key: FilterKey; label: string; options: string[] }> = [
-    { key: "platform", label: "plataforma", options: facets.data?.facets.device_os ?? [] },
-    { key: "manufacturer", label: "fabricante", options: facets.data?.facets.device_manufacturer ?? [] },
-    { key: "region", label: "região", options: regionsFromUfs(facets.data?.facets.uf ?? []) },
-    { key: "app", label: "app", options: facets.data?.facets.app_version ?? [] },
+    { key: "source", label: "fonte", options: facets.data?.facets.source ?? [] },
+    { key: "entity", label: "entidade", options: facets.data?.facets.entity ?? [] },
+    { key: "metric", label: "métrica", options: facets.data?.facets.metric ?? [] },
+    { key: "tem_jogo", label: "transmissão", options: facets.data?.facets.tem_jogo ?? [] },
   ];
 
   const screenFilters: ScreenFilter[] = filterDefinitions.map((definition) => ({

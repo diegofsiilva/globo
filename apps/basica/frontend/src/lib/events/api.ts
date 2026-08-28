@@ -1,17 +1,14 @@
 /** Cliente tipado da API de leitura de eventos. */
 
+import { apiFetch } from "@/lib/api/client";
 import { withScope, type EventScope } from "./query";
 
-// A URL da API vem do ambiente de build e nunca fica escrita no código.
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-if (!API_URL) {
-  throw new Error(
-    "NEXT_PUBLIC_API_URL não definida. Rode `make frontend-build` ou exporte a " +
-      "variável antes de `next build`.",
-  );
-}
-
+/**
+ * Um evento de sessão como a API o devolve.
+ *
+ * Campos que possam carregar identificador pessoal já saem redigidos (RNF10) --
+ * a redação acontece na saída da API, não aqui.
+ */
 export type ApiEvent = {
   action: string | null;
   app_bucket: string | null;
@@ -35,12 +32,20 @@ export type ApiEvent = {
   session_id: string;
 };
 
+/**
+ * Página keyset de eventos.
+ *
+ * `query` traz o custo da consulta. Uma `strategy` de `particao_por_tempo`
+ * significa varredura das partições da janela -- é o sinal de que faltou um
+ * filtro indexado.
+ */
 export type EventsResponse = {
   items: ApiEvent[];
   next_cursor: string | null;
   query: { strategy: string; scanned: number; returned: number; queries: number };
 };
 
+/** Filtros da busca. Chaves ausentes não entram na query string. */
 export type EventQuery = {
   eventName?: string;
   platform?: string;
@@ -51,7 +56,13 @@ export type EventQuery = {
   scope?: EventScope;
 };
 
-/** Consulta eventos aplicando somente os filtros preenchidos. */
+/**
+ * Consulta eventos aplicando somente os filtros preenchidos.
+ *
+ * @param filters Filtros da tela; chaves vazias são omitidas.
+ * @param signal Aborta quando a tela desmonta ou o filtro muda.
+ * @returns Página keyset de eventos com o bloco `query` de custo.
+ */
 export async function fetchEvents(
   filters: EventQuery,
   signal?: AbortSignal,
@@ -65,11 +76,5 @@ export async function fetchEvents(
   if (filters.to) params.set("to", filters.to);
   withScope(params, filters.scope ?? {});
 
-  const response = await fetch(`${API_URL}/api/v1/events?${params}`, { signal });
-
-  if (!response.ok) {
-    throw new Error(`A API respondeu com status ${response.status}`);
-  }
-
-  return response.json();
+  return apiFetch<EventsResponse>(`/api/v1/events?${params}`, { tag: "EVENTS", signal });
 }

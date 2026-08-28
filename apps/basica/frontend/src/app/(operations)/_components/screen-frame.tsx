@@ -18,6 +18,12 @@ import { screenFrameStyles as styles } from "./screen-frame.styles";
 
 export { SCREEN_PERIODS, type ScreenPeriod } from "./operations-ui-context";
 
+/**
+ * Um seletor da barra de escopo.
+ *
+ * `value` igual a `ALL_SCOPE_VALUES` significa "sem recorte neste campo" — não é
+ * um valor de dado, e a moldura o desconta da contagem de filtros ativos.
+ */
 export type ScreenFilter = {
   key: string;
   label: string;
@@ -36,6 +42,27 @@ type ScreenFrameProps = {
   operational?: OperationalPresentation;
 };
 
+/**
+ * Moldura comum das seis telas: barra de escopo, resumo e estados operacionais.
+ *
+ * Existe para que as telas não reimplementem carregamento, vazio, erro e stale
+ * cada uma à sua maneira — o operador aprende o vocabulário visual uma vez e ele
+ * vale em todas.
+ *
+ * A barra de escopo só é renderizada quando há algo nela; uma tela sem filtros
+ * não ganha um cabeçalho vazio.
+ *
+ * @param children Conteúdo da tela.
+ * @param filters Seletores de escopo.
+ * @param onFilterChange Chamado quando um seletor muda.
+ * @param onClearFilters Chamado no botão de limpar; a ausência esconde o botão.
+ * @param scopeContent Conteúdo extra da barra, quando a tela precisa de mais que
+ *   seletores.
+ * @param scopeSummary Frase que resume o recorte, exibida ao lado dos filtros.
+ * @param scopeFilterCount Quantos filtros de fato restringem; sem valor, usa o
+ *   total de seletores.
+ * @param operational Estado operacional da consulta principal.
+ */
 export function ScreenFrame({
   children,
   filters = [],

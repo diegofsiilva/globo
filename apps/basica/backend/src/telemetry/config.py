@@ -30,9 +30,16 @@ class Config:
     # antes de terminar de desenhar.
     MAX_ITEMS_SCANNED = int(os.getenv("MAX_ITEMS_SCANNED", "20000"))
 
-    # Origens do dashboard. "*" e aceitavel enquanto a API nao expoe dado
-    # sensivel sem autenticacao; restrinja antes de producao (RNF09).
+    # Origens do dashboard. A lista real vem de `dashboard_origins` no
+    # Terraform e inclui o website S3 no fallback do Learner Lab; "*" e o
+    # padrao apenas do desenvolvimento local, onde a porta do `next dev` muda
+    # com frequencia.
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
+
+    # Nivel do log estruturado. O `observability.py` reconfigura o logger raiz
+    # com este valor -- em DEBUG a Lambda passa a registrar tambem o SQL do
+    # psycopg, o que e util numa investigacao e caro como padrao.
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
     # O unico POST desta API e feedback textual curto.
     MAX_CONTENT_LENGTH = 4096

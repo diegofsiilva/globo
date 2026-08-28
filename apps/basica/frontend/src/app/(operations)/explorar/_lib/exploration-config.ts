@@ -1,5 +1,6 @@
 import type { GroupBy } from "./types";
 
+/** Agrupamentos oferecidos na tela, na ordem em que aparecem. */
 export const groupOptions: GroupBy[] = [
   "Dispositivo",
   "Fonte",
@@ -32,6 +33,12 @@ export const groupByScope: Partial<Record<GroupBy, Record<string, string>>> = {
   Dispositivo: { source: "youbora_device" },
 };
 
+/**
+ * Formata uma contagem no padrão pt-BR (separador de milhar por ponto).
+ *
+ * @param value Contagem inteira.
+ * @returns O número formatado.
+ */
 export function formatEvents(value: number): string {
   return new Intl.NumberFormat("pt-BR").format(value);
 }

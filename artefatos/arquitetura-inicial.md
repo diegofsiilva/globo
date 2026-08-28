@@ -1,4 +1,4 @@
-# Arquitetura inicial da solução — Argus v3
+# Arquitetura inicial da solução 
 
 &emsp; Este artefato detalha a arquitetura da solução Argus v3: seus componentes,
 tecnologias, fluxos de comunicação, decisões arquiteturais e plano de implantação
@@ -15,8 +15,23 @@ relatório principal.
 |---|---|
 | (a) Diagrama de implantação | Seção 2 |
 | (b) Nós, componentes e conexões | Seção 3 |
-| (c) Justificativa da arquitetura e das tecnologias | Seção 4 |
+| (c) Justificativa da arquitetura e das tecnologias | Seção 4 (tabela de decisões em 4.9) |
 | (d) Plano detalhado de implantação na AWS | Seção 5 |
+
+### O que mudou nesta revisão
+
+&emsp; Esta versão descreve o ambiente **efetivamente implantado**, e não a intenção de
+projeto. As diferenças em relação à revisão anterior:
+
+| Item | Antes | Agora |
+|---|---|---|
+| Autenticação das APIs | Ausente; a URL era a única barreira | Lambda authorizer com Bearer, duas audiências, hashes no Secrets Manager |
+| Transporte do dashboard | CDN com HTTPS e bucket privado | Website S3 em HTTP, compatível com as permissões do Learner Lab |
+| Migrations | 001–023 | 001–026 |
+| Acesso ao RDS | Público, restrito ao CIDR do desenvolvedor | Privado; administração pela task `migration` dentro da VPC |
+| Tag das imagens | `latest` | SHA do commit; `latest` só como apelido no ECR |
+| Bucket de origem | Descrito como contendo o dump | Apenas Parquet e manifesto; o dump não foi publicado |
+| Observabilidade | Logs em texto | Log JSON por requisição, correlacionado por `X-Request-Id` |
 
 ---
 
@@ -58,7 +73,7 @@ de comunicação efetivamente usado.
 
 <div align="center">
 
-<sub>Figura 1 — Implantação do Argus v3 na AWS, região `us-east-1`</sub>
+<sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
 
 ![Diagrama de implantação do Argus v3](assets/arquitetura-implantacao-v3.svg)
 
@@ -66,13 +81,36 @@ de comunicação efetivamente usado.
 
 </div>
 
+&emsp; **Arquivo editável.** O SVG é escrito à mão e versionado como fonte em
+`assets/arquitetura-implantacao-v3.svg` — não há binário intermediário de ferramenta.
+Editar o SVG e regerar o PNG:
+
+```bash
+rsvg-convert -w 3300 -b white \
+  artefatos/assets/arquitetura-implantacao-v3.svg \
+  -o artefatos/assets/arquitetura-implantacao-v3.png
+```
+
+&emsp; Os estereótipos usam a notação de nó tridimensional com `«artifact»` para os
+componentes de software implantados em cada nó. O traço tracejado laranja marca o que é
+**planejado e não provisionado** — hoje, apenas o EventBridge Scheduler.
+
 &emsp; No AWS Academy Learner Lab, a configuração de referência utiliza a VPC e as
 sub-redes públicas da conta, com IP público nas tasks para evitar o custo de um NAT
 Gateway. Isso não abre portas de entrada nos containers: o security group das tasks
-não possui regra de ingresso. O RDS aceita conexões na porta 5432 apenas desse
-security group e, quando configurado para manutenção, do CIDR explícito do
-desenvolvedor. A configuração recomendada para produção é usar sub-redes privadas,
-RDS privado e VPC endpoints ou NAT conforme a política da organização.
+não possui regra de ingresso. **O RDS é privado** (`db_publicly_accessible = false`)
+e aceita conexões na porta 5432 apenas desse security group; não há regra para CIDR
+externo. O acesso administrativo ao banco — migrations e inspeção — passa pela task
+avulsa `migration`, que roda dentro da própria VPC. A configuração recomendada para
+produção acrescenta sub-redes privadas e VPC endpoints ou NAT conforme a política da
+organização.
+
+&emsp; Até a adequação do RNF09 o laboratório usava `db_publicly_accessible = true`
+com o IP do desenvolvedor em `db_allowed_cidr`. A exposição do banco dependia, na
+prática, de uma linha de `terraform.tfvars` e da rede em que alguém estivesse
+trabalhando: trocar de rede quebrava o acesso e esquecer de reverter deixava a
+instância alcançável de fora. A task `migration` resolve o mesmo problema sem essa
+dependência.
 
 ---
 
@@ -82,17 +120,28 @@ RDS privado e VPC endpoints ou NAT conforme a política da organização.
 
 &emsp; **Aplicação cliente ou simulador de eventos** envia eventos de sessão à rota
 `POST /v1/events`. **O simulador de CDC**, executado em ECS Fargate, envia mudanças à
-rota `POST /v1/changes`. Os dois caminhos usam HTTPS até o API Gateway.
+rota `POST /v1/changes`. Os dois caminhos usam HTTPS até o API Gateway e **apresentam
+o token Bearer de audiência `ingest`** (seção 3.7).
 
-&emsp; **Navegador do usuário** acessa o site estático pelo endpoint de website do S3
-e consulta os dados pela API de leitura. O endpoint de website do S3 usa **HTTP** na
-configuração atual; a API Gateway usa HTTPS. CloudFront ainda não foi provisionado.
+&emsp; **Navegador do usuário** acessa diretamente o endpoint de website do S3 por
+**HTTP** e consulta os dados pela API de leitura, esta sim em HTTPS, apresentando o
+token de audiência `dashboard`. Os objetos do bucket são públicos para leitura; não
+há permissão pública de escrita nem de listagem. Como a página que recebe o token não
+tem TLS, este modo é uma compatibilidade temporária do Learner Lab e deve ser usado
+apenas em rede confiável.
 
 ### 3.2 Armazenamento de origem e carga inicial
 
-&emsp; O **bucket S3 `origem`** (`s3_origem.tf`) armazena o dump e os 33 arquivos
-Parquet usados na carga inicial. O bucket é versionado e funciona como fonte
-imutável e recuperável do processo de bootstrap.
+&emsp; O **bucket S3 `origem`** (`s3_origem.tf`) armazena os **35 arquivos Parquet e o
+manifesto** usados na carga inicial — cerca de 199 MiB. O bucket é versionado e
+funciona como fonte imutável e recuperável do processo de bootstrap.
+
+&emsp; **O dump bruto de 4 GB não está no bucket.** Ele permanece apenas na máquina de
+quem executou a conversão; o alvo `make origem-sync` sabe subi-lo, mas isso não foi
+feito no ambiente publicado. A carga inicial não precisa dele: quem o `loader` lê é o
+Parquet derivado. Registrar isso importa porque o dump é dado cedido pelo parceiro e
+não redistribuível — a sua ausência no bucket é uma característica do ambiente, não
+uma pendência.
 
 &emsp; A task Fargate **`loader`** (`ecs_loader.tf`) é executada sob demanda. Ela lê os
 Parquet por `S3 GetObject`, usa `COPY FROM STDIN` pelo driver `psycopg` e valida as
@@ -102,7 +151,8 @@ de ingestão.
 ### 3.3 Borda de ingestão e filas
 
 &emsp; O **API Gateway de ingestão** é uma HTTP API com duas rotas. Cada rota possui
-integração direta `SQS-SendMessage`, sem Lambda intermediária:
+integração direta `SQS-SendMessage`, sem Lambda intermediária, e **exige o token
+Bearer de audiência `ingest`**:
 
 - `POST /v1/changes` → fila `changes`;
 - `POST /v1/events` → fila `events`.
@@ -128,7 +178,18 @@ avulsas:
 &emsp; `merge_worker`, `event_worker`, `simulator`, `processing`, `loader`,
 `migration` e a Lambda de leitura usam o security group das tasks. Esse grupo não
 aceita conexões de entrada e possui saída HTTPS para serviços AWS e saída TCP 5432
-para o security group do RDS.
+para o security group do RDS. **A Lambda do authorizer é a única exceção: ela não
+entra na VPC**, porque o seu único destino é o Secrets Manager, e uma função numa
+sub-rede sem NAT expiraria em toda chamada — o resultado seria 403 em tudo.
+
+&emsp; As task definitions referenciam a imagem pelo **SHA do commit**, e não por
+`latest`. Com `latest`, a task definition não muda quando a imagem muda: o Terraform vê
+a mesma string, não propõe nada, e o serviço continua executando o digest anterior até
+alguém forçar um deploy à mão. Foi assim que event worker, merge worker e processing
+chegaram a executar builds diferentes entre si sem que nada aparecesse no `plan`. Com o
+SHA, a task definition muda junto com o código, a diferença aparece no `plan` e o
+rollback é escolher o SHA anterior. `latest` continua sendo publicado no ECR como
+apelido, mas nenhum recurso do Terraform aponta para ele.
 
 ### 3.5 Persistência e processamento
 
@@ -144,8 +205,16 @@ para o security group do RDS.
 | `etl` | Watermarks, execuções e checkpoints publicados |
 | `detect` | Runs, claims, cursor, baseline, anomalias e coordenação da análise |
 
-&emsp; As migrations `001` a `023` constroem esse contrato no estado de referência
-de `develop`. O serviço `processing` executa três atividades concorrentes no mesmo
+&emsp; As migrations `001` a `026` constroem esse contrato. As três últimas foram
+acrescentadas depois da medição de desempenho contra o volume real: `024` alinha
+`available_at` dos eventos de deploy à linha do tempo simulada, `025` indexa
+(fonte, métrica, tempo) e `026` indexa o baseline horário — as duas consultas que
+sustentavam `/series/facets` e `/signals` acima do teto de 5 s do RNF02.
+
+&emsp; Migration aplicada é imutável: `tools/migrate.py` guarda o checksum de cada
+arquivo e aborta quando ele muda. Alteração de schema é sempre um arquivo novo.
+
+&emsp; O serviço `processing` executa três atividades concorrentes no mesmo
 container:
 
 1. Bronze → Silver e materialização dos fatos de análise;
@@ -162,49 +231,148 @@ e `psycopg_pool`** — não JDBC.
 
 ### 3.6 Consulta e apresentação
 
-&emsp; O **API Gateway de leitura** invoca a função **Lambda `read_api`**, que executa
-Flask empacotado com `apig-wsgi`. A Lambda entra na VPC com o mesmo security group das
-tasks e consulta o RDS como `argus_api`. Esse usuário herda apenas o papel de leitura
-com `SELECT` nas views públicas; não possui acesso direto às tabelas-base.
+&emsp; O **API Gateway de leitura** consulta primeiro o authorizer (seção 3.7) e só
+então invoca a função **Lambda `read_api`**, que executa Flask empacotado com
+`apig-wsgi`. A Lambda entra na VPC com o mesmo security group das tasks e consulta o
+RDS como `argus_api`. Esse usuário herda apenas o papel de leitura com `SELECT` nas
+views públicas; não possui acesso direto às tabelas-base.
 
-&emsp; O **bucket S3 `frontend`** publica o export estático do Next.js. O navegador
-baixa HTML, CSS e JavaScript pelo endpoint HTTP do website e faz chamadas HTTPS à API
-de leitura. Como não existe CloudFront, o dashboard não possui HTTPS próprio na
-configuração atual.
+&emsp; O **bucket S3 `frontend`** guarda o export estático do Next.js e habilita
+**website hosting**. Os quatro bloqueios de acesso público ficam desligados e a policy
+concede a qualquer principal apenas `s3:GetObject` sobre os objetos desse bucket. Não
+há permissão pública de escrita, alteração de policy ou listagem do bucket.
+
+&emsp; O endpoint de website completa as rotas do export estático: o Next.js escreve
+`agora/index.html`, e o acesso a `/agora/` resolve esse arquivo sem uma função de
+borda. `index.html` é o documento inicial e `404.html` é o documento de erro.
+
+&emsp; O deploy (`make frontend-deploy`) sincroniza `frontend/out/` diretamente com o
+bucket usando `aws s3 sync --delete` e imprime a URL HTTP do website. Não existe cache
+de CDN para invalidar. O artefato publicado inclui `build-info.json` com commit, data
+UTC e versão — sem endpoint nem identificador de conta.
 
 ### 3.7 Operação, segurança e observabilidade
+
+#### Autenticação
+
+&emsp; As três rotas de dado ficam atrás de um **Lambda authorizer** do tipo `REQUEST`
+(payload 2.0, respostas simples, cache de cinco minutos por token). São dois tokens
+aleatórios de 256 bits, um por audiência:
+
+| Audiência | Quem usa | Onde vale |
+|---|---|---|
+| `dashboard` | dashboard, Swagger, Postman de leitura | API de leitura |
+| `ingest` | simulador, replay de eventos, Postman de escrita | API de ingestão |
+
+&emsp; O **Secrets Manager** guarda apenas o **SHA-256** de cada token. O valor em claro
+existe em dois lugares: no terminal de quem executou `make auth-rotate`, que o imprime
+uma única vez, e — só o de ingestão — num segundo segredo, que a task do simulador lê
+pelo bloco `secrets` da task definition. Usar `environment` ali exporia o token em
+qualquer `aws ecs describe-task-definition`, que é uma chamada de leitura: o token
+vazaria para quem tem permissão de olhar a infraestrutura, sem nenhuma permissão sobre
+os dados. Nem o `terraform.tfstate` nem o repositório chegam a ver o valor.
+
+&emsp; SHA-256 simples basta porque o segredo tem 256 bits de entropia real; um KDF
+lento protege senha escolhida por humano, e não existe dicionário para forçar um valor
+destes. A comparação usa `hmac.compare_digest`, em tempo constante, e o laço sobre as
+audiências não interrompe no acerto — sair mais cedo revelaria a posição da audiência
+que casou.
+
+&emsp; Os códigos de resposta separam dois casos que uma leitura de log precisa
+distinguir: **401** quando o cabeçalho `Authorization` falta, respondido pelo próprio
+API Gateway sem invocar a função, e **403** quando o token está presente e não confere.
+O primeiro é cliente desconfigurado; o segundo é tentativa com credencial inválida. Um
+alarme sobre o volume de 4xx cobre a segunda situação.
+
+&emsp; São **três** as rotas públicas, todas declaradas explicitamente sem
+authorizer — no API Gateway a rota específica vence o proxy:
+
+| Rota | Por que é pública |
+|---|---|
+| `GET /health/live` | Sonda de vida. Responde `{"status": "ok"}` fixo, sem tocar no banco, e precisa continuar respondendo mesmo com o Secrets Manager indisponível |
+| `GET /docs` | O Swagger UI é aberto por **navegação**, e navegação não carrega cabeçalho `Authorization`. Protegida, a rota devolveria 401 antes de a página renderizar, e não haveria onde clicar em "Authorize" |
+| `GET /openapi.json` | O próprio Swagger a busca ao carregar, antes de qualquer interação do usuário e portanto antes de haver token |
+
+&emsp; As duas rotas de documentação expõem a **forma** da API — nomes de rota,
+parâmetros e descrições —, nunca dado do parceiro. Toda rota que devolve dado continua
+exigindo o Bearer, e o botão "Authorize" do Swagger é o que o fornece: quem descobrir a
+URL lê o contrato e não consegue executar nada contra ele. Protegê-las não tornaria o
+sistema mais seguro; tornaria o Swagger inutilizável, e a verificação passaria a
+depender de `curl`.
+
+&emsp; `/health/ready` **não** é pública: ela consulta o banco, e o resultado já revela
+se há dado do parceiro carregado.
+
+&emsp; **Limitação assumida e documentada:** o token identifica um **serviço, não uma
+pessoa**. Não há como saber qual integrante fez uma consulta, e a resposta a um
+vazamento é rotacionar os dois tokens, não revogar um usuário. Identidade individual
+exigiria Cognito — um pool de usuários, um fluxo de login e um cadastro para manter —,
+que está fora do escopo deste MVP. A escolha por authorizer, e não por API key, segue a
+recomendação da própria AWS, que registra a chave de API como mecanismo de medição e
+limitação de consumo, e **não** de autorização.[^apikeys]
+
+[^apikeys]: AWS. *Use API keys with usage plans for REST APIs*. Disponível em:
+https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-usage-plans.html
+
+#### Imagens, papéis e observabilidade
 
 &emsp; O **Amazon ECR** mantém quatro imagens: `worker`, `simulator`, `processing` e
 `loader`. Os dois workers compartilham a imagem `worker`, mas usam comandos distintos.
 O **IAM** separa execution role e task role quando a conta permite criar roles; no
-Learner Lab, a `LabRole` é reutilizada por limitação do ambiente.
+Learner Lab, a `LabRole` é reutilizada por limitação do ambiente. O token de ingestão é
+resolvido pela **execution role**, e não pela task role: o ECS busca o valor antes de o
+container existir, e conceder à task role faria a task falhar em
+`ResourceInitializationError`, sem nenhum log da aplicação indicando o motivo.
 
 &emsp; O **CloudWatch** recebe logs e métricas de API Gateway, Lambda, ECS, SQS e RDS.
-Os alarmes cobrem DLQs, idade das filas, serviços abaixo do número desejado de tasks,
-erros das APIs, CPU, armazenamento e conexões do RDS, atraso do relógio virtual,
-fontes silenciosas e falhas ou backlog do motor de análise. O **SNS** distribui os
-alarmes quando há uma assinatura confirmada.
+A API de leitura emite **uma linha de log JSON por requisição**, com `request_id`,
+rota, método, status, latência e a **audiência autorizada**. Duas regras valem para
+todo campo novo: nenhum token entra no log, nem truncado nem em hash; e a query string
+entra apenas como a lista de **nomes** dos parâmetros, porque `session_id`, `device_id`
+e `user_id` viajam por ali — o RNF10 vale também para o CloudWatch, e redigir na
+resposta enquanto se vaza no log não seria redigir.
 
-&emsp; **CloudFront e EventBridge Scheduler são planejados, mas não estão
-provisionados.** O processamento atual usa laços internos de longa duração no serviço
-ECS; o diagrama representa o EventBridge apenas como evolução possível.
+&emsp; O cabeçalho `X-Request-Id` é propagado de ponta a ponta: o cliente pode enviá-lo,
+o API Gateway o registra no access log, a API o devolve no cabeçalho e no corpo de erro
+(RFC 7807), e o dashboard o exibe no código de referência que o operador cita ao
+relatar uma falha. É o que torna o RNF11 verificável — separar uma falha de consulta de
+uma de ingestão ou de processamento sem depender de correlação por horário, que num
+sistema com relógio virtual sequer bate.
+
+&emsp; Os alarmes cobrem DLQs, idade das filas, serviços abaixo do número desejado de
+tasks, erros das APIs, volume de 4xx, CPU, armazenamento e conexões do RDS, atraso do
+relógio virtual, fontes silenciosas e falhas ou backlog do motor de análise. O **SNS**
+distribui os alarmes quando há uma assinatura confirmada.
+
+&emsp; O alarme de atraso do relógio virtual **só existe com o simulador ligado**. Com
+`simulator_desired_count = 0` ninguém publica `LagSimSeconds`, e o tratamento por
+ausência (`breaching`) o deixava em ALARM permanente — um alarme vermelho descrevendo
+uma situação deliberada. Alarme que fica aceso o tempo todo deixa de ser lido, e perde
+também a capacidade de avisar quando o pipeline parar de verdade.
+
+&emsp; **EventBridge Scheduler continua planejado e não provisionado.** O processamento
+usa laços internos de longa duração no serviço ECS; o diagrama o representa apenas como
+evolução possível.
 
 ### 3.8 Matriz de conexões
 
 | Origem | Destino | Comunicação | Finalidade |
 |---|---|---|---|
-| Simulador | API Gateway de ingestão | HTTPS `POST /v1/changes` | Publicar mudanças reproduzidas |
-| Aplicação cliente | API Gateway de ingestão | HTTPS `POST /v1/events` | Publicar eventos de sessão |
+| Simulador | API Gateway de ingestão | HTTPS `POST /v1/changes`, Bearer `ingest` | Publicar mudanças reproduzidas |
+| Aplicação cliente | API Gateway de ingestão | HTTPS `POST /v1/events`, Bearer `ingest` | Publicar eventos de sessão |
+| API Gateway (ingestão e leitura) | Lambda `authorizer` | Invocação AWS, cache de 5 min | Autorizar a requisição antes da integração |
+| Lambda `authorizer` | Secrets Manager | HTTPS `GetSecretValue` | Ler os SHA-256 dos tokens |
 | API Gateway | SQS | Integração AWS `SQS-SendMessage` | Enfileirar sem Lambda intermediária |
 | SQS `changes` | `merge_worker` | AWS SDK, long polling | Consumir mudanças |
 | SQS `events` | `event_worker` | AWS SDK, long polling | Consumir eventos |
 | S3 `origem` | `loader` | HTTPS `S3 GetObject` | Ler Parquet e manifesto |
+| Secrets Manager | Task `simulator` | Resolução de `secrets` pela execution role | Injetar o token de ingestão sem expô-lo na task definition |
 | Componentes Python | RDS | PostgreSQL/TCP 5432 via `psycopg` | Persistência, ETL e consulta |
-| Navegador | S3 `frontend` | HTTP `GET` | Baixar o dashboard estático |
-| Navegador | API Gateway de leitura | HTTPS `GET` | Consultar dados e hipóteses |
+| Navegador | S3 `frontend` | **HTTP** `GET` pelo endpoint de website | Baixar os objetos públicos do dashboard estático |
+| Navegador | API Gateway de leitura | HTTPS `GET`, Bearer `dashboard` | Consultar dados e hipóteses |
 | API Gateway de leitura | Lambda `read_api` | Invocação AWS | Executar a API Flask |
-| ECR | Tasks Fargate | HTTPS | Baixar imagens dos containers |
-| Serviços | CloudWatch/SNS | Logs, métricas e alarmes | Operação e notificação |
+| ECR | Tasks Fargate | HTTPS | Baixar imagens dos containers, por tag de SHA |
+| Serviços | CloudWatch/SNS | Logs JSON, métricas e alarmes | Operação e notificação |
 
 ---
 
@@ -268,19 +436,55 @@ atividades cuja coordenação já é transacional.
 
 ### 4.7 Adaptações de rede ao Learner Lab
 
-&emsp; A variável `db_publicly_accessible` possui valor padrão `false`. O arquivo de
-exemplo do Learner Lab altera explicitamente o valor para `true` e restringe o acesso
-ao CIDR informado em `db_allowed_cidr`; `0.0.0.0/0` é recusado pela validação. Da mesma
-forma, `assign_public_ip = true` evita o NAT Gateway, mas o security group das tasks
-continua sem regras de entrada. Essas concessões são próprias do laboratório e não
-representam a postura recomendada para produção.
+&emsp; `assign_public_ip = true` evita o custo de um NAT Gateway, mas o security group
+das tasks continua sem regras de entrada. É uma concessão do laboratório e não a
+postura recomendada para produção, que usaria sub-redes privadas com NAT ou VPC
+endpoints.
 
-### 4.8 Limitação do website S3
+&emsp; `db_publicly_accessible` permanece `false`, inclusive no laboratório. A
+alternativa — banco público restrito ao CIDR de quem estivesse trabalhando — foi
+descartada porque fazia a exposição do dado do parceiro depender de uma linha de
+`tfvars` e da rede de alguém. A task `migration`, que roda dentro da VPC, dá o mesmo
+acesso administrativo sem essa dependência, ao custo de uma chamada `run-task` em vez
+de um `psql` direto.
 
-&emsp; O site estático em S3 reduz custo e permanece disponível quando os serviços do
-laboratório são pausados. A contrapartida é o endpoint HTTP, sem certificado e sem
-autenticação na borda. CloudFront com HTTPS, política de cache e controle de acesso é
-uma melhoria planejada para um ambiente produtivo.
+### 4.8 Website S3 no Learner Lab
+
+&emsp; O site estático no endpoint de website do S3 reduz custo, permanece disponível
+quando os serviços do laboratório são pausados e usa apenas operações permitidas pelo
+papel `voclabs`. O bucket concede leitura pública somente aos objetos do dashboard; a
+API e os dados continuam separados e protegidos pelo token Bearer.
+
+&emsp; A contrapartida é relevante: o endpoint serve **somente HTTP**. Como o dashboard
+pede um token colado pelo operador, um intermediário de rede pode observar a
+credencial ou alterar o JavaScript entregue e capturá-la. O armazenamento do token
+apenas em `sessionStorage` reduz persistência local, mas não corrige a ausência de TLS.
+Por isso esta arquitetura é um fallback temporário para demonstração em rede confiável,
+e não a postura recomendada para produção.
+
+&emsp; Alternativas avaliadas:
+
+| Alternativa | Por que não |
+|---|---|
+| Website S3 em HTTP | Escolhido temporariamente porque é suportado pelo papel do laboratório; exige rede confiável e rotação após suspeita de exposição |
+| CDN gerenciada com TLS e bucket privado | As operações necessárias não são permitidas pelo papel `voclabs` desta sessão |
+| Certificado próprio no ACM com domínio da equipe | Exigiria um domínio registrado e uma zona de DNS que o laboratório não tem onde hospedar |
+| Servir o dashboard pela própria Lambda | Transformaria arquivo estático em invocação cobrada por requisição e acrescentaria cold start ao carregamento da página |
+
+### 4.9 Tabela de decisões arquiteturais
+
+| # | Decisão | Alternativa descartada | Atributo de qualidade | Falha prevista e mitigação | Custo | Rollback |
+|---|---|---|---|---|---|---|
+| 1 | PostgreSQL em vez de DynamoDB | DynamoDB com GSIs | Adequação funcional: agregação e janela temporal em SQL | Instância única é ponto de falha; `db_multi_az` disponível, desligado por custo | ~US$ 60/mês em `db.t3.medium` | Snapshot do RDS antes de migration destrutiva |
+| 2 | Integração direta API Gateway → SQS | Lambda intermediária | Desempenho e custo: sem cold start no caminho de ingestão | Payload inválido só é detectado no worker; DLQ com motivo registrado | Por requisição | Rota é declarativa; reverter é um `apply` |
+| 3 | Duas filas e dois workers | Fila única com roteamento no consumidor | Confiabilidade: rajada de CDC não bloqueia evento de sessão | Backlog independente por fluxo, com alarme próprio | Duas filas + duas DLQ, custo desprezível | — |
+| 4 | Lambda para leitura, Fargate para processamento | Fargate para tudo | Custo: uso intermitente do dashboard | Cold start de ENI na VPC; memória de 1024 MB medida contra o banco real | ~US$ 0 ocioso | — |
+| 5 | Lambda authorizer com token compartilhado | API key; Cognito | Segurança (RNF09) dentro do escopo do MVP | Token identifica serviço, não pessoa; rotação por `make auth-rotate` | Invocação com cache de 5 min | Remover `authorization_type` das rotas |
+| 6 | Hash do token no Secrets Manager | Token em claro no Terraform | Segurança: o valor não entra no state nem no repositório | Perda do token de leitura exige rotação dos dois | Dois segredos | Rotacionar |
+| 7 | Website S3 público para leitura | CDN com TLS e bucket privado | Compatibilidade com as permissões do Learner Lab e baixo custo | HTTP expõe a página e o token a intermediários; uso restrito a rede confiável e ambiente temporário | Armazenamento e requisições S3 | Migrar para hospedagem HTTPS quando o ambiente permitir |
+| 8 | Tag de imagem por SHA do commit | `latest` | Capacidade de manutenção: o `plan` mostra o que muda | Build de árvore suja é recusado por `make push` | — | Apontar o SHA anterior |
+| 9 | Amostragem uniforme em `/timeline` | Truncar o excedente | Desempenho sem perder cobertura da janela | Perda de resolução, sinalizada por `truncated` | — | Elevar `LIMITE_POR_RAIA` |
+| 10 | Índices `025` e `026` | Cache na aplicação | Desempenho (RNF02) sem risco de servir dado velho | Custo de escrita nos índices, desprezível neste volume | Armazenamento | Migration nova que remove o índice |
 
 ---
 
@@ -308,108 +512,146 @@ verificação pode duplicar recursos e retirar seu gerenciamento do Terraform.
 | Recurso AWS | Finalidade | Arquivo Terraform principal |
 |---|---|---|
 | API Gateway HTTP API | Ingestão e leitura | `apigateway*.tf`, `api_read.tf` |
+| Lambda `authorizer` | Verificação do token Bearer nas duas APIs | `auth.tf` |
+| Secrets Manager | SHA-256 dos tokens e token de ingestão em claro | `auth.tf`, `rds.tf` |
 | SQS + DLQs | Buffer e redrive dos dois fluxos | `sqs.tf`, `sqs_changes.tf` |
 | ECS Fargate | Workers, simulador, processamento, loader e migration | `ecs*.tf` |
-| ECR | Quatro imagens de container | `ecr.tf` |
-| RDS PostgreSQL 16 | Persistência transacional e analítica | `rds.tf` |
-| S3 `origem` | Dump, Parquet e manifesto | `s3_origem.tf` |
-| S3 `frontend` | Website estático | `frontend_s3.tf` |
-| Lambda | API de leitura Flask | `api_read.tf` |
+| ECR | Quatro imagens de container, marcadas pelo SHA do commit | `ecr.tf` |
+| RDS PostgreSQL 16 | Persistência transacional e analítica, **privado** | `rds.tf` |
+| S3 `origem` | Parquet e manifesto da carga inicial | `s3_origem.tf` |
+| S3 `frontend` | Export estático, website HTTP e leitura pública somente dos objetos | `frontend_s3.tf` |
+| Lambda `read_api` | API de leitura Flask | `api_read.tf` |
 | IAM | Roles e policies | `iam.tf` |
 | CloudWatch + SNS | Logs, métricas, alarmes e notificações | `observability.tf` |
 
 ### 5.3 Ordem de implantação
 
-#### Passo 1 — preparar e validar os artefatos
+&emsp; A ordem abaixo respeita as dependências reais entre os recursos. Cada passo só
+é possível depois do anterior; inverter dois deles produz uma falha cuja causa não é
+óbvia na mensagem de erro.
+
+> **Segurança → infraestrutura → imagens → migrations → carga → serviços → Lambda →
+> frontend → smoke → evidências**
+
+#### Passo 1 — segurança: conferir a conta e preparar os artefatos
+
+```bash
+export AWS_PROFILE=g4 AWS_REGION=us-east-1
+aws sts get-caller-identity --profile g4 --query Account --output text
+```
+
+&emsp; O id da conta do Learner Lab **muda a cada sessão** e está dentro de
+`existing_role_arn` no `terraform.tfvars`. Confirmá-lo antes de qualquer `plan` evita
+que o state passe a descrever uma conta que já não existe.
 
 ```bash
 make -C apps/basica install
-make -C apps/basica lambda-build
-make -C apps/basica lint
+make -C apps/basica lambda-build   # empacota read_api E authorizer
+make -C apps/basica check
 ```
 
-&emsp; O pacote da Lambda precisa existir antes do `terraform plan`. O lint valida
-Python e formatação/estrutura do Terraform antes de qualquer alteração na AWS.
+&emsp; Os dois zips precisam existir antes do `terraform plan`: o Terraform calcula o
+hash de cada arquivo para saber se a função mudou. Ambos são **reprodutíveis** — o
+build fixa o `mtime` dos arquivos antes de compactar, sem o que todo `plan` proporia
+atualizar as funções mesmo sem mudança de código, e o ruído esconderia a alteração
+real no meio do plano.
 
-#### Passo 2 — criar a infraestrutura com os serviços desligados
+#### Passo 2 — infraestrutura, com os serviços desligados
 
 ```bash
 cd apps/basica/infra
-cp terraform.tfvars.example terraform.tfvars
+cp terraform.tfvars.example terraform.tfvars   # preencher role e senhas
 terraform init
 terraform validate
-terraform plan \
-  -var="worker_desired_count=0" \
-  -var="processing_desired_count=0" \
-  -var="simulator_desired_count=0"
-terraform apply \
-  -var="worker_desired_count=0" \
-  -var="processing_desired_count=0" \
-  -var="simulator_desired_count=0"
+terraform plan  -var="worker_desired_count=0" \
+                -var="processing_desired_count=0" \
+                -var="simulator_desired_count=0"
+terraform apply -var="worker_desired_count=0" \
+                -var="processing_desired_count=0" \
+                -var="simulator_desired_count=0"
 ```
 
-&emsp; Esse passo cria VPC bindings, security groups, RDS, buckets, filas, APIs,
-cluster ECS, repositórios ECR, Lambda, alarmes e task definitions sem iniciar
-containers cujas imagens ainda não foram publicadas.
+&emsp; Cria security groups, RDS, buckets, endpoint de website S3, filas, APIs,
+authorizer, segredos, cluster ECS, repositórios ECR, Lambdas, alarmes e task
+definitions — sem iniciar containers cujas imagens ainda não existem.
 
-#### Passo 3 — construir e publicar as imagens no ECR
+#### Passo 3 — gerar e publicar os tokens
 
 ```bash
 cd ../../..
+make -C apps/basica auth-rotate
+```
+
+&emsp; Gera os dois tokens de 256 bits, grava os **hashes** no Secrets Manager e
+imprime os valores em claro **uma única vez**. Guarde-os agora: o de leitura não tem
+como ser recuperado; o de ingestão pode ser relido com `make auth-show-ingest`.
+
+&emsp; Este passo vem **antes** de subir os serviços: o simulador falha ao iniciar sem
+`CHANGES_TOKEN`, e falhar cedo é melhor que subir, avançar o relógio virtual e só
+descobrir o problema quando todo lote voltar 401 — deixando o relógio à frente do dado
+efetivamente ingerido.
+
+#### Passo 4 — construir e publicar as imagens no ECR
+
+```bash
 make -C apps/basica push
 ```
 
-&emsp; O comando publica `worker`, `simulator`, `processing` e `loader`. Em versões
-subsequentes, a tag deve identificar o commit para permitir auditoria e rollback.
+&emsp; Publica `worker`, `simulator`, `processing` e `loader`, cada uma com **duas
+tags**: o SHA do commit, que é o que a task definition referencia, e `latest`, apenas
+como apelido. O alvo recusa publicar a partir de uma árvore com alteração não
+commitada — uma imagem assim não corresponde a commit nenhum, e o rollback deixaria de
+ter para onde voltar.
 
-#### Passo 4 — aplicar as migrations e criar o usuário de leitura
+#### Passo 5 — aplicar as migrations e criar o usuário de leitura
 
-&emsp; No Learner Lab, com o RDS público restrito ao CIDR do desenvolvedor:
+```bash
+make -C apps/basica migrate-status-aws   # o que já está aplicado
+make -C apps/basica migrate-aws          # aplica as pendentes, até a 026
+```
+
+&emsp; As duas rodam pela task `migration`, dentro da VPC. O RDS é privado e não há
+rota da máquina de quem trabalha até a porta 5432 — nem deve haver. Acompanhe com
+`make logs SERVICO=processing`.
+
+&emsp; O usuário de leitura ainda precisa de uma conexão de escrita; ele é criado uma
+única vez, na primeira implantação:
 
 ```bash
 make -C apps/basica db-url
-# exportar DATABASE_URL conforme a saída anterior
-make -C apps/basica migrate
-DB_READER_PASSWORD='<senha do terraform.tfvars>' make -C apps/basica db-reader
+# exportar DATABASE_URL conforme a saída
+DB_READER_PASSWORD='<a mesma de read_api_db_password>' make -C apps/basica db-reader
 ```
 
-&emsp; Com RDS privado, as migrations podem ser executadas pela task `migration`
-dentro da VPC:
+&emsp; As migrations só podem ser aplicadas depois que o RDS e a imagem `processing`
+existem — daí a ordem entre os passos 4 e 5.
 
-```bash
-cd apps/basica/infra
-terraform output -raw migration_run_command | bash
-```
-
-&emsp; As migrations são aplicadas somente depois que o RDS e a imagem
-`processing` existem. Esse ordenamento corrige a dependência que estava invertida na
-versão anterior do documento.
-
-#### Passo 5 — executar a carga inicial
+#### Passo 6 — carga inicial
 
 ```bash
 make -C apps/basica origem-sync
 make -C apps/basica load
 ```
 
-&emsp; A task `loader` lê os 33 Parquet, usa `COPY FROM STDIN`, executa `ANALYZE` e
-compara as contagens com `_manifest.json`. O simulador deve permanecer desligado até
-a conclusão dessa etapa.
+&emsp; A task `loader` lê os Parquet, usa `COPY FROM STDIN`, executa `ANALYZE` e
+compara as contagens com `_manifest.json`. São de 20 a 30 minutos para 68,7 milhões de
+linhas. O simulador permanece desligado até a conclusão: reproduzir mudança sobre
+tabela vazia não produz nada.
 
-#### Passo 6 — ativar os serviços
+#### Passo 7 — ativar os serviços
 
 ```bash
-cd apps/basica/infra
-terraform apply
-cd ../../..
+cd apps/basica/infra && terraform apply && cd ../../..
 make -C apps/basica sim-on
+make -C apps/basica digests
 ```
 
-&emsp; O primeiro `apply` ativa os workers e o processamento conforme os valores do
-`terraform.tfvars`. O simulador é ligado separadamente após a carga para não tentar
-reproduzir mudanças sobre tabelas vazias.
+&emsp; O `apply` ativa workers e processamento conforme o `terraform.tfvars`, com
+`processing_desired_count = 1`. `make digests` confere que cada serviço está executando
+a tag do commit atual — é a verificação que faltava quando as task definitions
+apontavam para `latest`.
 
-#### Passo 7 — publicar o dashboard
+#### Passo 8 — publicar o dashboard
 
 ```bash
 make -C apps/basica env
@@ -417,29 +659,55 @@ make -C apps/basica frontend-install
 make -C apps/basica frontend-deploy
 ```
 
-&emsp; A URL da API é incorporada ao build do Next.js. A saída de
-`frontend-deploy` informa o endpoint HTTP público do website S3.
+&emsp; A URL da API entra no bundle em tempo de build; o token, **não** — ele é colado
+pelo operador na tela de acesso e vive apenas em `sessionStorage`. O alvo sincroniza o
+bucket e imprime a URL **HTTP** do website S3. Esta publicação deve ser usada somente
+em rede confiável devido à ausência de TLS na página que recebe o token.
+
+#### Passo 9 — smoke
+
+```bash
+export ARGUS_READ_TOKEN='<o token de leitura do passo 3>'
+make -C apps/basica smoke
+```
+
+&emsp; O smoke verifica, nesta ordem: **401 sem token**, **403 com token inválido**,
+**200 em `/health/live` sem token**, e então cada rota autenticada com status, latência
+e tamanho da resposta. Ele falha se qualquer rota passar de 5 s (RNF02).
+
+#### Passo 10 — evidências
+
+```bash
+export ARGUS_INGEST_TOKEN=$(make -C apps/basica auth-show-ingest)
+make -C apps/basica postman-evidencia
+make -C apps/basica count
+make -C apps/basica dlq
+cd apps/basica/infra && terraform plan     # precisa terminar sem mudanças
+```
+
+&emsp; `postman-evidencia` executa a coleção completa e versiona um resumo
+**sanitizado** — commit, ambiente, contagens, duração e falhas. O JSON completo do
+Newman **não** é versionado: ele carrega os cabeçalhos de cada requisição, inclusive o
+`Authorization`.
 
 ### 5.4 Verificação pós-implantação
 
-```bash
-make -C apps/basica smoke
-make -C apps/basica postman
-make -C apps/basica count
-make -C apps/basica dlq
-make -C apps/basica logs SERVICO=processing
-```
+&emsp; Além dos comandos do passo 10, devem ser verificados:
 
-&emsp; Além dos comandos, devem ser verificados:
-
-- migrations `001` a `023` registradas como aplicadas;
+- migrations `001` a `026` registradas como aplicadas;
 - 33 tabelas carregadas com contagens iguais ao `_manifest.json`;
+- `make lambda-hash` mostrando o mesmo hash local e `CodeSha256` publicado, para as
+  duas funções;
+- `make digests` sem nenhum serviço marcado como `ATRAS`;
 - mensagem sintética chegando à bronze e atravessando o ETL;
 - publicação de checkpoint Gold e conclusão de um run de análise;
 - views ocultando linhas com `available_at > sim.now()`;
 - Lambda consultando somente como usuário de leitura;
-- DLQs vazias, serviços estáveis e alarmes sem falha ativa;
-- dashboard acessível por HTTP e chamadas da API respondendo por HTTPS.
+- DLQs vazias, serviços estáveis e nenhum alarme em ALARM;
+- **dashboard acessível pelo endpoint HTTP do website S3**, em rede confiável, com a
+  tela de acesso aparecendo antes de qualquer consulta e o acesso liberado após o
+  token;
+- `terraform plan` terminando com zero alterações.
 
 ### 5.5 Rollback e recuperação
 
@@ -460,15 +728,18 @@ make -C apps/basica logs SERVICO=processing
 
 | Risco ou limitação | Situação e mitigação |
 |---|---|
-| Website S3 usa HTTP | CloudFront com HTTPS é evolução planejada |
-| RDS público no exemplo do Learner Lab | Acesso limitado ao CIDR; padrão da variável continua `false` |
-| Tasks em sub-redes públicas no laboratório | Security group sem ingress; produção deve preferir sub-redes privadas |
+| **Token identifica serviço, não pessoa** | Assumido e documentado. Não há como saber qual integrante fez uma consulta; a resposta a um vazamento é rotacionar os dois tokens (`make auth-rotate`), não revogar um usuário. Identidade individual exigiria Cognito, fora do escopo do MVP |
+| **Dashboard servido por HTTP** | O website S3 não oferece TLS. Um intermediário pode ler o token ou alterar a página para capturá-lo. Usar somente em rede confiável, não reutilizar o token em outros sistemas e rotacioná-lo após qualquer suspeita de exposição; produção exige hospedagem HTTPS |
+| **Token do dashboard vive no navegador** | Só em `sessionStorage`, por aba, descartado ao fechá-la. Não entra no bundle, na URL, em `localStorage`, em cookie nem em log. Isso reduz persistência local, mas não protege o token durante o carregamento da página HTTP |
+| **Propagação da rotação leva até 10 min** | Cinco minutos de cache do authorizer no API Gateway mais cinco do cache em memória da função. Aceitável para rotação planejada; num vazamento, apagar a versão do segredo derruba o acesso no próximo ciclo |
+| Tasks em sub-redes públicas no laboratório | Security group sem ingress; produção deve preferir sub-redes privadas com NAT ou VPC endpoints |
 | Estado local do Terraform | Preferir backend remoto; nunca descartar state sem validar conta e recursos |
 | Classe `db.t3.medium` indisponível no laboratório | Confirmar oferta antes do apply; avaliar `small` ou `micro` |
 | EventBridge não provisionado | O processamento roda em laços internos no ECS |
 | Escalabilidade automática não configurada | `desired_count` é fixo; escalabilidade horizontal é evolução futura |
 | Propagação de deletes para Silver/Gold | Validar e implementar política explícita antes de depender desse comportamento |
-| APIs sem autenticação completa | Restringir origens não substitui autenticação; adicionar authorizer em produção |
+| Instância RDS única | `db_multi_az` existe e está desligado por custo; um snapshot precede toda migration destrutiva |
+| Dump bruto fora do bucket de origem | A carga inicial usa o Parquet derivado, que está lá. O dump é dado do parceiro, não redistribuível; a ausência é característica do ambiente, não pendência |
 
 ---
 
@@ -481,9 +752,12 @@ responsabilidade, mas compartilham o PostgreSQL de forma deliberada para reduzir
 e complexidade no MVP. O plano de implantação respeita as dependências reais entre
 Terraform, ECR, migrations, carga inicial, serviços e frontend.
 
-&emsp; CloudFront, autenticação completa, sub-redes privadas e auto scaling permanecem
-como evoluções. Esses itens não devem ser apresentados como implementados no estado
-atual.
+&emsp; Autenticação Bearer nas três APIs, website S3 público para leitura, RDS privado,
+imagens marcadas pelo SHA do commit e log estruturado correlacionado por
+`X-Request-Id` compõem a configuração atual. A hospedagem HTTPS do dashboard volta a
+ser uma evolução necessária, ao lado de identidade individual por Cognito, sub-redes
+privadas, auto scaling e EventBridge Scheduler — nenhuma delas deve ser apresentada
+como implementada.
 
 ---
 

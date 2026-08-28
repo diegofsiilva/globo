@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { QueryProvider } from "@/providers/query-provider";
 import { RecorteContent } from "./_components/recorte-content";
 
+/** Título e descrição da aba do navegador para a tela Recorte. */
 export const metadata: Metadata = {
   title: "Recorte · Monitoração Agêntica",
   description: "Definição explícita e ajuste da população afetada",

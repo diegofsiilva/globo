@@ -23,35 +23,61 @@ BASELINE_DESDE = DESDE - timedelta(hours=6)  # baseline_hours=6 na fixture de te
 JANELA_QS = f"from={quote(DESDE.isoformat())}&to={quote(ATE.isoformat())}"
 
 
-def _inserir_bucket(pool, *, bucket_ts, value, hora_brt=8, available_at=None):
+def _inserir_bucket(
+    pool,
+    *,
+    bucket_ts,
+    value,
+    hora_brt=8,
+    available_at=None,
+    source="prometheus",
+    entity="pop-fortaleza",
+    metric="p95_ms",
+    tem_jogo=False,
+):
     with pool.connection() as conn:
         conn.execute(
             """
             INSERT INTO gold.feature_bucket
               (bucket_ts, source, entity, metric, value, hora_brt, dow,
                tem_jogo, available_at)
-            VALUES (%s, 'prometheus', 'pop-fortaleza', 'p95_ms', %s, %s, 1,
-                    false, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, 1, %s, %s)
             """,
-            (bucket_ts, value, hora_brt, available_at or bucket_ts),
+            (
+                bucket_ts,
+                source,
+                entity,
+                metric,
+                value,
+                hora_brt,
+                tem_jogo,
+                available_at or bucket_ts,
+            ),
         )
 
 
-def _inserir_baseline(pool, valores, *, hora_brt=8):
+def _inserir_baseline(pool, valores, *, hora_brt=8, **grupo):
     """Tres (ou mais) pontos de baseline com o MESMO hora_brt da janela --
     e o que faz o JOIN de `desvios()` achar historico, sem precisar de dias
-    de calendario reais dentro da janela curta de baseline do teste."""
+    de calendario reais dentro da janela curta de baseline do teste.
+    """
     passo = BASELINE_DESDE
     for valor in valores:
-        _inserir_bucket(pool, bucket_ts=passo, value=valor, hora_brt=hora_brt)
+        _inserir_bucket(pool, bucket_ts=passo, value=valor, hora_brt=hora_brt, **grupo)
         passo += timedelta(hours=1)
+
+
+def _inserir_sinal(pool, **grupo):
+    """Baseline estavel (media 50, desvio 2) mais um pico -- um sinal critico."""
+    _inserir_baseline(pool, [48, 50, 52], **grupo)
+    _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150, **grupo)
 
 
 def test_sem_dado_devolve_lista_vazia(client, pool):
     resposta = client.get(f"/api/v1/signals?{JANELA_QS}")
 
     assert resposta.status_code == 200
-    assert resposta.json == {"items": []}
+    assert resposta.json == {"items": [], "count": 0, "truncated": False}
 
 
 def test_resposta_permite_cache_curto_entre_pollings(client, pool):
@@ -66,14 +92,38 @@ def test_caso_de_uso_antecipa_limiar_ao_repositorio():
     class Repository:
         chamada = None
 
-        def desvios(self, desde, ate, limiar):
-            self.chamada = (desde, ate, limiar)
+        def desvios(self, desde, ate, limiar, escopo=None):
+            self.chamada = (desde, ate, limiar, escopo)
             return []
 
     repository = Repository()
 
-    assert GenerateSignals(repository).execute(DESDE, ATE) == {"items": []}
-    assert repository.chamada == (DESDE, ATE, LIMIAR_SINAL)
+    assert GenerateSignals(repository).execute(DESDE, ATE) == {
+        "items": [],
+        "count": 0,
+        "truncated": False,
+    }
+    assert repository.chamada == (DESDE, ATE, LIMIAR_SINAL, None)
+
+
+def test_caso_de_uso_repassa_escopo_ao_repositorio():
+    """O filtro da tela precisa chegar ao SQL, e nao ser aplicado em memoria:
+    filtrar depois traria a janela inteira do banco a cada consulta.
+    """
+
+    class Repository:
+        chamada = None
+
+        def desvios(self, desde, ate, limiar, escopo=None):
+            self.chamada = (desde, ate, limiar, escopo)
+            return []
+
+    repository = Repository()
+    escopo = {"source": "prometheus", "tem_jogo": "true"}
+
+    GenerateSignals(repository).execute(DESDE, ATE, escopo=escopo)
+
+    assert repository.chamada[3] == escopo
 
 
 def test_desvio_forte_vira_sinal_critico(client, pool):
@@ -113,7 +163,8 @@ def test_desvio_medio_vira_sinal_de_atencao(client, pool):
 def test_trend_e_serie_numerica_nao_categoria(client, pool):
     """Contrato exigido pelo mock do frontend (agora/_mocks/scenario.ts):
     `trend` precisa ser number[], nao a string categorica -- essa virou
-    `direction`."""
+    `direction`.
+    """
     _inserir_baseline(pool, [48, 50, 52])
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=45), value=120)
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
@@ -127,7 +178,8 @@ def test_trend_e_serie_numerica_nao_categoria(client, pool):
 
 def test_consecutive_buckets_conta_so_a_sequencia_final(client, pool):
     """So os buckets seguidos ACIMA do limiar, contados do fim pra tras --
-    um pico isolado no meio da janela nao deve inflar a contagem."""
+    um pico isolado no meio da janela nao deve inflar a contagem.
+    """
     _inserir_baseline(pool, [48, 50, 52])
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=45), value=150)
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=51)  # recupera
@@ -142,7 +194,8 @@ def test_consecutive_buckets_conta_so_a_sequencia_final(client, pool):
 
 def test_sinal_recuperado_no_ultimo_bucket_nao_aparece(client, pool):
     """'Ativo agora', nao 'desviou em algum momento da janela' -- o ultimo
-    bucket voltando ao normal remove o grupo da lista."""
+    bucket voltando ao normal remove o grupo da lista.
+    """
     _inserir_baseline(pool, [48, 50, 52])
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=5), value=51)
@@ -164,7 +217,8 @@ def test_sem_historico_de_baseline_suficiente_nao_vira_sinal(client, pool):
 
 def test_respeita_o_relogio_virtual(client, pool):
     """Um bucket com `available_at` no futuro simulado nao pode aparecer --
-    mesma barreira de `gold.v_feature_bucket` usada no resto da API."""
+    mesma barreira de `gold.v_feature_bucket` usada no resto da API.
+    """
     _inserir_baseline(pool, [48, 50, 52])
     _inserir_bucket(
         pool,
@@ -182,7 +236,8 @@ def test_janela_padrao_sem_from_to_usa_sim_now(client, pool):
     """Sem `from`/`to`, a janela e as ultimas 6 h ate `sim.now()`
     (`JANELA_PADRAO_HORAS` em `signals_http.py`) e a baseline olha as 6 h
     ANTES disso -- diferente da janela de 1 h usada no resto deste arquivo,
-    entao os pontos de baseline aqui precisam de outro deslocamento."""
+    entao os pontos de baseline aqui precisam de outro deslocamento.
+    """
     desde_padrao = REFERENCE_NOW - timedelta(hours=6)
     baseline_desde_padrao = desde_padrao - timedelta(hours=6)
     passo = baseline_desde_padrao
@@ -200,7 +255,8 @@ def test_janela_padrao_sem_from_to_usa_sim_now(client, pool):
 def test_threshold_value_converte_z_para_unidade_nativa(client, pool):
     """`threshold_value` e `baseline +- threshold_z * stddev`, do lado em que
     o desvio esta acontecendo -- e o que permite o front mostrar o limiar na
-    unidade da metrica, sem o operador precisar interpretar z-score."""
+    unidade da metrica, sem o operador precisar interpretar z-score.
+    """
     _inserir_baseline(pool, [48, 50, 52])  # media 50, desvio 2
     _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150)
 
@@ -217,3 +273,130 @@ def test_sessions_impacted_indisponivel_sem_vinculo_causal(client, seeded, pool)
     sinal = client.get(f"/api/v1/signals?{JANELA_QS}").json["items"][0]
 
     assert sinal["sessions_impacted"] is None
+
+
+# --------------------------------------------------------------------------- #
+# Filtros de escopo, limite e truncamento
+#
+# Sao os mesmos filtros que Explorar, Comparar e Recorte usam. Antes desta
+# versao a tela Agora exibia controles de plataforma/fabricante/regiao que a
+# rota ignorava: o operador mudava o filtro e a lista continuava igual.
+# --------------------------------------------------------------------------- #
+
+
+def test_filtra_por_source(client, pool):
+    _inserir_sinal(pool, source="prometheus")
+    _inserir_sinal(pool, source="newrelic")
+
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}&source=newrelic").json["items"]
+
+    assert [item["source"] for item in itens] == ["newrelic"]
+
+
+def test_filtra_por_entity(client, pool):
+    _inserir_sinal(pool, entity="pop-fortaleza")
+    _inserir_sinal(pool, entity="pop-recife")
+
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}&entity=pop-recife").json["items"]
+
+    assert [item["entity"] for item in itens] == ["pop-recife"]
+
+
+def test_filtra_por_metric(client, pool):
+    _inserir_sinal(pool, metric="p95_ms")
+    _inserir_sinal(pool, metric="erro_pct")
+
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}&metric=erro_pct").json["items"]
+
+    assert [item["metric"] for item in itens] == ["erro_pct"]
+
+
+def test_filtra_por_tem_jogo(client, pool):
+    _inserir_sinal(pool, entity="pop-com-jogo", tem_jogo=True)
+    _inserir_sinal(pool, entity="pop-sem-jogo", tem_jogo=False)
+
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}&tem_jogo=true").json["items"]
+
+    assert [item["entity"] for item in itens] == ["pop-com-jogo"]
+
+
+def test_filtro_restringe_tambem_o_baseline(client, pool):
+    """O baseline precisa sair do MESMO recorte da janela.
+
+    Com baseline global, um grupo cujo historico so existe fora do recorte
+    apareceria como desvio -- a rota estaria medindo a diferenca entre os
+    recortes, e nao um desvio dentro do recorte pedido.
+    """
+    # Baseline so em buckets SEM jogo; o pico esta num bucket COM jogo.
+    _inserir_baseline(pool, [48, 50, 52], tem_jogo=False)
+    _inserir_bucket(
+        pool,
+        bucket_ts=REFERENCE_NOW - timedelta(minutes=30),
+        value=150,
+        tem_jogo=True,
+    )
+
+    itens = client.get(f"/api/v1/signals?{JANELA_QS}&tem_jogo=true").json["items"]
+
+    assert itens == []
+
+
+def test_dimensao_desconhecida_e_ignorada_e_nao_vira_sql(client, pool):
+    """Parametro fora de `DIMENSOES` nao entra na consulta.
+
+    O nome da coluna nunca vem do cliente; um parametro estranho e simplesmente
+    ignorado, e nao um 500 nem uma clausula injetada.
+    """
+    _inserir_sinal(pool)
+
+    resposta = client.get(f"/api/v1/signals?{JANELA_QS}&drop_table=1")
+
+    assert resposta.status_code == 200
+    assert len(resposta.json["items"]) == 1
+
+
+def test_limit_corta_pelos_desvios_mais_fortes(client, pool):
+    _inserir_baseline(pool, [48, 50, 52], entity="pop-a")
+    _inserir_bucket(pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=80, entity="pop-a")
+    _inserir_baseline(pool, [48, 50, 52], entity="pop-b")
+    _inserir_bucket(
+        pool, bucket_ts=REFERENCE_NOW - timedelta(minutes=30), value=150, entity="pop-b"
+    )
+
+    corpo = client.get(f"/api/v1/signals?{JANELA_QS}&limit=1").json
+
+    assert corpo["count"] == 1
+    assert corpo["truncated"] is True
+    # O que sobra e o desvio MAIOR, nao o primeiro que o banco devolveu.
+    assert corpo["items"][0]["entity"] == "pop-b"
+
+
+def test_sem_truncamento_quando_tudo_cabe(client, pool):
+    _inserir_sinal(pool)
+
+    corpo = client.get(f"/api/v1/signals?{JANELA_QS}").json
+
+    assert corpo["count"] == 1
+    assert corpo["truncated"] is False
+
+
+def test_limit_fora_da_faixa_e_422(client, pool):
+    assert client.get(f"/api/v1/signals?{JANELA_QS}&limit=101").status_code == 422
+    assert client.get(f"/api/v1/signals?{JANELA_QS}&limit=0").status_code == 422
+
+
+def test_resposta_cabe_no_orcamento_de_banda(client, pool):
+    """RNF02: `/signals` abaixo de 100 KB.
+
+    Com o limite padrao de 25 sinais e a sparkline de cada um, o corpo fica
+    uma ordem de grandeza abaixo do teto -- o teste existe para que uma
+    ampliacao futura do payload por sinal nao passe despercebida.
+    """
+    for indice in range(40):
+        _inserir_sinal(pool, entity=f"pop-{indice:03d}")
+
+    resposta = client.get(f"/api/v1/signals?{JANELA_QS}")
+
+    assert resposta.json["count"] == 25
+    assert resposta.json["truncated"] is True
+    assert len(resposta.data) < 100 * 1024

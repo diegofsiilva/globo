@@ -31,6 +31,12 @@ from psycopg_pool import ConnectionPool
 class SignalsRepository:
     """Le desvios ativos de ``gold.v_feature_bucket``."""
 
+    # As mesmas dimensoes que `GoldRepository.DIMENSOES` expoe para Explorar,
+    # Comparar e Recorte. A tela Agora escolhe um subconjunto (`source`,
+    # `entity`, `metric`, `tem_jogo`) porque `hora_brt` e `dow` sao o eixo do
+    # baseline: filtrar por eles aqui compararia a serie consigo mesma.
+    DIMENSOES = ("source", "entity", "metric", "tem_jogo")
+
     def __init__(
         self,
         pool: ConnectionPool,
@@ -54,9 +60,29 @@ class SignalsRepository:
         self._baseline_horas = baseline_hours
         self._max_series_ativas = max_active_series
 
-    def desvios(self, desde: datetime, ate: datetime, limiar: float = 2.0) -> list[dict[str, Any]]:
-        """Compara cada bucket da janela com a media/desvio da mesma hora do
-        dia numa janela anterior.
+    @property
+    def max_active_series(self) -> int:
+        """Teto de series ativas que a consulta considera.
+
+        Returns:
+            int: Numero maximo de series que `desvios` chega a avaliar por
+                completo. A aplicacao usa isto para saber que a lista pode
+                estar truncada na origem, e nao apenas pelo `limit` da rota.
+        """
+        return self._max_series_ativas
+
+    def desvios(
+        self,
+        desde: datetime,
+        ate: datetime,
+        limiar: float = 2.0,
+        escopo: dict[str, str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Mede o desvio de cada bucket da janela contra o baseline circadiano.
+
+        O baseline e a media e o desvio-padrao da MESMA hora do dia, apurados
+        numa janela anterior -- e o que evita ler o pico normal do horario nobre
+        como anomalia toda noite.
 
         Args:
             desde (datetime): Inicio da janela analisada.
@@ -64,11 +90,20 @@ class SignalsRepository:
             limiar (float): Magnitude mínima de z-score que ainda caracteriza
                 um sinal ativo. O filtro antecipado evita calcular tendências
                 para séries que a aplicação descartaria em seguida.
+            escopo (dict[str, str] | None): Filtros de dimensao (`source`,
+                `entity`, `metric`, `tem_jogo`) aplicados tanto a janela quanto
+                ao baseline. Restringir os dois lados e o que mantem a
+                comparacao valida: um baseline de "todas as horas" contra uma
+                janela de "so com jogo" mediria a diferenca entre os recortes,
+                nao um desvio.
 
         Returns:
             list[dict[str, Any]]: Uma linha por bucket, com `z` calculado.
                 `z` vem `None` quando a fonte nao tem historico suficiente
                 (menos de 3 amostras) na janela de base.
+
+        Raises:
+            ValueError: Se `escopo` trouxer uma dimensao fora de `DIMENSOES`.
         """
         baseline_desde = desde - timedelta(hours=self._baseline_horas)
         # youbora_device tem ~2.900 aparelhos: incluir esse grain transforma
@@ -76,6 +111,11 @@ class SignalsRepository:
         # buckets, estoura os 30 s da Lambda e ainda mistura aparelho com POP.
         # Quem quer o grain de dispositivo usa Recorte, com source explicito.
         excluidas = ["youbora_device"]
+
+        filtro_janela, params_janela = self._filtros(escopo)
+        filtro_lateral, params_lateral = self._filtros(escopo, alias="h")
+        filtro_base, params_base = self._filtros(escopo, alias="b")
+
         return self._all(
             sql.SQL(
                 """
@@ -85,6 +125,7 @@ class SignalsRepository:
                    WHERE bucket_ts >= %s AND bucket_ts <= %s
                      AND value IS NOT NULL
                      AND NOT (source = ANY(%s))
+                     {filtro_janela}
                 ),
                 ultimo AS (
                   SELECT DISTINCT ON (source, entity, metric)
@@ -115,6 +156,7 @@ class SignalsRepository:
                          AND h.hora_brt = u.hora_brt
                          AND h.bucket_ts >= %s AND h.bucket_ts < %s
                          AND h.value IS NOT NULL
+                         {filtro_lateral}
                     ) b
                 ),
                 ativos AS MATERIALIZED (
@@ -145,6 +187,7 @@ class SignalsRepository:
                    WHERE b.bucket_ts >= %s AND b.bucket_ts < %s
                      AND b.value IS NOT NULL
                      AND NOT (b.source = ANY(%s))
+                     {filtro_base}
                    GROUP BY b.source, b.entity, b.metric, b.hora_brt
                 )
                 SELECT j.bucket_ts, j.source, j.entity, j.metric, j.value,
@@ -162,22 +205,75 @@ class SignalsRepository:
                    AND b.metric = j.metric AND b.hora_brt = j.hora_brt
                  ORDER BY j.source, j.entity, j.metric, j.bucket_ts
                 """
+            ).format(
+                filtro_janela=filtro_janela,
+                filtro_lateral=filtro_lateral,
+                filtro_base=filtro_base,
             ),
             [
                 desde,
                 ate,
                 excluidas,
+                *params_janela,
                 baseline_desde,
                 desde,
+                *params_lateral,
                 limiar,
-                self._max_series_ativas,
+                # Uma serie a mais que o teto, de proposito: e assim que a
+                # aplicacao distingue "sao exatamente 100 sinais" de "sao 100 e
+                # o banco parou de contar". A serie excedente e descartada, mas
+                # a sua existencia vira o `truncated` da resposta.
+                self._max_series_ativas + 1,
                 baseline_desde,
                 desde,
                 excluidas,
+                *params_base,
             ],
         )
 
+    def _filtros(
+        self, escopo: dict[str, str] | None, alias: str | None = None
+    ) -> tuple[sql.Composed, list[Any]]:
+        """Traduz o escopo da tela Agora em predicados `AND` parametrizados.
+
+        Args:
+            escopo (dict[str, str] | None): Dimensao -> valor, ja filtrado de
+                vazios pela camada HTTP.
+            alias (str | None): Prefixo da tabela dentro da consulta, quando o
+                predicado precisa qualificar a coluna (`h`, `b`).
+
+        Returns:
+            tuple[sql.Composed, list[Any]]: Fragmento SQL pronto para
+                interpolar e os parametros na mesma ordem.
+
+        Raises:
+            ValueError: Se uma dimensao nao estiver em `DIMENSOES`. O nome da
+                coluna nunca vem do cliente: e a constante que decide, e o
+                valor viaja como parametro.
+        """
+        if not escopo:
+            return sql.SQL(""), []
+
+        predicados: list[sql.Composed] = []
+        params: list[Any] = []
+        for dimensao, valor in escopo.items():
+            if dimensao not in self.DIMENSOES:
+                raise ValueError(f"dimensao invalida: {dimensao}")
+            coluna = sql.Identifier(alias, dimensao) if alias else sql.Identifier(dimensao)
+            predicados.append(sql.SQL("AND {}::text = %s").format(coluna))
+            params.append(valor)
+        return sql.SQL(" ").join(predicados), params
+
     def _all(self, instrucao, params: list[Any]) -> list[dict[str, Any]]:
+        """Executa a consulta e devolve todas as linhas como dicionarios.
+
+        Args:
+            instrucao: Consulta ja composta por `psycopg.sql`.
+            params (list[Any]): Parametros na ordem dos `%s` da consulta.
+
+        Returns:
+            list[dict[str, Any]]: Linhas do cursor, uma por bucket.
+        """
         with self._pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(instrucao, params)
             return cur.fetchall()

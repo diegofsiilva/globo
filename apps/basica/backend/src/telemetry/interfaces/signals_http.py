@@ -10,10 +10,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, jsonify
+from flask import Blueprint, current_app, jsonify, request
 
-from telemetry.application.signals import GenerateSignals
-from telemetry.interfaces.http import parse_datetime
+from telemetry.application.signals import LIMITE_MAXIMO, LIMITE_PADRAO, GenerateSignals
+from telemetry.domain.exceptions import ValidationError
+from telemetry.infrastructure.signals import SignalsRepository
+from telemetry.interfaces.http import parse_datetime, parse_int
 
 signals_api = Blueprint("signals_api", __name__, url_prefix="/api/v1")
 
@@ -28,9 +30,37 @@ def listar_sinais():
 
     So entra grupo cujo ULTIMO bucket da janela ainda esta fora do baseline
     -- "ativo agora", nao "desviou em algum momento da janela".
+
+    Aceita os mesmos filtros de dimensao das demais telas (`source`, `entity`,
+    `metric`, `tem_jogo`) e um `limit` (padrao 25, maximo 100). A resposta traz
+    `count` e `truncated` para que a tela saiba que existe mais do que coube.
     """
     desde, ate = _janela()
-    return jsonify(GenerateSignals(_repository()).execute(desde, ate))
+    limite = parse_int("limit", default=LIMITE_PADRAO, minimum=1, maximum=LIMITE_MAXIMO)
+    try:
+        return jsonify(
+            GenerateSignals(_repository()).execute(desde, ate, escopo=_escopo(), limite=limite)
+        )
+    except ValueError as error:
+        raise ValidationError(str(error), field="source") from error
+
+
+def _escopo() -> dict[str, str]:
+    """Le os filtros de dimensao aceitos pela tela Agora.
+
+    Mesma regra de `http._escopo_da_query`: um parametro repetido representa
+    uma lista, e nao deve virar igualdade pelo primeiro valor -- a tela cairia
+    num recorte que o operador nao pediu, sem nada na interface indicando isso.
+
+    Returns:
+        dict[str, str]: Dimensao -> valor unico informado.
+    """
+    escopo = {}
+    for dimensao in SignalsRepository.DIMENSOES:
+        valores = [valor for valor in request.args.getlist(dimensao) if valor]
+        if len(valores) == 1:
+            escopo[dimensao] = valores[0]
+    return escopo
 
 
 def _janela() -> tuple[datetime, datetime]:
@@ -50,4 +80,10 @@ def _janela() -> tuple[datetime, datetime]:
 
 
 def _repository():
+    """Obtém o repositório de sinais registrado na aplicação.
+
+    Returns:
+        SignalsRepository: A instância montada em `create_app`, ou o dublê que
+            o teste injetou no lugar dela.
+    """
     return current_app.extensions["signals_repository"]

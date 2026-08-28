@@ -80,21 +80,34 @@ def _blocos(changes: list[dict]) -> list[list[dict]]:
 class Emitter:
     """Publica change events na API de ingestao."""
 
-    def __init__(self, url: str, *, timeout: float = 20.0, tentativas: int = 3) -> None:
+    def __init__(
+        self,
+        url: str,
+        *,
+        token: str | None = None,
+        timeout: float = 20.0,
+        tentativas: int = 3,
+    ) -> None:
         """Inicializa o emissor.
 
         Args:
             url (str): URL completa de POST /v1/changes.
+            token (str | None): Token Bearer de audiencia `ingest`. Chega ao
+                container pelo Secrets Manager, via `secrets` da task
+                definition -- nunca por `environment`, que apareceria em claro
+                no `describe-task-definition` de qualquer um com acesso de
+                leitura ao ECS.
             timeout (float): Timeout de cada requisicao, em segundos.
             tentativas (int): Tentativas por lote antes de desistir.
         """
         self._url = url
         self._tentativas = tentativas
+        cabecalhos = {"content-type": "application/json"}
+        if token:
+            cabecalhos["authorization"] = f"Bearer {token}"
         # Cliente reaproveitado entre ticks: reabrir a conexao TLS a cada POST
         # custaria mais handshake do que envio.
-        self._client = httpx.Client(
-            timeout=timeout, headers={"content-type": "application/json"}
-        )
+        self._client = httpx.Client(timeout=timeout, headers=cabecalhos)
 
     def emitir(
         self,

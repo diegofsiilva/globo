@@ -34,6 +34,7 @@ locals {
   task_execution_role_arn = var.create_iam_roles ? aws_iam_role.task_execution[0].arn : var.existing_role_arn
   task_role_arn           = var.create_iam_roles ? aws_iam_role.task[0].arn : var.existing_role_arn
   read_api_role_arn       = var.create_iam_roles ? aws_iam_role.read_api[0].arn : var.existing_role_arn
+  authorizer_role_arn     = var.create_iam_roles ? aws_iam_role.authorizer[0].arn : var.existing_role_arn
 
   db_password = (
     var.db_password_from_secrets_manager
@@ -84,6 +85,13 @@ locals {
   # 60: um unico minuto de parede processando um lote ja da 3600 s virtuais.
   lag_sim_limite = var.alarm_lag_sim_wall_seconds * var.simulator_speed
 
+  # Origens aceitas no CORS da API de leitura. O endpoint HTTP do website S3
+  # entra sozinho; a lista adicional continua reservada ao desenvolvimento
+  # local. Nao use `*`, porque a API recebe um token Bearer do navegador.
+  dashboard_origins = concat(
+    ["http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"],
+    var.dashboard_origins_extra,
+  )
 }
 
 data "aws_caller_identity" "current" {}

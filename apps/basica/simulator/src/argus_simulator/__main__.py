@@ -76,6 +76,19 @@ def main() -> int:
         print("erro: CHANGES_URL nao definida.", file=sys.stderr)
         return 1
 
+    # A ingestao passou a exigir Bearer (RNF09). Falhar aqui, e nao no primeiro
+    # POST, evita um simulador que sobe, avanca o relogio virtual e so descobre
+    # o problema quando todo lote volta 401 -- deixando o relogio a frente do
+    # dado efetivamente ingerido.
+    if not os.getenv("CHANGES_TOKEN"):
+        print(
+            "erro: CHANGES_TOKEN nao definida. A API de ingestao exige "
+            "Authorization: Bearer desde a adequacao do RNF09; o valor vem do "
+            "Secrets Manager pela task definition (ver infra/auth.tf).",
+            file=sys.stderr,
+        )
+        return 1
+
     seed = int(_env("SIM_SEED", "20260821"))
     speed = float(_env("SIM_SPEED", "60"))
     t0 = _ts(_env("SIM_T0", "2026-07-12T00:00:00Z"))
@@ -93,7 +106,7 @@ def main() -> int:
     try:
         db = Database.from_env(min_size=1, max_size=3, application_name=service_name)
         clock = Clock(db)
-        emitter = Emitter(url)
+        emitter = Emitter(url, token=os.getenv("CHANGES_TOKEN"))
 
         # As chaves primarias vem do catalogo, e nao de uma lista escrita a mao:
         # sao a mesma verdade que o MERGE usa do outro lado.

@@ -56,36 +56,62 @@ consigo mesmo e completamente descolado da realidade.
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-Os campos que exigem decisão são o `existing_role_arn` (acima), a senha do banco
-e o `db_allowed_cidr` — o IP de onde você vai rodar `make migrate`.
+Os campos que exigem decisão são o `existing_role_arn` (acima) e a senha do
+banco. `db_allowed_cidr` fica **vazio**: o RDS é privado e o acesso
+administrativo passa pela task `migration`, dentro da VPC.
 
 ---
 
 ## Deploy
 
-O ECR nasce vazio, então **a ordem importa**: se você aplicar tudo de uma vez, os
-services ECS ficam em crash loop até a primeira imagem existir. Não quebra nada,
-mas assusta.
+**A ordem importa, e não é a intuitiva.** As task definitions referenciam a
+imagem pelo SHA do commit; se o `apply` rodar antes do `push`, os serviços
+procuram uma tag que ainda não existe no ECR e entram em `ImagePullBackOff` — com
+o erro aparecendo como "imagem não encontrada", longe da linha que o causou.
 
 ```bash
-# 1. cria a infra sem os services
-terraform init
-terraform apply -var="worker_desired_count=0" -var="processing_desired_count=0"
+cd ../..                              # raiz do repositório
+export AWS_PROFILE=g4 AWS_REGION=us-east-1
+aws sts get-caller-identity --profile g4 --query Account --output text
 
-# 2. publica as quatro imagens (a sequência sai pronta do output)
-terraform output -raw docker_push_commands | bash
+make -C apps/basica check             # portão de qualidade
+make -C apps/basica push              # 1. imagens PRIMEIRO, com a tag do commit
+make -C apps/basica tf-plan           # 2. revise
+make -C apps/basica tf-apply          #    aplica
+make -C apps/basica auth-rotate       # 3. gera os tokens (imprime UMA vez)
+make -C apps/basica migrate-status-aws
+make -C apps/basica migrate-aws       # 4. migrations pela VPC
+make -C apps/basica frontend-deploy   # 5. dashboard no website S3
+make -C apps/basica smoke             # 6. 401/403/200, latência e tamanho
+```
 
-# 3. aplica as migrations e cria o usuário de leitura
-terraform output -raw database_url_hint     # mostra como montar a URL
-cd ../.. && make -C basica migrate
-DB_READER_PASSWORD=<a mesma do tfvars> make -C basica db-reader
+**Entre o `tf-apply` e o `auth-rotate` a API responde 403 em tudo.** O segredo
+nasce vazio e o authorizer falha fechado — é o comportamento correto, não um
+defeito. Faça os dois na mesma sessão.
 
-# 4. carga inicial das 33 tabelas (20 a 30 min)
-make -C basica origem-sync
-make -C basica load
+O `tf-apply` cria o endpoint de website do S3 e libera leitura pública somente
+dos objetos do dashboard. Entre o primeiro apply e o `frontend-deploy`, o
+endpoint existe, mas ainda não contém o build atual.
 
-# 5. liga os services
-cd basica/infra && terraform apply
+Numa conta nova, onde o ECR nasce vazio e não há banco, acrescente antes do
+passo 3:
+
+```bash
+terraform apply -var="worker_desired_count=0" \
+                -var="processing_desired_count=0" \
+                -var="simulator_desired_count=0"
+make -C apps/basica db-url
+DB_READER_PASSWORD=<a mesma do tfvars> make -C apps/basica db-reader
+make -C apps/basica origem-sync
+make -C apps/basica load              # 20 a 30 min, 68,7 M linhas
+```
+
+### Conferir o que ficou no ar
+
+```bash
+make -C apps/basica digests      # cada serviço roda a tag do commit?
+make -C apps/basica lambda-hash  # hash local == CodeSha256 publicado?
+cd apps/basica/infra && terraform plan   # tem que dar zero mudanças
 ```
 
 São **quatro** imagens, não uma:
@@ -116,12 +142,17 @@ aws logs tail "$(terraform output -json log_groups | jq -r .worker)" --follow --
 
 ### Deploys seguintes
 
-Prefira a tag pelo SHA do commit a `latest` — `latest` torna impossível saber o
-que está rodando e impede rollback:
+`make push && make tf-apply`, nessa ordem. A tag sai do commit automaticamente
+(`make image-tag` mostra qual é) e `worker_image_tag` recusa `latest` por
+validação — com `latest` a task definition não muda quando a imagem muda, o
+Terraform não propõe nada, e o serviço segue rodando o digest antigo. Foi assim
+que os três serviços passaram a executar builds diferentes entre si sem nada
+aparecer no `plan`.
+
+Rollback é apontar o SHA anterior:
 
 ```bash
-TAG="sha-$(git rev-parse --short HEAD)"
-terraform apply -var="worker_image_tag=$TAG"
+TF_VAR_worker_image_tag=<sha-anterior> make -C ../.. tf-apply
 ```
 
 Os services usam `deployment_circuit_breaker` com rollback: imagem quebrada volta
@@ -310,10 +341,18 @@ O padrão é **subnet pública com IP público e security group sem regra de
 entrada**. As tasks alcançam as APIs da AWS pela internet, mas ninguém alcança as
 tasks — não há porta aberta.
 
-O RDS é a exceção: com `db_publicly_accessible = true` ele aceita conexão do
-CIDR de `db_allowed_cidr` (o seu IP em /32), que é o que permite rodar
-`make migrate` e inspecionar o banco sem bastion. Se você trocar de rede, o IP
-muda e o acesso para até você atualizar a variável.
+O RDS **não é exceção**: ele é privado e aceita conexão apenas do security
+group das tasks. Não há regra para CIDR externo.
+
+Até a adequação do RNF09 o banco era público, restrito ao IP de quem estava
+trabalhando. A exposição do dado do parceiro dependia de uma linha de `tfvars` e
+da rede do momento: trocar de rede quebrava o acesso, e esquecer de reverter
+deixava a instância alcançável de fora. Migrations e inspeção agora usam:
+
+```bash
+make -C .. migrate-status-aws
+make -C .. migrate-aws
+```
 
 Para exigência de subnet privada, `assign_public_ip = false` exige uma destas:
 
@@ -330,19 +369,51 @@ Para exigência de subnet privada, `assign_public_ip = false` exige uma destas:
 
 **Superfície de rede.** As tasks ficam em subnet pública com IP público e
 security group sem regra de entrada: elas alcançam a AWS pela internet, mas
-ninguém alcança as tasks. O RDS é a única porta aberta, restrita ao
-`db_allowed_cidr` (o seu IP em /32) e usada só para `make migrate` e inspeção.
+ninguém alcança as tasks. O RDS é privado e só aceita conexão do security group
+das tasks — não há porta aberta para fora da VPC.
 
 **Dado pessoal.** A API de leitura remove identificadores e cabeçalhos sensíveis
 na resposta (RNF10). O evento cru fica no banco, com criptografia em repouso, e o
 usuário `argus_reader` que a Lambda usa só tem `SELECT` nas views `v_*`.
 
-**Lacuna: as HTTP APIs não têm autenticação.** Nem a API de ingestão nem a de
-leitura têm authorizer. A URL, que não é versionada e sai apenas do Terraform, é
-na prática a única barreira entre os eventos e qualquer pessoa na internet.
-Adicionar um authorizer (chave de API ou JWT) é item pendente; enquanto isso, a
-URL não deve ser divulgada. O site do dashboard no S3 é público de propósito e
-expõe apenas o HTML/CSS/JS.
+**Autenticação (RNF09).** As duas HTTP APIs ficam atrás de um Lambda authorizer do
+tipo `REQUEST`, com cache de cinco minutos por token. São dois tokens aleatórios
+de 256 bits, um por audiência — `dashboard` para leitura, `ingest` para escrita —,
+e um não vale no lugar do outro: isso impede que a credencial exposta no navegador
+do operador sirva também para injetar evento no pipeline.
+
+O Secrets Manager guarda apenas o **SHA-256** de cada token. O valor em claro
+existe no terminal de quem rodou `make auth-rotate`, que o imprime uma única vez, e
+— só o de ingestão — num segundo segredo que a task do simulador lê pelo bloco
+`secrets` da task definition. Usar `environment` ali exporia o token em qualquer
+`aws ecs describe-task-definition`.
+
+```bash
+make -C .. auth-rotate        # gera os dois, grava os hashes, imprime uma vez
+make -C .. auth-show-ingest   # relê o de ingestao (o de leitura nao e recuperavel)
+```
+
+Sem o cabeçalho, o API Gateway responde **401** sem invocar a função; com token
+inválido, **403**.
+
+Três rotas ficam públicas: `GET /health/live` (sonda de vida) e `GET /docs` +
+`GET /openapi.json`. As duas últimas porque o Swagger UI é aberto por navegação,
+que não carrega `Authorization` — protegidas, devolveriam 401 antes de a página
+renderizar, e não haveria onde clicar em "Authorize". Elas expõem a forma da API,
+nunca dado; toda rota que devolve dado continua exigindo o Bearer.
+
+**Limitação assumida:** o token identifica um *serviço*, não uma pessoa. Não há
+como saber qual integrante fez uma consulta, e a resposta a um vazamento é
+rotacionar, não revogar um usuário. Identidade individual exigiria Cognito.
+
+**Transporte — limitação temporária do Learner Lab.** O papel `voclabs` desta
+conta não permite criar Origin Access Control, CloudFront Function nem Response
+Headers Policy. Por isso o dashboard voltou ao endpoint de website do S3, que
+serve somente HTTP e exige leitura pública dos objetos. A API e os dados
+continuam protegidos pelo Bearer, mas uma página carregada por HTTP não protege
+o token que o operador cola: um intermediário de rede pode ler ou alterar a
+página e capturá-lo. Use apenas em rede confiável e restaure CloudFront antes de
+tratar este ambiente como produção.
 
 ---
 

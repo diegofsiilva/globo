@@ -1,15 +1,14 @@
-# Hospedagem do dashboard: bucket S3 com website hosting.
+# Hospedagem temporaria do dashboard: bucket S3 com website hosting.
 #
 # O dashboard e um export estatico do Next (`output: "export"`), entao sao
-# arquivos, nao um processo. Isso e o que permite hospedar em S3 por centavos,
-# sem instancia para manter viva, corrigir ou religar.
+# arquivos, nao um processo. Isso permite hospedar em S3 sem uma instancia para
+# manter viva, corrigir ou religar.
 #
-# Por que S3 e nao EC2, ja que a entrega aceita os dois: o Learner Lab desliga
-# as instancias ao fim da sessao e o IP publico muda ao religar, o que quebraria
-# o link do relatorio e do video entre a gravacao e a correcao. O endereco do
-# bucket e estavel e atravessa o ciclo do lab.
-#
-# Video demonstrativo: https://youtu.be/Vhd8BgToZF4
+# Esta e uma compatibilidade para o AWS Academy Learner Lab, cujo papel
+# `voclabs` nao permite criar os recursos de CloudFront usados pela arquitetura
+# principal. O endpoint de website do S3 serve SOMENTE HTTP. Como o dashboard
+# recebe um token Bearer, use este modo apenas temporariamente e em uma rede
+# confiavel: um intermediario pode ler ou alterar a pagina e capturar o token.
 #
 # O nome do bucket precisa ser unico no mundo inteiro, dai o sufixo com o id da
 # conta -- sem ele, um `apply` numa conta nova colide com a nossa.
@@ -25,22 +24,26 @@ resource "aws_s3_bucket_website_configuration" "frontend" {
     suffix = "index.html"
   }
 
-  # O export do Next nao gera pagina de erro propria, e um SPA resolve rota no
-  # cliente. Devolver o index no 404 faz o roteamento do navegador assumir, em
-  # vez de mostrar o XML de erro do S3.
+  # O export estatico escreve cada rota em um diretorio com seu index.html. O
+  # endpoint de website completa esses caminhos sem uma funcao de borda.
   error_document {
-    key = "index.html"
+    key = "404.html"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
   }
 }
 
 # Website hosting do S3 so funciona com leitura publica: o endpoint de site nao
 # fala SigV4, entao nao existe "publico mas autenticado" aqui. Os quatro
 # bloqueios precisam sair para que a policy abaixo seja aceita.
-#
-# O que fica exposto e apenas o HTML/CSS/JS do dashboard, que ja seria baixado
-# por qualquer visitante. O dado sensivel nao esta aqui -- esta atras da API, e
-# a lacuna de autenticacao dela esta registrada no README desta pasta (secao
-# "Seguranca e lacunas conhecidas").
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 

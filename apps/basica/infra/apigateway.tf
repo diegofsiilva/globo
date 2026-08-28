@@ -83,6 +83,12 @@ resource "aws_apigatewayv2_route" "post_events" {
   api_id    = aws_apigatewayv2_api.events.id
   route_key = "POST /v1/events"
   target    = "integrations/${aws_apigatewayv2_integration.sqs.id}"
+
+  # Ingestao exige o token de audiencia `ingest` (ver auth.tf). A rota nao tem
+  # como ser publica: ela escreve na fila que alimenta a bronze, e um POST
+  # anonimo contaminaria o dado do parceiro sem deixar autor.
+  authorization_type = "CUSTOM"
+  authorizer_id      = aws_apigatewayv2_authorizer.events.id
 }
 
 resource "aws_cloudwatch_log_group" "api" {

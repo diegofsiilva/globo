@@ -11,7 +11,8 @@ from tests.conftest import REFERENCE_NOW
 def _q(momento) -> str:
     """ISO 8601 URL-encoded -- sem isso o '+' do fuso vira espaco na query
     string (convencao de application/x-www-form-urlencoded) e a API rejeita
-    a data com 422."""
+    a data com 422.
+    """
     return quote(momento.isoformat())
 
 
@@ -233,7 +234,7 @@ def test_incidents_esconde_o_que_ainda_nao_comecou(client, pool):
 
 
 def test_live_events_agrupa_feeds_simultaneos_por_confronto(client, pool):
-    """tid 994 e 995 sao jogos DIFERENTES no mesmo horario, nao o mesmo canal.
+    """Tid 994 e 995 sao jogos DIFERENTES no mesmo horario, nao o mesmo canal.
 
     Agrupar por horario funde os dois; agrupar por event_key os separa e ainda
     mostra quais feeds carregaram cada um.
@@ -289,7 +290,8 @@ def test_anomalies_devolve_vazio_sem_detector(client, pool):
 @pytest.fixture
 def com_deploys(pool):
     """Tres eventos: um recente e disponivel, um antigo e disponivel, um
-    recente mas ainda nao alcancado pelo relogio virtual."""
+    recente mas ainda nao alcancado pelo relogio virtual.
+    """
     with pool.connection() as conn:
         conn.execute(
             """
@@ -380,7 +382,8 @@ def test_stable_window_sem_incidente_acha_de_primeira(client, pool):
 
 def test_stable_window_desiste_depois_de_max_passos(client, pool):
     """Incidente de 5h cobre mais do que 200 passos de 1 min (~3,3h) para
-    tras -- nunca acha janela livre dentro do limite."""
+    tras -- nunca acha janela livre dentro do limite.
+    """
     with pool.connection() as conn:
         conn.execute(
             """
@@ -491,7 +494,8 @@ def test_timeline_traz_as_seis_raias_com_lane_type_proprio(client, pool):
 
 def test_timeline_raia_npaw_agrega_tres_fontes_reais(client, pool):
     """O rotulo 'NPAW' do mock do frontend cobre `npaw`, `youbora` e
-    `youbora_player_live` -- tres `source` diferentes em gold."""
+    `youbora_player_live` -- tres `source` diferentes em gold.
+    """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.executemany(
             """

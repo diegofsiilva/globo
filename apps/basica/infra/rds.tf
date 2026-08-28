@@ -176,7 +176,7 @@ resource "aws_db_instance" "main" {
   backup_retention_period    = var.db_backup_retention_days
   auto_minor_version_upgrade = true
 
-  # Mesma logica que o dynamodb.tf usava: protecao ligada apenas em producao.
+  # Protecao ligada apenas em producao.
   # Em laboratorio, snapshot final de uma conta que vai deixar de existir e lixo
   # com custo -- e `deletion_protection` ligado transformaria `make tf-destroy`
   # num erro que ninguem entende na hora de encerrar a sessao.

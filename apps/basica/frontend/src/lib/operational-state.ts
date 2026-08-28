@@ -1,10 +1,27 @@
+/** Como uma consulta falhou. Cada categoria leva a um desfecho diferente na tela. */
 export type QueryFailureKind =
   | "offline"
   | "timeout"
   | "server"
+  // 401/403 da API. Categoria própria porque o desfecho é diferente de todas as
+  // outras: não adianta tentar de novo, o operador precisa colar o token
+  // novamente. O `ScreenFrame` não chega a renderizar este estado — o portão de
+  // acesso intercepta antes —, mas o tipo existe para que uma falha de
+  // autenticação nunca seja contada como "servidor fora".
+  | "unauthorized"
   | "invalid-response"
   | "unknown";
 
+/**
+ * Uma falha de consulta pronta para exibição.
+ *
+ * `reference` é o código que o operador cita ao relatar o problema; ele carrega
+ * o `X-Request-Id` da resposta, que é o mesmo que está na linha de log da API.
+ *
+ * `lastSuccessAt` separa "nunca carregou" de "está exibindo dado de dois
+ * minutos atrás" -- a segunda situação ainda é utilizável, e a tela precisa
+ * dizer isso em vez de esvaziar.
+ */
 export type QueryFailure = {
   kind: QueryFailureKind;
   cause: string;
@@ -16,6 +33,16 @@ export type QueryFailure = {
 
 /** Erro tipado usado pelos adapters de consulta sem alterar o contrato de sucesso. */
 export class QuerySourceError extends Error {
+  /**
+   * @param message Texto exibido ao operador. Descreve o que aconteceu com a
+   *   consulta, não a exceção interna que a originou.
+   * @param kind Classificação da falha; decide qual estado a moldura desenha.
+   * @param reference Código citado ao relatar o problema, com o `X-Request-Id`
+   *   da resposta quando a API chegou a responder.
+   * @param retryable Se "tentar de novo" tem chance de mudar o resultado. Falso
+   *   em 401/403 e em resposta malformada — oferecer o botão ali só faria o
+   *   operador repetir uma ação que já se sabe que falha.
+   */
   constructor(
     message: string,
     readonly kind: QueryFailureKind,
@@ -27,6 +54,14 @@ export class QuerySourceError extends Error {
   }
 }
 
+/**
+ * Converte qualquer erro no formato que a moldura sabe exibir.
+ *
+ * @param error Erro capturado. `QuerySourceError` preserva a classificação;
+ *   qualquer outro vira `unknown` e retryable.
+ * @param lastSuccessAt Horário do último sucesso, quando houve.
+ * @returns A falha normalizada.
+ */
 export function normalizeQueryFailure(
   error: unknown,
   lastSuccessAt?: string,

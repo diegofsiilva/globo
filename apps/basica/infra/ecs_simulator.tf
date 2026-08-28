@@ -42,6 +42,16 @@ resource "aws_ecs_task_definition" "simulator" {
         { name = "HEARTBEAT_PATH", value = "/tmp/argus-heartbeat" },
       ])
 
+      # `secrets` e nao `environment`: o ECS resolve o valor no momento de
+      # subir a task, e ele nunca aparece no `describe-task-definition`. Ver o
+      # comentario do segredo em auth.tf.
+      secrets = [
+        {
+          name      = "CHANGES_TOKEN"
+          valueFrom = aws_secretsmanager_secret.ingest_token.arn
+        }
+      ]
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {

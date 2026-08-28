@@ -72,8 +72,8 @@ variable "subnet_ids" {
 
     Se `assign_public_ip = true`, precisam ser subnets publicas (com rota para
     Internet Gateway). Se `false`, precisam ser privadas com NAT Gateway ou os
-    VPC endpoints de sqs/dynamodb/ecr/logs -- caso contrario a task nem baixa a
-    imagem do ECR e o service fica em crash loop.
+    VPC endpoints de sqs/ecr/logs/secretsmanager -- caso contrario a task nem
+    baixa a imagem do ECR e o service fica em crash loop.
   EOT
   type        = list(string)
   default     = []
@@ -174,13 +174,21 @@ variable "db_publicly_accessible" {
   description = <<-EOT
     Endereco publico na instancia.
 
-    `false` e a postura de producao e o padrao aqui. A alternativa (RDS privado
-    + Lambda dentro da VPC) custa cold start de ENI na Lambda e impede
-    inspecionar o banco sem bastion, entao o laboratorio liga com `true` no
-    tfvars -- o mesmo raciocinio que ja justifica o assign_public_ip do worker.
+    `false` e a postura de producao, o padrao aqui, e o que o ambiente de
+    entrega usa.
 
-    Ligar isto NAO abre o banco: quem abre e db_allowed_cidr, e sem ele o
-    security group nao tem regra de entrada nenhuma.
+    Ate a adequacao do RNF09 o laboratorio ligava `true` para rodar `make
+    migrate` da propria maquina. Isso deixava a decisao de exposicao do banco
+    depender de uma linha de tfvars e do IP de quem estava trabalhando: mudar de
+    rede quebrava o acesso, e esquecer de reverter deixava o banco alcancavel de
+    fora. O caminho agora e a task `migration`, que roda dentro da VPC e nao
+    precisa de nenhuma regra de entrada externa:
+
+      cd infra && terraform output -raw migration_status_command | bash
+      cd infra && terraform output -raw migration_run_command | bash
+
+    Ligar isto NAO abre o banco sozinho: quem abre e db_allowed_cidr, e sem ele
+    o security group nao tem regra de entrada externa nenhuma.
   EOT
   type        = bool
   default     = false
@@ -282,9 +290,30 @@ variable "worker_image" {
 }
 
 variable "worker_image_tag" {
-  description = "Tag da imagem no ECR. Prefira o SHA do commit a `latest`."
+  description = <<-EOT
+    Tag da imagem que as task definitions referenciam. **Precisa ser o SHA do
+    commit**, e nao `latest`.
+
+    Com `latest`, a task definition nao muda quando a imagem muda: o Terraform
+    ve a mesma string, nao propoe nada, e o servico continua rodando o digest
+    antigo ate alguem forcar um deploy a mao. Foi assim que event worker, merge
+    worker e processing passaram a executar builds diferentes entre si sem que
+    nada no `plan` indicasse isso.
+
+    Com o SHA, a task definition muda junto com o codigo, o `plan` mostra a
+    diferenca e o rollback e escolher o SHA anterior.
+
+    `make push` e `make deploy` preenchem sozinhos, via `TF_VAR_worker_image_tag`.
+    Para rodar `terraform` direto:
+
+      export TF_VAR_worker_image_tag=$(git rev-parse --short=12 HEAD)
+  EOT
   type        = string
-  default     = "latest"
+
+  validation {
+    condition     = var.worker_image_tag != "latest" && var.worker_image_tag != ""
+    error_message = "worker_image_tag precisa ser o SHA do commit. `latest` so existe como apelido no ECR, nunca como referencia da task definition."
+  }
 }
 
 variable "worker_cpu" {
@@ -590,6 +619,36 @@ variable "alarm_queue_age_seconds" {
   default     = 300
 }
 
+variable "alarm_4xx_threshold" {
+  description = <<-EOT
+    Respostas 4xx em 5 minutos na API de leitura que disparam alarme.
+
+    Recusa e evento normal (cliente sem token, sessao expirada). O que nao e
+    normal e um VOLUME subito delas -- o formato de quem tenta adivinhar o
+    token. O padrao e alto o bastante para nao alarmar com alguem errando a
+    colagem algumas vezes.
+  EOT
+  type        = number
+  default     = 50
+}
+
+# --------------------------------------------------------------------------- #
+# Autenticacao (Lambda authorizer)
+# --------------------------------------------------------------------------- #
+
+variable "authorizer_package_path" {
+  description = <<-EOT
+    Caminho do zip do Lambda authorizer.
+
+    Precisa existir ANTES do plan, como o da API de leitura. Gere com:
+      ../authorizer/scripts/build_lambda.sh
+
+    `make tf-plan`, `tf-apply` e `deploy` ja chamam os dois builds antes.
+  EOT
+  type        = string
+  default     = "../authorizer/dist/argus-authorizer.zip"
+}
+
 # --------------------------------------------------------------------------- #
 # API de leitura (dashboard)
 # --------------------------------------------------------------------------- #
@@ -611,18 +670,18 @@ variable "read_api_memory_mb" {
     Memoria da Lambda de leitura.
 
     1024 e nao 512 por medicao, nao por precaucao: na Lambda a fatia de CPU e
-    proporcional a memoria, e o fan-out da GSI1 precisa de CPU para serializar
-    dezenas de respostas em paralelo. Medido contra a tabela real, a busca por
-    tipo caiu de ~2,8s (512 MB) para ~1,5s (1024 MB) -- a diferenca entre
-    raspar no teto de 3s do RNF02 e ter folga. O custo a mais e desprezivel no
-    volume de um dashboard.
+    proporcional a memoria, e serializar uma agregacao grande em JSON e trabalho
+    de CPU. Medido contra o banco real, a busca por tipo de evento caiu de
+    ~2,8s (512 MB) para ~1,5s (1024 MB) -- a diferenca entre raspar no teto de
+    5s do RNF02 e ter folga. O custo a mais e desprezivel no volume de um
+    dashboard.
   EOT
   type        = number
   default     = 1024
 }
 
 variable "read_api_timeout_seconds" {
-  description = "Timeout da Lambda. Acima do teto de 3s do RNF02, com folga para cold start."
+  description = "Timeout da Lambda. Acima do teto de 5s do RNF02, com folga para cold start."
   type        = number
   default     = 30
 }
@@ -663,25 +722,31 @@ variable "hypothesis_feedback_throttle_burst_limit" {
   default     = 10
 }
 
-variable "dashboard_origins" {
+variable "dashboard_origins_extra" {
   description = <<-EOT
-    Origens do dashboard aceitas no CORS.
+    Origens ADICIONAIS aceitas no CORS da API de leitura, alem do website S3.
 
-    ["*"] e aceitavel enquanto a API nao tem autenticacao e os dados sao de
-    teste. Restrinja para o dominio do dashboard antes de producao: esta API
-    serve dado, diferente da de ingestao, que so recebe.
+    O dominio do dashboard entra sozinho
+    (`aws_s3_bucket_website_configuration`); esta lista existe para o
+    desenvolvimento local, onde a origem e
+    `http://localhost:3000`. Deixe vazia no ambiente de entrega.
+
+    Nao use ["*"]: com autenticacao por token no navegador, uma origem coringa
+    permitiria que qualquer pagina aberta pelo operador lesse as respostas da
+    API usando o token dele.
   EOT
   type        = list(string)
-  default     = ["*"]
+  default     = []
 }
 
 variable "user_id_hash_salt" {
   description = <<-EOT
     Salt do hash de user_id na saida da API (RNF10).
 
-    O DynamoDB guarda o identificador original porque a ingestao nao o
-    transforma; o hash acontece na leitura. Trocar o salt reembaralha tudo:
-    eventos do mesmo usuario deixam de agrupar com os antigos.
+    A bronze guarda o identificador original porque a ingestao nao o
+    transforma; o hash acontece na LEITURA (`application/redaction.py`). Trocar
+    o salt reembaralha tudo: eventos do mesmo usuario deixam de agrupar com os
+    antigos.
   EOT
   type        = string
   default     = "trocar-em-producao"

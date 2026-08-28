@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { QueryProvider } from "@/providers/query-provider";
 import { AgoraScreen } from "./_components/agora-screen";
 
+/** Título e descrição da aba do navegador para a tela Agora. */
 export const metadata: Metadata = {
   title: "Agora · Monitoração Agêntica",
   description: "Degradações e sinais operacionais em tempo real",

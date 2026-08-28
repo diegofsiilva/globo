@@ -30,10 +30,31 @@ FAMILIES = frozenset(
 
 
 def repository() -> Any:
+    """Obtém o repositório de hipóteses registrado na aplicação.
+
+    Returns:
+        Any: A instância montada em `create_app`, ou o dublê injetado no teste.
+    """
     return current_app.extensions["hypothesis_repository"]
 
 
 def _int(name: str, *, default: int, minimum: int, maximum: int) -> int:
+    """Lê e valida um parâmetro inteiro da query string.
+
+    Args:
+        name (str): Nome do parâmetro.
+        default (int): Valor quando o parâmetro não vem.
+        minimum (int): Menor valor aceito.
+        maximum (int): Maior valor aceito.
+
+    Returns:
+        int: O valor validado.
+
+    Raises:
+        ValidationError: Se não for inteiro ou estiver fora da faixa. Recusar é
+            deliberado: silenciosamente prender ao limite devolveria uma página
+            de tamanho diferente do pedido, sem nada indicando isso.
+    """
     raw = request.args.get(name)
     if raw is None:
         return default
@@ -47,6 +68,20 @@ def _int(name: str, *, default: int, minimum: int, maximum: int) -> int:
 
 
 def _datetime(name: str) -> datetime | None:
+    """Lê e valida um instante ISO-8601 da query string.
+
+    Args:
+        name (str): Nome do parâmetro.
+
+    Returns:
+        datetime | None: O instante, ou `None` quando o parâmetro não vem.
+
+    Raises:
+        ValidationError: Se o formato for inválido ou o instante vier SEM fuso.
+            Exigir o fuso é essencial num sistema com relógio virtual: um
+            instante ingênuo seria interpretado como UTC e deslocaria a janela
+            em três horas sem nenhum erro visível.
+    """
     raw = request.args.get(name)
     if not raw:
         return None
@@ -60,6 +95,18 @@ def _datetime(name: str) -> datetime | None:
 
 
 def _json_value(value: Any) -> Any:
+    """Converte `datetime` em texto ISO-8601, recursivamente.
+
+    O `jsonify` do Flask serializa `datetime` no formato HTTP (RFC 822), que o
+    `Date` do JavaScript lê de forma inconsistente entre navegadores. Toda data
+    desta API sai em ISO-8601.
+
+    Args:
+        value (Any): Valor vindo do banco, possivelmente aninhado.
+
+    Returns:
+        Any: A mesma estrutura, com as datas já em texto.
+    """
     if isinstance(value, datetime):
         return value.isoformat()
     if isinstance(value, list):
@@ -71,6 +118,7 @@ def _json_value(value: Any) -> Any:
 
 @hypotheses_api.get("/hypothesis-runs")
 def hypothesis_runs():
+    """Execuções concluídas e publicadas do motor de hipóteses."""
     limit = _int("limit", default=50, minimum=1, maximum=200)
     before = request.args.get("before_run_id")
     if before is not None and not before.isdigit():
@@ -81,6 +129,13 @@ def hypothesis_runs():
 
 @hypotheses_api.get("/hypotheses")
 def hypotheses():
+    """Página keyset de hipóteses publicadas, com filtros cumulativos.
+
+    Os valores aceitos em `family`, `kind`, `confidence` e `review_status` são
+    validados contra conjuntos fechados. Um valor fora do conjunto vira 422 e
+    não uma lista vazia -- lista vazia é indistinguível de "não há hipótese
+    nesta família", e o operador leria um erro de digitação como um resultado.
+    """
     run_id = request.args.get("run_id")
     if run_id is not None and not run_id.isdigit():
         raise ValidationError("run_id precisa ser inteiro", field="run_id")
@@ -127,6 +182,11 @@ def hypotheses():
 
 @hypotheses_api.get("/hypotheses/<int:hypothesis_id>")
 def hypothesis_detail(hypothesis_id: int):
+    """Uma hipótese com toda a sua evidência.
+
+    Args:
+        hypothesis_id (int): Identificador da hipótese.
+    """
     item = repository().detail(hypothesis_id)
     if item is None:
         raise ResourceNotFoundError("hipotese inexistente ou ainda nao publicada")
@@ -135,6 +195,20 @@ def hypothesis_detail(hypothesis_id: int):
 
 @hypotheses_api.post("/hypotheses/<int:hypothesis_id>/feedback")
 def hypothesis_feedback(hypothesis_id: int):
+    """Registra o veredito do operador sobre uma hipótese.
+
+    A única escrita desta API. Idempotente por `idempotency_key`: reenviar o
+    mesmo par chave/payload devolve 200 com o registro já gravado, e só a
+    primeira gravação devolve 201. É o que permite ao dashboard reenviar depois
+    de um timeout sem duplicar a avaliação.
+
+    `reviewer_verified` sai sempre `false` e isso é honesto, não um campo por
+    preencher: o token autentica o SERVIÇO, não a pessoa, então a API não tem
+    como afirmar quem revisou.
+
+    Args:
+        hypothesis_id (int): Hipótese avaliada.
+    """
     if not request.is_json:
         raise ValidationError("Content-Type precisa ser application/json")
     payload = request.get_json()

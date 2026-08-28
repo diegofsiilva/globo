@@ -3,9 +3,18 @@
 import { createContext, Suspense, useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
+/** Períodos oferecidos no seletor da moldura, do mais curto ao mais longo. */
 export const SCREEN_PERIODS = ["15 min", "30 min", "3 h", "24 h"] as const;
+/** Um dos períodos de {@link SCREEN_PERIODS}. */
 export type ScreenPeriod = (typeof SCREEN_PERIODS)[number];
 
+/**
+ * Estados operacionais que a moldura sabe desenhar.
+ *
+ * Forçáveis por query string (`?estado=empty`) para demonstrar e revisar cada
+ * um sem precisar reproduzir a condição real -- derrubar a API só para ver a
+ * tela de erro custaria mais que o valor da revisão.
+ */
 export const DEMO_STATES = [
   "ready",
   "loading",
@@ -16,6 +25,7 @@ export const DEMO_STATES = [
   "error",
 ] as const;
 
+/** Um dos estados de {@link DEMO_STATES}. */
 export type OperationalState = (typeof DEMO_STATES)[number];
 
 type OperationsUiValue = {
@@ -62,6 +72,14 @@ export function OperationsUiProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Acessa o estado de interface compartilhado pela moldura.
+ *
+ * @returns Período selecionado, estado forçado e o helper de link que o
+ *   preserva na navegação.
+ * @throws Se usado fora de `OperationsUiProvider` -- falhar alto é melhor que
+ *   devolver um contexto vazio, que apareceria como período sempre nulo.
+ */
 export function useOperationsUi(): OperationsUiValue {
   const value = useContext(OperationsUiContext);
   if (!value) throw new Error("useOperationsUi deve ser usado dentro de OperationsUiProvider.");

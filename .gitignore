@@ -31,6 +31,12 @@ crash.log
 # Pacote de deploy da Lambda, gerado por scripts/build_lambda.sh
 apps/basica/backend/dist/
 apps/basica/backend/instance/
+apps/basica/authorizer/dist/
+
+# Gerado por `make frontend-build-info` a cada build. Versionar traria um
+# conflito de merge em todo commit, e o valor util e o do artefato publicado,
+# nao o do repositorio.
+apps/basica/frontend/public/build-info.json
 
 # Endpoints, IDs de conta e segredos. O .env.example mostra as chaves, nunca
 # os valores.

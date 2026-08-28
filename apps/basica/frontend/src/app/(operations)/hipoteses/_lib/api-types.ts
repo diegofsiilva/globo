@@ -6,6 +6,15 @@
  * `HypothesesReport` -- o build passava e a tela quebrava em runtime.
  */
 
+/**
+ * Uma componente do score, com a sua explicação.
+ *
+ * `applicability` distingue três situações que um número sozinho confunde: a
+ * feature foi calculada, a fonte necessária não respondeu (`unavailable`) ou a
+ * feature não se aplica a esta família (`not_applicable`). Sem essa distinção,
+ * ausência de dado viraria zero, e zero puxaria o score para baixo como se fosse
+ * evidência contrária.
+ */
 export type ApiFeature = {
   feature: string;
   applicability: "available" | "unavailable" | "not_applicable";
@@ -15,6 +24,13 @@ export type ApiFeature = {
   explanation: string;
 };
 
+/**
+ * Um fato citado a favor ou contra a hipótese.
+ *
+ * `polarity` é o que permite mostrar ao operador também o que NÃO fecha com a
+ * explicação. Uma hipótese que só exibe evidência favorável é um argumento, não
+ * um diagnóstico — e o operador não teria como discordar dela.
+ */
 export type ApiEvidence = {
   evidence_id: number;
   role: string;
@@ -30,6 +46,14 @@ export type ApiEvidence = {
   event_at: string;
 };
 
+/**
+ * Uma hipótese publicada.
+ *
+ * É uma explicação candidata e auditável, para revisão humana — não uma
+ * causa-raiz confirmada. `contradiction_strength` e `evaluation_status`
+ * carregam o quanto a própria evidência contradiz a explicação, e `confidence`
+ * traduz o score numa faixa que o operador lê sem saber o que é o score.
+ */
 export type ApiHypothesis = {
   hypothesis_id: number;
   family: string;
@@ -52,6 +76,13 @@ export type ApiHypothesis = {
   evidence?: ApiEvidence[];
 };
 
+/**
+ * Uma página de hipóteses.
+ *
+ * `next_cursor` é opaco e keyset. Um cursor corrompido devolve 422, nunca a
+ * primeira página em silêncio — que faria o cliente paginar em círculo sem
+ * perceber.
+ */
 export type ApiHypothesesPage = {
   count: number;
   items: ApiHypothesis[];

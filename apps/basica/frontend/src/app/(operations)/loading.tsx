@@ -1,6 +1,13 @@
 import { RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/**
+ * Esqueleto exibido enquanto o segmento da rota carrega.
+ *
+ * Esqueleto e não spinner: ele reserva o espaço que o conteúdo vai ocupar, e a
+ * tela não salta quando o dado chega. `role="status"` faz o leitor de tela
+ * anunciar o carregamento sem roubar o foco.
+ */
 export default function OperationsLoading() {
   return (
     <div className="col-start-1 row-start-2 grid min-w-0 gap-5 px-4 py-8 md:col-start-2 md:px-6" role="status">

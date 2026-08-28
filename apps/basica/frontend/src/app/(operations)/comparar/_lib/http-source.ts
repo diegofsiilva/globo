@@ -1,6 +1,6 @@
 /** Adapter HTTP da tela Comparar: changes, referências e série temporal. */
 
-import { QuerySourceError } from "@/lib/operational-state";
+import { apiFetch } from "@/lib/api/client";
 import type {
   ChangesResponse,
   LastLivePeakResponse,
@@ -8,55 +8,25 @@ import type {
   TimeseriesResponse,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-if (!API_URL) {
-  throw new Error(
-    "NEXT_PUBLIC_API_URL não definida. Rode `make frontend-build` ou exporte a " +
-      "variável antes de `next build`.",
-  );
-}
-
-/** GET genérico com o mesmo tratamento de erro tipado do resto do projeto. */
+/**
+ * GET autenticado com o tratamento de erro tipado compartilhado.
+ *
+ * @param path Caminho na API, começando com `/`.
+ * @param signal Aborta quando a tela desmonta ou a janela muda.
+ * @returns O corpo da resposta.
+ */
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const endpoint = `${API_URL}${path}`;
-  let response: Response;
-
-  try {
-    response = await fetch(endpoint, { signal });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
-    throw new QuerySourceError(
-      "A conexão com a API de leitura está indisponível. Verifique a rede e tente novamente.",
-      "offline",
-      "ARG-CMP-OFFLINE",
-    );
-  }
-
-  if (!response.ok) {
-    const timeout = response.status === 408 || response.status === 504;
-    throw new QuerySourceError(
-      timeout
-        ? "A consulta excedeu o tempo limite."
-        : `A API respondeu com status ${response.status}.`,
-      timeout ? "timeout" : "server",
-      `ARG-CMP-HTTP-${response.status}`,
-      response.status >= 500 || timeout,
-    );
-  }
-
-  try {
-    return (await response.json()) as T;
-  } catch {
-    throw new QuerySourceError(
-      "A API respondeu em um formato que a interface não reconhece.",
-      "invalid-response",
-      "ARG-CMP-INVALID-JSON",
-      false,
-    );
-  }
+  return apiFetch<T>(path, { tag: "CMP", signal });
 }
 
+/**
+ * Deploys e mudanças de configuração na janela.
+ *
+ * @param from Início da janela, em ISO 8601.
+ * @param to Fim da janela, em ISO 8601.
+ * @param signal Aborta quando a tela desmonta ou a janela muda.
+ * @returns As mudanças ordenadas por início.
+ */
 export function fetchChanges(
   from: string,
   to: string,
@@ -66,6 +36,14 @@ export function fetchChanges(
   return getJson(`/api/v1/changes?${params}`, signal);
 }
 
+/**
+ * A janela sem incidente mais recente, para servir de referência "estável".
+ *
+ * @param durationMinutes Duração pedida.
+ * @param signal Aborta quando a tela desmonta.
+ * @returns A janela encontrada, ou `found: false` — que é resultado legítimo:
+ *   pode não existir período sem incidente daquele tamanho no histórico.
+ */
 export function fetchStableWindow(
   durationMinutes: number,
   signal?: AbortSignal,
@@ -74,6 +52,13 @@ export function fetchStableWindow(
   return getJson(`/api/v1/references/stable-window?${params}`, signal);
 }
 
+/**
+ * A última transmissão ao vivo, para servir de referência "pico".
+ *
+ * @param signal Aborta quando a tela desmonta.
+ * @returns A janela da transmissão com competição e times, que entram no rótulo
+ *   — "pico" sozinho não diz ao operador contra o que ele está comparando.
+ */
 export function fetchLastLivePeak(signal?: AbortSignal): Promise<LastLivePeakResponse> {
   return getJson(`/api/v1/references/last-live-peak`, signal);
 }

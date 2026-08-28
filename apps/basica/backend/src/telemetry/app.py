@@ -1,9 +1,8 @@
 """Factory de criação da aplicação Flask e manipuladores globais de requisições e erros."""
 
-import logging
 from typing import Any
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 from werkzeug.exceptions import BadRequest, HTTPException, RequestEntityTooLarge
 
 from telemetry.config import Config
@@ -21,6 +20,7 @@ from telemetry.infrastructure.signals import SignalsRepository
 from telemetry.interfaces.http import api, health
 from telemetry.interfaces.hypotheses_http import hypotheses_api
 from telemetry.interfaces.signals_http import signals_api
+from telemetry.observability import CABECALHO_REQUEST_ID, register_observability
 
 
 def create_app(
@@ -91,6 +91,10 @@ def create_app(
     app.register_blueprint(hypotheses_api)
     app.register_blueprint(health)
     app.register_blueprint(signals_api)
+    # A observabilidade entra ANTES do CORS: `before_request` roda na ordem de
+    # registro, e o `after_request` na ordem inversa. Assim o log e a ultima
+    # coisa a rodar e enxerga os cabecalhos que o CORS acrescentou.
+    register_observability(app)
     register_cors(app)
     register_error_handlers(app)
     return app
@@ -123,7 +127,13 @@ def register_cors(app: Flask) -> None:
             response.headers["Access-Control-Allow-Origin"] = requested
             response.headers["Vary"] = "Origin"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Headers"] = (
+            f"Content-Type, Authorization, {CABECALHO_REQUEST_ID}"
+        )
+        # Sem `Expose-Headers` o navegador entrega a resposta ao JavaScript sem
+        # este cabecalho, e o dashboard nao teria como mostrar ao operador o id
+        # que ele precisa citar ao abrir um chamado.
+        response.headers["Access-Control-Expose-Headers"] = CABECALHO_REQUEST_ID
         response.headers["Access-Control-Max-Age"] = "300"
         path = request.path
         if path.endswith("/clock"):
@@ -164,10 +174,12 @@ def register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(ResourceNotFoundError)
     def handle_resource_not_found(error: ResourceNotFoundError):
+        """Hipótese, execução ou janela de referência inexistente -> 404."""
         return problem(404, "Resource not found", str(error))
 
     @app.errorhandler(ConflictError)
     def handle_conflict(error: ConflictError):
+        """Feedback reenviado com veredito diferente do já registrado -> 409."""
         return problem(409, "Conflict", str(error))
 
     @app.errorhandler(BadRequest)
@@ -210,12 +222,13 @@ def problem(status: int, title: str, detail: str, **extra: Any):
         "status": status,
         "detail": detail,
         "instance": request.path,
+        # O mesmo id que volta no cabecalho e que esta na linha de log. E o que
+        # o operador cita ao relatar a falha, e o que dispensa procurar "o erro
+        # das 14h" num log com relogio virtual.
+        "request_id": getattr(g, "request_id", None),
         **{key: value for key, value in extra.items() if value is not None},
     }
     response = jsonify(payload)
     response.status_code = status
     response.content_type = "application/problem+json"
     return response
-
-
-logging.basicConfig(level=logging.INFO)
