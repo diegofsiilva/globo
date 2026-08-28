@@ -106,83 +106,152 @@ divergentes; ver `interfaces/http.py`, docstring do módulo.
 
 #### 5.1.a Testes dos endpoints com Postman
 
-&emsp; Unificadas em uma coleção só:
+&emsp; A fonte da verdade desta verificação foi o mapa de rotas registrado pelo
+Flask a partir de `apps/basica/backend/src/telemetry/interfaces/`. Foram
+encontradas **33 rotas distintas**: 32 `GET` (incluindo o `GET /favicon.ico`,
+que devolve 204) e um `POST`. A collection exportada e versionada continua no mesmo caminho
+da sprint anterior:
 [`artefatos/postman/argus.postman_collection.json`](postman/argus.postman_collection.json)
-(environment em
+(modelo de environment sem segredos em
 [`artefatos/postman/environment.example.json`](postman/environment.example.json)).
-Não foi um merge mecânico: a pasta de leitura (herdada da coleção de
-14/08/2026) tinha asserções escritas contra o **DynamoDB v2**
-(`query.strategy` esperando `table:scan`, `gsi1:fanout`, `table:session`,
-`gsi2:device`, e um teste que exigia fan-out de mais de uma query). Nenhum
-desses nomes existe no back-end Postgres atual, então foram corrigidos para
-os nomes reais (`particao_por_tempo`, `indice_tipo_e_tempo`, `indice_sessao`,
-`indice_aparelho`, `queries === 1`), conferidos contra
-`postgres.py::_estrategia`. A pasta **2. POST, API de ingestão** (legada)
-**não foi revisada nesta rodada**, pois pertence a `apps/basica/worker`,
-fora do escopo investigado aqui; ficou um aviso dentro da própria pasta na
-coleção.
 
-&emsp; Pastas da coleção final: `0. Diagnóstico`, `1. Leitura, eventos e
-métricas` (corrigida), `2. POST, API de ingestão` (legada, não executada
-nesta rodada, ver nota abaixo), `3. Verificação end-to-end` (legada, idem),
-`4. Agora`, `5. Comparar`, `6. Timeline`, `7. Recorte`, `8. Filtros de
-região/operadora`.
+&emsp; **Autenticação:** nenhuma das 33 rotas exige credencial no código atual.
+A collection declara `No Auth`; portanto, casos 401/403 são **não aplicáveis**,
+e não foram registrados como se fossem aprovados. O controle de acesso continua
+uma pendência do produto, não um resultado de teste. O `POST` de feedback usa
+somente identificadores e texto sintéticos.
 
-&emsp; **Executada em 27/08/2026** contra um PostgreSQL 16 local (`make
-db-local`, migrations 001 a 023 aplicadas sem erro) com um servidor Flask
-de desenvolvimento real (`flask.run`, não um duble) e uma massa mínima de
-dado inserida à mão em `gold.feature_bucket`, `gold.deploy_event`,
-`gold.incident_window` e `silver.session_event`, via `newman` (CLI oficial
-do Postman). Resultado das pastas `0`, `1`, `4` a `8` (30 requisições, as
-que este artefato cobre):
+##### Diagnóstico antes da atualização
 
+| Situação inicial | Quantidade de rotas | Evidência encontrada na collection anterior |
+|---|---:|---|
+| ✅ Coberta | 7 | `health/ready`, eventos, sessão, aparelho, facets, breakdown e timeseries tinham request e asserts relevantes |
+| ⚠️ Parcial | 9 | raiz, relógio, OpenAPI, sinais, crosstab, mudanças, referências e timeline tinham request, mas nenhum assert associado |
+| ❌ Não coberta | 17 | detalhe de evento, série Gold e contexto, rotas operacionais restantes e **as quatro rotas de hipóteses** não tinham request |
+
+&emsp; A atualização adicionou asserts herdados no nível da collection (status,
+tempo do RNF02, JSON/HTML, contrato mínimo e Problem Details) e casos específicos
+por rota. IDs de sessão, evento, aparelho, run e hipótese são capturados das
+listagens anteriores; o feedback gera UUID sintético e prova criação,
+idempotência e conflito. As pastas `2. POST, API de ingestão` e `3. Verificação
+end-to-end` foram preservadas, mas não entram nesta verificação porque pertencem
+ao worker de ingestão, fora do recorte 1(a)+1(b).
+
+##### Inventário e resultado por rota
+
+| Método e endpoint | RF / objetivo | Request relevante, sem dado sensível | Esperado → obtido | Teste Postman | Status |
+|---|---|---|---|---|---|
+| `GET /` | Operação: índice da API | Sem headers ou payload | 200 + serviço/status/rotas → 200 | `0. Diagnóstico > Índice da API` | ✅ Passou |
+| `GET /favicon.ico` | Operação: evitar erro do navegador | Sem headers ou payload | 204 sem corpo → 204 | `13. Operação e documentação > Favicon` | ✅ Passou |
+| `GET /openapi.json` | Operação: contrato OpenAPI | Sem headers ou payload | 200 + `openapi`/`paths` → 200 | `0. Diagnóstico > OpenAPI spec` | ✅ Passou |
+| `GET /docs` | Operação: Swagger UI | Sem headers ou payload | 200 + HTML do Swagger → 200 | `13. Operação e documentação > Swagger UI` | ✅ Passou |
+| `GET /health/live` | Operação: liveness sem banco | Sem headers ou payload | 200 + `status=ok` → 200 | `13. Operação e documentação > Liveness` | ✅ Passou |
+| `GET /health/ready` | Operação: readiness com banco | Sem headers ou payload | 200 + `status=ok` → 200 | `0. Diagnóstico > Readiness (banco)` | ✅ Passou |
+| `GET /api/v1/events` | RF08/RF09: buscar eventos | `?limit=50`; erro `?from=ontem` | 200 página + 422 Problem Details → 200/422 | `9.1 Buscar eventos`; `1.10 Erro: período inválido devolve 422` | ✅ Passou |
+| `GET /api/v1/sessions/{session_id}` | RF16: investigar sessão | ID capturado; `?limit=0`; ID inexistente | 200 + 422 + 404 → 200/422/404 | `9.2 Linha do tempo da sessão`; `9.3 Erro: sessão inexistente`; `9.4 Erro: limite de sessão inválido` | ✅ Passou |
+| `GET /api/v1/sessions/{session_id}/events/{event_id}` | RF16: detalhar evento | IDs capturados; evento inexistente | 200 + 404 → 200/404 | `9.5 Detalhar evento`; `9.6 Erro: evento inexistente` | ✅ Passou |
+| `GET /api/v1/devices/{device_id}` | RF16: histórico do aparelho | ID capturado; `?limit=0` | 200 página + 422 → 200/422 | `9.7 Histórico do aparelho`; `9.8 Erro: limite de aparelho inválido` | ✅ Passou |
+| `GET /api/v1/metrics/breakdown` | RF11: agrupar eventos | `?dimension=event_name`; sem dimensão | 200 grupos + 422 → 200/422 | `9.9 Breakdown de eventos`; `9.10 Erro: breakdown sem dimensão` | ✅ Passou |
+| `GET /api/v1/metrics/crosstab` | RF11/RF16: heatmap de eventos | `dimension_x=device_manufacturer&dimension_y=event_name`; sem dimensões | 200 células + 422 → 200/422 | `9.11 Crosstab de eventos`; `9.12 Erro: crosstab sem dimensões` | ✅ Passou |
+| `GET /api/v1/metrics/timeseries` | RF12/RF14: série e comparação | `?interval=60`; erro `?interval=0` | 200 buckets + 422 → 200/422 | `9.13 Timeseries de eventos`; `9.14 Erro: intervalo de timeseries inválido` | ✅ Passou |
+| `GET /api/v1/facets` | RF10: sugerir filtros | `field=event_name&field=device_manufacturer`; `field=user_id` | 200 facets + 422 → 200/422 | `9.15 Facets de eventos`; `9.16 Erro: facet sensível` | ✅ Passou |
+| `GET /api/v1/clock` | Suporte: relógio virtual | Sem headers ou payload | 200 + instante/velocidade → 200 | `0. Diagnóstico > Relógio virtual` | ✅ Passou |
+| `GET /api/v1/series` | RF12: pontos da série Gold | `?window_hours=24&limit=100`; `?limit=0` | 200 items/count + 422 → 200/422 | `10.1 Listar série Gold`; `10.2 Erro: limite da série inválido` | ✅ Passou |
+| `GET /api/v1/series/facets` | RF10: filtros da série | `field=source&field=entity&field=metric`; campo inválido | 200 facets + 422 → 200/422 | `10.3 Facets da série`; `10.4 Erro: dimensão de facet inválida` | ✅ Passou |
+| `GET /api/v1/series/breakdown` | RF11/RF12: agrupar série | `?dimension=source`; sem dimensão | 200 grupos + 422 → 200/422 | `10.5 Breakdown da série`; `10.6 Erro: breakdown da série sem dimensão` | ✅ Passou |
+| `GET /api/v1/series/timeseries` | RF12/RF14: agregar série no tempo | `?interval=60`; `?interval=0` | 200 buckets + 422 → 200/422 | `10.7 Timeseries da série`; `10.8 Erro: intervalo da série inválido` | ✅ Passou |
+| `GET /api/v1/series/crosstab` | RF11/RF16: heatmap da série | `dimension_x=entity&dimension_y=metric`; falta `dimension_y` | 200 células + 422 → 200/422 | `10.9 Crosstab da série`; `10.10 Erro: crosstab da série sem dimensões` | ✅ Passou |
+| `GET /api/v1/sources` | Suporte: fontes e recência | Sem headers ou payload | 200 + lista de fontes → 200 | `10.11 Listar fontes` | ✅ Passou |
+| `GET /api/v1/incidents` | RF13/RF16: contexto de incidentes | `?limit=100`; `?limit=0` | 200 items/count + 422 → 200/422 | `10.12 Listar incidentes`; `10.13 Erro: limite de incidentes inválido` | ✅ Passou |
+| `GET /api/v1/live-events` | RF14/RF16: transmissões anteriores | `?limit=50`; `?limit=0` | 200 items/count + 422 → 200/422 | `10.14 Listar eventos ao vivo`; `10.15 Erro: limite de eventos ao vivo inválido` | ✅ Passou |
+| `GET /api/v1/anomalies` | RF13/RF15: anomalias do detector | `?limit=200`; `?limit=0` | 200 items/count + 422 → 200/422 | `10.16 Listar anomalias`; `10.17 Erro: limite de anomalias inválido` | ✅ Passou |
+| `GET /api/v1/signals` | RF15: desvios ativos | Sem filtro; erro `?from=ontem` | 200 items + 422 → 200/422 | `11.1 Listar sinais`; `11.2 Erro: janela de sinais inválida` | ✅ Passou |
+| `GET /api/v1/changes` | RF16: mudanças de infraestrutura | Sem filtro; erro `?from=ontem` | 200 items + 422 → 200/422 | `11.3 Listar mudanças`; `11.4 Erro: data de mudanças inválida` | ✅ Passou |
+| `GET /api/v1/references/stable-window` | RF14: janela estável | `?duration_minutes=60`; valor zero | 200 + `found` + 422 → 200/422 | `11.5 Obter janela estável`; `11.6 Erro: duração de janela estável inválida` | ✅ Passou |
+| `GET /api/v1/references/last-live-peak` | RF14: pico ao vivo anterior | Sem filtro; erro `?before=ontem` | 200 + `found` + 422 → 200/422 | `11.7 Obter último pico ao vivo`; `11.8 Erro: data de pico ao vivo inválida` | ✅ Passou |
+| `GET /api/v1/timeline` | RF16: seis raias operacionais | Sem filtro; erro `?from=ontem` | 200 janela/raias + 422 → 200/422 | `11.9 Obter timeline operacional`; `11.10 Erro: data da timeline inválida` | ✅ Passou |
+| `GET /api/v1/hypothesis-runs` | RF17: listar execuções publicadas | `?limit=50`; `?limit=0` | 200 items/count + 422 → 200/422 | `12.1 Listar execuções de hipóteses`; `12.2 Erro: limite de runs inválido` | ✅ Passou |
+| `GET /api/v1/hypotheses` | RF17: listar hipóteses | `?limit=50`; família inválida | 200 items/count + 422 → 200/422 | `12.3 Listar hipóteses`; `12.4 Erro: família de hipótese inválida` | ✅ Passou |
+| `GET /api/v1/hypotheses/{hypothesis_id}` | RF17: hipótese e evidências | ID capturado; ID inexistente | 200 features/evidence + 404 → 200/404 | `12.5 Detalhar hipótese`; `12.6 Erro: hipótese inexistente` | ✅ Passou |
+| `POST /api/v1/hypotheses/{hypothesis_id}/feedback` | RF17: feedback idempotente | JSON com `verdict`, nota sintética e UUID; replay, verdict inválido, conflito e ID inexistente | 201/200/422/409/404 → 201/200/422/409/404 | `12.7 Criar feedback`; `12.8 Reenvio idempotente`; `12.9` a `12.11` (erros) | ✅ Passou |
+
+##### Execução Newman
+
+&emsp; Executada em **27/08/2026** contra PostgreSQL 16 local com migrations
+001 a 024, servidor Flask real e massa sintética baseada nas fixtures já
+versionadas em `apps/basica/backend/tests/`. Foram executadas todas as pastas da
+API de leitura (`0`, `1` e `4` a `13`); somente as pastas legadas `2` e `3`, da
+ingestão, ficaram fora pelo recorte desta spec. O comando usado foi:
+
+```bash
+npx --yes newman@6 run artefatos/postman/argus.postman_collection.json \
+  --env-var read_url=http://127.0.0.1:5000 \
+  --folder "0. Diagnóstico" --folder "1. Leitura, eventos e métricas" \
+  --folder "4. Agora, sinais" --folder "5. Comparar, referências e mudanças" \
+  --folder "6. Timeline" --folder "7. Recorte, heatmap" \
+  --folder "8. Filtros de região/operadora (uf/isp)" \
+  --folder "9. Eventos e métricas — cobertura por rota" \
+  --folder "10. Série Gold e contexto operacional" \
+  --folder "11. Sinais, mudanças, referências e timeline" \
+  --folder "12. Hipóteses — RF17" --folder "13. Operação e documentação"
 ```
-requests: 30, failed: 0
-assertions: 37, failed: 0
-total run duration: 741ms
+
+&emsp; Saída consolidada do Runner (evidência textual reproduzível no lugar de
+um print dependente da interface gráfica):
+
+```text
+iterations:          1 executed,   0 failed
+requests:           87 executed,   0 failed
+test-scripts:      100 executed,   0 failed
+prerequest-scripts: 88 executed,   0 failed
+assertions:        335 executed,   0 failed
+total run duration: 2.4 s
+response time:      8 ms average, 2 ms min, 24 ms max
 ```
-
-&emsp; As pastas `2` e `3` (ingestão, legadas) não foram executadas nesta
-rodada, pois dependem de um endpoint de ingestão que não faz parte do escopo
-investigado aqui (ver seção 2); continuam com o aviso registrado na própria
-coleção.
-
-&emsp; Além do Postman, a suíte automatizada (`pytest`,
-`apps/basica/backend/tests/`) também rodou contra o mesmo banco:
-
-```
-126 passed in 97.46s
-```
-
-&emsp; Rodar de verdade (e não só revisar por leitura) encontrou 3 bugs
-reais nos testes que nenhuma leitura de código tinha pego: URLs montadas
-com `f"...{data.isoformat()}"` sem escapar o `+` do fuso horário (vira
-espaço na query string, quebra o parse ISO 8601 no servidor e devolve 422
-em vez de 200, 12 ocorrências, em `test_signals.py` e `test_gold.py`) e
-um `conn.executemany(...)` que não existe na `Connection` do psycopg3 (só
-em `Cursor`). Os três foram corrigidos; ver o commit `fix: corrige bugs
-reais achados rodando a suite contra Postgres de verdade`.
 
 #### 5.1.b Matriz de rastreabilidade
 
-&emsp; Requisitos funcionais pertinentes à API de leitura, endpoint que
-atende cada um e teste automatizado correspondente. Todas as linhas desta
-frente (RF08–RF16) foram confirmadas rodando de verdade: suíte `pytest`
-(126 testes) e coleção Postman (30 requisições, 37 asserções), ambas contra
-PostgreSQL 16 real, em 27/08/2026 (seção 5.1.a).
+&emsp; Uma linha abaixo corresponde a um RF e endpoint verificável. Quando o
+mesmo RF é atendido por mais de uma rota, ele é repetido. Os nomes da coluna
+“Teste Postman” existem literalmente na collection exportada; todos foram
+executados no Runner descrito em 5.1.a.
 
-| RF | Descrição resumida | Endpoint(s) | Teste automatizado |
-|---|---|---|---|
-| RF08 | Pesquisa por tipo, período e demais atributos | `GET /events` | `test_api.py::test_lista_eventos` e correlatos |
-| RF09 | Filtros cumulativos numa mesma consulta | `EventFilters` (todas as rotas de busca) | `test_api.py::test_filtro_uf_e_isp_sao_cumulativos_com_os_demais` |
-| RF10 | Sugestão de valores existentes nos filtros | `GET /facets` | `test_api.py::test_facets`, `test_repository.py::test_facets_lista_valores_existentes` |
-| RF11 | Agrupamento por critério, incluindo região | `GET /metrics/breakdown`, `GET /metrics/crosstab` | `test_api.py::test_breakdown_por_uf_ja_aceitava_a_dimensao_antes_do_fix`, `test_crosstab_bate_com_dois_breakdowns_separados` |
-| RF12 | Gráficos e indicadores a partir dos eventos | `GET /metrics/timeseries`, `GET /series` | `test_api.py::test_timeseries`, `test_gold.py::test_series_devolve_os_pontos_disponiveis` |
-| RF13 | Consultas simples para falhas críticas | `GET /events?event_name=error`, `GET /anomalies` | `test_gold.py::test_anomalies_devolve_vazio_sem_detector` (cobertura parcial, a rota responde e é testada, mas o detector que a alimenta é responsabilidade de outra frente, ver `processing/`) |
-| RF14 | Comparação com período anterior | `GET /metrics/timeseries?compare=true`, `GET /references/*` | `test_gold.py::test_stable_window_*`, `test_last_live_peak_*` |
-| RF15 | Destaque de aumentos relevantes (picos) | `GET /signals` | `test_signals.py` (11 testes) |
-| RF16 | Informações para investigar um problema | `GET /sessions/{id}`, `GET /devices/{id}`, `GET /timeline`, `GET /changes`, `GET /metrics/crosstab` | `test_gold.py::test_timeline_*`, `test_changes_*`; sessão/dispositivo já cobertos em `test_api.py` |
-| RF17 | Causas prováveis (hipóteses) | `GET /hypotheses`, `GET /hypotheses/{id}`, `POST /hypotheses/{id}/feedback`, `GET /hypothesis-runs`, implementadas por outro integrante, já em `develop` | `test_hypotheses.py` (existe na suíte, 8 testes; não é desta frente, não auditado aqui) |
+| RF | Descrição do requisito | Endpoint | Método | Teste Postman | Status |
+|---|---|---|---|---|---|
+| RF08 | Pesquisar eventos por tipo, período, sessão, aparelho e atributos | `/api/v1/events` | GET | `9.1 Buscar eventos`; `1.10 Erro: período inválido devolve 422` | ✅ |
+| RF08 | Pesquisar histórico por aparelho | `/api/v1/devices/{device_id}` | GET | `9.7 Histórico do aparelho`; `9.8 Erro: limite de aparelho inválido` | ✅ |
+| RF09 | Aplicar filtros cumulativos | `/api/v1/events` | GET | `1.3 Busca por tipo (indice_tipo_e_tempo)`; `Events filtrado por uf` | ✅ |
+| RF09 | Aplicar escopo cumulativo sobre a série | `/api/v1/series`, `/api/v1/series/*` | GET | `10.1 Listar série Gold`; `10.5 Breakdown da série`; `10.7 Timeseries da série`; `10.9 Crosstab da série` | ✅ |
+| RF10 | Sugerir valores existentes nos filtros de eventos | `/api/v1/facets` | GET | `9.15 Facets de eventos`; `9.16 Erro: facet sensível` | ✅ |
+| RF10 | Sugerir valores existentes nos filtros da série | `/api/v1/series/facets` | GET | `10.3 Facets da série`; `10.4 Erro: dimensão de facet inválida` | ✅ |
+| RF11 | Agrupar eventos por um critério | `/api/v1/metrics/breakdown` | GET | `9.9 Breakdown de eventos`; `9.10 Erro: breakdown sem dimensão` | ✅ |
+| RF11 | Cruzar duas dimensões de eventos | `/api/v1/metrics/crosstab` | GET | `9.11 Crosstab de eventos`; `9.12 Erro: crosstab sem dimensões` | ✅ |
+| RF11 | Agrupar a série por um critério | `/api/v1/series/breakdown` | GET | `10.5 Breakdown da série`; `10.6 Erro: breakdown da série sem dimensão` | ✅ |
+| RF11 | Cruzar duas dimensões da série | `/api/v1/series/crosstab` | GET | `10.9 Crosstab da série`; `10.10 Erro: crosstab da série sem dimensões` | ✅ |
+| RF12 | Apresentar indicadores e pontos de telemetria | `/api/v1/series` | GET | `10.1 Listar série Gold`; `10.2 Erro: limite da série inválido` | ✅ |
+| RF12 | Apresentar gráfico temporal de eventos | `/api/v1/metrics/timeseries` | GET | `9.13 Timeseries de eventos`; `9.14 Erro: intervalo de timeseries inválido` | ✅ |
+| RF12 | Apresentar gráfico temporal da série | `/api/v1/series/timeseries` | GET | `10.7 Timeseries da série`; `10.8 Erro: intervalo da série inválido` | ✅ |
+| RF13 | Consultar eventos de falha | `/api/v1/events?event_name=error` | GET | `1.3 Busca por tipo (indice_tipo_e_tempo)`; `Amostra de sessões do recorte` | ✅ |
+| RF13 | Consultar janelas de incidente | `/api/v1/incidents` | GET | `10.12 Listar incidentes`; `10.13 Erro: limite de incidentes inválido` | ✅ |
+| RF13 | Consultar anomalias do detector | `/api/v1/anomalies` | GET | `10.16 Listar anomalias`; `10.17 Erro: limite de anomalias inválido` | ✅ |
+| RF14 | Comparar período atual com anterior | `/api/v1/metrics/timeseries?compare=true` | GET | `Janela atual x anterior (compare=true)` | ✅ |
+| RF14 | Comparar série agregada no tempo | `/api/v1/series/timeseries` | GET | `10.7 Timeseries da série`; `10.8 Erro: intervalo da série inválido` | ✅ |
+| RF14 | Obter última janela estável | `/api/v1/references/stable-window` | GET | `11.5 Obter janela estável`; `11.6 Erro: duração de janela estável inválida` | ✅ |
+| RF14 | Obter último pico ao vivo | `/api/v1/references/last-live-peak` | GET | `11.7 Obter último pico ao vivo`; `11.8 Erro: data de pico ao vivo inválida` | ✅ |
+| RF14 | Listar transmissões para comparação | `/api/v1/live-events` | GET | `10.14 Listar eventos ao vivo`; `10.15 Erro: limite de eventos ao vivo inválido` | ✅ |
+| RF15 | Destacar sinais de aumento relevante | `/api/v1/signals` | GET | `11.1 Listar sinais`; `11.2 Erro: janela de sinais inválida` | ✅ |
+| RF15 | Expor anomalias detectadas | `/api/v1/anomalies` | GET | `10.16 Listar anomalias`; `10.17 Erro: limite de anomalias inválido` | ✅ |
+| RF16 | Investigar uma sessão | `/api/v1/sessions/{session_id}` | GET | `9.2 Linha do tempo da sessão`; `9.3 Erro: sessão inexistente`; `9.4 Erro: limite de sessão inválido` | ✅ |
+| RF16 | Investigar um evento específico | `/api/v1/sessions/{session_id}/events/{event_id}` | GET | `9.5 Detalhar evento`; `9.6 Erro: evento inexistente` | ✅ |
+| RF16 | Investigar um aparelho | `/api/v1/devices/{device_id}` | GET | `9.7 Histórico do aparelho`; `9.8 Erro: limite de aparelho inválido` | ✅ |
+| RF16 | Correlacionar dimensões no recorte | `/api/v1/metrics/crosstab`, `/api/v1/series/crosstab` | GET | `9.11 Crosstab de eventos`; `9.12 Erro: crosstab sem dimensões`; `10.9 Crosstab da série`; `10.10 Erro: crosstab da série sem dimensões` | ✅ |
+| RF16 | Correlacionar fontes numa linha temporal | `/api/v1/timeline` | GET | `11.9 Obter timeline operacional`; `11.10 Erro: data da timeline inválida` | ✅ |
+| RF16 | Consultar mudanças de infraestrutura | `/api/v1/changes` | GET | `11.3 Listar mudanças`; `11.4 Erro: data de mudanças inválida` | ✅ |
+| RF16 | Consultar contexto de incidentes e transmissões | `/api/v1/incidents`, `/api/v1/live-events` | GET | `10.12 Listar incidentes`; `10.13 Erro: limite de incidentes inválido`; `10.14 Listar eventos ao vivo`; `10.15 Erro: limite de eventos ao vivo inválido` | ✅ |
+| RF17 | Listar execuções publicadas do motor | `/api/v1/hypothesis-runs` | GET | `12.1 Listar execuções de hipóteses`; `12.2 Erro: limite de runs inválido` | ✅ |
+| RF17 | Listar e filtrar hipóteses | `/api/v1/hypotheses` | GET | `12.3 Listar hipóteses`; `12.4 Erro: família de hipótese inválida` | ✅ |
+| RF17 | Exibir hipótese, evidências e qualidade | `/api/v1/hypotheses/{hypothesis_id}` | GET | `12.5 Detalhar hipótese`; `12.6 Erro: hipótese inexistente` | ✅ |
+| RF17 | Registrar feedback idempotente | `/api/v1/hypotheses/{hypothesis_id}/feedback` | POST | `12.7 Criar feedback`; `12.8 Reenvio idempotente do feedback`; `12.9 Erro: verdict de feedback inválido`; `12.10 Erro: conflito de idempotência`; `12.11 Erro: feedback para hipótese inexistente` | ✅ |
 
 &emsp; RF01 a RF07 (ingestão) não aparecem nesta matriz por pertencerem ao
 worker de ingestão, fora do escopo deste artefato (seção 2).
