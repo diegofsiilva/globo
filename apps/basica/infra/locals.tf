@@ -85,14 +85,11 @@ locals {
   # 60: um unico minuto de parede processando um lote ja da 3600 s virtuais.
   lag_sim_limite = var.alarm_lag_sim_wall_seconds * var.simulator_speed
 
-  # Origens aceitas no CORS da API de leitura. O dominio do dashboard entra
-  # sozinho -- deixar isso a cargo de uma variavel preenchida a mao era o que
-  # mantinha `["*"]` no ambiente publicado.
-  #
-  # Nao ha ciclo entre os dois recursos: a distribuicao nao referencia a API de
-  # leitura (ver a nota do `connect-src` em frontend_s3.tf).
+  # Origens aceitas no CORS da API de leitura. O endpoint HTTP do website S3
+  # entra sozinho; a lista adicional continua reservada ao desenvolvimento
+  # local. Nao use `*`, porque a API recebe um token Bearer do navegador.
   dashboard_origins = concat(
-    ["https://${aws_cloudfront_distribution.frontend.domain_name}"],
+    ["http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"],
     var.dashboard_origins_extra,
   )
 }

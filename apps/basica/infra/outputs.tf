@@ -206,24 +206,13 @@ output "read_api_url" {
 }
 
 output "frontend_url" {
-  description = <<-EOT
-    Endereco publico do dashboard, sempre HTTPS. E o link que vai no relatorio
-    e no video.
-
-    Passou a ser o dominio do CloudFront, e nao mais o endpoint de website do
-    S3: aquele so servia HTTP, e a tela de acesso pede um token ao operador.
-  EOT
-  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+  description = "Endereco HTTP temporario do dashboard no website S3."
+  value       = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
 }
 
 output "frontend_bucket" {
   description = "Bucket do site. Destino do `aws s3 sync` em make frontend-deploy."
   value       = aws_s3_bucket.frontend.id
-}
-
-output "frontend_distribution_id" {
-  description = "Distribuicao CloudFront. `make frontend-deploy` a invalida apos o sync."
-  value       = aws_cloudfront_distribution.frontend.id
 }
 
 output "auth_tokens_secret" {

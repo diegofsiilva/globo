@@ -31,9 +31,9 @@ class Config:
     MAX_ITEMS_SCANNED = int(os.getenv("MAX_ITEMS_SCANNED", "20000"))
 
     # Origens do dashboard. A lista real vem de `dashboard_origins` no
-    # Terraform e passa a ser a URL do CloudFront depois da adequacao do RNF09;
-    # "*" e o padrao apenas do desenvolvimento local, onde a porta do `next dev`
-    # muda com frequencia.
+    # Terraform e inclui o website S3 no fallback do Learner Lab; "*" e o
+    # padrao apenas do desenvolvimento local, onde a porta do `next dev` muda
+    # com frequencia.
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
 
     # Nivel do log estruturado. O `observability.py` reconfigura o logger raiz

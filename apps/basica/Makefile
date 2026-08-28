@@ -596,19 +596,10 @@ frontend-build: frontend-build-info ## Gera o site estatico do dashboard
 	  npm run build
 
 .PHONY: frontend-deploy
-frontend-deploy: frontend-build ## Publica o dashboard e invalida o CloudFront
+frontend-deploy: frontend-build ## Publica o dashboard no website S3
 	@$(call require_env,AWS_PROFILE)
 	aws s3 sync $(FRONTEND)/out/ \
 	  "s3://$$(cd $(INFRA) && terraform output -raw frontend_bucket)/" --delete
-	@# Sem a invalidacao, a borda continua servindo o index.html anterior ate o
-	@# TTL vencer -- e o operador abriria a versao velha logo depois do deploy,
-	@# sem nada na tela indicando isso. Os assets tem hash no nome e nao
-	@# precisam ser invalidados; o `/*` cobre tudo e cabe na cota gratuita de
-	@# 1.000 caminhos por mes.
-	@echo "invalidando a distribuicao..."
-	@aws cloudfront create-invalidation --profile $$AWS_PROFILE \
-	  --distribution-id "$$(cd $(INFRA) && terraform output -raw frontend_distribution_id)" \
-	  --paths '/*' --query 'Invalidation.Id' --output text
 	@echo
 	@echo "Dashboard no ar: $$(cd $(INFRA) && terraform output -raw frontend_url)"
 

@@ -724,10 +724,11 @@ variable "hypothesis_feedback_throttle_burst_limit" {
 
 variable "dashboard_origins_extra" {
   description = <<-EOT
-    Origens ADICIONAIS aceitas no CORS da API de leitura, alem do CloudFront.
+    Origens ADICIONAIS aceitas no CORS da API de leitura, alem do website S3.
 
-    O dominio do dashboard entra sozinho (`aws_cloudfront_distribution`); esta
-    lista existe para o desenvolvimento local, onde a origem e
+    O dominio do dashboard entra sozinho
+    (`aws_s3_bucket_website_configuration`); esta lista existe para o
+    desenvolvimento local, onde a origem e
     `http://localhost:3000`. Deixe vazia no ambiente de entrega.
 
     Nao use ["*"]: com autenticacao por token no navegador, uma origem coringa

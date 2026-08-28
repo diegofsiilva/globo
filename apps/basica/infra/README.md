@@ -81,7 +81,7 @@ make -C apps/basica tf-apply          #    aplica
 make -C apps/basica auth-rotate       # 3. gera os tokens (imprime UMA vez)
 make -C apps/basica migrate-status-aws
 make -C apps/basica migrate-aws       # 4. migrations pela VPC
-make -C apps/basica frontend-deploy   # 5. dashboard + invalidação do CloudFront
+make -C apps/basica frontend-deploy   # 5. dashboard no website S3
 make -C apps/basica smoke             # 6. 401/403/200, latência e tamanho
 ```
 
@@ -89,8 +89,9 @@ make -C apps/basica smoke             # 6. 401/403/200, latência e tamanho
 nasce vazio e o authorizer falha fechado — é o comportamento correto, não um
 defeito. Faça os dois na mesma sessão.
 
-O `tf-apply` também **desativa o endpoint de website do S3** e torna o bucket
-privado. Entre ele e o `frontend-deploy`, o dashboard fica fora do ar.
+O `tf-apply` cria o endpoint de website do S3 e libera leitura pública somente
+dos objetos do dashboard. Entre o primeiro apply e o `frontend-deploy`, o
+endpoint existe, mas ainda não contém o build atual.
 
 Numa conta nova, onde o ECR nasce vazio e não há banco, acrescente antes do
 passo 3:
@@ -405,10 +406,14 @@ nunca dado; toda rota que devolve dado continua exigindo o Bearer.
 como saber qual integrante fez uma consulta, e a resposta a um vazamento é
 rotacionar, não revogar um usuário. Identidade individual exigiria Cognito.
 
-**Transporte.** O bucket do dashboard é privado; quem serve é o CloudFront, com
-HTTPS obrigatório e Origin Access Control. O endpoint de website do S3, que só
-falava HTTP, foi desativado — numa página HTTP qualquer intermediário leria o token
-que o operador cola na tela de acesso.
+**Transporte — limitação temporária do Learner Lab.** O papel `voclabs` desta
+conta não permite criar Origin Access Control, CloudFront Function nem Response
+Headers Policy. Por isso o dashboard voltou ao endpoint de website do S3, que
+serve somente HTTP e exige leitura pública dos objetos. A API e os dados
+continuam protegidos pelo Bearer, mas uma página carregada por HTTP não protege
+o token que o operador cola: um intermediário de rede pode ler ou alterar a
+página e capturá-lo. Use apenas em rede confiável e restaure CloudFront antes de
+tratar este ambiente como produção.
 
 ---
 

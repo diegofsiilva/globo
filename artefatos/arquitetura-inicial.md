@@ -26,7 +26,7 @@ projeto. As diferenças em relação à revisão anterior:
 | Item | Antes | Agora |
 |---|---|---|
 | Autenticação das APIs | Ausente; a URL era a única barreira | Lambda authorizer com Bearer, duas audiências, hashes no Secrets Manager |
-| Transporte do dashboard | Website S3 em HTTP | CloudFront com HTTPS obrigatório e bucket privado por OAC |
+| Transporte do dashboard | CDN com HTTPS e bucket privado | Website S3 em HTTP, compatível com as permissões do Learner Lab |
 | Migrations | 001–023 | 001–026 |
 | Acesso ao RDS | Público, restrito ao CIDR do desenvolvedor | Privado; administração pela task `migration` dentro da VPC |
 | Tag das imagens | `latest` | SHA do commit; `latest` só como apelido no ECR |
@@ -123,10 +123,12 @@ dependência.
 rota `POST /v1/changes`. Os dois caminhos usam HTTPS até o API Gateway e **apresentam
 o token Bearer de audiência `ingest`** (seção 3.7).
 
-&emsp; **Navegador do usuário** acessa o dashboard pela distribuição CloudFront, em
-**HTTPS obrigatório**, e consulta os dados pela API de leitura apresentando o token de
-audiência `dashboard`. O endpoint de website do S3 foi desativado: o bucket é privado
-e só a distribuição consegue ler seus objetos.
+&emsp; **Navegador do usuário** acessa diretamente o endpoint de website do S3 por
+**HTTP** e consulta os dados pela API de leitura, esta sim em HTTPS, apresentando o
+token de audiência `dashboard`. Os objetos do bucket são públicos para leitura; não
+há permissão pública de escrita nem de listagem. Como a página que recebe o token não
+tem TLS, este modo é uma compatibilidade temporária do Learner Lab e deve ser usado
+apenas em rede confiável.
 
 ### 3.2 Armazenamento de origem e carga inicial
 
@@ -235,29 +237,19 @@ então invoca a função **Lambda `read_api`**, que executa Flask empacotado com
 RDS como `argus_api`. Esse usuário herda apenas o papel de leitura com `SELECT` nas
 views públicas; não possui acesso direto às tabelas-base.
 
-&emsp; O **bucket S3 `frontend`** guarda o export estático do Next.js e é **privado**:
-os quatro bloqueios de acesso público estão ligados e a policy autoriza apenas a
-distribuição CloudFront, identificada pelo ARN. O navegador fala com o **CloudFront**,
-que serve o conteúdo por HTTPS obrigatório (`redirect-to-https`) usando **Origin Access
-Control** para assinar as leituras no S3.
+&emsp; O **bucket S3 `frontend`** guarda o export estático do Next.js e habilita
+**website hosting**. Os quatro bloqueios de acesso público ficam desligados e a policy
+concede a qualquer principal apenas `s3:GetObject` sobre os objetos desse bucket. Não
+há permissão pública de escrita, alteração de policy ou listagem do bucket.
 
-&emsp; Duas peças da distribuição merecem registro:
+&emsp; O endpoint de website completa as rotas do export estático: o Next.js escreve
+`agora/index.html`, e o acesso a `/agora/` resolve esse arquivo sem uma função de
+borda. `index.html` é o documento inicial e `404.html` é o documento de erro.
 
-- **CloudFront Function em `viewer-request`.** O export do Next escreve
-  `agora/index.html`, e não `agora`. O endpoint REST do S3 — ao contrário do de
-  website — não completa o caminho sozinho, então `/agora/` devolveria 404. A função
-  faz a completação na borda.
-- **Política de cabeçalhos de resposta.** HSTS, `X-Content-Type-Options: nosniff`,
-  `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` e uma
-  CSP cujo `connect-src` limita o destino das requisições do bundle. `frame-ancestors
-  'none'` é o que impede clickjacking sobre a tela de acesso — sem isso, uma página
-  hostil poderia sobrepor o campo e capturar o token digitado.
-
-&emsp; O deploy (`make frontend-deploy`) sincroniza o bucket e **invalida a
-distribuição**. Sem a invalidação, a borda continuaria servindo o `index.html`
-anterior até o TTL vencer, e o operador abriria a versão velha logo depois do deploy
-sem nada na tela indicando isso. O artefato publicado inclui `build-info.json` com
-commit, data UTC e versão — sem endpoint nem identificador de conta.
+&emsp; O deploy (`make frontend-deploy`) sincroniza `frontend/out/` diretamente com o
+bucket usando `aws s3 sync --delete` e imprime a URL HTTP do website. Não existe cache
+de CDN para invalidar. O artefato publicado inclui `build-info.json` com commit, data
+UTC e versão — sem endpoint nem identificador de conta.
 
 ### 3.7 Operação, segurança e observabilidade
 
@@ -376,8 +368,7 @@ evolução possível.
 | S3 `origem` | `loader` | HTTPS `S3 GetObject` | Ler Parquet e manifesto |
 | Secrets Manager | Task `simulator` | Resolução de `secrets` pela execution role | Injetar o token de ingestão sem expô-lo na task definition |
 | Componentes Python | RDS | PostgreSQL/TCP 5432 via `psycopg` | Persistência, ETL e consulta |
-| Navegador | CloudFront | **HTTPS** `GET` | Baixar o dashboard estático |
-| CloudFront | S3 `frontend` | HTTPS `GetObject` assinado por OAC | Ler os objetos de um bucket privado |
+| Navegador | S3 `frontend` | **HTTP** `GET` pelo endpoint de website | Baixar os objetos públicos do dashboard estático |
 | Navegador | API Gateway de leitura | HTTPS `GET`, Bearer `dashboard` | Consultar dados e hipóteses |
 | API Gateway de leitura | Lambda `read_api` | Invocação AWS | Executar a API Flask |
 | ECR | Tasks Fargate | HTTPS | Baixar imagens dos containers, por tag de SHA |
@@ -457,25 +448,26 @@ descartada porque fazia a exposição do dado do parceiro depender de uma linha 
 acesso administrativo sem essa dependência, ao custo de uma chamada `run-task` em vez
 de um `psql` direto.
 
-### 4.8 CloudFront diante do S3
+### 4.8 Website S3 no Learner Lab
 
-&emsp; O site estático em S3 reduz custo e permanece disponível quando os serviços do
-laboratório são pausados. A contrapartida era o endpoint de website, que serve
-**somente HTTP**.
+&emsp; O site estático no endpoint de website do S3 reduz custo, permanece disponível
+quando os serviços do laboratório são pausados e usa apenas operações permitidas pelo
+papel `voclabs`. O bucket concede leitura pública somente aos objetos do dashboard; a
+API e os dados continuam separados e protegidos pelo token Bearer.
 
-&emsp; Enquanto a API era pública, isso era uma imperfeição. Quando o dashboard passou
-a pedir um **token colado pelo operador**, virou falha: numa página carregada por HTTP,
-qualquer intermediário da rede lê a credencial em claro e ainda pode injetar
-JavaScript que a exfiltre. Uma credencial só faz sentido sobre um transporte que a
-proteja — foi a autenticação que tornou o CloudFront obrigatório, e não uma preferência
-estética por HTTPS.
+&emsp; A contrapartida é relevante: o endpoint serve **somente HTTP**. Como o dashboard
+pede um token colado pelo operador, um intermediário de rede pode observar a
+credencial ou alterar o JavaScript entregue e capturá-la. O armazenamento do token
+apenas em `sessionStorage` reduz persistência local, mas não corrige a ausência de TLS.
+Por isso esta arquitetura é um fallback temporário para demonstração em rede confiável,
+e não a postura recomendada para produção.
 
-&emsp; O CloudFront resolve os dois lados: TLS obrigatório na borda e, com Origin
-Access Control, o bucket volta a ser privado. Alternativas descartadas:
+&emsp; Alternativas avaliadas:
 
 | Alternativa | Por que não |
 |---|---|
-| Manter o website S3 e aceitar HTTP | Expõe o token em trânsito; anula a autenticação que acabou de ser adicionada |
+| Website S3 em HTTP | Escolhido temporariamente porque é suportado pelo papel do laboratório; exige rede confiável e rotação após suspeita de exposição |
+| CDN gerenciada com TLS e bucket privado | As operações necessárias não são permitidas pelo papel `voclabs` desta sessão |
 | Certificado próprio no ACM com domínio da equipe | Exigiria um domínio registrado e uma zona de DNS que o laboratório não tem onde hospedar |
 | Servir o dashboard pela própria Lambda | Transformaria arquivo estático em invocação cobrada por requisição e acrescentaria cold start ao carregamento da página |
 
@@ -489,7 +481,7 @@ Access Control, o bucket volta a ser privado. Alternativas descartadas:
 | 4 | Lambda para leitura, Fargate para processamento | Fargate para tudo | Custo: uso intermitente do dashboard | Cold start de ENI na VPC; memória de 1024 MB medida contra o banco real | ~US$ 0 ocioso | — |
 | 5 | Lambda authorizer com token compartilhado | API key; Cognito | Segurança (RNF09) dentro do escopo do MVP | Token identifica serviço, não pessoa; rotação por `make auth-rotate` | Invocação com cache de 5 min | Remover `authorization_type` das rotas |
 | 6 | Hash do token no Secrets Manager | Token em claro no Terraform | Segurança: o valor não entra no state nem no repositório | Perda do token de leitura exige rotação dos dois | Dois segredos | Rotacionar |
-| 7 | CloudFront com OAC | Website S3 em HTTP | Segurança do transporte da credencial | Invalidação necessária no deploy, senão serve versão velha | ~US$ 1/mês neste volume | Reativar o website S3 |
+| 7 | Website S3 público para leitura | CDN com TLS e bucket privado | Compatibilidade com as permissões do Learner Lab e baixo custo | HTTP expõe a página e o token a intermediários; uso restrito a rede confiável e ambiente temporário | Armazenamento e requisições S3 | Migrar para hospedagem HTTPS quando o ambiente permitir |
 | 8 | Tag de imagem por SHA do commit | `latest` | Capacidade de manutenção: o `plan` mostra o que muda | Build de árvore suja é recusado por `make push` | — | Apontar o SHA anterior |
 | 9 | Amostragem uniforme em `/timeline` | Truncar o excedente | Desempenho sem perder cobertura da janela | Perda de resolução, sinalizada por `truncated` | — | Elevar `LIMITE_POR_RAIA` |
 | 10 | Índices `025` e `026` | Cache na aplicação | Desempenho (RNF02) sem risco de servir dado velho | Custo de escrita nos índices, desprezível neste volume | Armazenamento | Migration nova que remove o índice |
@@ -527,8 +519,7 @@ verificação pode duplicar recursos e retirar seu gerenciamento do Terraform.
 | ECR | Quatro imagens de container, marcadas pelo SHA do commit | `ecr.tf` |
 | RDS PostgreSQL 16 | Persistência transacional e analítica, **privado** | `rds.tf` |
 | S3 `origem` | Parquet e manifesto da carga inicial | `s3_origem.tf` |
-| S3 `frontend` | Export estático, **bucket privado** | `frontend_s3.tf` |
-| CloudFront + OAC | HTTPS obrigatório, cabeçalhos de segurança e reescrita de rota | `frontend_s3.tf` |
+| S3 `frontend` | Export estático, website HTTP e leitura pública somente dos objetos | `frontend_s3.tf` |
 | Lambda `read_api` | API de leitura Flask | `api_read.tf` |
 | IAM | Roles e policies | `iam.tf` |
 | CloudWatch + SNS | Logs, métricas, alarmes e notificações | `observability.tf` |
@@ -580,12 +571,9 @@ terraform apply -var="worker_desired_count=0" \
                 -var="simulator_desired_count=0"
 ```
 
-&emsp; Cria security groups, RDS, buckets, filas, APIs, authorizer, segredos, cluster
-ECS, repositórios ECR, distribuição CloudFront, Lambdas, alarmes e task definitions —
-sem iniciar containers cujas imagens ainda não existem.
-
-&emsp; A distribuição CloudFront leva de 5 a 15 minutos para propagar. Ela pode ser
-criada aqui e só ser usada no passo 8.
+&emsp; Cria security groups, RDS, buckets, endpoint de website S3, filas, APIs,
+authorizer, segredos, cluster ECS, repositórios ECR, Lambdas, alarmes e task
+definitions — sem iniciar containers cujas imagens ainda não existem.
 
 #### Passo 3 — gerar e publicar os tokens
 
@@ -673,7 +661,8 @@ make -C apps/basica frontend-deploy
 
 &emsp; A URL da API entra no bundle em tempo de build; o token, **não** — ele é colado
 pelo operador na tela de acesso e vive apenas em `sessionStorage`. O alvo sincroniza o
-bucket, invalida a distribuição e imprime a URL **HTTPS** do CloudFront.
+bucket e imprime a URL **HTTP** do website S3. Esta publicação deve ser usada somente
+em rede confiável devido à ausência de TLS na página que recebe o token.
 
 #### Passo 9 — smoke
 
@@ -715,8 +704,9 @@ Newman **não** é versionado: ele carrega os cabeçalhos de cada requisição, 
 - views ocultando linhas com `available_at > sim.now()`;
 - Lambda consultando somente como usuário de leitura;
 - DLQs vazias, serviços estáveis e nenhum alarme em ALARM;
-- **dashboard acessível por HTTPS**, com a tela de acesso aparecendo antes de qualquer
-  consulta e o acesso liberado após o token;
+- **dashboard acessível pelo endpoint HTTP do website S3**, em rede confiável, com a
+  tela de acesso aparecendo antes de qualquer consulta e o acesso liberado após o
+  token;
 - `terraform plan` terminando com zero alterações.
 
 ### 5.5 Rollback e recuperação
@@ -739,7 +729,8 @@ Newman **não** é versionado: ele carrega os cabeçalhos de cada requisição, 
 | Risco ou limitação | Situação e mitigação |
 |---|---|
 | **Token identifica serviço, não pessoa** | Assumido e documentado. Não há como saber qual integrante fez uma consulta; a resposta a um vazamento é rotacionar os dois tokens (`make auth-rotate`), não revogar um usuário. Identidade individual exigiria Cognito, fora do escopo do MVP |
-| **Token do dashboard vive no navegador** | Só em `sessionStorage`, por aba, descartado ao fechá-la. Não entra no bundle, na URL, em `localStorage`, em cookie nem em log. HSTS e CSP com `connect-src` restrito limitam a exfiltração; `frame-ancestors 'none'` fecha o clickjacking sobre a tela de acesso |
+| **Dashboard servido por HTTP** | O website S3 não oferece TLS. Um intermediário pode ler o token ou alterar a página para capturá-lo. Usar somente em rede confiável, não reutilizar o token em outros sistemas e rotacioná-lo após qualquer suspeita de exposição; produção exige hospedagem HTTPS |
+| **Token do dashboard vive no navegador** | Só em `sessionStorage`, por aba, descartado ao fechá-la. Não entra no bundle, na URL, em `localStorage`, em cookie nem em log. Isso reduz persistência local, mas não protege o token durante o carregamento da página HTTP |
 | **Propagação da rotação leva até 10 min** | Cinco minutos de cache do authorizer no API Gateway mais cinco do cache em memória da função. Aceitável para rotação planejada; num vazamento, apagar a versão do segredo derruba o acesso no próximo ciclo |
 | Tasks em sub-redes públicas no laboratório | Security group sem ingress; produção deve preferir sub-redes privadas com NAT ou VPC endpoints |
 | Estado local do Terraform | Preferir backend remoto; nunca descartar state sem validar conta e recursos |
@@ -761,11 +752,12 @@ responsabilidade, mas compartilham o PostgreSQL de forma deliberada para reduzir
 e complexidade no MVP. O plano de implantação respeita as dependências reais entre
 Terraform, ECR, migrations, carga inicial, serviços e frontend.
 
-&emsp; Autenticação Bearer nas três APIs, HTTPS obrigatório por CloudFront com bucket
-privado, RDS privado, imagens marcadas pelo SHA do commit e log estruturado
-correlacionado por `X-Request-Id` **estão implantados**. As evoluções que permanecem
-são identidade individual por Cognito, sub-redes privadas, auto scaling e EventBridge
-Scheduler — nenhuma delas deve ser apresentada como implementada.
+&emsp; Autenticação Bearer nas três APIs, website S3 público para leitura, RDS privado,
+imagens marcadas pelo SHA do commit e log estruturado correlacionado por
+`X-Request-Id` compõem a configuração atual. A hospedagem HTTPS do dashboard volta a
+ser uma evolução necessária, ao lado de identidade individual por Cognito, sub-redes
+privadas, auto scaling e EventBridge Scheduler — nenhuma delas deve ser apresentada
+como implementada.
 
 ---
 

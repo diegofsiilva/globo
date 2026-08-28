@@ -66,8 +66,7 @@
   <path d="M2340 590 H2440" class="flow"/>
   <path d="M2655 735 V720" class="flow"/>
   <path d="M3055 835 H2870" class="flow"/>
-  <path d="M3100 620 V602" class="flow"/>
-  <path d="M3100 488 V427" class="flow"/>
+  <path d="M3100 620 V427" class="flow"/>
   <path d="M1380 1255 H1420" class="flow"/>
   <path d="M2120 1110 V1040 H2395 V380 H2440" class="flow-plan"/>
 
@@ -279,17 +278,7 @@
     <rect x="2955" y="300" width="270" height="95" class="artifact"/>
     <text x="3090" y="320" class="artifact-stereo">«artifact»</text>
     <text x="3090" y="346" class="artifact-text">dashboard Next.js</text>
-    <text x="3090" y="370" class="artifact-small">export estático · bucket privado (OAC)</text>
-  </g>
-
-  <!-- CloudFront -->
-  <g>
-    <polygon points="2930,490 2952,468 3272,468 3250,490" class="node-top"/>
-    <polygon points="3250,490 3272,468 3272,578 3250,600" class="node-side"/>
-    <rect x="2930" y="490" width="320" height="110" class="node-face"/>
-    <text x="3090" y="520" class="stereo">«cdn»</text>
-    <text x="3090" y="551" class="node-title">Amazon CloudFront</text>
-    <text x="3090" y="578" class="artifact-small">redirect-to-https · OAC · HSTS · CSP</text>
+    <text x="3090" y="370" class="artifact-small">export estático · website público (HTTP)</text>
   </g>
 
   <!-- navegador -->
@@ -335,10 +324,8 @@
   <rect x="2880" y="807" width="180" height="50" class="flow-label-bg"/>
   <text x="2970" y="826" class="flow-label">HTTPS</text>
   <text x="2970" y="848" class="flow-label">dados e hipóteses</text>
-  <rect x="2895" y="452" width="200" height="26" class="flow-label-bg"/>
-  <text x="2995" y="471" class="flow-label">GetObject · OAC sigv4</text>
-  <rect x="2895" y="612" width="200" height="26" class="flow-label-bg"/>
-  <text x="2995" y="631" class="flow-label">HTTPS obrigatório</text>
+  <rect x="2940" y="510" width="270" height="26" class="flow-label-bg"/>
+  <text x="3075" y="529" class="flow-label">HTTP GET · website S3</text>
 
   <!-- faixa transversal -->
   <rect x="20" y="1060" width="3260" height="410" class="band"/>
