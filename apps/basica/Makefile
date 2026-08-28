@@ -27,6 +27,11 @@ TOOLS      := tools
 FRONTEND   := frontend
 POSTMAN    := ../../artefatos/postman
 
+# O motor de hipóteses ainda não possui endpoint no MVP. O modo mock é
+# explícito nos fluxos suportados e pode ser trocado por `api` quando existir.
+HYPOTHESES_SOURCE ?= mock
+HYPOTHESES_API_URL ?=
+
 # Pasta com os CSVs de evento exportados do BI.
 EVENTS_SRC ?= $(HOME)/Downloads/Events
 
@@ -80,8 +85,9 @@ env: ## Cria o .env a partir dos outputs do Terraform
 	@{ \
 	  echo "ARGUS_API_URL=$$(cd $(INFRA) && terraform output -raw read_api_url 2>/dev/null)"; \
 	  echo "ARGUS_INGEST_URL=$$(cd $(INFRA) && terraform output -raw ingest_url 2>/dev/null)"; \
-	  echo "ARGUS_CHANGES_URL=$$(cd $(INFRA) && terraform output -raw changes_url 2>/dev/null)"; \
-	  echo "AWS_PROFILE=$${AWS_PROFILE:-g4}"; \
+	  echo "HYPOTHESES_SOURCE=mock"; \
+	  echo "HYPOTHESES_API_URL="; \
+	  echo "AWS_PROFILE=$${AWS_PROFILE:-default}"; \
 	  echo "AWS_REGION=$${AWS_REGION:-us-east-1}"; \
 	  echo '# DATABASE_URL: monte com "make db-url" (a senha nao passa por arquivo)'; \
 	} > .env
@@ -258,14 +264,17 @@ tf-validate: ## Valida a configuracao sem tocar na AWS
 
 .PHONY: tf-plan
 tf-plan: lambda-build ## Mostra o que mudaria na AWS (somente leitura)
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform plan
 
 .PHONY: tf-apply
 tf-apply: lambda-build ## Aplica as mudancas na AWS
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform apply
 
 .PHONY: tf-output
 tf-output: ## Mostra os endpoints e nomes de recurso
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform output
 
 .PHONY: tf-destroy
@@ -273,6 +282,7 @@ tf-destroy: ## Remove TODA a infraestrutura
 	@echo "Isto apaga o BANCO com as 33 tabelas, as filas e os servicos."
 	@echo "O bucket de origem tem versionamento, mas tambem vai."
 	@read -p "Digite 'destruir' para confirmar: " r; [ "$$r" = "destruir" ] || { echo "cancelado."; exit 1; }
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform destroy
 
 .PHONY: lambda-build
@@ -281,6 +291,7 @@ lambda-build: ## Empacota a API de leitura para a Lambda
 
 .PHONY: deploy
 deploy: test-backend lambda-build ## Testa, empacota e publica a API de leitura
+	@$(call require_env,AWS_PROFILE)
 	cd $(INFRA) && terraform apply -auto-approve
 	@$(MAKE) --no-print-directory smoke
 
@@ -338,7 +349,14 @@ frontend-install: ## Instala as dependencias do dashboard
 .PHONY: frontend-build
 frontend-build: ## Gera o site estatico do dashboard
 	@$(call require_env,ARGUS_API_URL)
-	cd $(FRONTEND) && NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" npm run build
+	@if [ "$(HYPOTHESES_SOURCE)" = "api" ] && [ -z "$(HYPOTHESES_API_URL)" ]; then \
+	  echo "erro: HYPOTHESES_API_URL é obrigatória no modo api."; exit 1; \
+	fi
+	cd $(FRONTEND) && \
+	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
+	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
+	  NEXT_PUBLIC_HYPOTHESES_API_URL="$(HYPOTHESES_API_URL)" \
+	  npm run build
 
 .PHONY: frontend-deploy
 frontend-deploy: frontend-build ## Publica o dashboard no bucket S3
@@ -351,7 +369,14 @@ frontend-deploy: frontend-build ## Publica o dashboard no bucket S3
 .PHONY: frontend-dev
 frontend-dev: ## Sobe o dashboard local contra a API publicada
 	@$(call require_env,ARGUS_API_URL)
-	cd $(FRONTEND) && NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" npm run dev
+	@if [ "$(HYPOTHESES_SOURCE)" = "api" ] && [ -z "$(HYPOTHESES_API_URL)" ]; then \
+	  echo "erro: HYPOTHESES_API_URL é obrigatória no modo api."; exit 1; \
+	fi
+	cd $(FRONTEND) && \
+	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
+	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
+	  NEXT_PUBLIC_HYPOTHESES_API_URL="$(HYPOTHESES_API_URL)" \
+	  npm run dev
 
 # --------------------------------------------------------------------------- #
 # Testes de API (Postman)

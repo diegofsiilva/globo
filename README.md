@@ -54,9 +54,9 @@ Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
 | Camada | O que guarda | Por que existe |
 |--------|--------------|----------------|
 | `bronze` | `change_log` (append-only) + uma tabela *corrente* por tabela de origem, e `event` para o grain de sessão | O log é a fonte de verdade; a corrente é o MERGE dele. Dá para reconstruir a corrente do zero a partir do log |
-| `silver` | `signal_point`, `signal_bucket`, `session_event` | Canonicaliza vocabulários que não se falam (`epoch_ms`, `ts`, `bts`, `ts_ms`, `hour_ts`, `start_ts`) num par `(ts, valor)` |
-| `gold` | `feature_bucket`, `incident_window`, `live_event_window`, `circadian_state` | Traços de 15 min prontos para o dashboard, com hora local, dia da semana e "tem jogo" |
-| `detect` | `run`, `anomaly` | Existe e está vazia: o detector é trabalho da próxima sprint, mas o contrato da API já é o final |
+| `silver` | sinais, sessões e `analysis_fact_version` | Canonicaliza tempo e conserva versões imutáveis por LSN |
+| `gold` | features, qualidade, hipóteses e evidências | Produtos de leitura e resultados explicáveis do motor |
+| `detect` | runs, claims, cursor, baseline e anomalias | Coordena e executa o detector causal por checkpoint |
 
 | Componente | Responsabilidade | Serviço AWS |
 |------------|------------------|-------------|
@@ -79,7 +79,11 @@ Toda linha carrega um `available_at` — o instante em que a informação *ficar
 
 Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
 
+<<<<<<< HEAD
 Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados em [`artefatos/arquitetura-inicial.md`](artefatos/arquitetura-inicial.md).
+=======
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/basica/infra/README.md).
+>>>>>>> develop
 
 > **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
@@ -89,18 +93,26 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
+<<<<<<< HEAD
 | `/apps/basica/db/migrations` | As 23 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+=======
+| `/apps/basica/db/migrations` | As 22 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+>>>>>>> develop
 | `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
 | `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
 | `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
 | `/apps/basica/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
+<<<<<<< HEAD
 | `/apps/basica/processing` | ETL, checkpoints, canário, detector e motor determinístico de hipóteses |
+=======
+| `/apps/basica/processing` | ETL, canário, detector e motor determinístico das 11 famílias de hipótese |
+>>>>>>> develop
 | `/apps/basica/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
 | `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
 | `/apps/basica/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
 | `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
-| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, arquitetura e MVP |
+| `/artefatos` | Documentação das sprints: negócio, UX, requisitos e MVP |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
 | `/artefatos/postman` | Coleção Postman de teste das duas APIs |
 | `/assets` | Logos usados neste README |
@@ -266,8 +278,14 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | [Arquitetura do Argus v3](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
+| [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
+<<<<<<< HEAD
 | [Arquitetura](artefatos/arquitetura-inicial.md) | Diagrama de implantação, componentes, decisões arquiteturais e plano de deploy na AWS |
+=======
+| [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
+| [Frontend](apps/basica/frontend/README.md) | Rotas, estrutura App Router, fontes de dados e comandos de validação |
+>>>>>>> develop
 | [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
 | [Infraestrutura](apps/basica/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
 

@@ -94,7 +94,7 @@ def pool(_migrated):
             """
             TRUNCATE silver.session_event, silver.signal_bucket,
                      gold.feature_bucket, gold.source_series, gold.incident_window,
-                     gold.live_event_window
+                     gold.live_event_window, gold.deploy_event, detect.manifest
               RESTART IDENTITY CASCADE
             """
         )
@@ -145,13 +145,23 @@ def _inserir_eventos(pool, eventos: dict[str, dict]) -> None:
             """,
             [
                 (
-                    linha["ts"], linha["event_id"], linha["event_name"],
-                    linha["session_id"], linha["device_id"], linha.get("user_id"),
-                    linha.get("app_bucket"), linha.get("app_env"),
-                    linha.get("app_target"), linha.get("app_version"),
-                    linha.get("device_manufacturer"), linha.get("device_model"),
-                    linha.get("device_os"), linha.get("route_path"),
-                    linha.get("duration"), None, None,
+                    linha["ts"],
+                    linha["event_id"],
+                    linha["event_name"],
+                    linha["session_id"],
+                    linha["device_id"],
+                    linha.get("user_id"),
+                    linha.get("app_bucket"),
+                    linha.get("app_env"),
+                    linha.get("app_target"),
+                    linha.get("app_version"),
+                    linha.get("device_manufacturer"),
+                    linha.get("device_model"),
+                    linha.get("device_os"),
+                    linha.get("route_path"),
+                    linha.get("duration"),
+                    None,
+                    None,
                     Jsonb(linha["payload"]),
                     # available_at no passado: o grain de sessao chega do
                     # proprio aparelho, sem batch no meio.
@@ -201,11 +211,27 @@ def gold_repository(pool):
 
 
 @pytest.fixture
-def app(repository, gold_repository):
-    """Aplicacao Flask com os dois repositorios injetados."""
+def signals_repository(pool):
+    """Repositorio de `/api/v1/signals` apontando para o banco de teste.
+
+    `baseline_hours=168` (padrao) olharia 7 dias para tras a partir de
+    `REFERENCE_NOW` -- mais do que as fixtures de teste cobrem. Os testes
+    usam uma janela de baseline curta para caber nas poucas horas que as
+    fixtures inserem.
+    """
+    from telemetry.infrastructure.signals import SignalsRepository
+
+    return SignalsRepository(pool, baseline_hours=6)
+
+
+@pytest.fixture
+def app(repository, gold_repository, signals_repository):
+    """Aplicacao Flask com os tres repositorios injetados."""
     from telemetry.config import TestConfig
 
-    aplicacao = create_app(TestConfig, repository=repository, gold=gold_repository)
+    aplicacao = create_app(
+        TestConfig, repository=repository, gold=gold_repository, signals=signals_repository
+    )
     aplicacao.config["USER_ID_HASH_SALT"] = SALT
     return aplicacao
 

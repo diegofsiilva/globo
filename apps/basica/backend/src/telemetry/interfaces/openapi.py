@@ -60,6 +60,106 @@ def _parameter(name: str, description: str, **schema: Any) -> dict[str, Any]:
     }
 
 
+def _hypothesis_paths() -> dict[str, Any]:
+    hypothesis_id = {
+        "name": "hypothesis_id",
+        "in": "path",
+        "required": True,
+        "schema": {"type": "integer", "minimum": 1},
+    }
+    return {
+        "/api/v1/hypothesis-runs": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Lista runs publicados",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "maximum": 200},
+                    },
+                    {"name": "before_run_id", "in": "query", "schema": {"type": "integer"}},
+                ],
+                "responses": {"200": {"description": "Runs concluidos e publicados"}},
+            }
+        },
+        "/api/v1/hypotheses": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Lista hipoteses publicadas",
+                "parameters": [
+                    {"name": name, "in": "query", "schema": {"type": "string"}}
+                    for name in (
+                        "family",
+                        "kind",
+                        "confidence",
+                        "review_status",
+                        "source",
+                        "entity",
+                        "from",
+                        "to",
+                        "cursor",
+                    )
+                ]
+                + [
+                    {"name": "run_id", "in": "query", "schema": {"type": "integer"}},
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "maximum": 200},
+                    },
+                ],
+                "responses": {"200": {"description": "Pagina keyset de hipoteses"}},
+            }
+        },
+        "/api/v1/hypotheses/{hypothesis_id}": {
+            "get": {
+                "tags": ["Hipoteses"],
+                "summary": "Detalha uma hipotese",
+                "parameters": [hypothesis_id],
+                "responses": {
+                    "200": {"description": "Features, evidencias e feedback"},
+                    "404": {"$ref": "#/components/responses/NaoEncontrado"},
+                },
+            }
+        },
+        "/api/v1/hypotheses/{hypothesis_id}/feedback": {
+            "post": {
+                "tags": ["Hipoteses"],
+                "summary": "Registra feedback publico",
+                "description": "reviewer_ref e declaratorio e nao verificado.",
+                "parameters": [hypothesis_id],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["verdict", "idempotency_key"],
+                                "properties": {
+                                    "verdict": {
+                                        "enum": ["confirmed", "partially_confirmed", "rejected"]
+                                    },
+                                    "note": {"type": "string", "maxLength": 2000},
+                                    "reviewer_ref": {"type": "string", "maxLength": 128},
+                                    "idempotency_key": {"type": "string", "format": "uuid"},
+                                },
+                            }
+                        }
+                    },
+                },
+                "responses": {
+                    "200": {"description": "Repeticao idempotente"},
+                    "201": {"description": "Feedback criado"},
+                    "404": {"$ref": "#/components/responses/NaoEncontrado"},
+                    "409": {"description": "Chave idempotente usada com outro payload"},
+                    "422": {"$ref": "#/components/responses/Invalido"},
+                },
+            }
+        },
+    }
+
+
 def _common_query_parameters() -> list[dict[str, Any]]:
     """Gera a lista de parâmetros de busca reutilizáveis para endpoints de consulta.
 
@@ -255,16 +355,15 @@ def build_spec() -> dict[str, Any]:
     event_schema = _event_schema()
     common = _common_query_parameters()
 
-    return {
+    spec = {
         "openapi": "3.1.0",
         "info": {
             "title": "Argus — API de leitura de eventos",
             "version": API_VERSION,
             "description": (
-                "Consulta dos eventos de telemetria do app de TV, para o dashboard.\n\n"
-                "**Somente leitura.** A entrada de eventos e o pipeline "
-                "`API Gateway -> SQS -> ECS Fargate -> DynamoDB`; esta API nao "
-                "recebe, altera nem apaga evento.\n\n"
+                "Consulta de telemetria e hipoteses para o dashboard. A entrada "
+                "de eventos nao passa por esta API; a unica escrita publica e o "
+                "feedback idempotente de uma hipotese publicada.\n\n"
                 "### Custo das consultas\n\n"
                 "Toda busca devolve um bloco `query` com a estrategia usada e "
                 "quantos itens foram lidos. Informar `event_name`, `session_id` ou "
@@ -514,6 +613,50 @@ def build_spec() -> dict[str, Any]:
                     },
                 }
             },
+            "/api/v1/metrics/crosstab": {
+                "get": {
+                    "tags": ["Metricas"],
+                    "summary": "Agrupa e conta por DUAS dimensoes -- heatmap do Recorte",
+                    "description": (
+                        "`breakdown` agrupa por uma dimensao so; o heatmap "
+                        "dispositivo x regiao (ou qualquer par) precisa das duas "
+                        "contagens ao mesmo tempo."
+                    ),
+                    "parameters": common
+                    + [
+                        {
+                            "name": "dimension_x",
+                            "in": "query",
+                            "required": True,
+                            "description": "Campo do primeiro eixo.",
+                            "schema": {"type": "string", "enum": sorted(BREAKDOWN_FIELDS)},
+                        },
+                        {
+                            "name": "dimension_y",
+                            "in": "query",
+                            "required": True,
+                            "description": "Campo do segundo eixo.",
+                            "schema": {"type": "string", "enum": sorted(BREAKDOWN_FIELDS)},
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "description": "Quantas celulas devolver, da maior para a menor.",
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 200,
+                                "default": 50,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Celulas do cruzamento"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
             "/api/v1/metrics/timeseries": {
                 "get": {
                     "tags": ["Metricas"],
@@ -700,8 +843,7 @@ def build_spec() -> dict[str, Any]:
                             "in": "query",
                             "required": False,
                             "description": (
-                                "Janela assumida quando from/to nao vem, "
-                                "contada de sim.now()."
+                                "Janela assumida quando from/to nao vem, contada de sim.now()."
                             ),
                             "schema": {
                                 "type": "integer",
@@ -811,6 +953,99 @@ def build_spec() -> dict[str, Any]:
                     "responses": {"200": {"description": "Transmissoes"}},
                 }
             },
+            "/api/v1/changes": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Eventos de mudanca de plataforma (deploy) na janela",
+                    "description": (
+                        "So cobre deploy (fonte Tsuru, ver 018_deploy_events.sql). "
+                        "O dataset nao tem log discreto de mudanca para autoscale "
+                        "nem WAF, so serie de metrica."
+                    ),
+                    "parameters": [
+                        _parameter("from", "Inicio da janela, por started_at.", format="date-time"),
+                        _parameter("to", "Fim da janela.", format="date-time"),
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 2000,
+                                "default": 200,
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Eventos de deploy"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/references/stable-window": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Janela de referencia sem incidente (Comparar)",
+                    "description": (
+                        "Caminha para tras em incrementos de duration_minutes "
+                        "ate achar uma janela sem sobreposicao com "
+                        "gold.v_incident_window, ou desiste apos 200 passos."
+                    ),
+                    "parameters": [
+                        {
+                            "name": "duration_minutes",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1440,
+                                "default": 60,
+                            },
+                        },
+                        _parameter(
+                            "before",
+                            "Nao propor janela terminando depois disto. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {"200": {"description": "Janela encontrada, ou found=false"}},
+                }
+            },
+            "/api/v1/references/last-live-peak": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Ultima transmissao ao vivo antes de um instante (Comparar)",
+                    "parameters": [
+                        _parameter(
+                            "before",
+                            "Nao propor evento comecando depois disto. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {"200": {"description": "Evento encontrado, ou found=false"}},
+                }
+            },
+            "/api/v1/timeline": {
+                "get": {
+                    "tags": ["Gold"],
+                    "summary": "Seis raias de fonte para a tela Timeline",
+                    "description": (
+                        "Quatro raias de serie (NPAW, Prometheus, New Relic, "
+                        "Apollo), uma de deploy (Tsuru) e uma de incidente "
+                        "(ServiceNow). Sem periodo, usa as 3h antes de sim.now()."
+                    ),
+                    "parameters": [
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                    ],
+                    "responses": {
+                        "200": {"description": "Raias"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
             "/api/v1/anomalies": {
                 "get": {
                     "tags": ["Gold"],
@@ -842,6 +1077,186 @@ def build_spec() -> dict[str, Any]:
                         },
                     ],
                     "responses": {"200": {"description": "Anomalias"}},
+                }
+            },
+            "/api/v1/signals": {
+                "get": {
+                    "tags": ["Sinais"],
+                    "summary": "Sinais em desvio ativo agora (tela Agora)",
+                    "description": (
+                        "Versao 1 simplificada (ver "
+                        "`telemetry.application.signals`): so entra grupo cujo "
+                        "ULTIMO bucket da janela ainda esta fora do baseline "
+                        "horario -- 'ativo agora', nao 'desviou em algum "
+                        "momento'. Independente do motor de hipoteses "
+                        "(em desenvolvimento em `feat/hipotese`)."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "from",
+                            "Inicio da janela, ISO 8601. Sem valor, usa 'to' menos 6 horas.",
+                            format="date-time",
+                        ),
+                        _parameter(
+                            "to",
+                            "Fim da janela, ISO 8601. Sem valor, usa sim.now().",
+                            format="date-time",
+                        ),
+                    ],
+                    "responses": {
+                        "200": {"description": "Sinais ativos"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/series/facets": {
+                "get": {
+                    "tags": ["Serie"],
+                    "summary": "Valores distintos das dimensoes da serie",
+                    "description": (
+                        "Alimenta os filtros de escopo e os agrupamentos das "
+                        "telas Explorar e Recorte. Le da serie agregada, e nao "
+                        "de evento por sessao: este dataset nao tem evento por "
+                        "sessao, so telemetria por hora e dimensao."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "field",
+                            (
+                                "Dimensao de `gold.v_feature_bucket`: source, entity, "
+                                "metric, hora_brt, dow ou tem_jogo. Repetivel."
+                            ),
+                        ),
+                        _parameter(
+                            "limit", "Teto de valores por dimensao (1-500).", type="integer"
+                        ),
+                    ],
+                    "responses": {
+                        "200": {"description": "Valores por dimensao"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/series/breakdown": {
+                "get": {
+                    "tags": ["Serie"],
+                    "summary": "Agrupa a serie por uma dimensao",
+                    "description": (
+                        "Metrica de contagem entra por SOMA e metrica de taxa "
+                        "por MEDIA -- somar percentual nao significa nada. "
+                        "Recorte pode vir por 'from'/'to' (ISO 8601) ou por "
+                        "'window_hours'; sem nenhum dos dois, usa as ultimas "
+                        "24 h ate sim.now(). Qualquer dimensao tambem aceita "
+                        "ser passada como filtro de escopo "
+                        "(ex.: source=youbora_device)."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "dimension",
+                            (
+                                "Dimensao de `gold.v_feature_bucket`: source, entity, "
+                                "metric, hora_brt, dow ou tem_jogo. Obrigatorio."
+                            ),
+                        ),
+                        _parameter("metric", "Metrica a agregar (ex.: sessions, error_rate_pct)."),
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                        _parameter(
+                            "window_hours", "Janela em horas ate sim.now().", type="integer"
+                        ),
+                        _parameter(
+                            "window_minutes",
+                            "Janela em minutos ate sim.now(), para periodos menores que uma hora.",
+                            type="integer",
+                        ),
+                        _parameter("limit", "Teto de grupos (1-1000).", type="integer"),
+                    ],
+                    "responses": {
+                        "200": {"description": "Grupos com valor e participacao"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
+                }
+            },
+            "/api/v1/series/timeseries": {
+                "get": {
+                    "tags": ["Serie"],
+                    "summary": "Serie temporal agregada, com quebra por metrica",
+                    "description": (
+                        "Cada balde traz `by_metric`, para a tela desenhar "
+                        "volume e erro na mesma serie sem uma segunda consulta. "
+                        "Os baldes sao alinhados por `date_bin` a uma origem "
+                        "fixa, entao janelas diferentes tem as MESMAS bordas e "
+                        "ficam comparaveis ponto a ponto. Recorte pode vir por "
+                        "'from'/'to' (ISO 8601) ou por 'window_hours'; sem "
+                        "nenhum dos dois, usa as ultimas 24 h ate sim.now(). "
+                        "Qualquer dimensao tambem aceita ser passada como "
+                        "filtro de escopo (ex.: source=youbora_device)."
+                    ),
+                    "parameters": [
+                        _parameter("metric", "Metrica a agregar; sem valor, soma as de contagem."),
+                        _parameter("interval", "Minutos por balde (5-1440).", type="integer"),
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                        _parameter(
+                            "window_hours", "Janela em horas ate sim.now().", type="integer"
+                        ),
+                        _parameter(
+                            "window_minutes",
+                            "Janela em minutos ate sim.now(), para periodos menores que uma hora.",
+                            type="integer",
+                        ),
+                    ],
+                    "responses": {"200": {"description": "Baldes da serie"}},
+                }
+            },
+            "/api/v1/series/crosstab": {
+                "get": {
+                    "tags": ["Serie"],
+                    "summary": "Cruza duas dimensoes da serie (heatmap do Recorte)",
+                    "description": (
+                        "Recorte pode vir por 'from'/'to' (ISO 8601) ou por "
+                        "'window_hours'; sem nenhum dos dois, usa as ultimas 24 h "
+                        "ate sim.now(). Qualquer dimensao tambem aceita ser passada "
+                        "como filtro de escopo (ex.: source=youbora_device)."
+                    ),
+                    "parameters": [
+                        _parameter(
+                            "dimension_x",
+                            (
+                                "Dimensao de `gold.v_feature_bucket`: source, entity, "
+                                "metric, hora_brt, dow ou tem_jogo. Obrigatorio."
+                            ),
+                        ),
+                        _parameter(
+                            "dimension_y",
+                            (
+                                "Dimensao de `gold.v_feature_bucket`: source, entity, "
+                                "metric, hora_brt, dow ou tem_jogo. Obrigatorio."
+                            ),
+                        ),
+                        _parameter(
+                            "metric",
+                            "Metrica a agregar. Repetivel para devolver varias "
+                            "metricas no mesmo scan.",
+                        ),
+                        _parameter("from", "Inicio da janela, ISO 8601.", format="date-time"),
+                        _parameter("to", "Fim da janela, ISO 8601.", format="date-time"),
+                        _parameter(
+                            "window_hours", "Janela em horas ate sim.now().", type="integer"
+                        ),
+                        _parameter(
+                            "window_minutes",
+                            "Janela em minutos ate sim.now(), para periodos menores que uma hora.",
+                            type="integer",
+                        ),
+                        _parameter(
+                            "limit", "Teto de celulas por metrica (1-2000).", type="integer"
+                        ),
+                    ],
+                    "responses": {
+                        "200": {"description": "Celulas do cruzamento"},
+                        "422": {"$ref": "#/components/responses/Invalido"},
+                    },
                 }
             },
             "/health/live": {
@@ -901,6 +1316,9 @@ def build_spec() -> dict[str, Any]:
             },
         },
     }
+    spec["tags"].append({"name": "Hipoteses", "description": "Resultados explicaveis e feedback"})
+    spec["paths"].update(_hypothesis_paths())
+    return spec
 
 
 def _server_url() -> str:

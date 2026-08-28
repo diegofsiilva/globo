@@ -445,8 +445,10 @@ A consulta mais cara é a busca por tipo (1.3), e o motivo está no modelo: ela 
 uma query por (dia × shard). É o custo escolhido quando se resolveu o gargalo de
 partição da GSI1.
 
-![Coleção de requisições de testes no Postman](assets/postman-requests.png)
-<sup>Fonte: material produzido pelos autores (2026).</sup>
+Não há captura de tela da execução: a coleção roda por `newman` na linha de
+comando (`make -C apps/basica postman`), sem interface gráfica. A tabela acima é
+a saída consolidada dessa execução, reproduzível e versionável, ao contrário de
+um print.
 
 ### 4.3 Achados
 

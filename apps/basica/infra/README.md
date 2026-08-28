@@ -12,8 +12,12 @@ Simulador  ──> API Gateway (mudanças) ──> SQS ──> ECS (merge worker
 > Ver [§ AWS Academy](#aws-academy--learner-lab) para as adaptações que esse
 > ambiente exige — elas não são poucas.
 
+<<<<<<< HEAD
 O desenho e os porquês estão em [`artefatos/arquitetura.md`](../../artefatos/arquitetura.md)
 e na [arquitetura do Argus v3](../../artefatos/arquitetura-inicial.md).
+=======
+O desenho e os porquês estão no [plano da v3](../../../artefatos/plano-argus-v3.md).
+>>>>>>> develop
 
 ---
 
@@ -323,6 +327,26 @@ Para exigência de subnet privada, `assign_public_ip = false` exige uma destas:
   - Gateway (grátis): `s3`
   - Interface (~US$ 7/mês cada por AZ): `sqs`, `ecr.api`, `ecr.dkr`, `logs`,
     `secretsmanager`
+
+---
+
+## Segurança e lacunas conhecidas
+
+**Superfície de rede.** As tasks ficam em subnet pública com IP público e
+security group sem regra de entrada: elas alcançam a AWS pela internet, mas
+ninguém alcança as tasks. O RDS é a única porta aberta, restrita ao
+`db_allowed_cidr` (o seu IP em /32) e usada só para `make migrate` e inspeção.
+
+**Dado pessoal.** A API de leitura remove identificadores e cabeçalhos sensíveis
+na resposta (RNF10). O evento cru fica no banco, com criptografia em repouso, e o
+usuário `argus_reader` que a Lambda usa só tem `SELECT` nas views `v_*`.
+
+**Lacuna: as HTTP APIs não têm autenticação.** Nem a API de ingestão nem a de
+leitura têm authorizer. A URL, que não é versionada e sai apenas do Terraform, é
+na prática a única barreira entre os eventos e qualquer pessoa na internet.
+Adicionar um authorizer (chave de API ou JWT) é item pendente; enquanto isso, a
+URL não deve ser divulgada. O site do dashboard no S3 é público de propósito e
+expõe apenas o HTML/CSS/JS.
 
 ---
 

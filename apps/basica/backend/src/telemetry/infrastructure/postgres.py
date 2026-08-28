@@ -234,17 +234,59 @@ class PostgresEventRepository:
                 # milissegundos. A conversao mora aqui, na saida, e nao na
                 # ingestao -- a bronze guarda o que a origem mandou.
                 average_duration_ms=(
-                    round(float(linha["media"]) * 1000, 2)
-                    if linha["media"] is not None
-                    else None
+                    round(float(linha["media"]) * 1000, 2) if linha["media"] is not None else None
                 ),
             )
             for linha in linhas
         ]
 
-    def timeseries(
-        self, filters: EventFilters, interval_minutes: int = 60
-    ) -> Sequence[TimeBucket]:
+    def crosstab(
+        self, filters: EventFilters, dimension_x: str, dimension_y: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Agrupa eventos por DUAS dimensoes (heatmap do Recorte, RF16).
+
+        `breakdown` agrupa por uma dimensao so; o heatmap dispositivo x
+        regiao (ou qualquer outro par) precisa das duas contagens ao mesmo
+        tempo, que uma dimensao unica nao responde.
+
+        Args:
+            filters (EventFilters): Filtros aplicados antes do agrupamento.
+            dimension_x (str): Coluna do primeiro eixo.
+            dimension_y (str): Coluna do segundo eixo.
+            limit (int): Teto de celulas devolvidas.
+
+        Returns:
+            list[dict[str, Any]]: Uma linha por combinacao (x, y) com `count`,
+                da mais frequente para a menos.
+
+        Raises:
+            ValueError: Se alguma das duas dimensoes nao for agrupavel.
+        """
+        coluna_x = self._coluna_agrupavel(dimension_x)
+        coluna_y = self._coluna_agrupavel(dimension_y)
+        onde, params = self._where(filters)
+
+        linhas = self._query(
+            sql.SQL(
+                """
+                SELECT COALESCE({x}, '(sem valor)') AS chave_x,
+                       COALESCE({y}, '(sem valor)') AS chave_y,
+                       count(*) AS total
+                  FROM silver.v_session_event
+                 WHERE {onde}
+                 GROUP BY 1, 2
+                 ORDER BY total DESC
+                 LIMIT %s
+                """
+            ).format(x=coluna_x, y=coluna_y, onde=sql.SQL(" AND ").join(onde)),
+            [*params, limit],
+        )
+        return [
+            {"x": linha["chave_x"], "y": linha["chave_y"], "count": int(linha["total"])}
+            for linha in linhas
+        ]
+
+    def timeseries(self, filters: EventFilters, interval_minutes: int = 60) -> Sequence[TimeBucket]:
         """Agrupa os eventos numa serie temporal.
 
         Args:
@@ -306,25 +348,57 @@ class PostgresEventRepository:
         Raises:
             ValueError: Se algum campo nao for agrupavel.
         """
-        resultado: dict[str, list[str]] = {}
         for campo in fields:
-            coluna = self._coluna_agrupavel(campo)
-            # Ordenado por frequencia e nao alfabeticamente: quem abre o filtro
-            # quer as opcoes que existem de verdade no topo, nao as que comecam
-            # com A.
-            linhas = self._query(
-                sql.SQL(
-                    """
-                    SELECT {coluna} AS valor, count(*) AS total
-                      FROM silver.v_session_event
-                     WHERE {coluna} IS NOT NULL
-                     GROUP BY 1 ORDER BY total DESC, valor
-                     LIMIT %s
-                    """
-                ).format(coluna=coluna),
-                [limit],
+            self._coluna_agrupavel(campo)
+        if not fields:
+            return {}
+
+        # Um scan so, recortado na mesma janela padrao das outras leituras.
+        # A versao anterior fazia um GROUP BY sem recorte por campo -- N
+        # varreduras da particao inteira, e oferecia valores que sumiram ha
+        # semanas.
+        pares = sql.SQL(", ").join(
+            sql.SQL("({rotulo}, {coluna}::text)").format(
+                rotulo=sql.Literal(campo), coluna=sql.Identifier(campo)
             )
-            resultado[campo] = [linha["valor"] for linha in linhas]
+            for campo in fields
+        )
+        linhas = self._query(
+            sql.SQL(
+                """
+                WITH janela AS (
+                  SELECT {colunas}
+                    FROM silver.v_session_event
+                   WHERE ts >= sim.now() - %s
+                ),
+                contagem AS (
+                  SELECT d.campo, d.valor, count(*) AS total
+                    FROM janela
+                    CROSS JOIN LATERAL (VALUES {pares}) AS d(campo, valor)
+                   WHERE d.valor IS NOT NULL
+                   GROUP BY d.campo, d.valor
+                ),
+                ranqueado AS (
+                  SELECT campo, valor,
+                         row_number() OVER (
+                           PARTITION BY campo ORDER BY total DESC, valor
+                         ) AS posicao
+                    FROM contagem
+                )
+                SELECT campo, valor
+                  FROM ranqueado
+                 WHERE posicao <= %s
+                 ORDER BY campo, posicao
+                """
+            ).format(
+                colunas=sql.SQL(", ").join(sql.Identifier(c) for c in fields),
+                pares=pares,
+            ),
+            [timedelta(hours=self._janela), limit],
+        )
+        resultado: dict[str, list[str]] = {campo: [] for campo in fields}
+        for linha in linhas:
+            resultado[linha["campo"]].append(linha["valor"])
         return resultado
 
     def ping(self) -> bool:
@@ -376,9 +450,7 @@ class PostgresEventRepository:
         for campo in COLUNAS_FILTRAVEIS:
             valor = getattr(filters, campo, None)
             if valor:
-                onde.append(
-                    sql.SQL("{} = %s").format(sql.Identifier(campo))
-                )
+                onde.append(sql.SQL("{} = %s").format(sql.Identifier(campo)))
                 params.append(valor)
 
         de = filters.occurred_from
@@ -469,9 +541,7 @@ class PostgresEventRepository:
         # original quando nao e ("unknown" e valor real do parque). A entidade
         # aceita os dois, entao a saida da API nao perde nenhum dos casos.
         ano_texto = payload.pop("device_model_year", None)
-        device_model_year = (
-            ano_texto if ano_texto is not None else linha.get("device_model_year")
-        )
+        device_model_year = ano_texto if ano_texto is not None else linha.get("device_model_year")
         device_os_version = payload.pop("device_os_version", None)
 
         # `duration` vem em segundos e o dashboard usa milissegundos.
@@ -613,7 +683,15 @@ def build_pool(database_url: str, *, min_size: int = 0, max_size: int = 2) -> Co
         # A Lambda tem timeout proprio; esperar mais que isso por uma conexao so
         # garante que a resposta vai ser um 502 em vez de um erro legivel.
         timeout=10,
-        kwargs={"application_name": "argus-read-api", "autocommit": True},
+        kwargs={
+            "application_name": "argus-read-api",
+            "autocommit": True,
+            # JIT em CTE de 4,9 M linhas adiciona segundos no PRIMEIRO plano
+            # (o caso da Lambda fria). work_mem maior evita hash/sort spilling
+            # para disco no t3.medium. statement_timeout abaixo dos 30 s da
+            # Lambda devolve 500 legivel em vez de 502 do API Gateway.
+            "options": "-c jit=off -c statement_timeout=15000 -c work_mem=64MB",
+        },
         check=ConnectionPool.check_connection,
     )
 
