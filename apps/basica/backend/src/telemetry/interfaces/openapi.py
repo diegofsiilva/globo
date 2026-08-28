@@ -1327,6 +1327,32 @@ def build_spec() -> dict[str, Any]:
                     "responses": {"200": {"description": "Viva"}},
                 }
             },
+            "/docs": {
+                "get": {
+                    "tags": ["Saude"],
+                    "summary": "Swagger UI desta especificacao",
+                    "description": (
+                        "Rota **publica**. O navegador a abre por navegacao, e "
+                        "navegacao nao carrega cabecalho `Authorization` -- "
+                        "protegida, ela devolveria 401 antes de a pagina "
+                        "renderizar, e nao haveria onde clicar em `Authorize`. "
+                        "Expoe a forma da API, nunca dado."
+                    ),
+                    "responses": {"200": {"description": "Pagina HTML do Swagger UI"}},
+                }
+            },
+            "/openapi.json": {
+                "get": {
+                    "tags": ["Saude"],
+                    "summary": "Esta especificacao, em JSON",
+                    "description": (
+                        "Rota **publica** pelo mesmo motivo de `/docs`: o Swagger "
+                        "a busca ao carregar, antes de qualquer interacao do "
+                        "usuario e portanto antes de haver token."
+                    ),
+                    "responses": {"200": {"description": "OpenAPI 3.1"}},
+                }
+            },
             "/health/ready": {
                 "get": {
                     "tags": ["Saude"],
@@ -1415,11 +1441,20 @@ def build_spec() -> dict[str, Any]:
     return spec
 
 
-# A UNICA rota sem autenticacao. Sonda de vida: responde `{"status": "ok"}` fixo,
-# sem tocar no banco, e precisa continuar respondendo mesmo com o Secrets
-# Manager fora. `/health/ready` NAO entra aqui -- ela consulta o banco, e o
-# proprio resultado ja revela se ha dado carregado.
-ROTAS_PUBLICAS = frozenset({"/health/live"})
+# As rotas sem autenticacao. Precisam casar com as rotas explicitas de
+# `authorization_type = "NONE"` em infra/auth.tf -- se divergirem, a spec passa
+# a mentir sobre o que exige credencial.
+#
+# `/health/live`: sonda de vida. Responde `{"status": "ok"}` fixo, sem tocar no
+# banco, e precisa continuar respondendo mesmo com o Secrets Manager fora.
+# `/health/ready` NAO entra aqui: ela consulta o banco, e o proprio resultado ja
+# revela se ha dado carregado.
+#
+# `/docs` e `/openapi.json`: o Swagger UI e aberto por NAVEGACAO, que nao carrega
+# cabecalho `Authorization`. Protegidas, elas devolveriam 401 antes de a pagina
+# renderizar, e nao haveria onde clicar em "Authorize". O que fica exposto e a
+# forma da API, nao o dado -- ver a nota extensa em infra/auth.tf.
+ROTAS_PUBLICAS = frozenset({"/health/live", "/docs", "/openapi.json"})
 
 
 def _aplicar_seguranca(spec: dict[str, Any]) -> None:
@@ -1482,6 +1517,15 @@ SWAGGER_UI = """<!doctype html>
         deepLinking: true,
         docExpansion: "list",
         defaultModelsExpandDepth: 1,
+        // O token colado em "Authorize" sobrevive ao recarregamento da pagina.
+        // Sem isto, cada F5 -- e o Swagger recarrega ao trocar de rota pelo
+        // deep link -- obrigaria a colar os 64 caracteres de novo, e a conferir
+        // uma rota depois da outra viraria um exercicio de paciencia.
+        //
+        // Guarda em localStorage, o que e aceitavel AQUI e nao no dashboard: a
+        // Swagger e ferramenta de quem desenvolve, na propria maquina, nao a
+        // tela que o operador abre numa maquina compartilhada.
+        persistAuthorization: true,
       });
     </script>
   </body>

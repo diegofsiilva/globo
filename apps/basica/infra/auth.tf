@@ -201,7 +201,7 @@ resource "aws_apigatewayv2_authorizer" "events" {
 }
 
 # ---------------------------------------------------------------------------- #
-# A unica rota publica
+# As rotas publicas
 # ---------------------------------------------------------------------------- #
 
 # `GET /health/live` fica sem authorizer porque e a sonda de vida: ela precisa
@@ -214,6 +214,39 @@ resource "aws_apigatewayv2_authorizer" "events" {
 resource "aws_apigatewayv2_route" "health_live" {
   api_id             = aws_apigatewayv2_api.read.id
   route_key          = "GET /health/live"
+  target             = "integrations/${aws_apigatewayv2_integration.read.id}"
+  authorization_type = "NONE"
+}
+
+# A DOCUMENTACAO tambem fica publica, e isso e uma decisao, nao um esquecimento.
+#
+# O Swagger UI e uma pagina HTML que o navegador abre por NAVEGACAO, e navegacao
+# nao carrega cabecalho `Authorization`. Com a rota protegida, o API Gateway
+# responde 401 antes de o Flask ser invocado: a pagina nunca renderiza, e nao ha
+# onde clicar em "Authorize". O mesmo vale para `/openapi.json`, que o proprio
+# Swagger busca ao carregar, antes de qualquer interacao do usuario.
+#
+# Proteger as duas nao tornaria o sistema mais seguro -- tornaria o Swagger
+# inutilizavel, e a alternativa real seria abandona-lo em favor de curl.
+#
+# O que fica exposto e a FORMA da API: nomes de rota, parametros e descricoes.
+# Nenhum dado do parceiro passa por aqui; toda rota que devolve dado continua
+# exigindo o Bearer, e o botao "Authorize" do Swagger e o que o fornece. Quem
+# descobrir a URL ve o contrato e nao consegue executar nada contra ele.
+#
+# Para fechar tambem a documentacao, apague este bloco: o `ANY /{proxy+}` volta
+# a cobrir as duas rotas. O Swagger deixa de funcionar no navegador e a
+# verificacao passa a ser por `curl` ou Postman.
+resource "aws_apigatewayv2_route" "docs" {
+  api_id             = aws_apigatewayv2_api.read.id
+  route_key          = "GET /docs"
+  target             = "integrations/${aws_apigatewayv2_integration.read.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "openapi" {
+  api_id             = aws_apigatewayv2_api.read.id
+  route_key          = "GET /openapi.json"
   target             = "integrations/${aws_apigatewayv2_integration.read.id}"
   authorization_type = "NONE"
 }

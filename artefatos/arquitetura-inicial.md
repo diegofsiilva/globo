@@ -292,11 +292,24 @@ API Gateway sem invocar a função, e **403** quando o token está presente e n�
 O primeiro é cliente desconfigurado; o segundo é tentativa com credencial inválida. Um
 alarme sobre o volume de 4xx cobre a segunda situação.
 
-&emsp; A única rota pública é `GET /health/live`, declarada explicitamente sem
-authorizer — no API Gateway a rota específica vence o proxy. Ela responde
-`{"status": "ok"}` fixo, sem tocar no banco, e precisa continuar respondendo mesmo com
-o Secrets Manager indisponível. `/health/ready` **não** é pública: ela consulta o banco,
-e o resultado já revela se há dado do parceiro carregado.
+&emsp; São **três** as rotas públicas, todas declaradas explicitamente sem
+authorizer — no API Gateway a rota específica vence o proxy:
+
+| Rota | Por que é pública |
+|---|---|
+| `GET /health/live` | Sonda de vida. Responde `{"status": "ok"}` fixo, sem tocar no banco, e precisa continuar respondendo mesmo com o Secrets Manager indisponível |
+| `GET /docs` | O Swagger UI é aberto por **navegação**, e navegação não carrega cabeçalho `Authorization`. Protegida, a rota devolveria 401 antes de a página renderizar, e não haveria onde clicar em "Authorize" |
+| `GET /openapi.json` | O próprio Swagger a busca ao carregar, antes de qualquer interação do usuário e portanto antes de haver token |
+
+&emsp; As duas rotas de documentação expõem a **forma** da API — nomes de rota,
+parâmetros e descrições —, nunca dado do parceiro. Toda rota que devolve dado continua
+exigindo o Bearer, e o botão "Authorize" do Swagger é o que o fornece: quem descobrir a
+URL lê o contrato e não consegue executar nada contra ele. Protegê-las não tornaria o
+sistema mais seguro; tornaria o Swagger inutilizável, e a verificação passaria a
+depender de `curl`.
+
+&emsp; `/health/ready` **não** é pública: ela consulta o banco, e o resultado já revela
+se há dado do parceiro carregado.
 
 &emsp; **Limitação assumida e documentada:** o token identifica um **serviço, não uma
 pessoa**. Não há como saber qual integrante fez uma consulta, e a resposta a um

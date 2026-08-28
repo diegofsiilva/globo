@@ -99,3 +99,61 @@ def test_spec_nao_expoe_campo_sensivel_como_filtravel(client):
         p for p in spec["paths"]["/api/v1/facets"]["get"]["parameters"] if p["name"] == "field"
     )
     assert "user_id" not in field["schema"]["items"]["enum"]
+
+
+# --------------------------------------------------------------------------- #
+# Contrato de autenticacao (RNF09)
+# --------------------------------------------------------------------------- #
+
+
+def test_spec_declara_o_esquema_bearer(client):
+    """Sem `securitySchemes`, o Swagger nao mostra o botao Authorize."""
+    spec = client.get("/openapi.json").json
+
+    esquema = spec["components"]["securitySchemes"]["BearerAuth"]
+    assert esquema["type"] == "http"
+    assert esquema["scheme"] == "bearer"
+    assert spec["security"] == [{"BearerAuth": []}]
+
+
+def test_apenas_as_rotas_publicas_conhecidas_dispensam_token(client):
+    """Rota nova nasce protegida.
+
+    A lista abaixo e escrita a mao de proposito: acrescentar um caminho aqui e
+    uma decisao consciente, e o teste quebra se alguem tornar uma rota publica
+    sem passar por ela. Precisa casar com os `authorization_type = "NONE"` de
+    infra/auth.tf.
+    """
+    spec = client.get("/openapi.json").json
+
+    publicas = {
+        caminho
+        for caminho, operacoes in spec["paths"].items()
+        for metodo, operacao in operacoes.items()
+        if metodo in {"get", "post", "put", "patch", "delete"}
+        and operacao.get("security") == []
+    }
+
+    assert publicas == {"/health/live", "/docs", "/openapi.json"}
+
+
+def test_toda_rota_de_dado_documenta_401_e_403(client):
+    """O contrato precisa dizer o que acontece sem token e com token invalido."""
+    spec = client.get("/openapi.json").json
+
+    for caminho, operacoes in spec["paths"].items():
+        for metodo, operacao in operacoes.items():
+            if metodo not in {"get", "post", "put", "patch", "delete"}:
+                continue
+            if operacao.get("security") == []:
+                continue
+            respostas = operacao["responses"]
+            assert "401" in respostas, f"{metodo.upper()} {caminho} sem 401"
+            assert "403" in respostas, f"{metodo.upper()} {caminho} sem 403"
+
+
+def test_readiness_nao_e_publica(client):
+    """`/health/ready` consulta o banco, e o resultado revela se ha dado carregado."""
+    spec = client.get("/openapi.json").json
+
+    assert spec["paths"]["/health/ready"]["get"].get("security") != []
