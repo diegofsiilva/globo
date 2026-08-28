@@ -60,10 +60,14 @@ detalhe, no `README.md` deste diretório.
 make -C .. frontend-install    # npm ci
 make -C .. frontend-dev        # :3000, contra a API publicada
 make -C .. frontend-build      # gera out/
+make -C .. test-frontend       # Vitest: contratos HTTP e componentes
+make -C .. test-frontend-e2e   # Playwright: Flask + PostgreSQL argus_test
 npm run lint                   # eslint
 ```
 
-Não há suíte de testes automatizados aqui; `npm run lint` e um build limpo são o
-portão. Fonte Archivo para interface, IBM Plex Mono para horário, métrica e
-rótulo técnico. O tema inicial segue o sistema e a escolha persiste em
-`argus-theme` via `next-themes`.
+O teste E2E exige o PostgreSQL local (`make -C .. db-local`) e o Chromium do
+Playwright (`npx playwright install chromium`). A fixture determinística fica em
+`tests/e2e/fixture.sql`, usa somente `argus_test` e executa Hipóteses em modo
+`api`; o Vitest simula apenas a fronteira HTTP. Fonte Archivo para interface,
+IBM Plex Mono para horário, métrica e rótulo técnico. O tema inicial segue o
+sistema e a escolha persiste em `argus-theme` via `next-themes`.
