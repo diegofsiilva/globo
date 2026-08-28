@@ -161,7 +161,7 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-frontend ## Roda as suites que tem teste
 
 # TEST_DATABASE_URL aponta para o banco de teste local por padrao. Os testes que
 # precisam de banco sao PULADOS quando ele nao existe, em vez de quebrarem —
@@ -181,6 +181,24 @@ test-simulator: ## Testes do relogio e do emissor do simulador
 .PHONY: test-processing
 test-processing: ## Testes do ETL incremental (watermarks, workers)
 	cd $(PROCESSING) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-$(PG_TEST_URL)} $(UV) pytest
+
+.PHONY: test-frontend
+test-frontend: ## Testes de contratos e componentes do dashboard
+	cd $(FRONTEND) && npm test
+
+.PHONY: test-frontend-e2e
+test-frontend-e2e: ## Teste integrado dashboard -> Flask -> PostgreSQL local
+	@docker exec $(PG_CONTAINER) psql -U argus -d argus_test -qc "SELECT 1" >/dev/null 2>&1 || \
+	  { echo "PostgreSQL local indisponivel; rode 'make -C apps/basica db-local'."; exit 1; }
+	@$(MAKE) --no-print-directory migrate DATABASE_URL=$(PG_TEST_URL)
+	docker exec -i $(PG_CONTAINER) psql -v ON_ERROR_STOP=1 -U argus -d argus_test \
+	  < $(FRONTEND)/tests/e2e/fixture.sql
+	cd $(FRONTEND) && \
+	  NEXT_PUBLIC_API_URL="http://127.0.0.1:5100" \
+	  NEXT_PUBLIC_HYPOTHESES_SOURCE="api" \
+	  NEXT_PUBLIC_HYPOTHESES_API_URL="http://127.0.0.1:5100" \
+	  npm run build -- --webpack
+	cd $(FRONTEND) && npm run test:e2e
 
 .PHONY: lint
 lint: ## Verifica estilo sem alterar arquivos
