@@ -337,12 +337,34 @@ ninguém alcança as tasks. O RDS é a única porta aberta, restrita ao
 na resposta (RNF10). O evento cru fica no banco, com criptografia em repouso, e o
 usuário `argus_reader` que a Lambda usa só tem `SELECT` nas views `v_*`.
 
-**Lacuna: as HTTP APIs não têm autenticação.** Nem a API de ingestão nem a de
-leitura têm authorizer. A URL, que não é versionada e sai apenas do Terraform, é
-na prática a única barreira entre os eventos e qualquer pessoa na internet.
-Adicionar um authorizer (chave de API ou JWT) é item pendente; enquanto isso, a
-URL não deve ser divulgada. O site do dashboard no S3 é público de propósito e
-expõe apenas o HTML/CSS/JS.
+**Autenticação (RNF09).** As duas HTTP APIs ficam atrás de um Lambda authorizer do
+tipo `REQUEST`, com cache de cinco minutos por token. São dois tokens aleatórios
+de 256 bits, um por audiência — `dashboard` para leitura, `ingest` para escrita —,
+e um não vale no lugar do outro: isso impede que a credencial exposta no navegador
+do operador sirva também para injetar evento no pipeline.
+
+O Secrets Manager guarda apenas o **SHA-256** de cada token. O valor em claro
+existe no terminal de quem rodou `make auth-rotate`, que o imprime uma única vez, e
+— só o de ingestão — num segundo segredo que a task do simulador lê pelo bloco
+`secrets` da task definition. Usar `environment` ali exporia o token em qualquer
+`aws ecs describe-task-definition`.
+
+```bash
+make -C .. auth-rotate        # gera os dois, grava os hashes, imprime uma vez
+make -C .. auth-show-ingest   # relê o de ingestao (o de leitura nao e recuperavel)
+```
+
+Sem o cabeçalho, o API Gateway responde **401** sem invocar a função; com token
+inválido, **403**. A única rota pública é `GET /health/live`.
+
+**Limitação assumida:** o token identifica um *serviço*, não uma pessoa. Não há
+como saber qual integrante fez uma consulta, e a resposta a um vazamento é
+rotacionar, não revogar um usuário. Identidade individual exigiria Cognito.
+
+**Transporte.** O bucket do dashboard é privado; quem serve é o CloudFront, com
+HTTPS obrigatório e Origin Access Control. O endpoint de website do S3, que só
+falava HTTP, foi desativado — numa página HTTP qualquer intermediário leria o token
+que o operador cola na tela de acesso.
 
 ---
 

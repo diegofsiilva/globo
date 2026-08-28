@@ -66,7 +66,8 @@
   <path d="M2340 590 H2440" class="flow"/>
   <path d="M2655 735 V720" class="flow"/>
   <path d="M3055 835 H2870" class="flow"/>
-  <path d="M3100 590 V445" class="flow"/>
+  <path d="M3100 620 V602" class="flow"/>
+  <path d="M3100 488 V427" class="flow"/>
   <path d="M1380 1255 H1420" class="flow"/>
   <path d="M2120 1110 V1040 H2395 V380 H2440" class="flow-plan"/>
 
@@ -78,12 +79,12 @@
     <text x="230" y="199" class="stereo">«object storage»</text>
     <text x="230" y="236" class="node-title">Amazon S3</text>
     <text x="230" y="268" class="node-subtitle">bucket «origem»</text>
-    <rect x="65" y="292" width="330" height="48" class="artifact"/>
-    <text x="230" y="308" class="artifact-stereo">«artifact»</text>
-    <text x="230" y="330" class="artifact-text">dump argus_dump.sql.gz</text>
-    <rect x="65" y="350" width="330" height="42" class="artifact"/>
-    <text x="230" y="366" class="artifact-stereo">«artifact»</text>
-    <text x="230" y="386" class="artifact-small">parquet/*.parquet · 33 tabelas</text>
+    <rect x="65" y="292" width="330" height="58" class="artifact"/>
+    <text x="230" y="310" class="artifact-stereo">«artifact»</text>
+    <text x="230" y="332" class="artifact-text">parquet/*.parquet · 33 tabelas</text>
+    <text x="230" y="346" class="artifact-small">+ _manifest.json · ~199 MiB</text>
+    <rect x="65" y="358" width="330" height="36" class="artifact"/>
+    <text x="230" y="382" class="artifact-small">dump bruto NAO publicado no bucket</text>
   </g>
 
   <!-- loader -->
@@ -210,7 +211,7 @@
     <rect x="1710" y="660" width="590" height="88" class="artifact"/>
     <text x="2005" y="679" class="artifact-stereo">«artifact»</text>
     <text x="2005" y="706" class="artifact-text">etl · watermarks + execuções + checkpoints</text>
-    <text x="2005" y="731" class="artifact-small">migrations 001–023</text>
+    <text x="2005" y="731" class="artifact-small">migrations 001–026</text>
     <rect x="1710" y="760" width="590" height="88" class="artifact"/>
     <text x="2005" y="779" class="artifact-stereo">«artifact»</text>
     <text x="2005" y="806" class="artifact-text">detect · runs + claims + baseline + anomalias</text>
@@ -218,7 +219,7 @@
     <rect x="1710" y="860" width="590" height="96" class="artifact"/>
     <text x="2005" y="879" class="artifact-stereo">«artifact»</text>
     <text x="2005" y="906" class="artifact-text">views v_* · available_at ≤ sim.now()</text>
-    <text x="2005" y="931" class="artifact-small">SG RDS: 5432 somente SG tasks/Lambda + CIDR /32 opcional</text>
+    <text x="2005" y="931" class="artifact-small">SG RDS: 5432 somente do SG das tasks/Lambda · instância privada</text>
   </g>
 
   <!-- processing -->
@@ -278,7 +279,17 @@
     <rect x="2955" y="300" width="270" height="95" class="artifact"/>
     <text x="3090" y="320" class="artifact-stereo">«artifact»</text>
     <text x="3090" y="346" class="artifact-text">dashboard Next.js</text>
-    <text x="3090" y="370" class="artifact-small">export estático · website HTTP</text>
+    <text x="3090" y="370" class="artifact-small">export estático · bucket privado (OAC)</text>
+  </g>
+
+  <!-- CloudFront -->
+  <g>
+    <polygon points="2930,490 2952,468 3272,468 3250,490" class="node-top"/>
+    <polygon points="3250,490 3272,468 3272,578 3250,600" class="node-side"/>
+    <rect x="2930" y="490" width="320" height="110" class="node-face"/>
+    <text x="3090" y="520" class="stereo">«cdn»</text>
+    <text x="3090" y="551" class="node-title">Amazon CloudFront</text>
+    <text x="3090" y="578" class="artifact-small">redirect-to-https · OAC · HSTS · CSP</text>
   </g>
 
   <!-- navegador -->
@@ -324,9 +335,10 @@
   <rect x="2880" y="807" width="180" height="50" class="flow-label-bg"/>
   <text x="2970" y="826" class="flow-label">HTTPS</text>
   <text x="2970" y="848" class="flow-label">dados e hipóteses</text>
-  <rect x="3005" y="474" width="190" height="50" class="flow-label-bg"/>
-  <text x="3100" y="493" class="flow-label">HTTP GET</text>
-  <text x="3100" y="515" class="flow-label">dashboard</text>
+  <rect x="2895" y="452" width="200" height="26" class="flow-label-bg"/>
+  <text x="2995" y="471" class="flow-label">GetObject · OAC sigv4</text>
+  <rect x="2895" y="612" width="200" height="26" class="flow-label-bg"/>
+  <text x="2995" y="631" class="flow-label">HTTPS obrigatório</text>
 
   <!-- faixa transversal -->
   <rect x="20" y="1060" width="3260" height="410" class="band"/>
@@ -343,7 +355,7 @@
     <text x="250" y="1265" class="artifact-stereo">«artifact»</text>
     <text x="250" y="1292" class="artifact-text">worker · simulator</text>
     <text x="250" y="1317" class="artifact-text">processing · loader</text>
-    <text x="250" y="1342" class="artifact-small">migration reutiliza processing</text>
+    <text x="250" y="1342" class="artifact-small">tag = SHA do commit · latest só como apelido</text>
   </g>
 
   <!-- IAM -->
@@ -402,13 +414,38 @@
     <text x="2130" y="1342" class="artifact-small">e permanece como serviço ECS contínuo</text>
   </g>
 
-  <!-- nota explicativa do ECR, preservada do diagrama anterior -->
+  <!-- Lambda authorizer -->
   <g>
-    <path d="M2460 1180 H3220 L3250 1210 V1380 H2460 Z" class="note"/>
-    <polygon points="3220,1180 3250,1210 3220,1210" class="note-fold"/>
-    <text x="2855" y="1250" class="note-text">ECR fornece a imagem de container para loader, simulator,</text>
-    <text x="2855" y="1290" class="note-text">merge_worker, event_worker e processing.</text>
+    <polygon points="2460,1130 2482,1108 2842,1108 2820,1130" class="node-top"/>
+    <polygon points="2820,1130 2842,1108 2842,1378 2820,1400" class="node-side"/>
+    <rect x="2460" y="1130" width="360" height="270" class="node-face"/>
+    <text x="2640" y="1172" class="stereo">«serverless function»</text>
+    <text x="2640" y="1210" class="node-title">AWS Lambda «authorizer»</text>
+    <rect x="2485" y="1245" width="310" height="120" class="artifact"/>
+    <text x="2640" y="1265" class="artifact-stereo">«artifact»</text>
+    <text x="2640" y="1292" class="artifact-text">Bearer · 2 audiências</text>
+    <text x="2640" y="1317" class="artifact-small">protege as APIs de leitura e ingestão</text>
+    <text x="2640" y="1342" class="artifact-small">cache 5 min · falha fechada · 401/403</text>
   </g>
+
+  <!-- Secrets Manager -->
+  <g>
+    <polygon points="2870,1130 2892,1108 3252,1108 3230,1130" class="node-top"/>
+    <polygon points="3230,1130 3252,1108 3252,1378 3230,1400" class="node-side"/>
+    <rect x="2870" y="1130" width="360" height="270" class="node-face"/>
+    <text x="3050" y="1172" class="stereo">«secrets manager»</text>
+    <text x="3050" y="1210" class="node-title">AWS Secrets Manager</text>
+    <rect x="2895" y="1245" width="310" height="120" class="artifact"/>
+    <text x="3050" y="1265" class="artifact-stereo">«artifact»</text>
+    <text x="3050" y="1292" class="artifact-text">SHA-256 dos dois tokens</text>
+    <text x="3050" y="1317" class="artifact-small">token de ingestão em claro (ECS secrets)</text>
+    <text x="3050" y="1342" class="artifact-small">senha do RDS</text>
+  </g>
+
+  <path d="M2822 1255 H2868" class="flow"/>
+  <rect x="2760" y="1055" width="200" height="26" class="flow-label-bg"/>
+  <text x="2860" y="1074" class="flow-label">autoriza antes da integração</text>
+  <path d="M2655 962 V1128" class="flow"/>
 
   <rect x="1370" y="1228" width="90" height="26" class="flow-label-bg"/>
   <text x="1415" y="1247" class="flow-label">alarme</text>

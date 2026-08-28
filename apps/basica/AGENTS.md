@@ -19,8 +19,13 @@ o `../../README.md` é a documentação para humanos.
 3. **Nenhum segredo entra no repositório.** URL de API, id de conta AWS,
    endpoint de RDS e senha nunca vão para código, teste, doc ou mensagem de
    commit. Os valores saem de `terraform output` e vivem em `.env`, que é
-   gitignored; `.env.example` mostra apenas as chaves. Enquanto as APIs não
-   tiverem autenticação, a URL é a única barreira de acesso aos dados.
+   gitignored; `.env.example` mostra apenas as chaves.
+
+   As três APIs exigem `Authorization: Bearer` desde a adequação do RNF09. Os dois
+   tokens saem de `make auth-rotate`, que os imprime uma única vez; a AWS guarda
+   apenas o SHA-256 de cada um. Token não entra em código, teste, doc, commit,
+   print, vídeo nem no bundle do dashboard — no navegador ele vive só em
+   `sessionStorage`, colado pelo operador na tela de acesso.
 4. **A AWS é um AWS Academy Learner Lab.** Todo comando `aws` leva
    `--profile g4`; o Terraform não aceita `--profile` e lê `AWS_PROFILE` /
    `AWS_REGION`. O id da conta do lab muda a cada sessão nova: confira com

@@ -10,6 +10,14 @@ import { operationsLayoutStyles as styles } from "./operations-layout.styles";
 import { ThemeToggle } from "./theme-toggle";
 import { projectedSimNow, SimClockProvider, useSimClock } from "../_lib/sim-clock";
 
+/**
+ * Moldura das telas operacionais: cabeçalho, relógio virtual, período e navegação.
+ *
+ * Montada apenas com sessão ativa -- o portão de acesso fica acima dela, no
+ * layout da rota.
+ *
+ * @param children Conteúdo da rota atual.
+ */
 export function OperationsShell({ children }: { children: ReactNode }) {
   return (
     <SimClockProvider>

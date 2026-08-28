@@ -27,6 +27,7 @@ export type EventScope = Partial<{
   tem_jogo: string;
 }>;
 
+/** Valores distintos por dimensão, para popular os seletores de escopo. */
 export type FacetsResponse = { facets: Record<string, string[]> };
 
 /** Aplica somente as chaves preenchidas -- escopo vazio significa "sem recorte". */

@@ -43,11 +43,15 @@ describe("contratos das telas Recorte e Timeline", () => {
         from: "2026-07-14T09:00:00.000Z",
         to: "2026-07-14T12:00:00.000Z",
       },
+      limit_per_lane: 100,
+      truncated: false,
       lanes: [
         {
           source: "servicenow",
           label: "ServiceNow",
           lane_type: "incidents",
+          count: 1,
+          truncated: false,
           points: [
             {
               window_id: 1,
@@ -65,6 +69,8 @@ describe("contratos das telas Recorte e Timeline", () => {
           source,
           label: source.toUpperCase(),
           lane_type: "series" as const,
+          count: 1,
+          truncated: false,
           points: [
             {
               bucket_ts: "2026-07-14T10:00:00.000Z",

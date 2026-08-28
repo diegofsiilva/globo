@@ -3,6 +3,12 @@
 import { apiFetch } from "@/lib/api/client";
 import { withScope, type EventScope } from "./query";
 
+/**
+ * Um evento de sessão como a API o devolve.
+ *
+ * Campos que possam carregar identificador pessoal já saem redigidos (RNF10) --
+ * a redação acontece na saída da API, não aqui.
+ */
 export type ApiEvent = {
   action: string | null;
   app_bucket: string | null;
@@ -26,12 +32,20 @@ export type ApiEvent = {
   session_id: string;
 };
 
+/**
+ * Página keyset de eventos.
+ *
+ * `query` traz o custo da consulta. Uma `strategy` de `particao_por_tempo`
+ * significa varredura das partições da janela -- é o sinal de que faltou um
+ * filtro indexado.
+ */
 export type EventsResponse = {
   items: ApiEvent[];
   next_cursor: string | null;
   query: { strategy: string; scanned: number; returned: number; queries: number };
 };
 
+/** Filtros da busca. Chaves ausentes não entram na query string. */
 export type EventQuery = {
   eventName?: string;
   platform?: string;

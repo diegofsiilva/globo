@@ -6,6 +6,17 @@
 import { apiFetch } from "@/lib/api/client";
 import type { OpenDegradation, SignalDeviation, SignalSeverity } from "../_mocks/scenario";
 
+/**
+ * Um sinal como `/api/v1/signals` o devolve.
+ *
+ * `threshold_z` está em desvios-padrão, que o operador não interpreta sem
+ * contexto; `threshold_value` é o mesmo limiar convertido de volta à unidade
+ * nativa da métrica, do lado em que o desvio está acontecendo.
+ *
+ * `sessions_impacted` vem `null` por limitação de dado: `gold.feature_bucket`
+ * não tem `session_id`, e inventar a atribuição causal seria pior que admitir
+ * a ausência.
+ */
 export type SignalItem = {
   id: string;
   source: string;
@@ -36,6 +47,7 @@ export type SignalsResponse = {
   truncated: boolean;
 };
 
+/** Valores distintos por dimensão, para os seletores da tela. */
 export type FacetsResponse = { facets: Record<string, string[]> };
 
 /**
