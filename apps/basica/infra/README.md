@@ -12,7 +12,8 @@ Simulador  ──> API Gateway (mudanças) ──> SQS ──> ECS (merge worker
 > Ver [§ AWS Academy](#aws-academy--learner-lab) para as adaptações que esse
 > ambiente exige — elas não são poucas.
 
-O desenho e os porquês estão no [plano da v3](../../../artefatos/plano-argus-v3.md).
+O desenho e os porquês estão na [arquitetura do Argus v3](../../../artefatos/arquitetura-inicial.md)
+e no [plano da v3](../../../artefatos/plano-argus-v3.md).
 
 ---
 

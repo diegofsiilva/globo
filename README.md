@@ -77,9 +77,9 @@ O dataset do parceiro é um **dump do passado**. Um dashboard "ao vivo" sobre el
 
 Toda linha carrega um `available_at` — o instante em que a informação *ficaria disponível na vida real*, contando a latência da fonte (a NPAW entrega com 28 h de atraso; o Prometheus, com 1 min). E **toda** view `v_*` filtra `available_at <= sim.now()`.
 
-Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem um detector futuro conseguem enxergar um dado antes da hora em que ele existiria.
+Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
 
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/basica/infra/README.md).
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura do Argus v3](artefatos/arquitetura-inicial.md), no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/basica/infra/README.md).
 
 > **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
@@ -89,12 +89,12 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-| `/apps/basica/db/migrations` | As 22 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+| `/apps/basica/db/migrations` | As 26 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
 | `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
 | `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
 | `/apps/basica/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
-| `/apps/basica/processing` | ETL, canário, detector e motor determinístico das 11 famílias de hipótese |
+| `/apps/basica/processing` | ETL, checkpoints, canário, detector e motor determinístico das 11 famílias de hipótese |
 | `/apps/basica/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
 | `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
@@ -134,7 +134,7 @@ cd g04
 # 2. instalar as dependências dos apps Python
 make -C apps/basica install
 
-# 3. subir um PostgreSQL 16 local e aplicar as 14 migrations
+# 3. subir um PostgreSQL 16 local e aplicar as 26 migrations
 make -C apps/basica db-local
 
 # 4. rodar a suíte de testes (66 do worker + 85 do backend)
@@ -263,7 +263,7 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | Artefato | Descrição |
 |----------|-----------|
 | [MVP inicial](artefatos/mvp-inicial.md) | O que está implantado, modelo de dados e relatório de testes |
-| [Plano da v3](artefatos/plano-argus-v3.md) | A migração de DynamoDB para RDS: camadas, CDC, relógio virtual e carga inicial |
+| [Arquitetura do Argus v3](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |

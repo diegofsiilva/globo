@@ -4,7 +4,7 @@
 > substituída.** Ele fica como registro do que foi entregue e testado naquele
 > momento — as seções de modelo de dados e de resultado de testes se referem ao
 > DynamoDB, não ao banco atual. A arquitetura em vigor está em
-> [`plano-argus-v3.md`](plano-argus-v3.md) e no [README](../README.md).
+> [`arquitetura-inicial.md`](arquitetura-inicial.md) e no [README](../README.md).
 
 Primeiro protótipo funcional da plataforma de telemetria, implantado em AWS.
 
