@@ -205,6 +205,16 @@ output "read_api_url" {
   value       = aws_apigatewayv2_api.read.api_endpoint
 }
 
+output "read_api_id" {
+  description = "ID da API de leitura. Usado para limpar o cache do authorizer na rotacao."
+  value       = aws_apigatewayv2_api.read.id
+}
+
+output "ingest_api_id" {
+  description = "ID da API de ingestao. Usado para limpar o cache do authorizer na rotacao."
+  value       = aws_apigatewayv2_api.events.id
+}
+
 output "frontend_url" {
   description = "Endereco HTTP temporario do dashboard no website S3."
   value       = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"

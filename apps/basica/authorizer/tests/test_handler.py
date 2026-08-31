@@ -45,12 +45,7 @@ class SecretsFalso:
 
 @pytest.fixture(autouse=True)
 def ambiente(monkeypatch):
-    """Configura env vars e o duble, e zera o cache entre os testes.
-
-    O cache do modulo e global de proposito (sobrevive entre invocacoes no
-    mesmo container da Lambda); sem limpa-lo, um teste veria o segredo do
-    anterior.
-    """
+    """Configura as variaveis de ambiente e o duble do Secrets Manager."""
     monkeypatch.setenv("SECRET_ID", "argus/tokens")
     monkeypatch.setenv(
         "AUDIENCIAS_POR_API",
@@ -60,8 +55,6 @@ def ambiente(monkeypatch):
         json.dumps({"dashboard": _sha(TOKEN_DASHBOARD), "ingest": _sha(TOKEN_INGEST)})
     )
     monkeypatch.setattr(handler, "_secrets", duble)
-    handler._cache["hashes"] = None
-    handler._cache["expira_em"] = 0.0
     return duble
 
 
@@ -159,8 +152,6 @@ def test_api_fora_do_mapa_nega():
 def test_segredo_indisponivel_nega(monkeypatch):
     """Indisponibilidade do Secrets Manager nao pode virar acesso aberto."""
     monkeypatch.setattr(handler, "_secrets", SecretsFalso(erro=RuntimeError("timeout")))
-    handler._cache["hashes"] = None
-    handler._cache["expira_em"] = 0.0
 
     resposta = handler.lambda_handler(_evento(API_LEITURA, f"Bearer {TOKEN_DASHBOARD}"), None)
 
@@ -169,8 +160,6 @@ def test_segredo_indisponivel_nega(monkeypatch):
 
 def test_segredo_malformado_nega(monkeypatch):
     monkeypatch.setattr(handler, "_secrets", SecretsFalso("nao e json"))
-    handler._cache["hashes"] = None
-    handler._cache["expira_em"] = 0.0
 
     resposta = handler.lambda_handler(_evento(API_LEITURA, f"Bearer {TOKEN_DASHBOARD}"), None)
 
@@ -186,27 +175,26 @@ def test_configuracao_de_audiencias_invalida_nega(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# Segredo e cache
+# Segredo e rotacao
 # --------------------------------------------------------------------------- #
 
 
-def test_hashes_ficam_em_cache_entre_invocacoes(ambiente):
-    """Uma chamada ao Secrets Manager por container, nao uma por requisicao."""
+def test_cada_invocacao_le_a_versao_atual_do_segredo(ambiente):
+    """O cache do gateway basta; o processo nao pode reter hash rotacionado."""
     for _ in range(5):
         handler.lambda_handler(_evento(API_LEITURA, f"Bearer {TOKEN_DASHBOARD}"), None)
 
-    assert ambiente.chamadas == 1
+    assert ambiente.chamadas == 5
 
 
-def test_rotacao_do_segredo_invalida_o_token_antigo(ambiente, monkeypatch):
-    """Depois do TTL, o container recarrega os hashes e o token antigo cai."""
+def test_rotacao_do_segredo_invalida_o_token_antigo_imediatamente(ambiente):
+    """A invocacao seguinte ja consulta os hashes novos, sem esperar TTL local."""
     assert handler.lambda_handler(_evento(API_LEITURA, f"Bearer {TOKEN_DASHBOARD}"), None)[
         "isAuthorized"
     ]
 
     novo = "n" * 64
     ambiente.payload = json.dumps({"dashboard": _sha(novo), "ingest": _sha(TOKEN_INGEST)})
-    handler._cache["expira_em"] = 0.0  # simula o TTL vencido
 
     assert handler.lambda_handler(_evento(API_LEITURA, f"Bearer {TOKEN_DASHBOARD}"), None) == {
         "isAuthorized": False
@@ -218,8 +206,6 @@ def test_hash_maiusculo_no_segredo_ainda_casa():
     """Hexadecimal e case-insensitive; o segredo pode ter sido gravado por uma
     ferramenta que emite maiuscula, e isso nao deve derrubar a autenticacao."""
     handler._secrets.payload = json.dumps({"dashboard": _sha(TOKEN_DASHBOARD).upper()})
-    handler._cache["hashes"] = None
-    handler._cache["expira_em"] = 0.0
 
     resposta = handler.lambda_handler(_evento(API_LEITURA, f"Bearer {TOKEN_DASHBOARD}"), None)
 

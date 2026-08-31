@@ -377,10 +377,14 @@ na resposta (RNF10). O evento cru fica no banco, com criptografia em repouso, e 
 usuário `argus_reader` que a Lambda usa só tem `SELECT` nas views `v_*`.
 
 **Autenticação (RNF09).** As duas HTTP APIs ficam atrás de um Lambda authorizer do
-tipo `REQUEST`, com cache de cinco minutos por token. São dois tokens aleatórios
-de 256 bits, um por audiência — `dashboard` para leitura, `ingest` para escrita —,
-e um não vale no lugar do outro: isso impede que a credencial exposta no navegador
-do operador sirva também para injetar evento no pipeline.
+tipo `REQUEST`, com cache de cinco minutos por token no API Gateway. São dois
+tokens aleatórios de 256 bits, um por audiência — `dashboard` para leitura,
+`ingest` para escrita —, e um não vale no lugar do outro: isso impede que a
+credencial exposta no navegador do operador sirva também para injetar evento no
+pipeline. `auth-rotate` valida as duas publicações e limpa esse cache; por isso o
+token novo vale imediatamente. Se apenas a limpeza falhar, os tokens continuam
+publicados, o alvo avisa que o antigo pode valer por até cinco minutos e termina
+com erro.
 
 O Secrets Manager guarda apenas o **SHA-256** de cada token. O valor em claro
 existe no terminal de quem rodou `make auth-rotate`, que o imprime uma única vez, e

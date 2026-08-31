@@ -46,7 +46,6 @@ import hmac
 import json
 import logging
 import os
-import time
 from typing import Any
 
 import boto3
@@ -60,14 +59,6 @@ logger = logging.getLogger()
 logger.setLevel(os.getenv("LOG_LEVEL", "INFO"))
 
 PREFIXO_BEARER = "bearer "
-
-# Por quanto tempo o hash lido do Secrets Manager fica em memoria no container.
-# Vale como teto de propagacao da rotacao: depois de `make auth-rotate`, o token
-# antigo para de funcionar em, no maximo, este intervalo somado ao cache de
-# decisao do proprio API Gateway.
-TTL_CACHE_SEGUNDOS = 300
-
-_cache: dict[str, Any] = {"hashes": None, "expira_em": 0.0}
 
 
 def lambda_handler(event: dict, context: Any) -> dict:
@@ -203,23 +194,21 @@ def _audiencia_do_token(token: str, audiencias: list[str]) -> str | None:
 
 
 def _hashes_conhecidos() -> dict[str, str]:
-    """Le os hashes do Secrets Manager, com cache curto em memoria.
+    """Le a versao atual dos hashes no Secrets Manager.
 
-    Sem o cache, cada decisao do authorizer viraria uma chamada ao Secrets
-    Manager -- que e cobrada por requisicao e tem limite de throughput proprio.
+    O API Gateway ja guarda a decisao por token durante cinco minutos. Um cache
+    adicional no processo deixaria o primeiro uso de um token recem-rotacionado
+    comparar contra a versao anterior e poderia transformar essa recusa em mais
+    cinco minutos de cache negativo no gateway.
 
     Returns:
         dict[str, str]: Audiencia -> SHA-256 do token, em hexadecimal
             minusculo. Vazio quando o segredo nao existe ou nao e JSON, caso em
             que nenhuma comparacao bate e tudo e negado.
     """
-    agora = time.monotonic()
-    if _cache["hashes"] is not None and agora < _cache["expira_em"]:
-        return _cache["hashes"]
-
     try:
         resposta = _secrets.get_secret_value(SecretId=os.environ["SECRET_ID"])
-        hashes = {
+        return {
             str(audiencia): str(valor).lower()
             for audiencia, valor in json.loads(resposta["SecretString"]).items()
         }
@@ -229,10 +218,6 @@ def _hashes_conhecidos() -> dict[str, str]:
         # aberto ao banco.
         logger.exception(json.dumps({"event": "segredo_indisponivel"}))
         return {}
-
-    _cache["hashes"] = hashes
-    _cache["expira_em"] = agora + TTL_CACHE_SEGUNDOS
-    return hashes
 
 
 def _request_id(event: dict) -> str | None:
