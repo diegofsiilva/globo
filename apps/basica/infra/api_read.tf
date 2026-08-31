@@ -165,7 +165,13 @@ resource "aws_apigatewayv2_integration" "read" {
 # copias divergiriam na primeira rota nova.
 resource "aws_apigatewayv2_route" "read_proxy" {
   api_id    = aws_apigatewayv2_api.read.id
-  route_key = "ANY /{proxy+}"
+  # GET, e nao ANY: o backend so serve GET aqui (a unica escrita e o POST de
+  # feedback, roteado a parte abaixo). ANY capturaria tambem OPTIONS, o que
+  # tira o preflight do caminho automatico do cors_configuration da API e o
+  # manda para o authorizer CUSTOM -- que nega com 401, porque preflight nunca
+  # carrega Authorization. O navegador entao aborta a chamada real sem nem
+  # tentar, e toda consulta autenticada do dashboard falha por CORS.
+  route_key = "GET /{proxy+}"
   target    = "integrations/${aws_apigatewayv2_integration.read.id}"
 
   # O proxy cobre TODAS as rotas de dado, a documentacao e o readiness. A unica
@@ -177,7 +183,7 @@ resource "aws_apigatewayv2_route" "read_proxy" {
 
 resource "aws_apigatewayv2_route" "read_root" {
   api_id    = aws_apigatewayv2_api.read.id
-  route_key = "ANY /"
+  route_key = "GET /" # ver o comentario de read_proxy sobre ANY vs GET
   target    = "integrations/${aws_apigatewayv2_integration.read.id}"
 
   authorization_type = "CUSTOM"
