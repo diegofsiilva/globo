@@ -494,25 +494,57 @@ auth-rotate: ## Gera e publica tokens Bearer novos (invalida os antigos)
 	  echo "      Rode 'make tf-apply' antes -- e o apply que os cria."; \
 	  exit 1; }
 	@read -p "Digite 'rotacionar' para confirmar: " r; [ "$$r" = "rotacionar" ] || { echo "cancelado."; exit 1; }
-	@hashes_id=$$(cd $(INFRA) && terraform output -raw auth_tokens_secret); \
+	@set -euo pipefail; \
+	 region="$${AWS_REGION:-us-east-1}"; \
+	 hashes_id=$$(cd $(INFRA) && terraform output -raw auth_tokens_secret); \
 	 ingest_id=$$(cd $(INFRA) && terraform output -raw ingest_token_secret); \
+	 read_api_id=$$(cd $(INFRA) && terraform output -raw read_api_id); \
+	 ingest_api_id=$$(cd $(INFRA) && terraform output -raw ingest_api_id); \
+	 echo "Validando credenciais e acesso aos segredos..."; \
+	 aws secretsmanager describe-secret --profile "$$AWS_PROFILE" --region "$$region" \
+	   --secret-id "$$hashes_id" >/dev/null; \
+	 aws secretsmanager describe-secret --profile "$$AWS_PROFILE" --region "$$region" \
+	   --secret-id "$$ingest_id" >/dev/null; \
 	 dash=$$(openssl rand -hex 32); ing=$$(openssl rand -hex 32); \
 	 dash_h=$$(printf '%s' "$$dash" | openssl dgst -sha256 -r | cut -d' ' -f1); \
 	 ing_h=$$(printf '%s' "$$ing" | openssl dgst -sha256 -r | cut -d' ' -f1); \
-	 aws secretsmanager put-secret-value --profile $$AWS_PROFILE \
-	   --secret-id "$$hashes_id" \
-	   --secret-string "{\"dashboard\":\"$$dash_h\",\"ingest\":\"$$ing_h\"}" >/dev/null; \
-	 aws secretsmanager put-secret-value --profile $$AWS_PROFILE \
-	   --secret-id "$$ingest_id" --secret-string "$$ing" >/dev/null; \
+	 printf '%s' "$$ing" | aws secretsmanager put-secret-value \
+	   --profile "$$AWS_PROFILE" --region "$$region" --secret-id "$$ingest_id" \
+	   --secret-string file:///dev/stdin >/dev/null; \
+	 printf '{"dashboard":"%s","ingest":"%s"}' "$$dash_h" "$$ing_h" \
+	   | aws secretsmanager put-secret-value --profile "$$AWS_PROFILE" --region "$$region" \
+	       --secret-id "$$hashes_id" --secret-string file:///dev/stdin >/dev/null; \
+	 hashes_publicados=$$(aws secretsmanager get-secret-value \
+	   --profile "$$AWS_PROFILE" --region "$$region" --secret-id "$$hashes_id" \
+	   --query SecretString --output text); \
+	 printf '%s' "$$hashes_publicados" \
+	   | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d == {"dashboard": sys.argv[1], "ingest": sys.argv[2]}' \
+	       "$$dash_h" "$$ing_h"; \
+	 ingest_publicado=$$(aws secretsmanager get-secret-value \
+	   --profile "$$AWS_PROFILE" --region "$$region" --secret-id "$$ingest_id" \
+	   --query SecretString --output text); \
+	 [ "$$ingest_publicado" = "$$ing" ] || { echo "erro: verificacao do token de ingestao falhou." >&2; exit 1; }; \
+	 cache_falhou=0; \
+	 for api_id in "$$read_api_id" "$$ingest_api_id"; do \
+	   if ! aws apigatewayv2 reset-authorizers-cache --profile "$$AWS_PROFILE" \
+	     --region "$$region" --api-id "$$api_id" --stage-name '$$default'; then \
+	     cache_falhou=1; \
+	   fi; \
+	 done; \
 	 echo; \
-	 echo "  Token de LEITURA  (cole na tela de acesso do dashboard):"; \
+	 echo "  Token de LEITURA  (cole somente os 64 caracteres, sem 'Bearer '):"; \
 	 echo "    $$dash"; \
 	 echo; \
 	 echo "  Token de INGESTAO (export ARGUS_INGEST_TOKEN=...):"; \
 	 echo "    $$ing"; \
 	 echo; \
-	 echo "  Guarde-os agora. A AWS so tem os hashes."; \
-	 echo "  O authorizer cacheia por 5 min: a troca leva ate esse tempo para valer."
+	 echo "  Guarde-os agora. A AWS so tem o hash do token de leitura."; \
+	 if [ $$cache_falhou -ne 0 ]; then \
+	   echo "  AVISO: tokens publicados, mas o cache nao foi limpo por completo." >&2; \
+	   echo "         O token antigo pode continuar valido por ate 5 minutos." >&2; \
+	   exit 1; \
+	 fi; \
+	 echo "  Rotacao concluida: o token novo ja pode ser usado."
 
 .PHONY: auth-show-ingest
 auth-show-ingest: ## Imprime o token de ingestao (o unico recuperavel)
@@ -681,11 +713,28 @@ smoke: ## Verifica a API publicada: autenticacao, status, latencia e tamanho
 	@echo "Testando $$ARGUS_API_URL"
 	@fail=0; \
 	auth="Authorization: Bearer $$ARGUS_READ_TOKEN"; \
-	echo; echo "  --- autenticacao (RNF09)"; \
+	origin=$$(cd $(INFRA) && terraform output -raw frontend_url); \
+	origin=$${origin%/}; \
+	headers=$$(mktemp); \
+	trap 'rm -f "$$headers"' EXIT; \
 	check() { \
 	  code=$$(curl -s -o /dev/null -w '%{http_code}' "$$@"); \
 	  echo "$$code"; \
 	}; \
+	echo; echo "  --- CORS do dashboard"; \
+	c=$$(curl -s -o /dev/null -D "$$headers" -w '%{http_code}' -X OPTIONS \
+	  -H "Origin: $$origin" -H "Access-Control-Request-Method: GET" \
+	  -H "Access-Control-Request-Headers: authorization" \
+	  "$(ARGUS_API_URL)/api/v1/clock"); \
+	if [ "$$c" = "200" ] || [ "$$c" = "204" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
+	printf "  %s %3s  preflight OPTIONS   (esperado 200/204)\n" "$$st" "$$c"; \
+	allow_origin=$$(awk -F': *' 'tolower($$1) == "access-control-allow-origin" {gsub(/\r/, "", $$2); print $$2}' "$$headers" | tail -1); \
+	if [ "$$allow_origin" = "$$origin" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
+	printf "  %s      origem do dashboard permitida\n" "$$st"; \
+	allow_headers=$$(awk -F': *' 'tolower($$1) == "access-control-allow-headers" {gsub(/\r/, "", $$2); print tolower($$2)}' "$$headers" | tail -1 | tr -d ' '); \
+	case ",$$allow_headers," in *,authorization,*) st="ok   ";; *) st="FALHA"; fail=1;; esac; \
+	printf "  %s      header Authorization permitido\n" "$$st"; \
+	echo; echo "  --- autenticacao (RNF09)"; \
 	c=$$(check "$(ARGUS_API_URL)/api/v1/sources"); \
 	if [ "$$c" = "401" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
 	printf "  %s %3s  sem token           (esperado 401)\n" "$$st" "$$c"; \

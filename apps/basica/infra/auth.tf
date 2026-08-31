@@ -175,8 +175,10 @@ resource "aws_lambda_permission" "authorizer_events" {
 # CloudWatch (RNF09).
 #
 # O cache de 5 min e por valor do identity source, ou seja, por token. Sem ele,
-# cada consulta do dashboard pagaria uma invocacao a mais de Lambda; com ele, o
-# custo do authorizer some e a rotacao leva no maximo 5 min para propagar.
+# cada consulta do dashboard pagaria uma invocacao a mais de Lambda. O alvo
+# `auth-rotate` limpa o cache das duas APIs depois de publicar e verificar os
+# segredos; os cinco minutos ficam apenas como contingencia se essa limpeza
+# falhar, caso que o alvo informa explicitamente.
 
 resource "aws_apigatewayv2_authorizer" "read" {
   api_id                            = aws_apigatewayv2_api.read.id
