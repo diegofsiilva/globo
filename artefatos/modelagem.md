@@ -1,79 +1,72 @@
-# Modelagem — Diagrama de classes
+# Modelagem de Software
 
-&emsp;Este artefato descreve o **modelo de domínio da plataforma Argus** por meio de um
-diagrama de classes UML e da descrição textual de cada classe. O objetivo é dar
+## 1. Diagrama UML de classes
+
+&emsp; Nesse tópico, é descrito o modelo de domínio da plataforma Argus — o conjunto
+de abstrações e o vocabulário centrais do sistema — por meio de um diagrama de
+classes UML (Unified Modeling Language, a notação-padrão para modelagem de
+software) e da descrição textual de cada classe. O objetivo é dar
 uma visão única das abstrações que atravessam os quatro serviços Python, a carga
-inicial e a biblioteca compartilhada — o que cada classe representa, o que ela
+inicial e a biblioteca compartilhada: o que cada classe representa, o que ela
 guarda, o que ela faz e de quem ela depende.
 
-&emsp;O diagrama foi extraído do código efetivamente implantado (branch `main`), e não
-de uma intenção de projeto. A notação é **UML "de código"**: os atributos aparecem
-com tipo, os métodos públicos relevantes aparecem com assinatura, e as relações
-carregam multiplicidade quando ela é significativa.
+### 1.1 Escopo e método
 
-| Onde está | Conteúdo |
-|---|---|
-| Seção 1 | Escopo, notação e relação com os outros artefatos |
-| Seção 2 | Visão geral: os seis contextos e como se conectam |
-| Seção 3 | Diagrama de classes unificado |
-| Seções 4 a 8 | Um recorte por contexto, com diagrama e descrição classe a classe |
-| Seção 9 | Tabela consolidada de relacionamentos |
-| Seção 10 | Rastreabilidade classe ↔ requisitos |
-| Seção 11 | Notas de fidelidade |
+#### 1.1.1 O que o diagrama cobre
 
----
-
-## 1. Escopo e método
-
-### 1.1 O que o diagrama cobre
-
-&emsp;O diagrama modela as **classes de aplicação** do repositório: entidades de
-domínio, objetos de valor, adaptadores, casos de uso, consumidores e
-repositórios. São cerca de 45 classes, agrupadas em seis contextos:
+&emsp; O diagrama modela as classes de aplicação do repositório: entidades de
+domínio, objetos de valor (tipos sem identidade própria, definidos apenas pelo
+conteúdo), adaptadores, casos de uso, consumidores e repositórios — as categorias
+da arquitetura hexagonal, detalhadas na seção 1.7. São cerca de 45 classes,
+agrupadas em seis contextos:
 
 | Contexto | Serviço / pasta | Papel |
 |---|---|---|
-| **Ingestão** | `apps/basica/worker` | Consome as duas filas SQS, valida e grava na camada `bronze` |
-| **Carga inicial** | `apps/basica/loader` | Sobe as 33 tabelas do dump, de Parquet para a `bronze` |
+| **Ingestão** | `apps/basica/worker` | Consome as duas filas SQS (o serviço de filas de mensagens da AWS), valida e grava na camada `bronze` (dados crus, ainda sem tratamento) |
+| **Carga inicial** | `apps/basica/loader` | Sobe as 33 tabelas do dump (a cópia de exportação do banco do parceiro), de arquivos Parquet (formato de arquivo colunar compactado) para a `bronze` |
 | **Relógio virtual** | `apps/basica/simulator` | Anda `sim.now()` e reemite o dump como mudanças, pela rede |
-| **Análise** | `apps/basica/processing` | ETL incremental, detector causal e motor das 11 famílias de hipótese |
-| **Leitura** | `apps/basica/backend` | API Flask sobre Lambda, arquitetura hexagonal, serve o dashboard |
-| **Comum** | `apps/basica/common` | Conexão, observabilidade e ciclo de vida compartilhados pelos serviços |
+| **Análise** | `apps/basica/processing` | ETL incremental (do inglês *extract, transform, load* — extrair, transformar e carregar os dados de uma camada para a seguinte), detector causal e motor das 11 famílias de hipótese |
+| **Leitura** | `apps/basica/backend` | API em Flask (framework web Python) sobre AWS Lambda (código que roda sob demanda, sem servidor fixo), com arquitetura hexagonal (regras de negócio isoladas da infraestrutura; ver seção 1.7), serve o dashboard (o painel de visualização) |
+| **Comum** | `apps/basica/common` | Conexão, observabilidade (métricas e sinais que revelam o estado interno do sistema em produção) e ciclo de vida compartilhados pelos serviços |
 
-### 1.2 O que o diagrama **não** é
+#### 1.1.2 O que o diagrama não é
 
-- **Não é o modelo de dados.** O esquema físico do PostgreSQL (as camadas
-  `bronze`, `silver`, `gold`, `detect`, `sim`, `etl`) está na
-  [arquitetura inicial](arquitetura-inicial.md) e nos DER em
-  [`assets/`](assets/). Aqui o banco aparece como um único nó de fronteira.
+- **Não é o modelo de dados.** O esquema físico do PostgreSQL — organizado em
+  camadas, dos dados crus (`bronze`) aos já limpos (`silver`) e aos agregados
+  prontos para consulta (`gold`), mais `detect`, `sim` e `etl` — está na
+  [arquitetura inicial](arquitetura-inicial.md) e nos diagramas
+  entidade-relacionamento (DER) em [`assets/`](assets/). Aqui o banco aparece
+  como um único nó de fronteira.
 - **Não é o diagrama de implantação.** Nós, contêineres e serviços AWS estão na
   [arquitetura inicial](arquitetura-inicial.md), seção 2.
-- **Não cobre o frontend classe a classe.** O dashboard é React com módulos de
-  tipos e funções `fetch`, não classes; ele aparece no diagrama unificado como o
-  cliente da API de leitura.
+- **Não cobre o frontend classe a classe.** O dashboard é feito em React
+  (biblioteca de interface) com módulos de tipos e funções `fetch` (as chamadas
+  HTTP feitas pelo navegador), não classes; ele aparece no diagrama unificado
+  como o cliente da API de leitura.
 
-### 1.3 Notação
+#### 1.1.3 Notação
 
 | Símbolo | Significado |
 |---|---|
-| `A <|-- B` | Herança — `B` estende `A` |
-| `A <|.. B` | Realização — `B` implementa a interface/`Protocol` `A` |
-| `A *-- B` | Composição — `B` faz parte de `A` e não vive sem ele |
-| `A o-- B` | Agregação — `A` mantém uma referência a `B`, com ciclo de vida próprio |
-| `A --> B` | Associação direcionada — `A` usa `B` de forma duradoura |
-| `A ..> B` | Dependência — `A` usa `B` de forma pontual (parâmetro, retorno, construção) |
-| `«...»` | Estereótipo (`dataclass`, `pydantic`, `Protocol`, `abstract`, `exception`, `module`, `boundary`) |
+| `A <|-- B` | Herança: `B` estende `A` |
+| `A <|.. B` | Realização: `B` implementa a interface/`Protocol` `A` |
+| `A *-- B` | Composição: `B` faz parte de `A` e não vive sem ele |
+| `A o-- B` | Agregação: `A` mantém uma referência a `B`, com ciclo de vida próprio |
+| `A --> B` | Associação direcionada: `A` usa `B` de forma duradoura |
+| `A ..> B` | Dependência: `A` usa `B` de forma pontual (parâmetro, retorno, construção) |
+| `«...»` | Estereótipo — indica o papel da classe: `dataclass` e `pydantic` (formas de classe de dados em Python), `Protocol` (contrato de métodos, sem implementação), `abstract` (classe abstrata), `exception` (exceção), `module` (módulo de funções), `boundary` (fronteira com um sistema externo) |
 | `$` após um método | Método estático / função de módulo |
 | `*` após um método | Método abstrato |
 
-&emsp;Alguns nomes de classe se repetem entre contextos (`Config`, `Clock`,
+&emsp; Alguns nomes de classe se repetem entre contextos (`Config`, `Clock`,
 `EventRepository`). No diagrama unificado eles recebem um rótulo desambiguador
 entre colchetes; nos recortes, o contexto já resolve a ambiguidade.
 
-### 1.4 Fontes e reprodução
+#### 1.1.4 Fontes e reprodução
 
-&emsp;O texto-fonte de cada diagrama está versionado em
-[`assets/`](assets/) com extensão `.mmd` (Mermaid). O GitLab renderiza os blocos
+&emsp; O texto-fonte de cada diagrama está versionado em
+[`assets/`](assets/) com extensão `.mmd` (Mermaid, a linguagem de texto que
+descreve os diagramas). O GitLab renderiza os blocos
 `mermaid` deste documento diretamente; as imagens PNG ao lado de cada seção são a
 exportação para uso em apresentação. Para regenerar os PNG:
 
@@ -83,13 +76,11 @@ npx @mermaid-js/mermaid-cli -i diagrama-classes.mmd -o diagrama-classes.png -s 3
 # idem para diagrama-classes-{ingestao,relogio,analise,leitura}.mmd
 ```
 
----
+### 1.2 Visão geral: os seis contextos
 
-## 2. Visão geral: os seis contextos
-
-&emsp;Os contextos não trocam objetos entre si diretamente. Eles se comunicam por
-**duas fronteiras**: as filas SQS (na entrada) e o banco PostgreSQL (no centro).
-O acoplamento entre serviços é, portanto, o **contrato de dados**, não uma
+&emsp; Os contextos não trocam objetos entre si diretamente. Eles se comunicam por
+duas fronteiras: as filas SQS (na entrada) e o banco PostgreSQL (no centro).
+O acoplamento entre serviços é, portanto, o contrato de dados, não uma
 dependência de código.
 
 ```
@@ -108,21 +99,20 @@ dependência de código.
    [Relógio virtual] Clock/Janela/Emitter ───┘  (reemite o dump como ChangeEvent)
 ```
 
-&emsp;**O conceito central é o relógio virtual.** O dataset é um dump do passado; o
-sistema tem um presente próprio, `sim.now()`, que vive no banco. Toda linha
-carrega `available_at` — o instante em que a informação existiria na vida real,
-contando a latência da fonte — e toda leitura filtra `available_at <= sim.now()`.
+&emsp; O conceito central é o relógio virtual. O conjunto de dados (dataset) é um
+dump do passado; o sistema tem um presente próprio, `sim.now()`, que vive no banco. Toda linha
+carrega `available_at` (o instante em que a informação existiria na vida real,
+contando a latência da fonte) e toda leitura filtra `available_at <= sim.now()`.
 As classes `Clock` (simulador), `Fact.available_at` (análise) e
 `Clock`/`GoldRepository.clock()` (leitura) são as três pontas desse mesmo
 conceito.
 
----
 
-## 3. Diagrama de classes unificado
+### 1.3 Diagrama de classes unificado
 
-&emsp;A visão completa, com os seis contextos em `namespace` e as fronteiras de
-infraestrutura. É densa por natureza — as seções 4 a 8 trazem o mesmo conteúdo em
-recortes legíveis.
+&emsp; A visão completa, com os seis contextos agrupados em `namespace` (as caixas
+nomeadas do Mermaid) e as fronteiras de infraestrutura. É densa por natureza; as
+seções 1.4 a 1.8 trazem o mesmo conteúdo em recortes legíveis.
 
 ![Diagrama de classes unificado](assets/diagrama-classes.png)
 
@@ -382,17 +372,17 @@ classDiagram
         }
     }
 
-    class APIIngestao["API Gateway — ingestão + mudanças"] {
-        <<boundary — HTTP API>>
+    class APIIngestao["API Gateway: ingestão + mudanças"] {
+        <<boundary: HTTP API>>
     }
     class FilaSQS["SQS events + changes (com DLQ)"] {
-        <<boundary — fila>>
+        <<boundary: fila>>
     }
     class LambdaAuthorizer["Lambda Authorizer"] {
-        <<boundary — Lambda>>
+        <<boundary: Lambda>>
         +handler(event) policy
     }
-    class Banco["Banco Argus — bronze / silver / gold / detect / sim / etl"] {
+    class Banco["Banco Argus: bronze / silver / gold / detect / sim / etl"] {
         <<RDS PostgreSQL 16>>
     }
     class Dashboard["Dashboard (Next.js, export estático)"] {
@@ -471,16 +461,15 @@ classDiagram
     note for EventRepoPort "Docstrings herdadas da v2 ainda citam DynamoDB;<br/>a implementação real é PostgreSQL."
 ```
 
----
 
-## 4. Recorte 1 — Ingestão
+### 1.4 Recorte 1: Ingestão
 
-&emsp;O contexto de ingestão tem duas hierarquias paralelas: a dos **modelos de
-evento** (o que chega e como é validado) e a dos **consumidores** (o laço de
+&emsp; O contexto de ingestão tem duas hierarquias paralelas: a dos modelos de
+evento (o que chega e como é validado) e a dos consumidores (o laço de
 consumo do SQS). Cada consumidor casa com um repositório de escrita. A carga
 inicial (`Loader`) escreve nas mesmas tabelas por outro caminho.
 
-![Diagrama de classes — Ingestão](assets/diagrama-classes-ingestao.png)
+![Diagrama de classes: Ingestão](assets/diagrama-classes-ingestao.png)
 
 ```mermaid
 classDiagram
@@ -675,56 +664,57 @@ classDiagram
     note for EventConsumer "event worker: grava o grão de sessão em bronze.event<br/>com id derivado do conteúdo (idempotência)."
 ```
 
-### 4.1 Modelos de evento
+#### 1.4.1 Modelos de evento
 
 | Classe | Responsabilidade |
 |---|---|
-| **`BaseEvent`** | Envelope comum a todo evento de sessão. Modelo Pydantic com `extra="allow"`: campo novo enviado pelo app é preservado, não rejeitado. Só quatro campos são obrigatórios (`timestamp`, `event_name`, `session_id`, `device_id`). Os validadores `_to_utc` e `_not_blank` normalizam fuso e recusam string em branco. |
+| **`BaseEvent`** | Envelope comum a todo evento de sessão. Modelo Pydantic (biblioteca Python de validação de dados) com `extra="allow"`: campo novo enviado pelo app é preservado, não rejeitado. Só quatro campos são obrigatórios (`timestamp`, `event_name`, `session_id`, `device_id`). Os validadores `_to_utc` e `_not_blank` normalizam fuso e recusam string em branco. |
 | **`RequestEvent`** | Chamada HTTP feita pelo app: método, URL, status, cabeçalhos. |
-| **`ScreenViewEvent`** | Entrada em uma tela — só o envelope. |
-| **`SessionEvent`** | Ciclo de vida da sessão, com as *capabilities* negociadas do aparelho (HDR, DRM, Dolby Atmos…). |
-| **`VideoViewEvent`** | Reprodução de vídeo (live ou VOD): mídia, DRM, anúncios. |
-| **`VitalsEvent`** | Sinal de saúde do player — travamento, buffering. Só o envelope. |
-| **`ErrorEvent`** | Erro exibido ao usuário: nome, mensagem, *stack*. |
-| **`GenericEvent`** | *Fallback* para `event_name` ainda desconhecido. Valida só o envelope e guarda o resto; existe para que um tipo novo apareça no banco no mesmo dia em que for lançado, em vez de acumular na DLQ (RF03, RNF06). |
-| **`ChangeEvent`** | Uma mudança em uma linha de uma das 33 tabelas do parceiro. Envelope validado com rigor (`source_table` na lista fechada, `op` ∈ `i/u/d/r`, `pk` não vazia); `pk`/`before`/`after` são `jsonb` livre, para absorver coluna nova sem migração. |
+| **`ScreenViewEvent`** | Entrada em uma tela, só o envelope. |
+| **`SessionEvent`** | Ciclo de vida da sessão, com as *capabilities* (capacidades técnicas — HDR, DRM, Dolby Atmos…) negociadas com o aparelho. |
+| **`VideoViewEvent`** | Reprodução de vídeo (ao vivo ou VOD — vídeo sob demanda): mídia, DRM (trava de direitos autorais), anúncios. |
+| **`VitalsEvent`** | Sinal de saúde do player (o reprodutor de vídeo): travamento, buffering (as pausas para o vídeo carregar). Só o envelope. |
+| **`ErrorEvent`** | Erro exibido ao usuário: nome, mensagem, *stack* (a pilha de chamadas até o ponto do erro). |
+| **`GenericEvent`** | *Fallback* (rota de reserva) para `event_name` ainda desconhecido. Valida só o envelope e guarda o resto; existe para que um tipo novo apareça no banco no mesmo dia em que for lançado, em vez de acumular na DLQ — sigla de *dead-letter queue*, a fila para onde vão as mensagens que não puderam ser processadas (RF03, RNF06). |
+| **`ChangeEvent`** | Uma mudança em uma linha de uma das 33 tabelas do parceiro. Envelope validado com rigor (`source_table` na lista fechada, `op` ∈ `i/u/d/r`, `pk` — a chave primária da linha — não vazia); `pk`/`before`/`after` são `jsonb` livre (campo JSON sem esquema fixo, recurso do PostgreSQL), para absorver coluna nova sem alterar a estrutura do banco. |
 
-### 4.2 Consumidores
-
-| Classe | Responsabilidade |
-|---|---|
-| **`BaseConsumer`** *(abstrata)* | O laço de consumo do SQS, idêntico nos dois workers: `receive` → `parse` → `persist` → `delete`. Nenhuma exceção de ciclo derruba o processo; a mensagem só é apagada depois que tudo nela foi gravado ou desviado para a DLQ. Métodos abstratos `_parse`, `_persist`, `_chave_lista` são o que cada worker define. Compõe-se de `Config`, `Metrics`, `Heartbeat` e `ShutdownSignal` (todos de `common`). |
-| **`ChangeConsumer`** | *Merge worker.* Valida `ChangeEvent`, delega a `ChangeRepository` e emite as métricas `LagSimSeconds`/`SourcesSilent` em cadência fixa. |
-| **`EventConsumer`** | *Event worker.* Valida com `parse_event`, monta a linha com `keys.build_row` e delega a `EventRepository`. Conta `EventsUnknownType` e `EventsIncomplete` sem descartar. |
-
-### 4.3 Repositórios de escrita
+#### 1.4.2 Consumidores
 
 | Classe | Responsabilidade |
 |---|---|
-| **`ChangeRepository`** | Anexa o lote a `bronze.change_log` e dispara `bronze.merge_do_log` **na mesma transação** — ou os dois acontecem ou nenhum. `lag_sim_seconds` e `sources_silent` são consultas de métrica com teto de tempo, para que a observabilidade nunca derrube a ingestão. |
-| **`EventRepository`** (worker) | Grava o grão de sessão em `bronze.event` com `ON CONFLICT (ts, event_id) DO NOTHING`. `event_id` deriva do hash do conteúdo, o que dá efeito de *exactly-once* sobre a entrega *at-least-once* do SQS. |
-| **`ChangeTooLarge`** | Exceção — *change event* maior que 4 MB; *retry* nunca resolveria, então vai direto para a DLQ. |
-| **`Config`** (worker) | *Dataclass* congelada com toda a configuração vinda do ambiente (`modo`, URLs de fila e DLQ, `DATABASE_URL`, tamanhos de lote, tolerância de desvio de relógio). `from_env` valida a presença das variáveis obrigatórias. |
+| **`BaseConsumer`** *(abstrata)* | O laço de consumo do SQS, idêntico nos dois workers (os processos que leem a fila continuamente, em segundo plano): `receive` → `parse` → `persist` → `delete` (receber, interpretar, gravar, apagar). Nenhuma exceção de ciclo derruba o processo; a mensagem só é apagada depois que tudo nela foi gravado ou desviado para a DLQ. Métodos abstratos `_parse`, `_persist`, `_chave_lista` são o que cada worker define. Compõe-se de `Config`, `Metrics`, `Heartbeat` e `ShutdownSignal` (todos de `common`). |
+| **`ChangeConsumer`** | *Merge worker* — o processo que funde cada mudança na tabela correspondente. Valida `ChangeEvent`, delega a `ChangeRepository` e emite as métricas `LagSimSeconds`/`SourcesSilent` em cadência fixa. |
+| **`EventConsumer`** | *Event worker* — o processo dos eventos de sessão. Valida com `parse_event`, monta a linha com `keys.build_row` e delega a `EventRepository`. Conta `EventsUnknownType` e `EventsIncomplete` sem descartar. |
 
-### 4.4 Carga inicial
+#### 1.4.3 Repositórios de escrita
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Loader`** | Lê os Parquet do dump em lotes e despeja por `COPY FROM STDIN` na `bronze` corrente; opcionalmente grava o snapshot também no `change_log` com `op='r'`. Retomável por tabela: uma tabela cuja contagem já bate com o `_manifest.json` é pulada. |
-| **`Resultado`** / **`ResultadoTabela`** | *Dataclasses* que acumulam o que aconteceu com cada tabela (linhas, esperadas, tempo, se foi pulada). `confere()` e `divergentes()` são a validação final contra o manifesto (RNF05 — não perder dado em silêncio). |
-| **`ManifestoDivergente`** | Exceção — a contagem carregada não bate com o `_manifest.json`; a carga falha alto. |
+| **`ChangeRepository`** | Anexa o lote a `bronze.change_log` e dispara `bronze.merge_do_log` na mesma transação: ou os dois acontecem ou nenhum. `lag_sim_seconds` e `sources_silent` são consultas de métrica com teto de tempo, para que a observabilidade nunca derrube a ingestão. |
+| **`EventRepository`** (worker) | Grava o grão de sessão (o nível de detalhe adotado: uma linha por sessão) em `bronze.event` com `ON CONFLICT (ts, event_id) DO NOTHING` (se a linha já existir, ignora). `event_id` deriva do hash (a impressão digital) do conteúdo, o que dá efeito de *exactly-once* — cada evento gravado uma única vez — sobre a entrega *at-least-once* do SQS, que pode repetir a mesma mensagem. |
+| **`ChangeTooLarge`** | Exceção: evento de mudança maior que 4 MB; repetir a tentativa (*retry*) nunca resolveria, então vai direto para a DLQ. |
+| **`Config`** (worker) | *Dataclass* (classe de dados do Python) congelada — imutável depois de criada — com toda a configuração vinda do ambiente (`modo`, URLs de fila e DLQ, `DATABASE_URL`, tamanhos de lote, tolerância de desvio de relógio). `from_env` valida a presença das variáveis obrigatórias. |
+
+#### 1.4.4 Carga inicial
+
+| Classe | Responsabilidade |
+|---|---|
+| **`Loader`** | Lê os Parquet do dump em lotes e despeja por `COPY FROM STDIN` (a carga em massa do PostgreSQL) na `bronze` corrente; opcionalmente grava o snapshot (a foto do estado inicial) também no `change_log` com `op='r'`. Retomável por tabela: uma tabela cuja contagem já bate com o `_manifest.json` é pulada. |
+| **`Resultado`** / **`ResultadoTabela`** | *Dataclasses* que acumulam o que aconteceu com cada tabela (linhas, esperadas, tempo, se foi pulada). `confere()` e `divergentes()` são a validação final contra o manifesto (RNF05: não perder dado em silêncio). |
+| **`ManifestoDivergente`** | Exceção: a contagem carregada não bate com o `_manifest.json`; a carga falha de forma explícita, em vez de seguir em silêncio. |
 
 ---
 
-## 5. Recorte 2 — Relógio virtual
+### 1.5 Recorte 2: Relógio virtual
 
-&emsp;O simulador não inventa dado: lê o dump que já está na `bronze` e o reemite, no
-ritmo de `sim.now()`, **pela rede** — cada tick exercita o fluxo de ingestão
-inteiro. `Clock` fala com o banco (o relógio vive lá), `Janela` lê a faixa de
-tempo que acabou de passar, `Falha` distorce pontos de forma determinística e
-`Emitter` publica em `POST /v1/changes`.
+&emsp; O simulador não inventa dado: lê o dump que já está na `bronze` e o reemite, no
+ritmo de `sim.now()`, pela rede: cada tick (cada passo do relógio virtual)
+exercita o fluxo de ingestão inteiro. `Clock` fala com o banco (o relógio vive
+lá), `Janela` lê a faixa de tempo que acabou de passar, `Falha` distorce pontos
+de forma determinística (mesma entrada, sempre o mesmo resultado) e `Emitter`
+publica em `POST /v1/changes`.
 
-![Diagrama de classes — Relógio virtual](assets/diagrama-classes-relogio.png)
+![Diagrama de classes: Relógio virtual](assets/diagrama-classes-relogio.png)
 
 ```mermaid
 classDiagram
@@ -786,7 +776,7 @@ classDiagram
     }
 
     class APIMudancas["POST /v1/changes"] {
-        <<boundary — API Gateway>>
+        <<boundary: API Gateway>>
     }
 
     SimuladorMain ..> Clock : cria
@@ -809,24 +799,25 @@ classDiagram
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Clock`** | Lê e avança `sim.clock`. `reset` ancora o relógio no início da janela; `now` lê o presente virtual; `abrir_run`/`fechar_run` registram a execução em `sim.run`; `registrar_falhas` persiste o cenário sorteado em `sim.fault` (é o que torna o cenário auditável); `fontes` lista as fontes presentes na `bronze`. |
+| **`Clock`** | Lê e avança `sim.clock`. `reset` ancora o relógio no início da janela; `now` lê o presente virtual; `abrir_run`/`fechar_run` registram a execução em `sim.run`; `registrar_falhas` grava o cenário sorteado em `sim.fault` (é o que torna o cenário auditável, isto é, verificável depois); `fontes` lista as fontes presentes na `bronze`. |
 | **`Janela`** | Lê da `bronze` as linhas cujo tempo caiu na faixa que acabou de passar, com teto por tabela por tick (uma mensagem do SQS tem limite de tamanho). |
-| **`Emitter`** | Publica *change events* em `POST /v1/changes`, com *retry* e cliente HTTP reaproveitado entre ticks. Divide o lote por **bytes** do JSON (o corpo viaja na *query string* da integração do API Gateway, que tem limite de URI menor que os 256 KB do SQS). Desistir de um lote perde-o de propósito: melhor pular uma janela do que travar o tempo virtual. |
-| **`Falha`** *(dataclass congelada)* | Uma falha injetada, com alvo e janela. `alcanca` diz se a falha atinge um ponto (tempo + alvo); `aplicar` distorce o valor conforme o tipo (`error_spike`, `latency`, `drift` multiplicam; `source_outage` devolve `None` — a fonte parou, que é diferente de reportar zero). |
-| **`faults`** *(módulo)* | `sortear` produz a lista de falhas de uma execução a partir da `seed` — mesma *seed*, mesmo cenário, o que permite comparar dois detectores sabendo que viram os mesmos incidentes. |
+| **`Emitter`** | Publica os eventos de mudança em `POST /v1/changes`, repetindo a tentativa (*retry*) quando falha e reaproveitando o cliente HTTP entre os ticks. Divide o lote por bytes do JSON (o corpo viaja na *query string* — os parâmetros no fim da URL — da integração do API Gateway, o serviço da AWS que recebe as requisições da internet, cujo limite de tamanho de URL é menor que os 256 KB do SQS). Desistir de um lote o perde de propósito: melhor pular uma janela do que travar o tempo virtual. |
+| **`Falha`** *(dataclass congelada)* | Uma falha injetada, com alvo e janela. `alcanca` diz se a falha atinge um ponto (tempo + alvo); `aplicar` distorce o valor conforme o tipo (`error_spike`, `latency`, `drift` — pico de erro, latência e deriva — multiplicam; `source_outage` devolve `None`: a fonte parou, que é diferente de reportar zero). |
+| **`faults`** *(módulo)* | `sortear` produz a lista de falhas de uma execução a partir da `seed` (o número que inicializa o sorteio aleatório): mesma seed, mesmo cenário, o que permite comparar dois detectores sabendo que viram os mesmos incidentes. |
 
----
 
-## 6. Recorte 3 — Análise
+### 1.6 Recorte 3: Análise
 
-&emsp;O contexto de análise tem três blocos: os **contratos imutáveis** (`Fact`,
-`Anomaly`, `Hypothesis`…), que são *dataclasses* congeladas passadas entre as
-etapas; a **coordenação** (`WorkClaim`, `CapturedWork`), que garante que um só
-processo analise um checkpoint por vez, com *lease* e *fencing*; e o **catálogo
-versionado** (`Catalog`, `MetricPolicy`), cujo `manifest_hash` amarra cada
-resultado à configuração exata que o produziu.
+&emsp; O contexto de análise tem três blocos: os contratos imutáveis (`Fact`,
+`Anomaly`, `Hypothesis`…), que são *dataclasses* congeladas (imutáveis) passadas
+entre as etapas; a coordenação (`WorkClaim`, `CapturedWork`), que garante que um
+só processo analise um checkpoint (um ponto de progresso salvo) por vez, usando
+*lease* (posse com prazo de validade) e *fencing* (um número crescente que
+invalida quem perdeu a posse); e o catálogo versionado (`Catalog`,
+`MetricPolicy`), cujo `manifest_hash` amarra cada resultado à configuração exata
+que o produziu.
 
-![Diagrama de classes — Análise](assets/diagrama-classes-analise.png)
+![Diagrama de classes: Análise](assets/diagrama-classes-analise.png)
 
 ```mermaid
 classDiagram
@@ -1029,7 +1020,7 @@ classDiagram
     class Database {
         <<comum>>
     }
-    class BancoPostgres["Banco — silver / gold / detect"] {
+    class BancoPostgres["Banco: silver / gold / detect"] {
         <<RDS PostgreSQL>>
     }
 
@@ -1068,55 +1059,56 @@ classDiagram
     Database --> BancoPostgres
 
     note for Fact "Sai de bronze.change_log, não da tabela corrente.<br/>Nenhuma regra olha um fato com available_at &gt; sim.now()."
-    note for Hypothesis "Explicação candidata e auditável, para revisão humana —<br/>não é causa-raiz confirmada."
+    note for Hypothesis "Explicação candidata e auditável, para revisão humana;<br/>não é causa-raiz confirmada."
     note for Catalog "manifest_hash amarra o resultado à configuração exata<br/>(catálogos + pesos + parâmetros do detector)."
 ```
 
-### 6.1 Contratos do detector e do motor
+#### 1.6.1 Contratos do detector e do motor
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Fact`** | Uma observação de fonte já normalizada, no grão em que a análise trabalha. Sai de `bronze.change_log` (não da tabela corrente), o que conserva duas mudanças da mesma PK entre ciclos. `available_at` é a barreira causal: nenhuma regra olha um fato cujo `available_at` esteja à frente de `sim.now()`. |
-| **`Baseline`** | Média e variância acumuladas de uma série, no formato de Welford. Mutável de propósito — o detector atualiza a cada bucket. `n < 3` significa histórico insuficiente. |
-| **`Anomaly`** | Um fato que se afastou do baseline o suficiente para virar sinal. Guarda `z` (desvio em σ), `strength` (magnitude normalizada) e um `baseline_snapshot` para a evidência poder citar o número original. |
-| **`SourceQuality`** | Veredito do canário sobre uma fonte num ciclo. Existe porque uma fonte silenciosa é indistinguível de uma fonte saudável: as duas produzem zero anomalia. Quatro dimensões (`freshness`, `completeness`, `validity`, `consistency`) ponderadas em `quality_score`. |
-| **`Feature`** | Um componente do score de uma hipótese, com sua explicação. `applicability` (`available` / `unavailable` / `not_applicable`) distingue "calculada", "fonte não respondeu" e "não faz sentido para esta família" — sem isso, ausência de dado viraria zero e puxaria o score para baixo. |
-| **`Evidence`** | Um fato citado a favor ou contra uma hipótese. `polarity` permite mostrar ao operador também o que **não** fecha com a explicação. |
-| **`Hypothesis`** | Uma explicação candidata e auditável, para revisão humana — **não** é causa-raiz confirmada. `evaluation_status` e `contradiction_strength` carregam o quanto a própria evidência contradiz a explicação; `dedup_key`/`lineage_key` colapsam e ligam versões entre ciclos. |
-| **`Candidate`** | Uma hipótese **antes** da avaliação: o formato, sem o score. Separar geração de avaliação é o que permite contar quantos candidatos existiam antes de qualquer corte. |
+| **`Fact`** | Uma observação de fonte já normalizada, no grão em que a análise trabalha. Sai de `bronze.change_log` (não da tabela corrente), o que conserva duas mudanças da mesma chave primária (PK) entre ciclos. `available_at` é a barreira causal: nenhuma regra olha um fato cujo `available_at` esteja à frente de `sim.now()`. |
+| **`Baseline`** | Média e variância acumuladas de uma série, pelo método de Welford (que atualiza os dois números a cada novo ponto, sem guardar o histórico). Mutável de propósito: o detector atualiza a cada bucket (cada intervalo de tempo agregado). `n < 3` significa histórico insuficiente. |
+| **`Anomaly`** | Um fato que se afastou do baseline (o comportamento esperado, calculado a partir do histórico) o suficiente para virar sinal. Guarda `z` (o desvio em relação à média, medido em desvios-padrão σ), `strength` (a magnitude normalizada) e um `baseline_snapshot` (a foto do baseline naquele instante) para a evidência poder citar o número original. |
+| **`SourceQuality`** | Veredito do canário (a verificação contínua que acusa quando uma fonte para de responder) sobre uma fonte num ciclo. Existe porque uma fonte silenciosa é indistinguível de uma fonte saudável: as duas produzem zero anomalia. Quatro dimensões — `freshness`, `completeness`, `validity`, `consistency` (atualidade, completude, validade e consistência) — ponderadas em `quality_score`. |
+| **`Feature`** | Um componente do score (a nota) de uma hipótese, com sua explicação. `applicability` (`available` / `unavailable` / `not_applicable`) distingue "calculada", "fonte não respondeu" e "não faz sentido para esta família"; sem isso, ausência de dado viraria zero e puxaria o score para baixo. |
+| **`Evidence`** | Um fato citado a favor ou contra uma hipótese. `polarity` permite mostrar ao operador também o que não fecha com a explicação. |
+| **`Hypothesis`** | Uma explicação candidata e auditável, para revisão humana; não é causa-raiz confirmada. `evaluation_status` e `contradiction_strength` carregam o quanto a própria evidência contradiz a explicação; `dedup_key`/`lineage_key` (chaves de deduplicação e de linhagem) agrupam e ligam versões entre ciclos. |
+| **`Candidate`** | Uma hipótese antes da avaliação: o formato, sem o score. Separar geração de avaliação é o que permite contar quantos candidatos existiam antes de qualquer corte. |
 | **`AnalysisResult`** | Tudo que um ciclo produziu, para gravação numa transação. Os três contadores de candidato distinguem "não há hipótese" de "havia candidatos demais e o ciclo parou no teto". |
 
-### 6.2 Coordenação e captura
+#### 1.6.2 Coordenação e captura
 
 | Classe | Responsabilidade |
 |---|---|
-| **`WorkClaim`** | Fotografia da posse de uma unidade de análise: `run_id`, `checkpoint_id`, `manifest_hash`, `lease_expires_at`, `fencing_token`. O *advisory lock* só existe durante o *claim*; o trabalho demorado é protegido por *lease* e *fencing* persistidos. |
-| **`CapturedWork`** | Um instantâneo: o *claim* mais os `Fact` já lidos, capturados em `REPEATABLE READ` **antes** da análise — é o que faz o ciclo inteiro enxergar o mesmo estado do banco mesmo com o ETL escrevendo em paralelo. |
+| **`WorkClaim`** | Fotografia da posse de uma unidade de análise: `run_id`, `checkpoint_id`, `manifest_hash`, `lease_expires_at`, `fencing_token`. O *advisory lock* (trava cooperativa do PostgreSQL) só existe durante o *claim* (o instante em que o processo reivindica o trabalho); o trabalho demorado é protegido por *lease* e *fencing* gravados no banco. |
+| **`CapturedWork`** | Um instantâneo: o *claim* mais os `Fact` já lidos, capturados sob `REPEATABLE READ` (o nível de isolamento em que a transação vê um retrato fixo do banco) antes da análise: é o que faz o ciclo inteiro enxergar o mesmo estado do banco mesmo com o ETL escrevendo em paralelo. |
 | **`CoordinationError` / `FencingRejected`** | Erros de contrato da coordenação; `FencingRejected` é lançada quando o processo perdeu o *lease* e tenta gravar. |
 | **`CaptureLimitExceeded` / `InputDigestMismatch`** | A unidade excedeu o limite de linhas, ou um *retry* reconstruiu entrada diferente para o mesmo checkpoint. |
 
-### 6.3 Catálogo e fluxo
+#### 1.6.3 Catálogo e fluxo
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Catalog`** | Os cinco catálogos versionados (`sources`, `metrics`, `entity_relations`, `playback`, `rules`) e o `manifest_hash` canônico. `related` reconhece hierarquia de entidades (um POP dentro do cluster que sofreu deploy); `normalize_entity` reduz nomes à forma canônica. |
-| **`MetricPolicy`** | Como uma métrica deve ser tratada pelo detector: direção que importa (`up`/`down`), transformação (`log1p` para caudas longas), limiares de materialidade e piso de σ. |
-| **`pipeline` / `detector` / `rules` / `scoring` / `quality`** *(módulos)* | As funções que executam o ciclo: `detect` (EWMA circadiano estritamente causal), `evaluate_quality` (canário), `build_candidates` (as 11 famílias), `evaluate_candidates` + `score_features` (pontuação determinística), `run_captured`/`analyze_once` (orquestração). |
-| **`orchestration` / `analysis_repository`** *(módulos)* | `reivindicar_trabalho`, `renovar_lease`, `commit_protegido`, `claim_and_capture`, `persist_result`, `promote_manifest` — o *claim*, a captura consistente e a gravação transacional protegida por *fencing*. |
+| **`Catalog`** | Os cinco catálogos versionados (`sources`, `metrics`, `entity_relations`, `playback`, `rules`) e o `manifest_hash` canônico. `related` reconhece hierarquia de entidades (um POP — ponto de presença da rede — dentro do cluster que passou por um deploy, a publicação de uma nova versão); `normalize_entity` reduz nomes à forma canônica (uma grafia única). |
+| **`MetricPolicy`** | Como uma métrica deve ser tratada pelo detector: direção que importa (`up`/`down`), transformação (`log1p`, um logaritmo, para distribuições de cauda longa), limiares de materialidade e piso de σ. |
+| **`pipeline` / `detector` / `rules` / `scoring` / `quality`** *(módulos)* | As funções que executam o ciclo: `detect` (média móvel com peso exponencial — EWMA — ajustada ao ciclo de 24 h e estritamente causal, isto é, sem olhar o futuro), `evaluate_quality` (canário), `build_candidates` (as 11 famílias), `evaluate_candidates` + `score_features` (pontuação determinística), `run_captured`/`analyze_once` (orquestração). |
+| **`orchestration` / `analysis_repository`** *(módulos)* | `reivindicar_trabalho`, `renovar_lease`, `commit_protegido`, `claim_and_capture`, `persist_result`, `promote_manifest`: o *claim*, a captura consistente e a gravação transacional protegida por *fencing*. |
 
----
 
-## 7. Recorte 4 — Leitura
+### 1.7 Recorte 4: Leitura
 
-&emsp;A API de leitura segue **arquitetura hexagonal**. O centro (`domain`) não conhece
-Flask nem PostgreSQL. A porta `EventRepository` (`Protocol`) declara o que a
-aplicação exige; `PostgresEventRepository` é o adaptador concreto. Os casos de uso
-(`SearchEvents`, `GetTimeseries`…) orquestram porta e entidades; `create_app`
-injeta os adaptadores. Repositórios especializados por grão — evento individual,
-bucket agregado, hipótese publicada, sinal ativo — em vez de um repositório único
-com métodos que nunca se cruzam.
+&emsp;A API de leitura segue a arquitetura hexagonal (também chamada portas e
+adaptadores): o núcleo de regras não sabe por qual tecnologia o dado entra ou
+sai. O centro (`domain`) não conhece Flask nem PostgreSQL. A porta
+`EventRepository` (um `Protocol` do Python — um contrato de métodos, sem
+implementação) declara o que a aplicação exige; `PostgresEventRepository` é o
+adaptador concreto. Os casos de uso (`SearchEvents`, `GetTimeseries`…) orquestram
+porta e entidades; `create_app` injeta os adaptadores. Repositórios
+especializados por grão (evento individual, bucket agregado, hipótese publicada,
+sinal ativo) em vez de um repositório único com métodos que nunca se cruzam.
 
-![Diagrama de classes — Leitura](assets/diagrama-classes-leitura.png)
+![Diagrama de classes: Leitura](assets/diagrama-classes-leitura.png)
 
 ```mermaid
 classDiagram
@@ -1293,7 +1285,7 @@ classDiagram
     }
     class TestConfig
 
-    class BancoPostgres["Banco — views v_* de silver / gold / sim"] {
+    class BancoPostgres["Banco: views v_* de silver / gold / sim"] {
         <<RDS PostgreSQL>>
     }
 
@@ -1348,24 +1340,24 @@ classDiagram
     note for QueryStats "strategy/scanned/returned vão na resposta:<br/>tornam visível o custo de cada consulta."
 ```
 
-### 7.1 `domain`
+#### 1.7.1 `domain` (o núcleo de regras)
 
 | Classe | Responsabilidade |
 |---|---|
-| **`TelemetryEvent`** | Um evento de telemetria como a API o devolve. `event_id` é `str` (hash do conteúdo, não UUID); `duration_ms` é derivado (o banco guarda segundos); `user_id_hash` nunca é o id cru; campos específicos de cada tipo ficam em `attributes`. |
-| **`TelemetryError`** e subclasses | Hierarquia de erros de domínio previstos: `ValidationError` (→ 422, aponta o campo), `UnsupportedMediaTypeError` (→ 415), `EventNotFoundError` (→ 404), `ResourceNotFoundError` (→ 404), `ConflictError` (→ 409). `create_app` traduz cada uma em resposta *Problem Details* (RFC 7807). |
+| **`TelemetryEvent`** | Um evento de telemetria como a API o devolve. `event_id` é `str` (o hash do conteúdo, não um UUID aleatório); `duration_ms` é derivado (o banco guarda segundos); `user_id_hash` nunca é o id cru; campos específicos de cada tipo ficam em `attributes`. |
+| **`TelemetryError`** e subclasses | Hierarquia de erros de domínio previstos: `ValidationError` (→ 422, aponta o campo), `UnsupportedMediaTypeError` (→ 415), `EventNotFoundError` (→ 404), `ResourceNotFoundError` (→ 404), `ConflictError` (→ 409). `create_app` traduz cada uma em uma resposta no formato *Problem Details* (RFC 7807, o padrão de corpo de erro para APIs HTTP). |
 
-### 7.2 `ports`
+#### 1.7.2 `ports` (as portas: contratos que o núcleo exige)
 
 | Classe | Responsabilidade |
 |---|---|
-| **`EventRepository`** *(`Protocol`)* | A porta de leitura: `search`, `get`, `breakdown`, `crosstab`, `timeseries`, `facets`, `ping`. Sem `add`/`delete` de propósito — a escrita pertence ao pipeline de ingestão. |
-| **`EventFilters`** | Filtros de busca cumulativos (RF08, RF09). Os três primeiros (`session_id`, `device_id`, `event_name`) decidem qual índice responde a consulta; o resto é aplicado depois. Cursor opaco (base64) em vez de `OFFSET`. |
+| **`EventRepository`** *(`Protocol`)* | A porta de leitura: `search`, `get`, `breakdown`, `crosstab`, `timeseries`, `facets`, `ping`. Sem `add`/`delete` de propósito: a escrita pertence ao pipeline de ingestão (a esteira que recebe e grava os dados). |
+| **`EventFilters`** | Filtros de busca cumulativos (RF08, RF09). Os três primeiros (`session_id`, `device_id`, `event_name`) decidem qual índice responde a consulta; o resto é aplicado depois. Paginação por cursor opaco (uma marca de posição codificada em base64 que o cliente não precisa interpretar) em vez de `OFFSET`. |
 | **`EventPage`** | Página resultante: `items`, `next_cursor` e `stats`. |
-| **`QueryStats`** | `strategy`, `queries`, `scanned`, `returned` — vão na resposta para tornar visível o custo de cada consulta (RNF02). |
+| **`QueryStats`** | `strategy`, `queries`, `scanned`, `returned`: vão na resposta para tornar visível o custo de cada consulta (RNF02). |
 | **`EventMetric`** / **`TimeBucket`** | Ponto de agregação por dimensão (RF11) e ponto de série temporal (RF12). |
 
-### 7.3 `application` (casos de uso)
+#### 1.7.3 `application` (casos de uso)
 
 | Classe | RF | Responsabilidade |
 |---|---|---|
@@ -1373,55 +1365,53 @@ classDiagram
 | **`GetSessionTimeline`** | RF16 | Todos os eventos de uma sessão, em ordem cronológica, mais o resumo executivo. |
 | **`GetEvent`** | RF16 | Detalhes completos de um evento por sessão + id. |
 | **`GetBreakdown`** | RF11 | Agrupamento por uma dimensão, com distribuição percentual. |
-| **`GetCrosstab`** | RF16 | Cruzamento por duas dimensões (heatmap do Recorte). |
+| **`GetCrosstab`** | RF16 | Cruzamento por duas dimensões (o heatmap, ou mapa de calor, do Recorte). |
 | **`GetTimeseries`** | RF12, RF14, RF15 | Série temporal do volume; com `compare_previous`, a janela anterior de mesma duração e a variação entre as duas. |
 | **`GetFacets`** | RF10 | Valores existentes para preencher os filtros. |
 | **`GenerateSignals`** | RF15 | Lista de sinais em desvio ativo (tela Agora), a partir de `SignalsRepository.desvios`. |
 
-### 7.4 `infrastructure` (adaptadores)
+#### 1.7.4 `infrastructure` (adaptadores)
 
 | Classe | Grão | Responsabilidade |
 |---|---|---|
 | **`PostgresEventRepository`** | Evento de sessão | Implementa a porta `EventRepository`. Lê de `silver.v_session_event`, aplica a redação de dado pessoal na saída (RNF10) e reporta a `strategy` de cada consulta. |
-| **`GoldRepository`** | Bucket agregado de 15 min | Séries, janelas estáveis, incidentes, deploys e o relógio (`clock()` → `Clock`), a partir das views de `gold`, `silver` e `sim`. |
-| **`HypothesisRepository`** | Hipótese publicada | Lista e detalha hipóteses do motor; registra o feedback do operador pela função `SECURITY DEFINER` `gold.submit_hypothesis_feedback` (a única escrita da API). |
+| **`GoldRepository`** | Bucket agregado de 15 min | Séries, janelas estáveis, incidentes, deploys e o relógio (`clock()` → `Clock`), a partir das views (consultas SQL salvas e consultáveis como se fossem tabelas) de `gold`, `silver` e `sim`. |
+| **`HypothesisRepository`** | Hipótese publicada | Lista e detalha hipóteses do motor; registra o retorno (feedback) do operador pela função `gold.submit_hypothesis_feedback`, marcada como `SECURITY DEFINER` (roda com os privilégios de quem a criou, não de quem a chama) — a única escrita da API. |
 | **`SignalsRepository`** | Sinal ativo | Desvios ativos de `gold.v_feature_bucket`, com baseline por hora do dia. |
-| **`Clock`** *(dataclass)* | — | O presente virtual como o banco o enxerga: `sim_now`, `speed`, `updated_at`. |
+| **`Clock`** *(dataclass)* | n/a | O presente virtual como o banco o enxerga: `sim_now`, `speed`, `updated_at`. |
 
-### 7.5 `interfaces` e `config`
+#### 1.7.5 `interfaces` e `config` (entrada HTTP e configuração)
 
 | Classe | Responsabilidade |
 |---|---|
-| **`create_app`** *(factory)* | Monta a aplicação Flask: um único *pool* para todos os adaptadores, registra os *blueprints*, o CORS manual, a observabilidade e os *error handlers*. Aceita adaptadores injetados (é o que os testes usam). |
-| **`interfaces.http` / `hypotheses_http` / `signals_http`** *(blueprints)* | As rotas HTTP. Cada rota nova exige entrada correspondente no OpenAPI, verificada por teste nos dois sentidos. |
-| **`interfaces.openapi`** | Monta a spec OpenAPI 3.1 em código, importando as mesmas constantes que os adaptadores usam para validar. |
-| **`Config` / `TestConfig`** | Configuração vinda do ambiente: `DATABASE_URL`, `USER_ID_HASH_SALT` (RNF10), janelas e tetos de varredura, origens de CORS. |
+| **`create_app`** *(factory)* | Monta a aplicação Flask: um único *pool* de conexões (conjunto de conexões com o banco abertas e reaproveitadas) para todos os adaptadores, registra os *blueprints* (os grupos de rotas do Flask), o CORS manual (as regras que autorizam o navegador a chamar a API de outra origem), a observabilidade e os *error handlers* (os tratadores de erro). Aceita adaptadores injetados (é o que os testes usam). |
+| **`interfaces.http` / `hypotheses_http` / `signals_http`** *(blueprints)* | As rotas HTTP. Cada rota nova exige entrada correspondente no OpenAPI (a descrição da API em formato legível por máquina), verificada por teste nos dois sentidos. |
+| **`interfaces.openapi`** | Monta a especificação OpenAPI 3.1 em código, importando as mesmas constantes que os adaptadores usam para validar. |
+| **`Config` / `TestConfig`** | Configuração vinda do ambiente: `DATABASE_URL`, `USER_ID_HASH_SALT` (RNF10 — o *salt*, valor secreto somado ao identificador antes de aplicar o hash), janelas e tetos de varredura, origens de CORS. |
 
----
 
-## 8. Código comum (`common`)
+### 1.8 Código comum (`common`)
 
 &emsp;As quatro classes que os serviços de ingestão, simulação e análise
 compartilham. Aparecem nos recortes como dependências externas.
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Database`** | *Pool* de conexões com o PostgreSQL. `sim_now()` lê o relógio virtual **do banco**, nunca do relógio do contêiner — se cada serviço derivasse o próprio tempo, dois contêineres discordariam sobre o que já aconteceu. Sobrevive a *failover* do RDS descartando a conexão morta. |
-| **`Heartbeat`** | Marca vida para o *healthcheck* do contêiner. Precisa bater a cada ciclo, inclusive com fila vazia — um worker saudável num domingo de madrugada seria morto em laço se o heartbeat só batesse quando houvesse mensagem. |
-| **`ShutdownSignal`** | Encerramento gracioso: `SIGTERM` encerra depois do ciclo atual. `sleep` acorda cedo se a parada for pedida, para não virar `SIGKILL` na prática. |
-| **`Metrics`** | Coletor de métricas para o CloudWatch: `count`, `duration_ms`, `flush` em cadência. |
+| **`Database`** | *Pool* de conexões com o PostgreSQL. `sim_now()` lê o relógio virtual do banco, nunca do relógio do contêiner: se cada serviço derivasse o próprio tempo, dois contêineres discordariam sobre o que já aconteceu. Sobrevive ao *failover* do RDS (o PostgreSQL gerenciado da AWS) — a troca automática para uma réplica quando o servidor principal cai — descartando a conexão morta. |
+| **`Heartbeat`** | Marca presença para o *healthcheck* do contêiner (a checagem periódica de que o processo está vivo). Precisa bater a cada ciclo, inclusive com fila vazia: um worker saudável num domingo de madrugada seria reiniciado sem parar se o heartbeat (esse sinal de vida) só batesse quando houvesse mensagem. |
+| **`ShutdownSignal`** | Encerramento ordenado (*graceful shutdown*): o sinal `SIGTERM` faz o processo parar só depois de terminar o ciclo atual. O `sleep` acorda mais cedo quando a parada é pedida, para o sistema não precisar recorrer ao `SIGKILL` (o encerramento forçado, que interrompe no meio). |
+| **`Metrics`** | Coletor de métricas para o CloudWatch (o serviço de métricas e logs da AWS): `count`, `duration_ms` e `flush` (o envio do que se acumulou) em cadência. |
 
----
 
-## 9. Relacionamentos principais
+### 1.9 Relacionamentos principais
 
 | Origem | Tipo | Destino | Mult. | Significado |
 |---|---|---|---|---|
-| `RequestEvent` … `GenericEvent` | herança | `BaseEvent` | — | Sete tipos de evento sobre o mesmo envelope |
-| `ChangeConsumer`, `EventConsumer` | herança | `BaseConsumer` | — | O laço do SQS é comum; muda o que validar e onde gravar |
-| `PostgresEventRepository` | realização | `EventRepository` (`Protocol`) | — | Único adaptador concreto da porta de leitura |
-| `ValidationError` … `ConflictError` | herança | `TelemetryError` | — | Erros de domínio traduzidos em *Problem Details* |
-| `FencingRejected` | herança | `CoordinationError` → `RuntimeError` | — | Perda de posse no meio do ciclo |
+| `RequestEvent` … `GenericEvent` | herança | `BaseEvent` | n/a | Sete tipos de evento sobre o mesmo envelope |
+| `ChangeConsumer`, `EventConsumer` | herança | `BaseConsumer` | n/a | O laço do SQS é comum; muda o que validar e onde gravar |
+| `PostgresEventRepository` | realização | `EventRepository` (`Protocol`) | n/a | Único adaptador concreto da porta de leitura |
+| `ValidationError` … `ConflictError` | herança | `TelemetryError` | n/a | Erros de domínio traduzidos em *Problem Details* |
+| `FencingRejected` | herança | `CoordinationError` → `RuntimeError` | n/a | Perda de posse no meio do ciclo |
 | `BaseConsumer` | agregação | `Config`, `Metrics`, `Heartbeat`, `ShutdownSignal` | 1 cada | Injetados na construção |
 | `ChangeConsumer` / `EventConsumer` | composição | `ChangeRepository` / `EventRepository` | 1 | Cada consumidor tem o seu repositório de escrita |
 | `Resultado` | composição | `ResultadoTabela` | 0..* | Uma entrada por tabela carregada |
@@ -1431,13 +1421,12 @@ compartilham. Aparecem nos recortes como dependências externas.
 | `CapturedWork` | composição | `WorkClaim`, `Fact` | 1 / 0..* | Instantâneo consistente do trabalho |
 | `EventPage` | composição / agregação | `TelemetryEvent` / `QueryStats` | 0..* / 0..1 | Página + custo da consulta |
 | `GoldRepository` | composição | `Clock` | 1 | Produz o relógio para a resposta |
-| `SessionEvent`, `Emitter` | dependência | `API Gateway` | — | Entrada dos dois fluxos de ingestão |
-| `*Repository` (ingestão, análise, leitura) | associação | `Banco (PostgreSQL)` | — | O acoplamento entre contextos é o contrato de dados |
-| `create_app` | dependência | os quatro adaptadores + casos de uso | — | Composição da aplicação (injeção de dependência) |
+| `SessionEvent`, `Emitter` | dependência | `API Gateway` | n/a | Entrada dos dois fluxos de ingestão |
+| `*Repository` (ingestão, análise, leitura) | associação | `Banco (PostgreSQL)` | n/a | O acoplamento entre contextos é o contrato de dados |
+| `create_app` | dependência | os quatro adaptadores + casos de uso | n/a | Composição da aplicação (injeção de dependência: as dependências são passadas de fora, não criadas dentro) |
 
----
 
-## 10. Rastreabilidade classe ↔ requisitos
+### 1.10 Rastreabilidade classe e requisitos
 
 | Requisito | Classes que o realizam |
 |---|---|
@@ -1459,14 +1448,15 @@ compartilham. Aparecem nos recortes como dependências externas.
 | **RNF10** não expor dado pessoal | `application/redaction.py`, `TelemetryEvent.user_id_hash`, `Config.USER_ID_HASH_SALT` |
 | **RNF11** registrar falhas de ingestão/processamento | `Metrics`, DLQ, `AnalysisResult` (contadores de corte), log JSON por requisição |
 
----
 
-## 11. Notas de fidelidade
+### 1.11 Notas de fidelidade
 
-1. **Docstrings herdadas da v2.** Algumas docstrings de `backend/` (em
-   `domain/entities.py`, `ports/event_repository.py`, `application/use_cases.py`)
-   ainda descrevem o armazenamento como DynamoDB, herança do MVP anterior. A
-   implementação real, e o que o diagrama reflete, é **PostgreSQL** — os
+1. **Docstrings herdadas da v2.** Algumas docstrings (os textos de documentação
+   embutidos no próprio código) de `backend/` (em `domain/entities.py`,
+   `ports/event_repository.py`, `application/use_cases.py`) ainda descrevem o
+   armazenamento como DynamoDB (o banco NoSQL da AWS), herança do MVP anterior (a
+   primeira versão mínima do produto). A
+   implementação real, e o que o diagrama reflete, é PostgreSQL: os
    adaptadores concretos leem das views `v_*`.
 
 2. **Módulos como "classes".** `pipeline`, `detector`, `rules`, `scoring`,
@@ -1475,12 +1465,13 @@ compartilham. Aparecem nos recortes como dependências externas.
    métodos marcados como estáticos (`$`) porque é a forma de mostrar o fluxo de
    dados entre os contratos imutáveis.
 
-3. **Pontos de entrada.** Cada serviço tem um `__main__.main()` que instancia e
-   liga as classes (o *composition root*). Só o do simulador aparece no diagrama,
-   como `«entrypoint»`, por ser o que melhor mostra a colaboração; os demais são
+3. **Pontos de entrada.** Cada serviço tem um `__main__.main()` que cria e liga as
+   classes umas às outras (o *composition root*, o ponto único de montagem). Só o
+   do simulador aparece no diagrama, como `«entrypoint»` (ponto de entrada do
+   processo), por ser o que melhor mostra a colaboração; os demais são
    equivalentes.
 
-4. **Frontend.** O dashboard não tem classes de domínio — são tipos TypeScript
+4. **Frontend.** O dashboard não tem classes de domínio: são tipos TypeScript
    (`ApiEvent`, `EventScope`) e funções `fetch` (`apiFetch`, `withScope`). No
    diagrama unificado ele é o nó `«cliente» Dashboard`.
 
