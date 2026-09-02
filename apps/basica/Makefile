@@ -174,6 +174,13 @@ migrate-status-aws: ## Lista as migrations aplicadas no RDS, pela VPC
 	@echo
 	@echo "Acompanhe: make logs SERVICO=processing"
 
+.PHONY: db-reader-aws
+db-reader-aws: ## Cria/atualiza o usuario de leitura no RDS, pela VPC
+	@$(call require_env,AWS_PROFILE)
+	@cd $(INFRA) && terraform output -raw db_reader_run_command | bash
+	@echo
+	@echo "Acompanhe: make logs SERVICO=processing"
+
 .PHONY: db-reader
 db-reader: ## Cria o usuario de leitura que a Lambda usa
 	@$(call require_env,DATABASE_URL)

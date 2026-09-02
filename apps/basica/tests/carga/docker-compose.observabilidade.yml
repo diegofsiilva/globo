@@ -1,0 +1,39 @@
+# Stack de observabilidade local para testes de carga.
+#
+# Sobe Prometheus (coleta de métricas), Grafana (dashboards) e o k6
+# exportando para Prometheus via Remote Write.
+#
+#   docker compose -f docker-compose.observabilidade.yml up -d
+#
+# Depois, abra http://localhost:3001 para o Grafana (login: admin/admin).
+# O Prometheus fica em http://localhost:9090.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: argus-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-remote-write-receiver"
+      - "--storage.tsdb.retention.time=7d"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: argus-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/argus-k6.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
