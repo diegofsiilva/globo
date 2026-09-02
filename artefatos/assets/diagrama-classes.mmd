@@ -1,0 +1,344 @@
+%% Argus — Diagrama de classes unificado (modelo de domínio de toda a plataforma)
+%% Recortes detalhados: diagrama-classes-ingestao/relogio/analise/leitura.mmd
+classDiagram
+    direction TB
+
+    namespace comum {
+        class Database {
+            +connection()
+            +fetch_one(sql, params) dict
+            +fetch_all(sql, params) list
+            +sim_now() datetime
+        }
+        class Heartbeat {
+            +touch() void
+        }
+        class ShutdownSignal {
+            +running bool
+            +sleep(seconds) void
+        }
+        class Metrics {
+            +count(name, value) void
+            +duration_ms(name, value) void
+            +flush() void
+        }
+    }
+
+    namespace ingestao {
+        class BaseEvent {
+            <<pydantic>>
+            +datetime timestamp
+            +str event_name
+            +str session_id
+            +str device_id
+        }
+        class RequestEvent
+        class ScreenViewEvent
+        class SessionEvent
+        class VideoViewEvent
+        class VitalsEvent
+        class ErrorEvent
+        class GenericEvent
+        class ChangeEvent {
+            <<pydantic>>
+            +str source_table
+            +str op
+            +dict pk
+            +dict after
+            +datetime captured_at
+        }
+        class BaseConsumer {
+            <<abstract>>
+            +run() void
+            +run_once() int
+        }
+        class ChangeConsumer
+        class EventConsumer
+        class ChangeRepository {
+            +append_and_merge(list) tuple
+            +lag_sim_seconds() float
+        }
+        class WEventRepository["EventRepository"] {
+            +put_many(list) int
+        }
+        class WConfig["Config"] {
+            <<dataclass>>
+            +str modo
+            +str queue_url
+        }
+    }
+
+    namespace carga_inicial {
+        class Loader {
+            +run(list) Resultado
+        }
+        class Resultado {
+            <<dataclass>>
+            +list tabelas
+        }
+        class ResultadoTabela {
+            <<dataclass>>
+            +str tabela
+            +int linhas
+            +confere() bool
+        }
+    }
+
+    namespace relogio_virtual {
+        class SimClock["Clock"] {
+            +reset(t0, speed) void
+            +now() datetime
+            +abrir_run(seed, t0, t1, speed) int
+        }
+        class Janela {
+            +ler(tabela, de, ate) list
+        }
+        class Emitter {
+            +emitir(tabela, linhas, pk, captured_at, run_id) int
+        }
+        class Falha {
+            <<dataclass>>
+            +str kind
+            +dict target
+            +datetime ts_start
+            +datetime ts_end
+            +alcanca(ts, source, entity, metric) bool
+            +aplicar(valor) float
+        }
+    }
+
+    namespace analise {
+        class Fact {
+            <<dataclass>>
+            +str fact_key
+            +int version_lsn
+            +str source
+            +str metric
+            +float value
+            +datetime available_at
+        }
+        class Baseline {
+            <<dataclass>>
+            +float mean
+            +float variance
+            +int n
+        }
+        class Anomaly {
+            <<dataclass>>
+            +Fact fact
+            +float z
+            +float strength
+        }
+        class SourceQuality {
+            <<dataclass>>
+            +str source
+            +float quality_score
+            +str status
+        }
+        class Feature {
+            <<dataclass>>
+            +str name
+            +str applicability
+            +float weight
+        }
+        class Evidence {
+            <<dataclass>>
+            +str role
+            +str polarity
+            +Fact fact
+        }
+        class Hypothesis {
+            <<dataclass>>
+            +str family
+            +str title
+            +float score
+            +str confidence
+            +str evaluation_status
+        }
+        class Candidate {
+            <<dataclass>>
+            +str family
+            +Fact subject
+        }
+        class AnalysisResult {
+            <<dataclass>>
+            +tuple anomalies
+            +tuple quality
+            +tuple hypotheses
+        }
+        class WorkClaim {
+            <<dataclass>>
+            +int run_id
+            +int checkpoint_id
+            +str manifest_hash
+            +int fencing_token
+        }
+        class CapturedWork {
+            <<dataclass>>
+            +WorkClaim claim
+            +tuple facts
+        }
+        class Catalog {
+            +str manifest_hash
+            +metric(name) MetricPolicy
+            +related(a, b) bool
+        }
+        class MetricPolicy {
+            <<dataclass>>
+            +str direction
+            +str transform
+        }
+    }
+
+    namespace leitura {
+        class TelemetryEvent {
+            <<dataclass>>
+            +str event_id
+            +str event_name
+            +datetime occurred_at
+            +str session_id
+            +bool clock_skew
+        }
+        class EventRepoPort["EventRepository (porta)"] {
+            <<Protocol>>
+            +search(EventFilters) EventPage
+            +get(session_id, event_id) TelemetryEvent
+            +breakdown(...) list
+            +timeseries(...) list
+        }
+        class PostgresEventRepository
+        class GoldRepository {
+            +series(...) dict
+            +clock() Clock
+        }
+        class HypothesisRepository {
+            +list(...) list
+            +detail(id) dict
+            +submit_feedback(...) dict
+        }
+        class SignalsRepository {
+            +desvios(desde, ate, limiar, escopo) list
+        }
+        class GoldClock["Clock"] {
+            <<dataclass>>
+            +datetime sim_now
+            +float speed
+        }
+        class EventFilters {
+            <<dataclass>>
+            +str session_id
+            +str event_name
+            +int limit
+            +str cursor
+        }
+        class EventPage {
+            <<dataclass>>
+            +Sequence items
+            +str next_cursor
+            +QueryStats stats
+        }
+        class QueryStats {
+            <<dataclass>>
+            +str strategy
+            +int scanned
+            +int returned
+        }
+        class UseCases["SearchEvents / GetSessionTimeline / GetTimeseries / GetBreakdown / GetCrosstab / GetFacets / GetEvent / GenerateSignals"] {
+            +execute(...) dict
+        }
+        class AppFactory["app.create_app()"] {
+            <<factory>>
+            +create_app(...) Flask
+        }
+        class TelemetryError {
+            <<exception>>
+        }
+    }
+
+    class APIIngestao["API Gateway — ingestão + mudanças"] {
+        <<boundary — HTTP API>>
+    }
+    class FilaSQS["SQS events + changes (com DLQ)"] {
+        <<boundary — fila>>
+    }
+    class LambdaAuthorizer["Lambda Authorizer"] {
+        <<boundary — Lambda>>
+        +handler(event) policy
+    }
+    class Banco["Banco Argus — bronze / silver / gold / detect / sim / etl"] {
+        <<RDS PostgreSQL 16>>
+    }
+    class Dashboard["Dashboard (Next.js, export estático)"] {
+        <<cliente>>
+    }
+
+    BaseEvent <|-- RequestEvent
+    BaseEvent <|-- ScreenViewEvent
+    BaseEvent <|-- SessionEvent
+    BaseEvent <|-- VideoViewEvent
+    BaseEvent <|-- VitalsEvent
+    BaseEvent <|-- ErrorEvent
+    BaseEvent <|-- GenericEvent
+    BaseConsumer <|-- ChangeConsumer
+    BaseConsumer <|-- EventConsumer
+    EventRepoPort <|.. PostgresEventRepository
+
+    ChangeConsumer *-- ChangeRepository
+    EventConsumer *-- WEventRepository
+    BaseConsumer o-- WConfig
+    BaseConsumer o-- Metrics
+    BaseConsumer o-- Heartbeat
+    BaseConsumer o-- ShutdownSignal
+    Loader *-- Resultado
+    Resultado *-- "0..*" ResultadoTabela
+    Anomaly *-- Fact
+    Evidence o-- Fact
+    Candidate o-- Fact
+    Hypothesis *-- "0..*" Feature
+    Hypothesis *-- "0..*" Evidence
+    AnalysisResult *-- "0..*" Anomaly
+    AnalysisResult *-- "0..*" SourceQuality
+    AnalysisResult *-- "0..*" Hypothesis
+    AnalysisResult *-- "0..*" Baseline
+    CapturedWork *-- WorkClaim
+    CapturedWork *-- "0..*" Fact
+    Catalog ..> MetricPolicy
+    EventPage *-- "0..*" TelemetryEvent
+    EventPage o-- QueryStats
+    EventRepoPort ..> EventFilters
+    EventRepoPort ..> EventPage
+    GoldRepository *-- GoldClock
+    UseCases ..> EventRepoPort
+    UseCases ..> SignalsRepository
+    AppFactory ..> PostgresEventRepository
+    AppFactory ..> GoldRepository
+    AppFactory ..> HypothesisRepository
+    AppFactory ..> SignalsRepository
+    AppFactory ..> UseCases
+    AppFactory ..> TelemetryError
+
+    SessionEvent ..> APIIngestao : app de TV POST /v1/events
+    Emitter ..> APIIngestao : POST /v1/changes
+    APIIngestao ..> LambdaAuthorizer : valida Bearer
+    APIIngestao ..> FilaSQS : SQS-SendMessage
+    FilaSQS ..> ChangeConsumer : consome changes
+    FilaSQS ..> EventConsumer : consome events
+    ChangeRepository --> Banco : bronze.change_log + MERGE
+    WEventRepository --> Banco : bronze.event
+    Loader --> Banco : COPY -> bronze
+    SimClock --> Banco : sim.clock / sim.run
+    Janela --> Banco : lê bronze (dump)
+    Emitter ..> Falha : distorce ponto
+    CapturedWork ..> Banco : silver.analysis_fact_version
+    AnalysisResult ..> Banco : grava gold / detect
+    Catalog ..> Banco : detect.manifest
+    PostgresEventRepository --> Banco : silver.v_session_event
+    GoldRepository --> Banco : views gold / silver / sim
+    HypothesisRepository --> Banco : views gold + função de feedback
+    SignalsRepository --> Banco : gold.v_feature_bucket
+    Dashboard ..> AppFactory : HTTP (Bearer)
+    Dashboard ..> LambdaAuthorizer : valida Bearer
+    Database --> Banco
+
+    note for Banco "Fonte de verdade única dos dois fluxos de ingestão.<br/>Toda view v_* filtra available_at &lt;= sim.now()."
+    note for EventRepoPort "Docstrings herdadas da v2 ainda citam DynamoDB;<br/>a implementação real é PostgreSQL."
