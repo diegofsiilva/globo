@@ -76,6 +76,16 @@ npx @mermaid-js/mermaid-cli -i diagrama-classes.mmd -o diagrama-classes.png -s 3
 # idem para diagrama-classes-{ingestao,relogio,analise,leitura}.mmd
 ```
 
+#### 1.1.5 Nota sobre migração do armazenamento
+
+&emsp; Observação importante sobre a história do projeto: a primeira versão
+(MVP) usava DynamoDB, mas o repositório e as deploys atuais foram migrados
+para PostgreSQL. Todos os artefatos, migrations e o código em
+`apps/basica/db` e `apps/basica/backend` usam PostgreSQL (views como
+`silver.v_session_event` e as queries presentes no adaptador `PostgresEventRepository`).
+Qualquer menção residual a DynamoDB neste documento é histórica: o
+PostgreSQL é hoje a fonte de verdade e a plataforma suportada.
+
 ### 1.2 Visão geral: os seis contextos
 
 &emsp; Os contextos não trocam objetos entre si diretamente. Eles se comunicam por
@@ -458,7 +468,7 @@ classDiagram
     Database --> Banco
 
     note for Banco "Fonte de verdade única dos dois fluxos de ingestão.<br/>Toda view v_* filtra available_at &lt;= sim.now()."
-    note for EventRepoPort "Docstrings herdadas da v2 ainda citam DynamoDB;<br/>a implementação real é PostgreSQL."
+    note for EventRepoPort "Observação: referências históricas a DynamoDB podem aparecer;<br/>a implementação atual e as migrations usam PostgreSQL (fonte de verdade)."
 ```
 
 
