@@ -1447,35 +1447,3 @@ compartilham. Aparecem nos recortes como dependências externas.
 | **RNF09** acesso só a autorizados | `Lambda Authorizer`, `Config` (tokens fora do código) |
 | **RNF10** não expor dado pessoal | `application/redaction.py`, `TelemetryEvent.user_id_hash`, `Config.USER_ID_HASH_SALT` |
 | **RNF11** registrar falhas de ingestão/processamento | `Metrics`, DLQ, `AnalysisResult` (contadores de corte), log JSON por requisição |
-
-
-### 1.11 Notas de fidelidade
-
-1. **Docstrings herdadas da v2.** Algumas docstrings (os textos de documentação
-   embutidos no próprio código) de `backend/` (em `domain/entities.py`,
-   `ports/event_repository.py`, `application/use_cases.py`) ainda descrevem o
-   armazenamento como DynamoDB (o banco NoSQL da AWS), herança do MVP anterior (a
-   primeira versão mínima do produto). A
-   implementação real, e o que o diagrama reflete, é PostgreSQL: os
-   adaptadores concretos leem das views `v_*`.
-
-2. **Módulos como "classes".** `pipeline`, `detector`, `rules`, `scoring`,
-   `quality`, `orchestration`, `analysis_repository` e `faults` são módulos de
-   funções, não classes. Aparecem no diagrama com o estereótipo `«module»` e os
-   métodos marcados como estáticos (`$`) porque é a forma de mostrar o fluxo de
-   dados entre os contratos imutáveis.
-
-3. **Pontos de entrada.** Cada serviço tem um `__main__.main()` que cria e liga as
-   classes umas às outras (o *composition root*, o ponto único de montagem). Só o
-   do simulador aparece no diagrama, como `«entrypoint»` (ponto de entrada do
-   processo), por ser o que melhor mostra a colaboração; os demais são
-   equivalentes.
-
-4. **Frontend.** O dashboard não tem classes de domínio: são tipos TypeScript
-   (`ApiEvent`, `EventScope`) e funções `fetch` (`apiFetch`, `withScope`). No
-   diagrama unificado ele é o nó `«cliente» Dashboard`.
-
-5. **O `EventRepository` aparece duas vezes.** Há uma classe `EventRepository` em
-   `worker/` (repositório de escrita concreto) e um `Protocol` `EventRepository`
-   em `backend/ports/` (porta de leitura). São classes diferentes, em contextos
-   diferentes; o diagrama unificado as rotula para desambiguar.
