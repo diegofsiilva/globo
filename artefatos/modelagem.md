@@ -1447,3 +1447,223 @@ compartilham. Aparecem nos recortes como dependências externas.
 | **RNF09** acesso só a autorizados | `Lambda Authorizer`, `Config` (tokens fora do código) |
 | **RNF10** não expor dado pessoal | `application/redaction.py`, `TelemetryEvent.user_id_hash`, `Config.USER_ID_HASH_SALT` |
 | **RNF11** registrar falhas de ingestão/processamento | `Metrics`, DLQ, `AnalysisResult` (contadores de corte), log JSON por requisição |
+
+
+## 2. Diagramas de sequência UML
+
+### 2.1 Ingestão de um evento de sessão
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor TV as App de TV
+    participant GW as API Gateway (ingestão)
+    participant Auth as Lambda Authorizer
+    participant SQS as SQS events
+    participant DLQ as SQS DLQ
+    participant C as EventConsumer
+    participant V as parse_event / build_row
+    participant Repo as EventRepository
+    participant DB as Banco (bronze.event)
+
+    TV->>GW: POST /v1/events (Authorization: Bearer, lote)
+    GW->>Auth: autoriza? (audiência "ingest")
+    Auth-->>GW: isAuthorized: true
+    GW->>SQS: SQS-SendMessage (corpo cru do POST)
+    GW-->>TV: 202 Accepted
+
+    loop a cada ciclo do worker
+        C->>SQS: receive_message (long polling, até 20 s)
+        SQS-->>C: lote de mensagens (ou vazio)
+        loop para cada item cru da mensagem
+            C->>V: parse_event(item)
+            alt envelope válido
+                V-->>C: linha pronta (event_id = hash do conteúdo)
+            else campo obrigatório vazio / JSON quebrado
+                V-->>C: ValidationError
+                C->>DLQ: send_message (motivo em FailureReason)
+                DLQ-->>C: ok — item resolvido, fora do lote
+            end
+        end
+        Note over C,V: event_name desconhecido não é erro:<br/>vira GenericEvent e é gravado (RF03)
+        opt há itens válidos no lote
+            C->>Repo: put_many(linhas)
+            Repo->>DB: INSERT ... ON CONFLICT (ts, event_id) DO NOTHING
+            alt banco disponível
+                DB-->>Repo: nº de linhas inseridas (duplicatas não contam)
+                Repo-->>C: gravados
+                C->>SQS: delete_message_batch (só o que foi resolvido)
+            else erro de banco / failover
+                DB-->>Repo: psycopg.Error
+                Repo-->>C: exceção
+                Note over C,SQS: nada é apagado — o visibility timeout expira,<br/>o SQS reentrega e a idempotência absorve a repetição
+            end
+        end
+    end
+```
+
+### 2.2 Um passo do relógio virtual
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as Simulador (laço)
+    participant Clk as Clock
+    participant Jan as Janela
+    participant Fal as Falha
+    participant Emt as Emitter
+    participant GW as API Gateway + fila changes
+    participant CC as ChangeConsumer
+    participant CR as ChangeRepository
+    participant DB as Banco
+
+    Note over M,DB: preparação (uma vez por execução)
+    M->>Clk: abrir_run(seed, t0, t1, speed)
+    Clk->>DB: INSERT sim.run → run_id
+    M->>M: sortear(seed) → lista de Falha determinística
+    M->>Clk: registrar_falhas(run_id, falhas)
+    Clk->>DB: INSERT sim.fault (torna o cenário auditável)
+    M->>Clk: reset(t0, speed) → ancora sim.clock
+
+    loop a cada tick, até sim.now() alcançar t1
+        M->>Clk: now()
+        Clk->>DB: SELECT sim.now()
+        DB-->>M: instante virtual "agora"
+        loop para cada tabela reemitida
+            M->>Jan: ler(tabela, tick anterior, agora)
+            Jan->>DB: SELECT da bronze na faixa de tempo
+            DB-->>M: linhas da janela
+            M->>Fal: alcanca(agora, alvo)? / aplicar(valor)
+            Fal-->>M: valor distorcido (ou None se a fonte parou)
+            M->>Emt: emitir(tabela, linhas, captured_at = agora virtual)
+            Emt->>GW: POST /v1/changes (Bearer, lote dividido por bytes)
+            alt API aceitou
+                GW-->>Emt: 2xx (mensagem na fila)
+            else 3 tentativas falharam
+                GW-->>Emt: erro
+                Note over Emt,M: lote descartado de propósito —<br/>melhor pular a janela do que travar o tempo virtual
+            end
+        end
+        M->>M: tick anterior ← agora, dorme até o próximo tick
+    end
+    M->>Clk: fechar_run(run_id, "done", t1) → congela o relógio em t1
+
+    Note over GW,DB: merge worker — consome a fila no seu próprio ritmo
+    CC->>GW: receive_message
+    GW-->>CC: lote de change events
+    CC->>CR: append_and_merge(changes)
+    CR->>DB: INSERT bronze.change_log → lsn
+    CR->>DB: SELECT bronze.merge_do_log(tabela, min_lsn, max_lsn)
+    Note over CR,DB: log + MERGE na MESMA transação: ou os dois, ou nenhum
+    CC->>GW: delete_message_batch
+```
+
+### 2.3 Uma consulta do dashboard à API de leitura
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor D as Dashboard (navegador)
+    participant GW as API Gateway (leitura)
+    participant Auth as Lambda Authorizer
+    participant F as Lambda (apig-wsgi + Flask)
+    participant BP as blueprint api
+    participant UC as SearchEvents
+    participant Repo as PostgresEventRepository
+    participant DB as Banco (view v_session_event)
+
+    D->>GW: GET /api/v1/events?event_name=error&limit=50 (Bearer "dashboard")
+    GW->>Auth: autoriza? (audiência "dashboard")
+    alt token válido
+        Auth-->>GW: isAuthorized: true + context.audience
+        Note over GW,Auth: decisão cacheada por 5 min por token
+        GW->>F: encaminha o evento (payload 2.0)
+        F->>F: before_request — gera request_id
+        F->>BP: rota search_events
+        BP->>BP: filters_from_query → EventFilters
+        BP->>UC: execute(filtros)
+        UC->>Repo: search(filtros)
+        Repo->>Repo: _decode_cursor + _where (filtros cumulativos)
+        Repo->>DB: SELECT FROM silver.v_session_event ... ORDER BY ts DESC LIMIT n
+        Note over Repo,DB: a view filtra available_at ≤ sim.now()<br/>e a paginação é keyset, não OFFSET
+        DB-->>Repo: linhas
+        Repo->>Repo: redact_attributes — redação de dado pessoal (RNF10)
+        Repo-->>UC: EventPage(items, next_cursor, QueryStats)
+        UC-->>BP: dict serializado
+        BP-->>F: 200
+        F->>F: after_request — cabeçalhos CORS, expõe request_id
+        F-->>GW: 200 application/json
+        GW-->>D: 200 (items, next_cursor, query)
+    else token ausente ou inválido
+        Auth-->>GW: isAuthorized: false
+        GW-->>D: 403 Forbidden
+        Note over GW,F: a Lambda de leitura nem é invocada
+    end
+
+    opt parâmetro inválido (cursor corrompido, data fora do ISO 8601)
+        BP->>F: raise ValidationError(field)
+        F->>F: errorhandler → problem(422, ...)
+        F-->>D: 422 application/problem+json (type, title, detail, request_id)
+    end
+```
+
+### 2.4 Um ciclo do motor de análise
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant L as _laco_analise (thread)
+    participant AO as analyze_once
+    participant Cap as claim_and_capture
+    participant DB as Banco (detect / etl / silver)
+    participant HB as lease_heartbeat (thread)
+    participant Det as detect / rules / scoring
+    participant PR as persist_result / commit_protegido
+
+    loop enquanto houver checkpoint pendente
+        L->>AO: analyze_once(worker_id, manifest_hash)
+        AO->>DB: register_manifest (INSERT ON CONFLICT DO NOTHING)
+        AO->>Cap: claim_and_capture(...)
+        Cap->>DB: BEGIN REPEATABLE READ
+        Cap->>DB: pg_try_advisory_xact_lock (seção curta do claim)
+        Cap->>DB: SELECT último etl.gold_checkpoint
+        Cap->>DB: SELECT detect.analysis_cursor FOR UPDATE
+        opt lease anterior expirado
+            Cap->>DB: UPDATE detect.run SET status = 'abandoned'
+        end
+        Cap->>DB: nextval(detect.fencing_token_seq)
+        Cap->>DB: INSERT detect.run (status 'claimed') + upsert work_claim
+        Cap->>DB: seleção as-of dos fatos → INSERT detect.run_input_fact + digest
+        Cap->>DB: COMMIT
+        opt captura acima do teto de linhas
+            Cap->>DB: UPDATE detect.run SET status = 'failed'
+            Cap-->>AO: CaptureLimitExceeded (o ciclo aborta)
+        end
+        opt sem checkpoint novo
+            Cap-->>AO: None → analyze_once devolve False, a thread dorme
+        end
+        Cap-->>AO: CapturedWork(claim, facts, janela)
+
+        AO->>DB: iniciar_trabalho — status 'claimed' → 'running' (revalida posse)
+        AO->>HB: inicia a renovação do lease
+        par renovação em paralelo
+            HB->>DB: renovar_lease a cada 30 s
+            Note over HB,AO: se renovar_lease falha, sinaliza "lease perdido"
+        and análise
+            AO->>Det: evaluate_quality → detect() → build_candidates → evaluate_candidates
+            Det-->>AO: AnalysisResult (anomalias, qualidade, hipóteses)
+        end
+        AO->>HB: encerra a renovação
+
+        alt lease mantido
+            AO->>PR: persist_result(captured, result)
+            PR->>DB: _bloquear_posse + valida fencing_token → status 'committing'
+            PR->>DB: INSERT anomaly / source_quality / hypothesis / feature / evidence
+            PR->>DB: UPDATE detect.analysis_cursor (avança o progresso)
+            PR->>DB: status 'completed' — commit
+        else lease perdido no meio
+            AO->>DB: falhar_trabalho → status 'failed'
+            AO-->>L: FencingRejected
+        end
+    end
+```
