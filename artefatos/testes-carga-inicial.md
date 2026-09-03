@@ -104,3 +104,15 @@
 | Não há perda nem entrada indevida na fila de rejeitados | fila de rejeitados sem crescimento, fila de mudanças zerada ao final do teste |
 
 &emsp; A garantia de corretude neste cenário não depende de evitar duplicidade no registro de mudanças, que é um log de acréscimo apenas e pode legitimamente registrar a mesma mensagem mais de uma vez após uma reentrega. A garantia está na regra de mesclagem da tabela corrente, que só aplica uma atualização se o identificador sequencial da mudança for mais recente que o já registrado, o que torna reaplicar o mesmo conteúdo uma operação sem efeito adicional.
+
+## 4. Cenário adicional: fila cheia e evento inválido simultâneos
+
+&emsp; Como aprofundamento dos dois cenários anteriores, foi testada a combinação dos dois mecanismos de falha ao mesmo tempo, para verificar que a quarentena de eventos inválidos não fica represada atrás do acúmulo normal da fila. O worker foi desligado, e uma carga válida sustentada de cinco minutos foi disparada simultaneamente com uma segunda carga contendo os cinco tipos de item inválido da seção 2. O worker foi religado, e a fila de rejeitados foi observada em intervalos curtos durante o esvaziamento, em vez de conferida apenas ao final.
+
+| Critério de aceite | Resultado |
+|---|---|
+| A causa de cada evento inválido aparece na fila de rejeitados durante o esvaziamento, não só ao final | confirmado: a fila de rejeitados cresceu de 22 para 39 já na terceira amostra, quarenta e cinco segundos após religar o worker, com a fila principal ainda em 2.107 mensagens visíveis |
+| O acúmulo normal esvazia da mesma forma que no cenário isolado | de cerca de 2.100 a 2.400 mensagens, oscilando com o tráfego contínuo do simulador, a zero em aproximadamente 105 segundos |
+| A carga válida é aceita normalmente durante o teste | 48.000 eventos enviados, 0% de falha de requisição |
+
+&emsp; Este foi o resultado mais nítido entre os cenários executados: o mecanismo de quarentena por conteúdo age por mensagem, na primeira vez que ela é recebida, e por isso não espera o esvaziamento completo da fila para identificar um item inválido, mesmo quando o volume de tráfego normal é alto.
