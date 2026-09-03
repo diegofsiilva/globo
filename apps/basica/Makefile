@@ -781,6 +781,34 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 	@$(call require_env,ARGUS_INGEST_TOKEN)
 	cd $(TOOLS) && $(UV) python replay_events.py --url "$(ARGUS_INGEST_URL)" --src "$(EVENTS_SRC)"
 
+.PHONY: observabilidade-up
+observabilidade-up: ## Sobe Prometheus e Grafana para os testes k6
+	docker compose -f tests/carga/docker-compose.observabilidade.yml up -d
+	@echo "Prometheus: http://localhost:9090"
+	@echo "Grafana:    http://localhost:3001"
+
+.PHONY: observabilidade-check
+observabilidade-check: ## Valida Prometheus, Grafana, datasource e consulta entre eles
+	@set -euo pipefail; \
+	curl -fsS http://localhost:9090/-/ready >/dev/null; \
+	curl -fsS http://localhost:3001/api/health >/dev/null; \
+	auth="$${GRAFANA_USER:-admin}:$${GRAFANA_PASSWORD:-admin}"; \
+	uid=$$(curl -fsS -u "$$auth" \
+		http://localhost:3001/api/datasources/name/Prometheus | jq -r '.uid'); \
+	[ "$$uid" = "prometheus" ] || { \
+		echo "FALHA: datasource Prometheus usa uid=$$uid; esperado prometheus."; \
+		exit 1; \
+	}; \
+	series=$$(curl -fsSG -u "$$auth" \
+		http://localhost:3001/api/datasources/proxy/uid/prometheus/api/v1/query \
+		--data-urlencode 'query=up{job="prometheus"}' | \
+		jq -r '.data.result | length'); \
+	[ "$$series" -gt 0 ] || { \
+		echo "FALHA: Grafana nao recebeu series do Prometheus."; \
+		exit 1; \
+	}; \
+	echo "OK: Prometheus e Grafana integrados (uid=prometheus, series=$$series)."
+
 # Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
 # ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.
 .PHONY: carga

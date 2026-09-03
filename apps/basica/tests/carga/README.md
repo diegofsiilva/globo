@@ -74,9 +74,8 @@ dashboard.
 ## Prometheus e Grafana locais
 
 ```bash
-docker compose -f apps/basica/tests/carga/docker-compose.observabilidade.yml up -d
-curl -fsS http://localhost:9090/-/ready
-curl -fsS http://localhost:3001/api/health
+make -C apps/basica observabilidade-up
+make -C apps/basica observabilidade-check
 ```
 
 - Prometheus: `http://localhost:9090`
@@ -87,6 +86,16 @@ O Prometheus inicia com `--web.enable-remote-write-receiver`. O executor define
 `K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write` e envia p50,
 p90, p95 e p99. Os painéis mostram throughput, latência, erros/s, sucesso, VUs,
 total de requisições, latência por rota/cenário e tráfego de rede.
+
+Prometheus e Grafana usam os volumes nomeados `argus-prometheus-data` e
+`argus-grafana-data`. Um `docker compose down` comum preserva os resultados;
+`docker compose down -v` remove os volumes e apaga as métricas.
+
+Durante um teste, o dashboard pode usar **Last 5 minutes**. Para consultar uma
+execução encerrada, selecione no canto superior direito um intervalo absoluto
+que inclua o horário do teste e escolha o `testid` correspondente. Uma consulta
+feita apenas no instante atual fica vazia depois que as séries do k6 se tornam
+inativas, mesmo que o histórico ainda esteja armazenado.
 
 Consultas PromQL úteis:
 
