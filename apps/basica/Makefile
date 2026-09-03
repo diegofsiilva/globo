@@ -27,6 +27,7 @@ INFRA      := infra
 TOOLS      := tools
 FRONTEND   := frontend
 POSTMAN    := ../../artefatos/postman
+OBSERVABILITY := observability/grafana
 
 # O motor de hipóteses ainda não possui endpoint no MVP. O modo mock é
 # explícito nos fluxos suportados e pode ser trocado por `api` quando existir.
@@ -1009,6 +1010,29 @@ logs: ## Acompanha os logs de um servico (SERVICO=worker|simulator|processing|lo
 logs-api: ## Acompanha os logs da API de leitura
 	@$(call require_env,AWS_PROFILE)
 	aws logs tail "/aws/lambda/$$(cd $(INFRA) && terraform output -raw ecs_cluster_name)-read-api" --follow
+
+.PHONY: grafana-up
+grafana-up: ## Sobe Grafana local (Docker) com datasource CloudWatch pronto (perfil g4)
+	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
+	@test -f "$(HOME)/.aws/credentials" || { echo "erro: $(HOME)/.aws/credentials nao existe."; exit 1; }
+	docker rm -f argus-grafana >/dev/null 2>&1 || true
+	docker run -d --name argus-grafana \
+	  --user "$$(id -u):$$(id -g)" \
+	  -p 3000:3000 \
+	  -e GF_AUTH_ANONYMOUS_ENABLED=true \
+	  -e GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer \
+	  -e AWS_SHARED_CREDENTIALS_FILE=/aws/credentials \
+	  -e AWS_PROFILE=g4 \
+	  -v "$(HOME)/.aws/credentials:/aws/credentials:ro" \
+	  -v "$(PWD)/$(OBSERVABILITY)/provisioning:/etc/grafana/provisioning:ro" \
+	  -v "$(PWD)/$(OBSERVABILITY)/dashboards:/var/lib/grafana/dashboards:ro" \
+	  grafana/grafana:11.2.0
+	@echo "Grafana em http://localhost:3000 (dashboard 'RNF04/05/11 - Resiliencia Argus')."
+	@echo "Credenciais lidas de $(HOME)/.aws/credentials (perfil g4) -- expira junto com a sessao do Learner Lab, so recriar o container (make grafana-up) apos renovar."
+
+.PHONY: grafana-down
+grafana-down: ## Derruba o Grafana local
+	docker rm -f argus-grafana >/dev/null 2>&1 || true
 
 .PHONY: dlq
 dlq: ## Mostra o que esta nas filas de rejeitados

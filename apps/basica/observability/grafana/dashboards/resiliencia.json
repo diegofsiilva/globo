@@ -1,0 +1,471 @@
+{
+  "title": "RNF04/05/11 - Resiliencia Argus",
+  "uid": "argus-resiliencia",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "tags": [
+    "argus",
+    "resiliencia"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Throughput e erros - /v1/changes (API Gateway)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "Count",
+          "dimensions": {
+            "ApiId": "xu4liahms3",
+            "Resource": "/v1/changes",
+            "Method": "POST",
+            "Stage": "$default"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "label": "requisicoes (200/202)",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "4xx",
+          "dimensions": {
+            "ApiId": "xu4liahms3",
+            "Resource": "/v1/changes",
+            "Method": "POST",
+            "Stage": "$default"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "label": "erros 4xx",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "5xx",
+          "dimensions": {
+            "ApiId": "xu4liahms3",
+            "Resource": "/v1/changes",
+            "Method": "POST",
+            "Stage": "$default"
+          },
+          "statistic": "Sum",
+          "period": "60",
+          "label": "erros 5xx",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        }
+      ],
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch-g4"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Latencia - /v1/changes (p50/p90/p99)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "Latency",
+          "dimensions": {
+            "ApiId": "xu4liahms3",
+            "Resource": "/v1/changes",
+            "Method": "POST",
+            "Stage": "$default"
+          },
+          "statistic": "p50",
+          "period": "60",
+          "label": "p50",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "Latency",
+          "dimensions": {
+            "ApiId": "xu4liahms3",
+            "Resource": "/v1/changes",
+            "Method": "POST",
+            "Stage": "$default"
+          },
+          "statistic": "p90",
+          "period": "60",
+          "label": "p90",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ApiGateway",
+          "metricName": "Latency",
+          "dimensions": {
+            "ApiId": "xu4liahms3",
+            "Resource": "/v1/changes",
+            "Method": "POST",
+            "Stage": "$default"
+          },
+          "statistic": "p99",
+          "period": "60",
+          "label": "p99",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        }
+      ],
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch-g4"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Fila changes + DLQ",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateNumberOfMessagesVisible",
+          "dimensions": {
+            "QueueName": "argus-events-dev-changes"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "label": "changes: visiveis",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateAgeOfOldestMessage",
+          "dimensions": {
+            "QueueName": "argus-events-dev-changes"
+          },
+          "statistic": "Maximum",
+          "period": "60",
+          "label": "changes: idade da mais antiga (s)",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/SQS",
+          "metricName": "ApproximateNumberOfMessagesVisible",
+          "dimensions": {
+            "QueueName": "argus-events-dev-changes-dlq"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "label": "changes-dlq: visiveis",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        }
+      ],
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch-g4"
+      }
+    },
+    {
+      "id": 4,
+      "title": "CPU - ECS (merge-worker / event-worker / processing)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ECS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "ClusterName": "argus-events-dev",
+            "ServiceName": "argus-events-dev-merge-worker"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "label": "merge-worker",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ECS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "ClusterName": "argus-events-dev",
+            "ServiceName": "argus-events-dev-event-worker"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "label": "event-worker",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/ECS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "ClusterName": "argus-events-dev",
+            "ServiceName": "argus-events-dev-processing"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "label": "processing",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        }
+      ],
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch-g4"
+      }
+    },
+    {
+      "id": 5,
+      "title": "CPU - RDS (argus-events-dev-testdb)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "cloudwatch",
+            "uid": "cloudwatch-g4"
+          },
+          "region": "us-east-1",
+          "namespace": "AWS/RDS",
+          "metricName": "CPUUtilization",
+          "dimensions": {
+            "DBInstanceIdentifier": "argus-events-dev-testdb"
+          },
+          "statistic": "Average",
+          "period": "60",
+          "label": "RDS CPU",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true,
+          "expression": "",
+          "sqlExpression": "",
+          "logGroups": [],
+          "id": ""
+        }
+      ],
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch-g4"
+      }
+    }
+  ]
+}
