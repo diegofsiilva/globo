@@ -116,3 +116,9 @@
 | A carga válida é aceita normalmente durante o teste | 48.000 eventos enviados, 0% de falha de requisição |
 
 &emsp; Este foi o resultado mais nítido entre os cenários executados: o mecanismo de quarentena por conteúdo age por mensagem, na primeira vez que ela é recebida, e por isso não espera o esvaziamento completo da fila para identificar um item inválido, mesmo quando o volume de tráfego normal é alto.
+
+## 5. Verificação de regressão dos marcadores incrementais do ETL
+
+&emsp; O pipeline de transformação entre as camadas bronze, silver e gold é incremental e depende de dois marcadores, um por identificador sequencial de mudança e outro por instante de disponibilidade do dado, que nunca podem regredir entre execuções bem sucedidas. Um defeito desse tipo já havia sido identificado e corrigido em sprint anterior, quando uma configuração de janela e margem de segurança incompatíveis fazia o marcador andar para trás a cada execução.
+
+&emsp; Ao final dos cenários acima, uma consulta específica confirmou que nenhuma execução bem sucedida registrada durante toda a sequência de testes desta sprint apresentou marcador novo menor que o marcador anterior, tanto para o marcador sequencial quanto para o marcador temporal, num total de 853 execuções bem sucedidas somadas entre os dois processos. O resultado indica que a correção aplicada anteriormente continua válida sob a carga e as interrupções produzidas pelos cenários de resiliência.
