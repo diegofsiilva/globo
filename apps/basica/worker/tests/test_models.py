@@ -7,6 +7,7 @@ from datetime import UTC
 import pytest
 from pydantic import ValidationError
 
+from argus_worker.changes import parse_change
 from argus_worker.models import (
     ErrorEvent,
     GenericEvent,
@@ -151,3 +152,29 @@ def test_campo_opcional_ausente_nao_invalida():
 def test_nao_dict_e_rejeitado():
     with pytest.raises(TypeError):
         parse_event(["nao", "sou", "objeto"])
+
+
+@pytest.mark.parametrize(
+    "source_table",
+    [
+        "app_error",
+        "app_error_model",
+        "app_error_version",
+        "cdn_vod_shadow",
+        "isp_pop_daily",
+        "live_event_sde",
+    ],
+)
+def test_fontes_novas_sao_aceitas_pelo_change_event(source_table):
+    """Toda tabela bronze nova precisa atravessar a fronteira do worker."""
+    evento = parse_change(
+        {
+            "source_table": source_table,
+            "op": "i",
+            "pk": {"id": "fixture"},
+            "after": {"id": "fixture"},
+            "captured_at": "2026-07-13T23:04:44Z",
+        }
+    )
+
+    assert evento["source_table"] == source_table
