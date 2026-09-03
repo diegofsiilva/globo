@@ -728,7 +728,7 @@ smoke: ## Verifica a API publicada: autenticacao, status, latencia e tamanho
 	  "$(ARGUS_API_URL)/api/v1/clock"); \
 	if [ "$$c" = "200" ] || [ "$$c" = "204" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
 	printf "  %s %3s  preflight OPTIONS   (esperado 200/204)\n" "$$st" "$$c"; \
-	allow_origin=$$(awk -F': *' 'tolower($$1) == "access-control-allow-origin" {gsub(/\r/, "", $$2); print $$2}' "$$headers" | tail -1); \
+	allow_origin=$$(awk 'tolower($$0) ~ /^access-control-allow-origin: */ {sub(/^[^:]+: */, ""); gsub(/\r/, ""); print}' "$$headers" | tail -1); \
 	if [ "$$allow_origin" = "$$origin" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
 	printf "  %s      origem do dashboard permitida\n" "$$st"; \
 	allow_headers=$$(awk -F': *' 'tolower($$1) == "access-control-allow-headers" {gsub(/\r/, "", $$2); print tolower($$2)}' "$$headers" | tail -1 | tr -d ' '); \
