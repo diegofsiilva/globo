@@ -50,10 +50,41 @@ qual conta AWS o texto foi escrito, e a data da verificação.}}
 
 ## 1. Contexto e escopo
 
-&emsp; {{O que muda em relação à arquitetura descrita em `arquitetura-inicial.md`:
-qual era a topologia anterior, qual é a nova, e por quê. Se a mudança foi motivada
-pela rubrica desta sprint, diga isso — é uma restrição de projeto legítima e
-esconder o motivo produz justificativa artificial na seção 3.}}
+&emsp; O Argus é um sistema de telemetria e correlação de falhas para a cadeia de
+entrega de streaming do Grupo Globo. Aplicações cliente enviam eventos a uma API de
+ingestão; o pipeline normaliza, persiste e expõe os dados a um dashboard que apresenta
+a linha do tempo do incidente e as hipóteses de causa provável. A arquitetura
+consolidada até a sprint anterior está descrita em
+[`arquitetura-inicial.md`](arquitetura-inicial.md); este artefato cobre o que muda na
+camada de infraestrutura e na integração entre front-end e back-end.
+
+&emsp; A topologia anterior executa inteiramente sobre a VPC padrão da conta do AWS
+Academy Learner Lab. As tasks recebem endereço público (`assign_public_ip = true`)
+porque essa era a forma de obter saída para a internet sem provisionar um NAT Gateway,
+e o dashboard é servido pelo endpoint de website do Amazon S3, que atende somente em
+HTTP. Nenhuma das duas escolhas foi apresentada como definitiva: `arquitetura-inicial.md`
+registra a primeira como “concessão do laboratório e não a postura recomendada para
+produção” (§4.7) e a segunda como “fallback temporário para demonstração em rede
+confiável” (§4.8), esta com a consequência explícita de que o token colado pelo
+operador trafega em claro e pode ser observado por um intermediário de rede.
+
+&emsp; Esta revisão paga essas duas dívidas e acrescenta a camada de escalabilidade
+horizontal que faltava ao caminho de leitura. O sistema passa a ter rede própria, com
+sub-redes públicas e privadas distribuídas em duas zonas de disponibilidade; as cargas
+de trabalho deixam de ter endereço público e alcançam a internet por NAT Gateway; o
+acesso administrativo passa a ser mediado por um bastion host; a API consumida pelo
+dashboard deixa de ser uma função sem servidor e executa em instâncias Amazon EC2 sob
+um Auto Scaling Group, atrás de um Application Load Balancer; e a entrega do front-end
+passa por uma distribuição do Amazon CloudFront, que fornece o TLS ausente.
+
+&emsp; A migração é deliberadamente parcial. O **caminho síncrono** — a requisição que
+o dashboard faz e cuja latência o usuário percebe — é o que recebe grupo de
+escalonamento e balanceador, porque é onde a variação de carga é observável e onde a
+perda de uma instância tem efeito imediato sobre a experiência. O **caminho assíncrono**
+de ingestão permanece em filas com consumidores no ECS Fargate: o desacoplamento por
+SQS já absorve rajada, o backlog da fila é a métrica de saúde natural desse fluxo, e
+reescrevê-lo sobre EC2 acrescentaria risco de regressão sem ganho arquitetural
+correspondente. A seção 3.8 registra a decisão junto com a alternativa descartada.
 
 ### 1.1 Legenda de estado
 
@@ -63,62 +94,125 @@ esconder o motivo produz justificativa artificial na seção 3.}}
 
 ### 1.2 O que mudou nesta revisão
 
-> **PREENCHER** · Tabela "antes / agora", no formato usado em
-> `arquitetura-inicial.md`. Linhas prováveis: VPC (default → própria), rede das
-> cargas (subnet pública com IP público → subnet privada com NAT), API de leitura
-> (Lambda → EC2 em ASG atrás de ALB), acesso administrativo (task `migration` →
-> bastion + task `migration`), entrega do dashboard (website S3 em HTTP →
-> CloudFront com TLS).
+> **ATUALIZAR A CADA APLICAÇÃO** · A coluna `Estado` reflete o que existe na conta,
+> não a intenção. Enquanto um item estiver como `Planejado`, o texto correspondente
+> nas seções 3 e 4 descreve projeto; ao aplicar, trocar o estado aqui e verificar se
+> a redação daquela seção passou para o presente do indicativo.
 
-| Item | Antes | Agora |
-|---|---|---|
-| {{ }} | {{ }} | {{ }} |
+| Item | Antes | Agora | Estado |
+|---|---|---|---|
+| Ambiente de rede | VPC padrão da conta, apenas sub-redes públicas | VPC dedicada, sub-redes públicas e privadas em duas AZs | Planejado |
+| Saída para a internet das cargas | Endereço público na própria task | NAT Gateway em sub-rede pública | Planejado |
+| Acesso administrativo | Task avulsa `migration` dentro da VPC | Bastion host, com a task `migration` mantida | Planejado |
+| API de leitura | AWS Lambda (Flask por `lambda_handler`) | EC2 em Auto Scaling Group atrás de ALB | Planejado |
+| Elasticidade do caminho síncrono | Concorrência da Lambda, implícita | Política de escalonamento declarada no ASG | Planejado |
+| Entrega do dashboard | Endpoint de website S3, somente HTTP | CloudFront com TLS e bucket privado por OAC | Planejado |
+| Observabilidade de rede | Log de aplicação e alarmes do CloudWatch | Acrescidos VPC Flow Logs e access logs do ALB | Planejado |
+| Ingestão e processamento | API Gateway → SQS → ECS Fargate | Inalterado, realocado para sub-rede privada | Planejado |
+| Banco de dados | RDS PostgreSQL 16 privado na VPC padrão | RDS PostgreSQL 16 em subnet group privado da VPC dedicada | Planejado |
 
 ### 1.3 Fora de escopo
 
-&emsp; {{O que este artefato deliberadamente não cobre e onde está documentado —
-modelo de dados, motor de hipóteses, telas do dashboard.}}
+&emsp; Este artefato não redescreve o que já está documentado em outro lugar do
+repositório. Modelo de dados, migrations, ETL, checkpoints e coordenação do
+processamento estão em [`arquitetura-inicial.md`](arquitetura-inicial.md) e em seus
+apêndices; os endpoints da API de leitura e a autenticação por token Bearer, em
+[`backend.md`](backend.md); as telas do dashboard e as decisões de interface, em
+[`frontend.md`](frontend.md); a origem e a correlação dos dados cedidos pelo parceiro,
+em [`correlacao_dados.md`](correlacao_dados.md). Referência cruzada substitui cópia:
+um mesmo fato mantido em dois artefatos diverge no commit seguinte.
+
+&emsp; Permanece igualmente fora de escopo a camada agêntica de correlação, que
+pertence ao roadmap de produção e não ao recorte implantado — distinção estabelecida
+em [`entendimento_negocio.md`](entendimento_negocio.md) e preservada aqui.
 
 ---
 
 ## 2. Diagrama de implantação do sistema — peso 1,0
 
-> **PREENCHER** · O diagrama é o item mais barato de perder ponto e o mais fácil
-> de acertar. Exigências: notação de implantação (nós tridimensionais, estereótipos
-> `«execution environment»`, `«database»`, `«message queue»`, `«object storage»`),
-> **fronteiras de rede desenhadas** — a VPC, cada subnet, cada AZ — e setas
-> rotuladas com o protocolo real, não com "usa". Todo recurso citado na seção 3
-> precisa aparecer aqui, e vice-versa.
+> **PREENCHER** · O diagrama é o item mais barato de perder ponto e o mais fácil de
+> acertar. Exigências: notação de implantação (estereótipos `«execution environment»`,
+> `«database»`, `«message queue»`, `«object storage»`), **fronteiras de rede
+> desenhadas** — a VPC, cada zona de disponibilidade, cada sub-rede — e setas
+> rotuladas com o protocolo e a porta reais. Todo recurso citado na seção 3 precisa
+> aparecer aqui, e vice-versa; a matriz de conexões da seção 3.7 é o checklist
+> cruzado dessa correspondência.
 >
-> Erros que custam nota: subnet privada desenhada sem NAT; ALB desenhado dentro da
-> subnet privada; RDS sem indicação de AZ; bastion sem a seta de origem
-> (de onde parte o SSH); nada indicando o que é planejado e não provisionado.
+> Erros que custam nota: sub-rede privada desenhada sem o NAT visível; ALB colocado
+> dentro da sub-rede privada; RDS sem indicação de zona de disponibilidade; bastion
+> sem a seta mostrando de onde parte o SSH.
 
 <div align="center">
 
-<sub>Figura 1 — {{Implantação do Argus na AWS, região `us-east-1`}}</sub>
+<sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
 
-![{{descrição alternativa}}](assets/{{arquivo}}.svg)
+![Diagrama de implantação do Argus v4](assets/arquitetura-implantacao-v4.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-### 2.1 Fonte editável e regeração
+&emsp; {{Parágrafo de leitura do diagrama: o que a figura mostra, o que o traço
+tracejado significa e qual é o caminho da requisição do dashboard. Escrever **depois**
+de a topologia estar aplicada, para descrever o que existe e não o que se pretendia.}}
 
-&emsp; {{Onde está o arquivo-fonte do diagrama e como regerar o PNG. O padrão do
-repositório é SVG escrito à mão versionado como fonte, sem binário intermediário.}}
+### 2.1 Fonte editável e exportação
+
+&emsp; A fonte do diagrama é [`assets/arquitetura-implantacao-v4.drawio`](assets/arquitetura-implantacao-v4.drawio),
+em XML não comprimido — mesma convenção de `der-dynamodb.drawio` e
+`diagrama_casos_de_uso.drawio`, que mantém o arquivo legível no `diff` do Git. O PNG
+publicado no relatório é gerado a partir dele e commitado junto; **os dois arquivos
+andam sempre no mesmo commit**, sob pena de a figura do relatório divergir da fonte.
+
+&emsp; O diagrama v3 (`assets/arquitetura-implantacao-v3.svg`) permanece intacto,
+porque é a figura referenciada por [`arquitetura-inicial.md`](arquitetura-inicial.md).
+Editá-lo no lugar faria o artefato da sprint anterior exibir infraestrutura que não
+existia quando aquele texto foi escrito.
+
+**Exportar o PNG**
+
+&emsp; O conteúdo do diagrama ocupa cerca de 1855 × 1285 px na escala 1. As opções
+abaixo produzem um PNG de aproximadamente 3750 × 2610 px, nítido quando o avaliador
+amplia a figura e ainda leve o bastante para o repositório.
+
+| Opção do diálogo `Arquivo → Exportar como → PNG` | Valor | Motivo |
+|---|---|---|
+| Zoom | **200 %** | A fonte dos rótulos é 10 pt; abaixo disso o texto embaça ao ampliar |
+| Borda | **10** | Evita que a caixa externa encoste na margem da imagem |
+| Tamanho | **Diagrama** | Recorta no conteúdo; `Página` deixa faixa branca inútil |
+| Fundo transparente | **desmarcado** | Fundo transparente vira preto no tema escuro do GitHub e apaga o texto |
+| Cor de fundo | **branco** | — |
+| Somente seleção | **desmarcado** | — |
+| Sombra | **desmarcado** | Aumenta o arquivo sem ganho de leitura |
+| Grade | **desmarcado** | — |
+| Incluir cópia do meu diagrama | **desmarcado** | O `.drawio` já é versionado; embutir o XML no PNG cria uma segunda fonte da verdade que diverge |
+
+&emsp; Equivalente em linha de comando (`npm i -g @drawio/drawio-desktop-cli` ou o
+binário do aplicativo):
 
 ```bash
-rsvg-convert -w 3300 -b white \
-  artefatos/assets/{{arquivo}}.svg \
-  -o artefatos/assets/{{arquivo}}.png
+drawio -x -f png -s 2 -b 10 --crop \
+  -o artefatos/assets/arquitetura-implantacao-v4.png \
+     artefatos/assets/arquitetura-implantacao-v4.drawio
 ```
+
+&emsp; **Conferir depois de exportar:** abrir o PNG em 100 % e ler o rótulo menor —
+se não der para ler, exportar de novo em 300 %. O Markdown do GitHub reduz a figura
+à largura da coluna de leitura, cerca de 880 px, o que torna os rótulos ilegíveis em
+linha; o leitor precisa clicar na imagem para vê-la em tamanho real, e é por isso que
+o PNG exportado tem de ser grande. Se o arquivo passar de 2 MB, reexportar em 150 %
+antes de comprometer o peso do repositório.
 
 ### 2.2 Convenções de notação
 
-&emsp; {{Legenda: o que cada estereótipo significa, o que traço cheio e traço
-tracejado representam, como as zonas de disponibilidade são marcadas.}}
+| Elemento | Significado |
+|---|---|
+| Retângulo com título no canto superior | Fronteira de rede: nuvem, VPC, zona de disponibilidade, sub-rede |
+| Traço contínuo | Recurso provisionado |
+| Traço tracejado | Recurso planejado, ainda sem correspondente na conta |
+| `«…»` | Estereótipo do nó, na notação de implantação |
+| Rótulo da seta | Protocolo e porta efetivamente usados |
+| Contorno laranja tracejado atravessando as AZs | Auto Scaling Group, que é um agrupamento lógico e não um recurso de rede |
 
 ---
 
