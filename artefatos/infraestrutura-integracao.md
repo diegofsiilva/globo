@@ -158,61 +158,57 @@ de a topologia estar aplicada, para descrever o que existe e não o que se prete
 
 ### 2.1 Fonte editável e exportação
 
-&emsp; A fonte do diagrama é [`assets/arquitetura-implantacao-v4.drawio`](assets/arquitetura-implantacao-v4.drawio),
-em XML não comprimido — mesma convenção de `der-dynamodb.drawio` e
-`diagrama_casos_de_uso.drawio`, que mantém o arquivo legível no `diff` do Git. O PNG
-publicado no relatório é gerado a partir dele e commitado junto; **os dois arquivos
-andam sempre no mesmo commit**, sob pena de a figura do relatório divergir da fonte.
+&emsp; A fonte do diagrama é [`assets/arquitetura-implantacao-v4.svg`](assets/arquitetura-implantacao-v4.svg),
+SVG escrito à mão e versionado como fonte — mesma convenção do
+`arquitetura-implantacao-v3.svg`, do qual herda o vocabulário visual: nós
+tridimensionais com estereótipo, caixas de artefato aninhadas, faixa transversal de
+operação e o traço laranja tracejado para o que ainda não existe. Não há binário
+intermediário de ferramenta. O PNG publicado no relatório é gerado a partir do SVG e
+commitado junto; **os dois arquivos andam sempre no mesmo commit**, sob pena de a
+figura divergir da fonte.
 
-&emsp; O diagrama v3 (`assets/arquitetura-implantacao-v3.svg`) permanece intacto,
-porque é a figura referenciada por [`arquitetura-inicial.md`](arquitetura-inicial.md).
-Editá-lo no lugar faria o artefato da sprint anterior exibir infraestrutura que não
-existia quando aquele texto foi escrito.
+&emsp; O diagrama v3 permanece intacto, porque é a figura referenciada por
+[`arquitetura-inicial.md`](arquitetura-inicial.md). Editá-lo no lugar faria o artefato
+da sprint anterior exibir infraestrutura que não existia quando aquele texto foi
+escrito.
 
 **Exportar o PNG**
 
-&emsp; O conteúdo do diagrama ocupa cerca de 1855 × 1285 px na escala 1. As opções
-abaixo produzem um PNG de aproximadamente 3750 × 2610 px, nítido quando o avaliador
-amplia a figura e ainda leve o bastante para o repositório.
-
-| Opção do diálogo `Arquivo → Exportar como → PNG` | Valor | Motivo |
-|---|---|---|
-| Zoom | **200 %** | A fonte dos rótulos é 10 pt; abaixo disso o texto embaça ao ampliar |
-| Borda | **10** | Evita que a caixa externa encoste na margem da imagem |
-| Tamanho | **Diagrama** | Recorta no conteúdo; `Página` deixa faixa branca inútil |
-| Fundo transparente | **desmarcado** | Fundo transparente vira preto no tema escuro do GitHub e apaga o texto |
-| Cor de fundo | **branco** | — |
-| Somente seleção | **desmarcado** | — |
-| Sombra | **desmarcado** | Aumenta o arquivo sem ganho de leitura |
-| Grade | **desmarcado** | — |
-| Incluir cópia do meu diagrama | **desmarcado** | O `.drawio` já é versionado; embutir o XML no PNG cria uma segunda fonte da verdade que diverge |
-
-&emsp; Equivalente em linha de comando (`npm i -g @drawio/drawio-desktop-cli` ou o
-binário do aplicativo):
+&emsp; O SVG tem 3760 × 2454 px de área útil, o que já é resolução suficiente para o
+avaliador ampliar a figura. Qualquer um dos comandos abaixo produz o PNG:
 
 ```bash
-drawio -x -f png -s 2 -b 10 --crop \
-  -o artefatos/assets/arquitetura-implantacao-v4.png \
-     artefatos/assets/arquitetura-implantacao-v4.drawio
+# opção 1 — rsvg-convert, mesma linha usada no v3
+rsvg-convert -w 3760 -b white \
+  artefatos/assets/arquitetura-implantacao-v4.svg \
+  -o artefatos/assets/arquitetura-implantacao-v4.png
+
+# opção 2 — Chromium headless, quando o rsvg-convert não estiver disponível
+chrome --headless --disable-gpu --hide-scrollbars \
+  --window-size=3760,2454 --default-background-color=FFFFFFFF \
+  --screenshot=artefatos/assets/arquitetura-implantacao-v4.png \
+  artefatos/assets/arquitetura-implantacao-v4.svg
 ```
 
-&emsp; **Conferir depois de exportar:** abrir o PNG em 100 % e ler o rótulo menor —
-se não der para ler, exportar de novo em 300 %. O Markdown do GitHub reduz a figura
-à largura da coluna de leitura, cerca de 880 px, o que torna os rótulos ilegíveis em
-linha; o leitor precisa clicar na imagem para vê-la em tamanho real, e é por isso que
-o PNG exportado tem de ser grande. Se o arquivo passar de 2 MB, reexportar em 150 %
-antes de comprometer o peso do repositório.
+&emsp; **Conferir depois de exportar:** o Markdown do GitHub reduz a figura à largura
+da coluna de leitura, cerca de 880 px, o que torna os rótulos ilegíveis em linha; o
+leitor precisa clicar na imagem para vê-la em tamanho real, e é por isso que o PNG
+exportado tem de ser grande. Fundo branco explícito, nunca transparente — no tema
+escuro do GitHub o texto sumiria.
 
 ### 2.2 Convenções de notação
 
 | Elemento | Significado |
 |---|---|
-| Retângulo com título no canto superior | Fronteira de rede: nuvem, VPC, zona de disponibilidade, sub-rede |
-| Traço contínuo | Recurso provisionado |
-| Traço tracejado | Recurso planejado, ainda sem correspondente na conta |
-| `«…»` | Estereótipo do nó, na notação de implantação |
+| Nó tridimensional | Nó de implantação: ambiente de execução, serviço gerenciado ou dispositivo |
+| Caixa branca interna `«artifact»` | Artefato de software implantado naquele nó |
+| Retângulo com título no canto superior | Fronteira de rede: VPC, zona de disponibilidade, sub-rede |
+| Retângulo tracejado sem preenchimento | Agrupamento lógico — Auto Scaling Group e balanceador — que atravessa as zonas de disponibilidade e não é recurso de rede |
+| Traço azul contínuo | Recurso provisionado |
+| Traço laranja tracejado | Recurso planejado, ainda sem correspondente na conta |
+| `«…»` | Estereótipo do nó |
 | Rótulo da seta | Protocolo e porta efetivamente usados |
-| Contorno laranja tracejado atravessando as AZs | Auto Scaling Group, que é um agrupamento lógico e não um recurso de rede |
+| Faixa inferior tracejada | Serviços transversais ao ASG, ao Fargate e ao RDS |
 
 ---
 
