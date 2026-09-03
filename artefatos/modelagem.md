@@ -1502,6 +1502,12 @@ sequenceDiagram
     end
 ```
 
+O fluxo começa quando o aplicativo de TV envia um lote de eventos para o endpoint de ingestão, acompanhado de um token de acesso. Antes de aceitar a requisição, o API Gateway consulta o Lambda Authorizer, que verifica se o token possui a audiência `ingest`. Quando a autorização é concedida, o corpo original da requisição é colocado na fila de eventos e o aplicativo recebe a resposta `202 Accepted`. Essa resposta confirma que o lote foi recebido para processamento, mas não que os eventos já foram gravados no banco.
+
+Em segundo plano, o `EventConsumer` consulta periodicamente a fila e valida cada item recebido. Os eventos válidos são convertidos para o formato de persistência e recebem um identificador calculado a partir de seu conteúdo. Um tipo de evento ainda desconhecido continua sendo aceito e armazenado como `GenericEvent`. Já um item com JSON inválido ou campo obrigatório vazio é enviado para a fila de mensagens mortas, junto com o motivo da rejeição, sem impedir o processamento dos demais itens do lote.
+
+Depois da validação, o consumidor grava os itens válidos em `bronze.event`. A operação é idempotente: se a combinação de instante e identificador já existir, a duplicata é ignorada. Quando a gravação termina, o consumidor remove da fila somente as mensagens resolvidas. Se o banco estiver indisponível, nenhuma mensagem pendente é apagada; após o tempo de invisibilidade, a fila entrega o conteúdo novamente, e a idempotência evita que a repetição produza registros duplicados.
+
 ### 2.2 Um passo do relógio virtual
 
 ```mermaid
@@ -1558,6 +1564,13 @@ sequenceDiagram
     CC->>GW: delete_message_batch
 ```
 
+
+Antes de iniciar a simulação, o sistema abre uma execução com a semente, os limites de tempo e a velocidade escolhidos. A semente gera uma lista determinística de falhas, que é registrada no banco para que o cenário possa ser auditado e reproduzido. Em seguida, o relógio virtual é posicionado no instante inicial.
+
+A cada avanço do relógio, o simulador consulta o novo instante virtual e, para cada tabela monitorada, lê os dados compreendidos entre o tick anterior e o atual. As falhas previstas para aquele momento são aplicadas aos valores: elas podem distorcer um dado ou interromper completamente uma fonte. O resultado é dividido em lotes compatíveis com o limite de bytes e enviado ao endpoint de mudanças. Se a API aceitar o lote, ele permanece na fila para processamento assíncrono. Se três tentativas falharem, o simulador descarta apenas aquela janela e continua avançando, evitando que uma indisponibilidade paralise todo o tempo virtual.
+
+Ao alcançar o instante final, a execução é encerrada e o relógio fica congelado nesse ponto. Independentemente do ritmo do simulador, o `ChangeConsumer` processa a fila de mudanças em segundo plano. Para cada lote, o repositório primeiro registra as alterações em `bronze.change_log` e depois as incorpora às tabelas de destino. As duas etapas pertencem à mesma transação: ou o log e a atualização são concluídos juntos, ou nenhum deles é confirmado. A mensagem só é removida da fila depois dessa operação.
+
 ### 2.3 Uma consulta do dashboard à API de leitura
 
 ```mermaid
@@ -1606,6 +1619,12 @@ sequenceDiagram
         F-->>D: 422 application/problem+json (type, title, detail, request_id)
     end
 ```
+
+O fluxo começa quando o dashboard solicita eventos à API de leitura e envia um token com a audiência `dashboard`. O API Gateway pede ao Lambda Authorizer que valide esse token. Uma autorização válida pode ser reutilizada por até cinco minutos e permite que a requisição chegue à Lambda da aplicação. Se o token estiver ausente ou for inválido, o gateway responde com `403 Forbidden` e a Lambda de leitura nem chega a ser executada.
+
+Na aplicação, cada requisição recebe um identificador de rastreamento. A rota converte os parâmetros da URL em filtros cumulativos e aciona o caso de uso de busca. O repositório decodifica o cursor de paginação, monta as condições e consulta a visão `silver.v_session_event`, ordenando os eventos do mais recente para o mais antigo. A visão só expõe dados cuja data de disponibilidade já foi alcançada pelo relógio virtual, e a paginação usa o último registro retornado como referência, em vez de percorrer resultados anteriores por deslocamento.
+
+Antes de devolver os dados, o repositório remove ou mascara informações pessoais dos atributos. A resposta reúne os eventos, o cursor da próxima página e as estatísticas da consulta; depois, ela é serializada como JSON, recebe os cabeçalhos CORS e inclui o identificador da requisição para facilitar o diagnóstico. Caso algum parâmetro seja inválido, como um cursor corrompido ou uma data fora do padrão ISO 8601, a aplicação retorna `422` no formato `application/problem+json`, informando o campo e o identificador associados ao erro.
 
 ### 2.4 Um ciclo do motor de análise
 
@@ -1667,3 +1686,11 @@ sequenceDiagram
         end
     end
 ```
+
+Enquanto existirem checkpoints ainda não analisados, a thread de processamento inicia um novo ciclo e registra a versão do manifesto de regras utilizada. Em uma transação com leitura consistente, o sistema tenta obter uma trava curta, consulta o checkpoint mais recente e bloqueia o cursor de análise. Se encontrar uma execução anterior cujo prazo de posse expirou, marca-a como abandonada antes de reservar o trabalho para o novo worker.
+
+A reserva recebe um token de cercamento exclusivo, registra quem assumiu o trabalho e captura uma fotografia dos fatos disponíveis naquele instante, acompanhada de um resumo criptográfico. Essa fotografia garante que a análise use um conjunto estável e auditável de entradas, mesmo que novos dados cheguem durante o processamento. Se a captura ultrapassar o limite de linhas, a execução é marcada como falha e o ciclo é interrompido. Se não houver checkpoint novo, nenhuma reserva é criada e a thread aguarda antes de tentar novamente.
+
+Quando há trabalho, a execução passa de `claimed` para `running` após uma nova validação de posse. Durante a análise, uma thread auxiliar renova essa posse a cada 30 segundos, enquanto o motor avalia a qualidade das fontes, detecta anomalias, cria candidatos e pontua hipóteses. Ao final, a renovação é encerrada.
+
+Se o worker ainda mantiver a posse, o sistema valida novamente o token de cercamento, grava anomalias, indicadores de qualidade, hipóteses e suas evidências, avança o cursor e conclui a execução na mesma etapa protegida de persistência. Se a posse tiver sido perdida durante o cálculo, o resultado obsoleto não é gravado: a execução é marcada como falha e o ciclo termina com uma rejeição de cercamento. Assim, dois workers não conseguem confirmar resultados concorrentes para o mesmo intervalo de dados.
