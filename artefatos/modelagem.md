@@ -29,40 +29,15 @@ agrupadas em seis contextos:
 | **Leitura** | `apps/basica/backend` | API em Flask (framework web Python) sobre AWS Lambda (código que roda sob demanda, sem servidor fixo), com arquitetura hexagonal (regras de negócio isoladas da infraestrutura; ver seção 1.7), serve o dashboard (o painel de visualização) |
 | **Comum** | `apps/basica/common` | Conexão, observabilidade (métricas e sinais que revelam o estado interno do sistema em produção) e ciclo de vida compartilhados pelos serviços |
 
-#### 1.1.2 O que o diagrama não é
+&emsp; Observação importante sobre a história do projeto: a primeira versão
+(MVP) usava DynamoDB, mas o repositório e as deploys atuais foram migrados
+para PostgreSQL. Todos os artefatos, migrations e o código em
+`apps/basica/db` e `apps/basica/backend` usam PostgreSQL (views como
+`silver.v_session_event` e as queries presentes no adaptador `PostgresEventRepository`).
+Qualquer menção residual a DynamoDB neste documento é histórica: o
+PostgreSQL é hoje a fonte de verdade e a plataforma suportada.
 
-- **Não é o modelo de dados.** O esquema físico do PostgreSQL, organizado em
-  camadas, dos dados crus (`bronze`) aos já limpos (`silver`) e aos agregados
-  prontos para consulta (`gold`), mais `detect`, `sim` e `etl`, está na
-  [arquitetura inicial](arquitetura-inicial.md) e nos diagramas
-  entidade-relacionamento (DER) em [`assets/`](assets/). Aqui o banco aparece
-  como um único nó de fronteira.
-- **Não é o diagrama de implantação.** Nós, contêineres e serviços AWS estão na
-  [arquitetura inicial](arquitetura-inicial.md), seção 2.
-- **Não cobre o frontend classe a classe.** O dashboard é feito em React
-  (biblioteca de interface) com módulos de tipos e funções `fetch` (as chamadas
-  HTTP feitas pelo navegador), não classes; ele aparece no diagrama unificado
-  como o cliente da API de leitura.
-
-#### 1.1.3 Notação
-
-| Símbolo | Significado |
-|---|---|
-| `A <|-- B` | Herança: `B` estende `A` |
-| `A <|.. B` | Realização: `B` implementa a interface/`Protocol` `A` |
-| `A *-- B` | Composição: `B` faz parte de `A` e não vive sem ele |
-| `A o-- B` | Agregação: `A` mantém uma referência a `B`, com ciclo de vida próprio |
-| `A --> B` | Associação direcionada: `A` usa `B` de forma duradoura |
-| `A ..> B` | Dependência: `A` usa `B` de forma pontual (parâmetro, retorno, construção) |
-| `«...»` | Estereótipo, que indica o papel da classe: `dataclass` e `pydantic` (formas de classe de dados em Python), `Protocol` (contrato de métodos, sem implementação), `abstract` (classe abstrata), `exception` (exceção), `module` (módulo de funções), `boundary` (fronteira com um sistema externo) |
-| `$` após um método | Método estático / função de módulo |
-| `*` após um método | Método abstrato |
-
-&emsp; Alguns nomes de classe se repetem entre contextos (`Config`, `Clock`,
-`EventRepository`). No diagrama unificado eles recebem um rótulo desambiguador
-entre colchetes; nos recortes, o contexto já resolve a ambiguidade.
-
-#### 1.1.4 Fontes e reprodução
+#### 1.1.2 Fontes e reprodução
 
 &emsp; O texto-fonte de cada diagrama está versionado em
 [`assets/`](assets/) com extensão `.mmd` (Mermaid, a linguagem de texto que
@@ -75,16 +50,6 @@ cd artefatos/assets
 npx @mermaid-js/mermaid-cli -i diagrama-classes.mmd -o diagrama-classes.png -s 3 -b white
 # idem para diagrama-classes-{ingestao,relogio,analise,leitura}.mmd
 ```
-
-#### 1.1.5 Nota sobre migração do armazenamento
-
-&emsp; Observação importante sobre a história do projeto: a primeira versão
-(MVP) usava DynamoDB, mas o repositório e as deploys atuais foram migrados
-para PostgreSQL. Todos os artefatos, migrations e o código em
-`apps/basica/db` e `apps/basica/backend` usam PostgreSQL (views como
-`silver.v_session_event` e as queries presentes no adaptador `PostgresEventRepository`).
-Qualquer menção residual a DynamoDB neste documento é histórica: o
-PostgreSQL é hoje a fonte de verdade e a plataforma suportada.
 
 ### 1.2 Visão geral: os seis contextos
 
@@ -116,7 +81,6 @@ contando a latência da fonte) e toda leitura filtra `available_at <= sim.now()`
 As classes `Clock` (simulador), `Fact.available_at` (análise) e
 `Clock`/`GoldRepository.clock()` (leitura) são as três pontas desse mesmo
 conceito.
-
 
 ### 1.3 Diagrama de classes unificado
 
@@ -713,11 +677,10 @@ classDiagram
 | **`Resultado`** / **`ResultadoTabela`** | *Dataclasses* que acumulam o que aconteceu com cada tabela (linhas, esperadas, tempo, se foi pulada). `confere()` e `divergentes()` são a validação final contra o manifesto (RNF05: não perder dado em silêncio). |
 | **`ManifestoDivergente`** | Exceção: a contagem carregada não bate com o `_manifest.json`; a carga falha de forma explícita, em vez de seguir em silêncio. |
 
----
 
 ### 1.5 Recorte 2: Relógio virtual
 
-&emsp; O simulador não inventa dado: lê o dump que já está na `bronze` e o reemite, no
+&emsp; O simulador não inventa dados: lê o dump que já está na `bronze` e o reemite, no
 ritmo de `sim.now()`, pela rede: cada tick (cada passo do relógio virtual)
 exercita o fluxo de ingestão inteiro. `Clock` fala com o banco (o relógio vive
 lá), `Janela` lê a faixa de tempo que acabou de passar, `Falha` distorce pontos
@@ -815,11 +778,10 @@ classDiagram
 | **`Falha`** *(dataclass congelada)* | Uma falha injetada, com alvo e janela. `alcanca` diz se a falha atinge um ponto (tempo + alvo); `aplicar` distorce o valor conforme o tipo (`error_spike`, `latency`, `drift`, pico de erro, latência e deriva, multiplicam; `source_outage` devolve `None`: a fonte parou, que é diferente de reportar zero). |
 | **`faults`** *(módulo)* | `sortear` produz a lista de falhas de uma execução a partir da `seed` (o número que inicializa o sorteio aleatório): mesma seed, mesmo cenário, o que permite comparar dois detectores sabendo que viram os mesmos incidentes. |
 
-
 ### 1.6 Recorte 3: Análise
 
 &emsp; O contexto de análise tem três blocos: os contratos imutáveis (`Fact`,
-`Anomaly`, `Hypothesis`…), que são *dataclasses* congeladas (imutáveis) passadas
+`Anomaly`, `Hypothesis`...), que são *dataclasses* congeladas (imutáveis) passadas
 entre as etapas; a coordenação (`WorkClaim`, `CapturedWork`), que garante que um
 só processo analise um checkpoint (um ponto de progresso salvo) por vez, usando
 *lease* (posse com prazo de validade) e *fencing* (um número crescente que
@@ -1104,7 +1066,6 @@ classDiagram
 | **`MetricPolicy`** | Como uma métrica deve ser tratada pelo detector: direção que importa (`up`/`down`), transformação (`log1p`, um logaritmo, para distribuições de cauda longa), limiares de materialidade e piso de σ. |
 | **`pipeline` / `detector` / `rules` / `scoring` / `quality`** *(módulos)* | As funções que executam o ciclo: `detect` (média móvel com peso exponencial, EWMA, ajustada ao ciclo de 24 h e estritamente causal, isto é, sem olhar o futuro), `evaluate_quality` (canário), `build_candidates` (as 11 famílias), `evaluate_candidates` + `score_features` (pontuação determinística), `run_captured`/`analyze_once` (orquestração). |
 | **`orchestration` / `analysis_repository`** *(módulos)* | `reivindicar_trabalho`, `renovar_lease`, `commit_protegido`, `claim_and_capture`, `persist_result`, `promote_manifest`: o *claim*, a captura consistente e a gravação transacional protegida por *fencing*. |
-
 
 ### 1.7 Recorte 4: Leitura
 
@@ -1399,7 +1360,6 @@ classDiagram
 | **`interfaces.openapi`** | Monta a especificação OpenAPI 3.1 em código, importando as mesmas constantes que os adaptadores usam para validar. |
 | **`Config` / `TestConfig`** | Configuração vinda do ambiente: `DATABASE_URL`, `USER_ID_HASH_SALT` (RNF10, o *salt*, valor secreto somado ao identificador antes de aplicar o hash), janelas e tetos de varredura, origens de CORS. |
 
-
 ### 1.8 Código comum (`common`)
 
 &emsp;As quatro classes que os serviços de ingestão, simulação e análise
@@ -1411,7 +1371,6 @@ compartilham. Aparecem nos recortes como dependências externas.
 | **`Heartbeat`** | Marca presença para o *healthcheck* do contêiner (a checagem periódica de que o processo está vivo). Precisa bater a cada ciclo, inclusive com fila vazia: um worker saudável num domingo de madrugada seria reiniciado sem parar se o heartbeat (esse sinal de vida) só batesse quando houvesse mensagem. |
 | **`ShutdownSignal`** | Encerramento ordenado (*graceful shutdown*): o sinal `SIGTERM` faz o processo parar só depois de terminar o ciclo atual. O `sleep` acorda mais cedo quando a parada é pedida, para o sistema não precisar recorrer ao `SIGKILL` (o encerramento forçado, que interrompe no meio). |
 | **`Metrics`** | Coletor de métricas para o CloudWatch (o serviço de métricas e logs da AWS): `count`, `duration_ms` e `flush` (o envio do que se acumulou) em cadência. |
-
 
 ### 1.9 Relacionamentos principais
 
@@ -1436,7 +1395,7 @@ compartilham. Aparecem nos recortes como dependências externas.
 | `create_app` | dependência | os quatro adaptadores + casos de uso | n/a | Composição da aplicação (injeção de dependência: as dependências são passadas de fora, não criadas dentro) |
 
 
-### 1.10 Rastreabilidade classe e requisitos
+### 1.10 Rastreabilidade entre classes e requisitos
 
 | Requisito | Classes que o realizam |
 |---|---|
