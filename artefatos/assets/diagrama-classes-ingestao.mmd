@@ -1,0 +1,192 @@
+%% Argus — Diagrama de classes: contexto de Ingestão (worker + loader)
+%% Fonte: apps/basica/worker/src/argus_worker/, apps/basica/loader/src/argus_loader/
+classDiagram
+    direction TB
+
+    class BaseEvent {
+        <<pydantic BaseModel>>
+        +datetime timestamp
+        +str event_name
+        +str session_id
+        +str device_id
+        +str|None user_id
+        +float|None duration
+        +str|None route_path
+        +dict|str|None route_params
+        +str|None event_id
+        +str|None app_bucket
+        +str|None app_env
+        +str|None app_version
+        +str|None device_manufacturer
+        +str|None device_model
+        +int|str|None device_model_year
+        +str|None device_os
+        +_to_utc(datetime) datetime
+        +_not_blank(str) str
+    }
+    class RequestEvent {
+        +str|None request_method
+        +int|None request_status
+        +dict|str|None request_headers
+        +dict|str|None response_headers
+    }
+    class ScreenViewEvent
+    class SessionEvent {
+        +bool|None capabilities_https
+        +bool|None capabilities_video_hdr
+        +bool|None capabilities_video_vod_drm
+    }
+    class VideoViewEvent {
+        +str|int|None media_id
+        +str|None media_kind
+        +bool|None media_drm
+        +bool|None media_ads
+    }
+    class VitalsEvent
+    class ErrorEvent {
+        +str|None error_name
+        +str|None error_message
+        +str|None error_stack
+    }
+    class GenericEvent
+
+    class ChangeEvent {
+        <<pydantic BaseModel>>
+        +str source_table
+        +str op
+        +dict pk
+        +dict|None before
+        +dict|None after
+        +datetime captured_at
+        +int|None run_id
+        +_tabela_conhecida(str) str
+        +_pk_nao_vazia(dict) dict
+        +_para_utc(datetime) datetime
+    }
+
+    class WorkerConfig["Config"] {
+        <<dataclass frozen>>
+        +str modo
+        +str queue_url
+        +str dlq_url
+        +str database_url
+        +int batch_size
+        +int wait_time_seconds
+        +int visibility_timeout_seconds
+        +int max_clock_skew_days
+        +tuple recommended_fields
+        +from_env(str modo)$ Config
+    }
+
+    class BaseConsumer {
+        <<abstract>>
+        #Config _config
+        #_sqs
+        #Metrics _metrics
+        #Heartbeat _heartbeat
+        #ShutdownSignal _shutdown
+        +run() void
+        +run_once() int
+        #_parse(dict raw)* Any
+        #_persist(list itens)* int
+        #_chave_lista()* str
+        #_receive() list
+        #_process_message(dict) tuple
+        #_quarantine(payload, motivo, id) bool
+        #_delete(list) void
+    }
+    class ChangeConsumer {
+        #ChangeRepository _repo
+        #_chave_lista : "changes"
+        #_parse(dict raw) dict
+        #_persist(list itens) int
+        #_emit_lag() void
+    }
+    class EventConsumer {
+        #EventRepository _repo
+        #_chave_lista : "events"
+        #_parse(dict raw) dict
+        #_persist(list itens) int
+    }
+
+    class ChangeRepository {
+        #Database _db
+        +append_and_merge(list changes) tuple~int,int~
+        +lag_sim_seconds() float|None
+        +sources_silent(timedelta limite) int
+    }
+    class EventRepository {
+        #Database _db
+        +COLUNAS : tuple
+        +put_many(list linhas) int
+    }
+    class ChangeTooLarge {
+        <<exception>>
+    }
+
+    class Loader {
+        #Database _db
+        #Path _dir
+        #datetime _captured_at
+        #bool _change_log
+        #dict _esperado
+        +run(list|None tabelas) Resultado
+        #_carregar(str tabela) ResultadoTabela
+        #_copy(tabela, caminho, pk) int
+        #_conferir(Resultado) void
+    }
+    class Resultado {
+        <<dataclass>>
+        +list~ResultadoTabela~ tabelas
+        +linhas() int
+        +divergentes() list~ResultadoTabela~
+    }
+    class ResultadoTabela {
+        <<dataclass>>
+        +str tabela
+        +int linhas
+        +int|None esperadas
+        +float segundos
+        +bool pulada
+        +confere() bool
+    }
+    class ManifestoDivergente {
+        <<exception>>
+    }
+
+    class Database {
+        <<comum>>
+        +connection()
+        +fetch_one(sql, params) dict
+        +fetch_all(sql, params) list
+    }
+
+    BaseEvent <|-- RequestEvent
+    BaseEvent <|-- ScreenViewEvent
+    BaseEvent <|-- SessionEvent
+    BaseEvent <|-- VideoViewEvent
+    BaseEvent <|-- VitalsEvent
+    BaseEvent <|-- ErrorEvent
+    BaseEvent <|-- GenericEvent
+
+    BaseConsumer <|-- ChangeConsumer
+    BaseConsumer <|-- EventConsumer
+    BaseConsumer o-- WorkerConfig : _config
+
+    ChangeConsumer *-- ChangeRepository : _repo
+    EventConsumer *-- EventRepository : _repo
+    ChangeConsumer ..> ChangeEvent : valida (parse_change)
+    EventConsumer ..> BaseEvent : valida (parse_event)
+    ChangeRepository ..> ChangeTooLarge : levanta
+
+    ChangeRepository --> Database
+    EventRepository --> Database
+    Loader --> Database
+    Loader ..> Resultado : produz
+    Resultado *-- "0..*" ResultadoTabela
+    Loader ..> ManifestoDivergente : levanta
+    Loader ..> ChangeEvent : grava snapshot (op='r')
+
+    note for GenericEvent "Fallback para event_name ainda desconhecido:<br/>o evento é gravado, não descartado (RF03)."
+    note for ChangeConsumer "merge worker: change_log + MERGE na tabela corrente,<br/>na mesma transação."
+    note for EventConsumer "event worker: grava o grão de sessão em bronze.event<br/>com id derivado do conteúdo (idempotência)."

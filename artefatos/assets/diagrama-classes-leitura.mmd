@@ -1,0 +1,229 @@
+%% Argus — Diagrama de classes: contexto de Leitura (backend, arquitetura hexagonal)
+%% Fonte: apps/basica/backend/src/telemetry/
+classDiagram
+    direction TB
+
+    class TelemetryEvent {
+        <<dataclass frozen>>
+        +str event_id
+        +str event_name
+        +datetime occurred_at
+        +str session_id
+        +str device_id
+        +datetime|None ingested_at
+        +float|None duration_ms
+        +str|None route_path
+        +str|None user_id_hash
+        +bool clock_skew
+        +dict attributes
+    }
+    class TelemetryError {
+        <<exception>>
+    }
+    class ValidationError {
+        +str|None field
+    }
+    class UnsupportedMediaTypeError
+    class EventNotFoundError
+    class ResourceNotFoundError
+    class ConflictError
+
+    class EventRepositoryPort["EventRepository"] {
+        <<Protocol>>
+        +search(EventFilters) EventPage
+        +get(str session_id, str event_id) TelemetryEvent|None
+        +breakdown(EventFilters, str dimension, int limit) Sequence~EventMetric~
+        +crosstab(EventFilters, str x, str y, int limit) Sequence~dict~
+        +timeseries(EventFilters, int interval_minutes) Sequence~TimeBucket~
+        +facets(Sequence~str~ fields, int limit) dict
+        +ping() bool
+    }
+    class EventFilters {
+        <<dataclass frozen>>
+        +str|None session_id
+        +str|None device_id
+        +str|None event_name
+        +str|None app_env
+        +str|None route_path
+        +datetime|None occurred_from
+        +datetime|None occurred_to
+        +int limit
+        +str|None cursor
+    }
+    class QueryStats {
+        <<dataclass frozen>>
+        +str strategy
+        +int queries
+        +int scanned
+        +int returned
+    }
+    class EventPage {
+        <<dataclass frozen>>
+        +Sequence~TelemetryEvent~ items
+        +str|None next_cursor
+        +QueryStats|None stats
+    }
+    class EventMetric {
+        <<dataclass frozen>>
+        +str key
+        +int count
+        +float|None average_duration_ms
+    }
+    class TimeBucket {
+        <<dataclass frozen>>
+        +datetime bucket
+        +int count
+        +dict by_event_name
+    }
+
+    class SearchEvents {
+        +EventRepository repository
+        +execute(EventFilters) dict
+    }
+    class GetSessionTimeline {
+        +execute(str session_id, int limit) dict
+    }
+    class GetEvent {
+        +execute(str session_id, str event_id) dict
+    }
+    class GetBreakdown {
+        +execute(EventFilters, str dimension, int limit) dict
+    }
+    class GetCrosstab {
+        +execute(EventFilters, str x, str y, int limit) dict
+    }
+    class GetTimeseries {
+        +execute(EventFilters, int interval_minutes, bool compare_previous) dict
+    }
+    class GetFacets {
+        +execute(Sequence~str~ fields, int limit) dict
+    }
+    class GenerateSignals {
+        +repository
+        +execute(datetime desde, datetime ate, dict escopo, int limite) dict
+    }
+
+    class PostgresEventRepository {
+        #ConnectionPool _pool
+        #str _salt
+        +search(EventFilters) EventPage
+        +get(str, str) TelemetryEvent|None
+        +breakdown(...) Sequence~EventMetric~
+        +crosstab(...) Sequence~dict~
+        +timeseries(...) Sequence~TimeBucket~
+        +facets(...) dict
+        +ping() bool
+    }
+    class GoldRepository {
+        #ConnectionPool _pool
+        #int _teto
+        +pool() ConnectionPool
+        +clock() Clock
+        +series(...) dict
+        +serie_breakdown(...) list
+        +incidents(...) list
+        +anomalies(run_id, limite) list
+    }
+    class HypothesisRepository {
+        #ConnectionPool _pool
+        +runs(limit, before_run_id) list
+        +list(...) list
+        +detail(int hypothesis_id) dict|None
+        +submit_feedback(...) dict
+    }
+    class SignalsRepository {
+        #ConnectionPool _pool
+        +DIMENSOES : tuple
+        +max_active_series() int
+        +desvios(datetime desde, datetime ate, float limiar, dict escopo) list
+    }
+    class Clock {
+        <<dataclass>>
+        +datetime sim_now
+        +float speed
+        +datetime updated_at
+    }
+
+    class AppFactory["app.create_app()"] {
+        <<factory>>
+        +create_app(config, repository, gold, hypotheses, signals) Flask
+        +register_cors(Flask) void
+        +register_error_handlers(Flask) void
+    }
+    class HttpBlueprints["interfaces.http / hypotheses_http / signals_http"] {
+        <<Flask blueprint>>
+        +events() Response
+        +event_detail() Response
+        +session_timeline() Response
+        +series() Response
+        +hypotheses() Response
+        +signals() Response
+        +submit_feedback() Response
+    }
+    class OpenApiSpec["interfaces.openapi"] {
+        <<module>>
+        +build_spec() dict
+    }
+
+    class Config {
+        +str DATABASE_URL
+        +str USER_ID_HASH_SALT
+        +int DEFAULT_WINDOW_HOURS
+        +int MAX_ITEMS_SCANNED
+        +str CORS_ORIGINS
+    }
+    class TestConfig
+
+    class BancoPostgres["Banco — views v_* de silver / gold / sim"] {
+        <<RDS PostgreSQL>>
+    }
+
+    TelemetryError <|-- ValidationError
+    TelemetryError <|-- UnsupportedMediaTypeError
+    TelemetryError <|-- EventNotFoundError
+    TelemetryError <|-- ResourceNotFoundError
+    TelemetryError <|-- ConflictError
+    Config <|-- TestConfig
+
+    EventRepositoryPort <|.. PostgresEventRepository : implementa
+
+    SearchEvents ..> EventRepositoryPort
+    GetSessionTimeline ..> EventRepositoryPort
+    GetEvent ..> EventRepositoryPort
+    GetBreakdown ..> EventRepositoryPort
+    GetCrosstab ..> EventRepositoryPort
+    GetTimeseries ..> EventRepositoryPort
+    GetFacets ..> EventRepositoryPort
+    SearchEvents ..> EventFilters
+    GetTimeseries ..> EventFilters
+    GenerateSignals ..> SignalsRepository
+
+    EventRepositoryPort ..> EventPage : retorna
+    EventRepositoryPort ..> EventFilters : recebe
+    EventPage *-- "0..*" TelemetryEvent
+    EventPage o-- QueryStats
+    EventRepositoryPort ..> EventMetric
+    EventRepositoryPort ..> TimeBucket
+
+    PostgresEventRepository ..> TelemetryEvent : monta
+    PostgresEventRepository ..> EventPage
+    GoldRepository *-- Clock : produz
+    PostgresEventRepository --> BancoPostgres
+    GoldRepository --> BancoPostgres
+    HypothesisRepository --> BancoPostgres
+    SignalsRepository --> BancoPostgres
+
+    AppFactory ..> PostgresEventRepository : instancia
+    AppFactory ..> GoldRepository : instancia
+    AppFactory ..> HypothesisRepository : instancia
+    AppFactory ..> SignalsRepository : instancia
+    AppFactory ..> HttpBlueprints : registra
+    AppFactory o-- Config
+    HttpBlueprints ..> SearchEvents
+    HttpBlueprints ..> GenerateSignals
+    HttpBlueprints ..> TelemetryError : traduz p/ Problem Details (RFC 7807)
+    HttpBlueprints ..> OpenApiSpec
+
+    note for EventRepositoryPort "Porta só de leitura: sem add/delete.<br/>A escrita pertence ao pipeline de ingestão."
+    note for PostgresEventRepository "Lê de silver.v_session_event.<br/>Redação de dado pessoal na saída (RNF10)."
+    note for QueryStats "strategy/scanned/returned vão na resposta:<br/>tornam visível o custo de cada consulta."
