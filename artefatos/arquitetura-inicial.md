@@ -27,7 +27,7 @@ projeto. As diferenças em relação à revisão anterior:
 |---|---|---|
 | Autenticação das APIs | Ausente; a URL era a única barreira | Lambda authorizer com Bearer, duas audiências, hashes no Secrets Manager |
 | Transporte do dashboard | CDN com HTTPS e bucket privado | Website S3 em HTTP, compatível com as permissões do Learner Lab |
-| Migrations | 001–023 | 001–026 |
+| Migrations | 001–023 | 001–027 |
 | Acesso ao RDS | Público, restrito ao CIDR do desenvolvedor | Privado; administração pela task `migration` dentro da VPC |
 | Tag das imagens | `latest` | SHA do commit; `latest` só como apelido no ECR |
 | Bucket de origem | Descrito como contendo o dump | Apenas Parquet e manifesto; o dump não foi publicado |
