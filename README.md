@@ -89,7 +89,7 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-| `/apps/basica/db/migrations` | As 26 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+| `/apps/basica/db/migrations` | As 27 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
 | `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
 | `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
@@ -134,7 +134,7 @@ cd g04
 # 2. instalar as dependências dos apps Python
 make -C apps/basica install
 
-# 3. subir um PostgreSQL 16 local e aplicar as 26 migrations
+# 3. subir um PostgreSQL 16 local e aplicar as 27 migrations
 make -C apps/basica db-local
 
 # 4. rodar a suíte de testes (66 do worker + 85 do backend)
