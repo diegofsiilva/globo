@@ -7,21 +7,21 @@
 -- especial cdn_vod_shadow e uma referencia de calibracao offline.
 --
 -- finding_review e finding_status_log sao diferentes: nao sao uma fonte bruta,
--- mas o dossie editavel da tela /casos. Por isso ficam na gold e se relacionam
--- com o identificador numerico que detect.anomaly ja expoe desde a migration
--- 019.
+-- mas o dossie editavel da tela /casos e o historico do SweepAgent. Por isso
+-- ficam na gold e usam o identificador numerico que detect.anomaly ja expoe
+-- desde a migration 019.
 
 -- --------------------------------------------------------------------------- #
 -- Ajustes em tabelas existentes
 -- --------------------------------------------------------------------------- #
 
--- O agregado por dispositivo e a granularidade que permite separar erros de
--- usuarios reais de erros produzidos por bot/crawler. A contagem segue o tipo
--- de `errors`; NULL significa que a fonte ainda nao informou a parcela.
-ALTER TABLE bronze.device_hourly
+-- O agregado por categoria e a granularidade que permite separar erros de
+-- usuarios reais de erros produzidos por bot/crawler. Assim e possivel medir,
+-- por exemplo, quanto do erro de origem veio de trafego automatizado.
+ALTER TABLE bronze.error_cat_hourly
   ADD COLUMN errors_bot bigint;
 
-COMMENT ON COLUMN bronze.device_hourly.errors_bot IS
+COMMENT ON COLUMN bronze.error_cat_hourly.errors_bot IS
   'Quantidade de erros atribuida a trafego automatizado (bot/crawler); NULL '
   'quando a fonte nao informa a parcela';
 
@@ -152,13 +152,15 @@ CREATE INDEX cdn_vod_shadow_pop_tempo
 
 CREATE TABLE bronze.isp_pop_daily (
   day            date        NOT NULL,
-  asn            bigint      NOT NULL,
+  asn            varchar(16) NOT NULL
+    CHECK (btrim(asn) <> '' AND btrim(asn) <> '?'),
   isp            text,
   pop            text        NOT NULL,
   sessions       bigint,
   errors         bigint,
   requests       bigint,
   bytes          bigint,
+  suspeito       boolean     NOT NULL DEFAULT false,
   _extra         jsonb       NOT NULL DEFAULT '{}',
   _lsn           bigint      NOT NULL,
   _op            char(1)     NOT NULL,
@@ -173,9 +175,13 @@ CREATE TABLE bronze.isp_pop_daily (
 COMMENT ON TABLE bronze.isp_pop_daily IS
   'Cruzamento diario de ISP e PoP; ASN e a chave estavel, nao o nome do ISP';
 COMMENT ON COLUMN bronze.isp_pop_daily.asn IS
-  'Autonomous System Number usado como identidade do provedor';
+  'ASN textual usado como identidade do provedor; a fonte nao pode persistir '
+  'o placeholder ?';
 COMMENT ON COLUMN bronze.isp_pop_daily.isp IS
   'Nome recebido da fonte, apenas descritivo: pode variar entre capturas';
+COMMENT ON COLUMN bronze.isp_pop_daily.suspeito IS
+  'Marca o par ISP x PoP que disparou a deteccao; as demais linhas servem de '
+  'base de comparacao';
 COMMENT ON COLUMN bronze.isp_pop_daily._extra IS
   'coluna nova da origem cai aqui sem DDL; vira coluna real quando estabilizar';
 
@@ -185,25 +191,30 @@ CREATE INDEX isp_pop_daily_pop_tempo
   ON bronze.isp_pop_daily (pop, day DESC);
 
 CREATE TABLE bronze.live_event_sde (
-  sde_id            text        NOT NULL,
-  epg_event_key     text,
-  epg_event_name    text,
-  epg_competition   text,
-  epg_team_home     text,
-  epg_team_away     text,
-  jarvis_event_name text,
+  sde_id             text        NOT NULL,
+  channel            text        NOT NULL,
+  tids_jarvis        integer[],
+  tids_epg           integer[],
+  tid_only_epg       integer[],
+  tid_only_jarvis    integer[],
+  epg_event_key      text,
+  epg_event_name     text,
+  epg_competition    text,
+  epg_team_home      text,
+  epg_team_away      text,
+  jarvis_event_name  text,
   jarvis_competition text,
-  jarvis_team_home  text,
-  jarvis_team_away  text,
-  event_start       bigint,
-  event_end         bigint,
-  match_status      text,
-  reconciled_at     timestamptz,
-  _extra            jsonb       NOT NULL DEFAULT '{}',
-  _lsn              bigint      NOT NULL,
-  _op               char(1)     NOT NULL,
-  _captured_at      timestamptz NOT NULL,
-  PRIMARY KEY (sde_id)
+  jarvis_team_home   text,
+  jarvis_team_away   text,
+  event_start        bigint,
+  event_end          bigint,
+  match_status       text,
+  reconciled_at      timestamptz,
+  _extra             jsonb       NOT NULL DEFAULT '{}',
+  _lsn               bigint      NOT NULL,
+  _op                char(1)     NOT NULL,
+  _captured_at       timestamptz NOT NULL,
+  PRIMARY KEY (sde_id, channel)
 );
 
 COMMENT ON TABLE bronze.live_event_sde IS
@@ -211,6 +222,17 @@ COMMENT ON TABLE bronze.live_event_sde IS
   'esportivo, times e competicao';
 COMMENT ON COLUMN bronze.live_event_sde.sde_id IS
   'Identidade do evento no SDE/supergraph; corresponde a live_event.sde_id';
+COMMENT ON COLUMN bronze.live_event_sde.channel IS
+  'Canal usado para calcular a diferenca de TIDs; a reconciliacao nao e por '
+  'tid solto por causa de sub-feeds e pracas';
+COMMENT ON COLUMN bronze.live_event_sde.tids_jarvis IS
+  'Conjunto de TIDs retornado pelo Jarvis para este canal';
+COMMENT ON COLUMN bronze.live_event_sde.tids_epg IS
+  'Conjunto de TIDs recebido do EPG para este canal';
+COMMENT ON COLUMN bronze.live_event_sde.tid_only_epg IS
+  'TIDs presentes no EPG e ausentes no Jarvis, calculados por canal';
+COMMENT ON COLUMN bronze.live_event_sde.tid_only_jarvis IS
+  'TIDs presentes no Jarvis e ausentes no EPG, calculados por canal';
 COMMENT ON COLUMN bronze.live_event_sde.match_status IS
   'Resultado verbatim da reconciliacao; a origem pode adicionar estados sem '
   'exigir migration';
@@ -228,13 +250,15 @@ CREATE INDEX live_event_sde_epg_event
 CREATE TABLE gold.finding_review (
   finding_id     bigint      NOT NULL
     REFERENCES detect.anomaly (anomaly_id),
-  status         text        NOT NULL DEFAULT 'new'
-    CHECK (status IN ('new', 'resolved', 'regressed', 'chronic')),
+  state          text        NOT NULL DEFAULT 'tracking'
+    CHECK (state IN ('reviewed', 'tracking', 'known', 'no_action')),
+  cause_id       text,
   root_cause     text,
   ticket         text,
   incident       text,
   affected_users bigint
     CHECK (affected_users IS NULL OR affected_users >= 0),
+  feed_agents    boolean     NOT NULL DEFAULT false,
   notes          text,
   reviewed_by    text,
   created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -244,20 +268,23 @@ CREATE TABLE gold.finding_review (
 
 COMMENT ON TABLE gold.finding_review IS
   'Triagem e dossie editavel de um achado do radar, mantido pela pagina /casos';
-COMMENT ON COLUMN gold.finding_review.status IS
-  'Estado operacional do caso: new, resolved, regressed ou chronic';
+COMMENT ON COLUMN gold.finding_review.state IS
+  'Decisao humana da triagem: reviewed, tracking, known ou no_action';
+COMMENT ON COLUMN gold.finding_review.cause_id IS
+  'Chave da taxonomia de causas escolhida na revisao humana';
 COMMENT ON COLUMN gold.finding_review.root_cause IS
   'Causa raiz registrada na revisao humana, nao uma inferencia automatica';
 COMMENT ON COLUMN gold.finding_review.affected_users IS
   'Quantidade estimada de usuarios afetados na janela do achado';
+COMMENT ON COLUMN gold.finding_review.feed_agents IS
+  'Quando true, alimenta o CaseMemory e o Investigator';
 
-CREATE INDEX finding_review_status
-  ON gold.finding_review (status, updated_at DESC);
+CREATE INDEX finding_review_state
+  ON gold.finding_review (state, updated_at DESC);
 
 CREATE TABLE gold.finding_status_log (
   status_log_id bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  finding_id    bigint      NOT NULL
-    REFERENCES gold.finding_review (finding_id) ON DELETE CASCADE,
+  finding_id    bigint      NOT NULL,
   from_status   text
     CHECK (from_status IS NULL OR from_status IN ('new', 'resolved', 'regressed', 'chronic')),
   to_status     text        NOT NULL
@@ -270,11 +297,11 @@ CREATE TABLE gold.finding_status_log (
 
 COMMENT ON TABLE gold.finding_status_log IS
   'Historico append-only das viradas de estado de um achado, uma linha por '
-  'transicao'; new, resolved, regressed e chronic';
+  'transicao; estados automaticos: new, resolved, regressed e chronic';
 COMMENT ON COLUMN gold.finding_status_log.from_status IS
   'Estado anterior; NULL identifica a criacao do caso';
 COMMENT ON COLUMN gold.finding_status_log.to_status IS
-  'Novo estado aplicado pela revisao';
+  'Novo estado automatico aplicado pelo SweepAgent';
 
 CREATE INDEX finding_status_log_finding_tempo
   ON gold.finding_status_log (finding_id, changed_at DESC, status_log_id DESC);

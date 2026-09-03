@@ -92,7 +92,7 @@ class ChangeEvent(BaseModel):
     @field_validator("source_table")
     @classmethod
     def _tabela_conhecida(cls, value: str) -> str:
-        """Recusa tabela fora das 33 do dump.
+        """Recusa tabela fora da lista de fontes conhecidas.
 
         Falhar aqui e melhor que falhar no INSERT: a mensagem vai para a DLQ com
         o nome da tabela no motivo, e quem investigar le "tabela desconhecida"
