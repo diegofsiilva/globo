@@ -1016,10 +1016,15 @@ grafana-up: ## Sobe Grafana local (Docker) com datasource CloudWatch pronto (per
 	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
 	@test -f "$(HOME)/.aws/credentials" || { echo "erro: $(HOME)/.aws/credentials nao existe."; exit 1; }
 	@# So o perfil g4 vai pro container -- nunca o arquivo inteiro, que pode ter
-	@# outros perfis (ex. default) sem relacao com este dashboard.
-	@umask 077 && awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > /tmp/argus-grafana-creds
-	@test -s /tmp/argus-grafana-creds || { echo "erro: perfil [g4] nao encontrado em $(HOME)/.aws/credentials"; rm -f /tmp/argus-grafana-creds; exit 1; }
-	docker rm -f argus-grafana >/dev/null 2>&1 || true
+	@# outros perfis (ex. default) sem relacao com este dashboard. `mktemp` (nao
+	@# um nome fixo) evita tanto reaproveitar permissao de um arquivo antigo
+	@# quanto ataque de symlink num /tmp compartilhado; o trap cobre o caminho
+	@# de erro do `docker run` tambem, nao so o de sucesso.
+	docker rm -f argus-grafana >/dev/null 2>&1 || true; \
+	creds_tmp=$$(mktemp) && \
+	trap 'rm -f "$$creds_tmp"' EXIT && \
+	awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > "$$creds_tmp" && \
+	test -s "$$creds_tmp" || { echo "erro: perfil [g4] nao encontrado em $(HOME)/.aws/credentials"; exit 1; } && \
 	docker run -d --name argus-grafana \
 	  --user "$$(id -u):$$(id -g)" \
 	  -p 127.0.0.1:3000:3000 \
@@ -1027,18 +1032,16 @@ grafana-up: ## Sobe Grafana local (Docker) com datasource CloudWatch pronto (per
 	  -e GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer \
 	  -e AWS_SHARED_CREDENTIALS_FILE=/aws/credentials \
 	  -e AWS_PROFILE=g4 \
-	  -v "/tmp/argus-grafana-creds:/aws/credentials:ro" \
+	  -v "$$creds_tmp:/aws/credentials:ro" \
 	  -v "$(PWD)/$(OBSERVABILITY)/provisioning:/etc/grafana/provisioning:ro" \
 	  -v "$(PWD)/$(OBSERVABILITY)/dashboards:/var/lib/grafana/dashboards:ro" \
 	  grafana/grafana:11.2.0
-	@rm -f /tmp/argus-grafana-creds
 	@echo "Grafana em http://localhost:3000 (dashboard 'RNF04/05/11 - Resiliencia Argus'), acessivel so pela propria maquina (bind em 127.0.0.1)."
 	@echo "Credenciais lidas de $(HOME)/.aws/credentials (perfil g4) -- expira junto com a sessao do Learner Lab, so recriar o container (make grafana-up) apos renovar."
 
 .PHONY: grafana-down
 grafana-down: ## Derruba o Grafana local
 	docker rm -f argus-grafana >/dev/null 2>&1 || true
-	@rm -f /tmp/argus-grafana-creds
 
 .PHONY: dlq
 dlq: ## Mostra o que esta nas filas de rejeitados
