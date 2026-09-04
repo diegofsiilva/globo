@@ -24,13 +24,15 @@ qual conta AWS o texto foi escrito, e a data da verificação.}}
 | Especificação | Repositório | Tratamento |
 |---|---|---|
 | `infraestrutura_integracao.md` (seção de vídeos) e `infraestrutura-integracao.md` (cabeçalho) | `artefatos/infraestrutura-integracao.md` | {{Adotado o hífen, coerente com `arquitetura-inicial.md`}} |
-| `/apps/fullstack` | `apps/basica` | {{Renomear a pasta **ou** registrar a divergência — decidir, ver seção 10}} |
+| `/apps/fullstack` | `apps/basica` | {{Renomear a pasta **ou** registrar a divergência — decidir, ver seção 9}} |
 | {{ }} | {{ }} | {{ }} |
 
 ## Rastreabilidade da rubrica
 
 > **PREENCHER** · Mantenha esta tabela atualizada até a véspera da entrega. São
-> dez itens de peso 1,0. `Status` aceita apenas: `não iniciado`, `provisionado`,
+> **nove** itens de peso 1,0: o item (d), de análise de impacto nos ODS da ONU, foi
+> dispensado pelo professor em 04/09/2026 por já estar contemplado no artefato de
+> negócios — não reescreva a análise aqui, referencie-a se for citada. `Status` aceita apenas: `não iniciado`, `provisionado`,
 > `documentado`, `filmado`, `pronto`.
 
 | # | Item da rubrica | Peso | Onde está | Status |
@@ -38,13 +40,12 @@ qual conta AWS o texto foi escrito, e a data da verificação.}}
 | R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | {{ }} |
 | R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | {{ }} |
 | R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | {{ }} |
-| R-d | Análise de impacto nos ODS da ONU | 1,0 | Seção 6 | {{ }} |
-| V1-a | VPC, subnets pública/privada, NAT, logs distribuídos | 1,0 | Seções 3.1 e 7 | {{ }} |
-| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 7 | {{ }} |
-| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 7 | {{ }} |
-| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 7 | {{ }} |
-| V2-a | Testes de validação funcional | 1,0 | Seção 8 | {{ }} |
-| V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 8 | {{ }} |
+| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1 e 6 | {{ }} |
+| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | {{ }} |
+| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | {{ }} |
+| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | {{ }} |
+| V2-a | Testes de validação funcional | 1,0 | Seção 7 | {{ }} |
+| V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 7 | {{ }} |
 
 ---
 
@@ -201,14 +202,21 @@ escuro do GitHub o texto sumiria.
 | Elemento | Significado |
 |---|---|
 | Nó tridimensional | Nó de implantação: ambiente de execução, serviço gerenciado ou dispositivo |
+| Preenchimento azul-cinza | Nó que **já existia na arquitetura v3** e foi apenas realocado na rede |
+| Preenchimento roxo | Nó **acrescentado nesta revisão** — não tem correspondente no diagrama v3 |
+| Preenchimento laranja tracejado | Nó **planejado**, ainda sem recurso no Terraform |
 | Caixa branca interna `«artifact»` | Artefato de software implantado naquele nó |
-| Retângulo com título no canto superior | Fronteira de rede: VPC, zona de disponibilidade, sub-rede |
+| Retângulo com título no canto superior | Fronteira de rede: VPC, zona de disponibilidade, sub-rede — toda essa camada é nova nesta revisão |
 | Retângulo tracejado sem preenchimento | Agrupamento lógico — Auto Scaling Group e balanceador — que atravessa as zonas de disponibilidade e não é recurso de rede |
-| Traço azul contínuo | Recurso provisionado |
-| Traço laranja tracejado | Recurso planejado, ainda sem correspondente na conta |
 | `«…»` | Estereótipo do nó |
 | Rótulo da seta | Protocolo e porta efetivamente usados |
 | Faixa inferior tracejada | Serviços transversais ao ASG, ao Fargate e ao RDS |
+
+&emsp; Os nós em roxo são a resposta visual à pergunta “o que esta sprint acrescentou”:
+Internet Gateway, NAT Gateway, bastion host, os dois nós do Application Load Balancer,
+as duas instâncias EC2 do Auto Scaling Group, a distribuição CloudFront e a estação do
+administrador. O RDS standby aparece em laranja porque é acréscimo **e** ainda não está
+provisionado — quando o Multi-AZ for ligado, ele passa para roxo.
 
 ---
 
@@ -329,7 +337,7 @@ ssh -N -L 5432:{{endpoint-rds}}:5432 ec2-user@{{ip-bastion}}
 >
 > **EVIDÊNCIA** · O vídeo precisa mostrar o ASG escalando de fato. Planeje o
 > gatilho agora: um teste de carga contra o DNS do ALB até a política disparar,
-> com a aba "Activity" do ASG aberta. Ver seção 7.
+> com a aba "Activity" do ASG aberta. Ver seção 6.
 
 | Parâmetro | Valor | Justificativa |
 |---|---|---|
@@ -403,9 +411,31 @@ ssh -N -L 5432:{{endpoint-rds}}:5432 ec2-user@{{ip-bastion}}
 
 > **PREENCHER** · Ferramentas e versões; verificação de conta e sessão
 > (`aws sts get-caller-identity` e uma chamada com permissão real); variáveis de
-> ambiente; preenchimento do `terraform.tfvars`; e o aviso sobre o `terraform.tfstate`
-> — não apagar o state enquanto ele representar recursos existentes, e confirmar o
-> account ID a cada nova sessão do Learner Lab.
+> ambiente; preenchimento do `terraform.tfvars`.
+
+> **CONTA NOVA — decidido em 04/09/2026.** O professor criou um Learner Lab novo,
+> acessado pela conta do grupo `t15-cc07-g4@sou.inteli.edu.br`. Isso muda o
+> procedimento em quatro pontos, e cada um precisa aparecer no runbook:
+>
+> 1. **O `terraform.tfstate` atual não serve.** Ele descreve recursos da conta
+>    anterior (`909209557114`, serial 57, ainda da v2). Aplicar esse state contra a
+>    conta nova não recria nada — o Terraform tenta ler recursos que não existem ali.
+>    Preservar uma cópia do state antigo e começar um workspace, chave ou backend
+>    correspondente à conta nova, **depois** de confirmar a mudança do account ID.
+> 2. **Nada de destrutivo a preservar.** Como o ambiente nasce vazio, o risco que
+>    bloqueava o plano — RDS não muda de VPC, e mover o subnet group forçaria
+>    substituição da instância — deixa de existir: o banco já nasce na VPC nova, no
+>    subnet group privado. Registrar isso como o motivo de a migração ter sido
+>    feita agora e não incrementalmente.
+> 3. **Apply em duas etapas.** Em conta nova, aplicar primeiro com os
+>    `desired_count = 0` para criar o ECR, empurrar as imagens e só então aplicar com
+>    os counts reais. Sem isso as tasks sobem apontando para um repositório vazio.
+> 4. **Credenciais e `terraform.tfvars` novos.** Role, senhas e CIDR mudam junto com
+>    a conta; o arquivo não é versionado.
+>
+> O que **não** muda: a carga inicial continua indisponível sem o `argus_dump.sql`
+> (4,15 GB) de alguém do grupo. Sem ele, alimentar o stack pelos fixtures, como
+> descrito na variante do runbook.
 
 ### 4.2 Recursos provisionados
 
@@ -570,66 +600,7 @@ aws cloudfront create-invalidation --distribution-id {{ID}} --paths "/*"
 
 ---
 
-## 6. Análise de impacto nos ODS da ONU — peso 1,0
-
-> **PREENCHER** · O erro típico é listar ODS bonitos sem ligação causal com o
-> sistema. O critério de "foi mais longe" aqui é profundidade: cada ODS precisa de
-> **meta numerada** (9.1, 9.c, 12.2, 13.2 — não apenas "ODS 9"), do **mecanismo**
-> pelo qual este sistema em particular a afeta, de um **indicador observável** e da
-> **evidência** que sustenta a afirmação. Sem mecanismo, é retórica.
->
-> Ancoragem no domínio real do projeto — observabilidade de streaming para o Grupo
-> Globo, com correlação de falhas por plataforma, modelo de aparelho, UF e
-> operadora (`entendimento_negocio.md`). Candidatos com ligação defensável:
->
-> - **ODS 9** (infraestrutura resiliente, indústria inclusiva e inovação) —
->   metas 9.1, 9.4 e 9.c. Mecanismo direto: redução do tempo entre sintoma e
->   hipótese acionável, e suporte deliberado a protocolos e dispositivos legados,
->   que é decisão de projeto documentada, não efeito colateral.
-> - **ODS 10** (redução das desigualdades) — o recorte por UF, operadora e modelo
->   de aparelho torna visível a degradação que afeta desproporcionalmente quem tem
->   aparelho antigo ou rede pior; sem esse recorte a média esconde o problema.
-> - **ODS 12** (consumo e produção responsáveis) — meta 12.2. Diagnóstico mais
->   rápido reduz reprocessamento e provisionamento defensivo "por precaução".
-> - **ODS 13** (ação climática) — pegada de carbono do próprio sistema. Este é o
->   ODS onde o impacto **negativo** é honesto e deve aparecer.
->
-> Evite ODS sem ligação causal (3, 4, 16 costumam ser forçados aqui). Melhor três
-> ODS bem argumentados do que sete listados.
-
-### 6.1 Método
-
-&emsp; {{Como os ODS foram selecionados, qual fonte foi usada para as metas, e o
-que conta como evidência nesta análise.}}
-
-### 6.2 Impactos positivos
-
-| ODS | Meta | Mecanismo neste sistema | Indicador | Evidência |
-|---|---|---|---|---|
-| {{ }} | {{ }} | {{ }} | {{ }} | {{ }} |
-
-### 6.3 Impactos negativos e mitigação
-
-> **PREENCHER** · Obrigatório, e é o que separa análise de propaganda. O sistema
-> mantém RDS e instâncias EC2 ligados continuamente, retém logs e trafega dados —
-> tudo consome energia. Trate: dimensionamento mínimo do ASG versus desperdício
-> ocioso; retenção de log como custo ambiental além de financeiro; escolha de
-> região e a intensidade de carbono da rede elétrica; e o desligamento do ambiente
-> de laboratório fora de uso. Reconhecer o custo e mostrar a mitigação pontua mais
-> do que negá-lo.
-
-| ODS afetado | Impacto negativo | Mitigação adotada | Mitigação possível, não adotada |
-|---|---|---|---|
-| {{ }} | {{ }} | {{ }} | {{ }} |
-
-### 6.4 Limites da análise
-
-&emsp; {{O que não foi medido e por quê — por exemplo, ausência de medição real de
-consumo energético, estimativas baseadas em tipo de instância e não em telemetria.}}
-
----
-
-## 7. Vídeo 1 — Infraestrutura provisionada
+## 6. Vídeo 1 — Infraestrutura provisionada
 
 > **PREENCHER** · Duração exigida: **5 a 7 minutos**. Fora da faixa, o item cai.
 > São quatro subitens de peso 1,0, e o avaliador procura evidência no console da
@@ -673,7 +644,7 @@ consumo energético, estimativas baseadas em tipo de instância e não em teleme
 
 ---
 
-## 8. Vídeo 2 — Integração front-end e back-end
+## 7. Vídeo 2 — Integração front-end e back-end
 
 > **PREENCHER** · Duração exigida: **2 a 4 minutos**. Dois subitens de peso 1,0:
 > validação funcional e comunicação entre serviços em ambiente integrado. O
@@ -693,7 +664,7 @@ consumo energético, estimativas baseadas em tipo de instância e não em teleme
 | 3:00–3:40 | V2-b rastro | {{mesma requisição localizada no log do back-end no CloudWatch}} | {{correlação pelo identificador}} |
 | 3:40–4:00 | Fechamento | — | {{ }} |
 
-### 8.1 Testes de validação funcional
+### 7.1 Testes de validação funcional
 
 > **PREENCHER** · Tabela dos casos demonstrados. Inclua ao menos um caminho de
 > erro: sistema que só é mostrado no caminho feliz sugere que o caminho triste não
@@ -704,7 +675,7 @@ consumo energético, estimativas baseadas em tipo de instância e não em teleme
 |---|---|---|---|---|---|
 | 1 | {{ }} | {{ }} | {{ }} | {{ }} | {{ }} |
 
-### 8.2 Comunicação entre serviços
+### 7.2 Comunicação entre serviços
 
 > **PREENCHER** · Descreva o caminho completo de uma requisição, nomeando cada
 > salto e o mecanismo de autenticação em cada um. Exemplo de forma:
@@ -717,7 +688,7 @@ consumo energético, estimativas baseadas em tipo de instância e não em teleme
 
 ---
 
-## 9. Riscos e limitações conhecidas
+## 8. Riscos e limitações conhecidas
 
 > **PREENCHER** · Seção de honestidade técnica, e o repositório já tem cultura
 > disso (`arquitetura-inicial.md` §6). Candidatos: dependência da sessão do
@@ -733,7 +704,7 @@ consumo energético, estimativas baseadas em tipo de instância e não em teleme
 
 ---
 
-## 10. Checklist de entrega
+## 9. Checklist de entrega
 
 > **PREENCHER** · A organização do repositório é avaliada à parte do conteúdo
 > deste artefato. Percorra antes de criar a tag.
