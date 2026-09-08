@@ -393,9 +393,12 @@ def test_registro_recusado_pelo_banco_nao_paralisa_a_fila(aws, merge_consumer, d
     """
     veneno = {
         **CHANGE_BASE,
-        # `bts` e da chave primaria e e NOT NULL. Sem ele, o
-        # `jsonb_populate_record` do MERGE produz NULL e o banco recusa.
-        "pk": {**CHANGE_BASE["pk"], "bts": 9_999_999_999_999},
+        # `bts` e bigint na bronze. Desde que `merge_do_log` passou a fundir
+        # `pk` na linha (028_merge_do_log_funde_pk.sql), so faltar o campo
+        # nao poison mais o registro -- por isso o valor vem com tipo
+        # incompativel: o cast pra bigint falha com `DataError`, que
+        # `_registro_recusado` trata como registro ruim (nao infra).
+        "pk": {**CHANGE_BASE["pk"], "bts": "nao-e-um-numero"},
         "after": {k: v for k, v in CHANGE_BASE["after"].items() if k != "bts"},
     }
     _send(aws, "argus-changes", veneno)
