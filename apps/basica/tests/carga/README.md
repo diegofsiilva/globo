@@ -43,7 +43,7 @@ aws sts get-caller-identity --profile g4
 ```bash
 cd apps/basica
 
-# Sobe Prometheus :9090 e Grafana :3001 e executa um requisito.
+# Sobe Prometheus :9090 e Grafana :3000 e executa um requisito.
 ./tests/carga/executar_testes.sh rnf01 --com-grafana
 ./tests/carga/executar_testes.sh rnf02 --com-grafana
 
@@ -73,14 +73,20 @@ dashboard.
 
 ## Prometheus e Grafana locais
 
+O Grafana desta suíte é o mesmo usado pelos testes de resiliência (RNF04/05/11):
+uma única stack local, com CloudWatch e Prometheus já provisionados como
+datasource.
+
 ```bash
 make -C apps/basica observabilidade-up
 make -C apps/basica observabilidade-check
 ```
 
 - Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3001` (`admin` / `admin` no ambiente local)
-- Dashboard: **Argus — Testes de Carga (RNF01/02/03)**
+- Grafana: `http://localhost:3000` (`admin` / `admin`, ou acesso anônimo de
+  leitura), acessível só pela própria máquina (bind em `127.0.0.1`)
+- Dashboards disponíveis: **Argus — Testes de Carga (RNF01/02/03)** e
+  **RNF04/05/11 - Resiliencia Argus**
 
 O Prometheus inicia com `--web.enable-remote-write-receiver`. O executor define
 `K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write` e envia p50,
@@ -107,38 +113,17 @@ sum(rate(k6_http_reqs_total{testid=~"$testid",expected_response="false"}[1m]))
 
 ## CPU real da AWS no mesmo Grafana
 
-O plugin CloudWatch já vem embutido no Grafana. Para o Learner Lab, prefira um
-arquivo de credenciais temporárias montado somente para leitura, com o perfil
-`g4` e os três campos da sessão (`aws_access_key_id`,
-`aws_secret_access_key`, `aws_session_token`). Nunca versionar esse arquivo.
+O datasource CloudWatch já vem provisionado (perfil `g4`, sem chave estática
+no YAML) junto com o `make observabilidade-up`: o Makefile extrai só o bloco
+`[g4]` de `~/.aws/credentials` para um arquivo temporário, monta esse arquivo
+read-only no container e nunca versiona nada disso. Crie um painel com
+`Namespace = AWS/ECS`, `Metric = CPUUtilization`, dimensões `ClusterName` e
+`ServiceName`, estatísticas `Average` e `Maximum`, período `1m`; para o banco,
+`AWS/RDS → CPUUtilization → DBInstanceIdentifier`.
 
-1. Monte o arquivo no container como
-   `/usr/share/grafana/.aws/credentials:ro` e reinicie o Grafana.
-2. Em **Connections → Add new connection → CloudWatch**, use:
-   `Authentication Provider = Credentials file`, `Profile = g4`,
-   `Default Region = us-east-1`.
-3. Clique em **Save & test**.
-4. Crie um painel com `Namespace = AWS/ECS`,
-   `Metric = CPUUtilization`, dimensões `ClusterName` e `ServiceName`,
-   estatísticas `Average` e `Maximum`, período `1m`.
-5. Para o banco, use `AWS/RDS → CPUUtilization → DBInstanceIdentifier`.
-
-Provisionamento equivalente, sem qualquer segredo no YAML:
-
-```yaml
-apiVersion: 1
-datasources:
-  - name: CloudWatch
-    type: cloudwatch
-    jsonData:
-      authType: credentials
-      defaultRegion: us-east-1
-      profile: g4
-```
-
-Quando a sessão do Learner Lab expirar, atualize o arquivo montado, reinicie o
-container e repita **Save & test**. Em uma conta permanente, use IAM Role/
-`AWS SDK Default` em vez de chaves estáticas.
+Quando a sessão do Learner Lab expirar, rode `make -C apps/basica
+observabilidade-up` de novo para recriar o container com a credencial
+renovada.
 
 ## Evidência e interpretação
 
@@ -150,4 +135,5 @@ Aceitação HTTP não é persistência. Depois de RNF01/RNF03, registre:
 4. CPU no CloudWatch no mesmo intervalo UTC.
 
 O relatório executado em 2026-09-02 está em
-[`artefatos/testes-performance.md`](../../../../artefatos/testes-performance.md).
+[`artefatos/testes-carga-e-resiliencia.md`](../../../../artefatos/testes-carga-e-resiliencia.md),
+que também cobre os testes de resiliência do pipeline de mudanças (RNF04/05/11).
