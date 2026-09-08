@@ -1,51 +1,42 @@
 # Infraestrutura e integração
 
-> **Este arquivo é um template.** Todo bloco de citação marcado `PREENCHER`,
-> `DECIDIR` ou `EVIDÊNCIA` é instrução, não conteúdo: diz o que escrever ali e o
-> que precisa ser mostrado no vídeo. Marcadores `{{ }}` são lacunas. Remova todas
-> as instruções e marcadores antes do commit da entrega — um bloco `PREENCHER`
-> sobrevivente é lido pelo avaliador como seção incompleta.
->
-> Convenções herdadas dos demais artefatos: parágrafos abrem com `&emsp;`,
-> figuras vão centralizadas com legenda `Figura N — ...` e fonte, tabelas
-> resumem decisões, e o texto descreve **o ambiente efetivamente implantado**,
-> não a intenção de projeto. O que ainda não existe é marcado como tal.
-
-&emsp; {{Parágrafo de abertura: o que este artefato cobre — provisionamento da
-infraestrutura em nuvem e integração front-end/back-end —, sobre qual branch e
-qual conta AWS o texto foi escrito, e a data da verificação.}}
+&emsp; Este artefato documenta a evolução da infraestrutura em nuvem do Argus e a
+integração entre o front-end e o back-end. A revisão foi realizada em 8 de setembro
+de 2026 na branch `docs/relatórioimplementaçãov2`, considerando como destino a nova
+conta do AWS Academy Learner Lab atribuída ao grupo. O estado foi confrontado com os
+arquivos versionados no repositório: nesta data, a infraestrutura da versão 4 ainda
+é uma topologia de destino. Os novos recursos de rede, computação e entrega ainda não
+estão declarados no Terraform nem provisionados; o modo Multi-AZ do RDS já é uma
+opção do código, mas permanece desativado. Por isso, o texto distingue explicitamente
+o que já existe na versão 3, o que foi acrescentado ao projeto da versão 4 e o que
+permanece planejado.
 
 ## Divergências de nomenclatura
 
-> **PREENCHER** · Registre as divergências entre a especificação e o repositório
-> antes que o avaliador as encontre sozinho. O `backend.md` já faz isso na
-> abertura; siga o mesmo padrão. As duas conhecidas hoje estão pré-listadas.
-
 | Especificação | Repositório | Tratamento |
 |---|---|---|
-| `infraestrutura_integracao.md` (seção de vídeos) e `infraestrutura-integracao.md` (cabeçalho) | `artefatos/infraestrutura-integracao.md` | {{Adotado o hífen, coerente com `arquitetura-inicial.md`}} |
-| `/apps/fullstack` | `apps/basica` | {{Renomear a pasta **ou** registrar a divergência — decidir, ver seção 9}} |
-| {{ }} | {{ }} | {{ }} |
+| `infraestrutura_integracao.md` na seção de vídeos e `infraestrutura-integracao.md` no cabeçalho | `artefatos/infraestrutura-integracao.md` | Foi adotado o nome com hífen, coerente com os demais artefatos de arquitetura e com os links internos do repositório. |
+| `/apps/fullstack` | `apps/basica` | A pasta existente foi mantida porque `basica` identifica o produto dentro do monorepo. Este artefato, o README da raiz e os comandos de execução usam o caminho real. |
 
 ## Rastreabilidade da rubrica
 
-> **PREENCHER** · Mantenha esta tabela atualizada até a véspera da entrega. São
-> **nove** itens de peso 1,0: o item (d), de análise de impacto nos ODS da ONU, foi
-> dispensado pelo professor em 04/09/2026 por já estar contemplado no artefato de
-> negócios — não reescreva a análise aqui, referencie-a se for citada. `Status` aceita apenas: `não iniciado`, `provisionado`,
-> `documentado`, `filmado`, `pronto`.
+&emsp; A tabela registra o estado verificável em 8 de setembro de 2026. O item de
+análise de impacto nos ODS da ONU foi dispensado pelo professor em 4 de setembro de
+2026 por já estar contemplado no artefato de
+[`entendimento do negócio`](entendimento_negocio.md); por isso, ele não é duplicado
+neste relatório.
 
 | # | Item da rubrica | Peso | Onde está | Status |
 |---|---|---|---|---|
-| R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | {{ }} |
-| R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | {{ }} |
-| R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | {{ }} |
-| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1 e 6 | {{ }} |
-| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | {{ }} |
-| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | {{ }} |
-| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | {{ }} |
-| V2-a | Testes de validação funcional | 1,0 | Seção 7 | {{ }} |
-| V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 7 | {{ }} |
+| R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | pronto |
+| R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | não iniciado |
+| R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | não iniciado |
+| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1 e 6 | não iniciado |
+| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | não iniciado |
+| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | não iniciado |
+| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | não iniciado |
+| V2-a | Testes de validação funcional | 1,0 | Seção 7 | não iniciado |
+| V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 7 | não iniciado |
 
 ---
 
@@ -69,23 +60,23 @@ produção” (§4.7) e a segunda como “fallback temporário para demonstraç�
 confiável” (§4.8), esta com a consequência explícita de que o token colado pelo
 operador trafega em claro e pode ser observado por um intermediário de rede.
 
-&emsp; Esta revisão paga essas duas dívidas e acrescenta a camada de escalabilidade
-horizontal que faltava ao caminho de leitura. O sistema passa a ter rede própria, com
-sub-redes públicas e privadas distribuídas em duas zonas de disponibilidade; as cargas
-de trabalho deixam de ter endereço público e alcançam a internet por NAT Gateway; o
-acesso administrativo passa a ser mediado por um bastion host; a API consumida pelo
-dashboard deixa de ser uma função sem servidor e executa em instâncias Amazon EC2 sob
-um Auto Scaling Group, atrás de um Application Load Balancer; e a entrega do front-end
-passa por uma distribuição do Amazon CloudFront, que fornece o TLS ausente.
+&emsp; A versão 4 foi desenhada para pagar essas duas dívidas e acrescentar a camada
+de escalabilidade horizontal que faltava ao caminho de leitura. A topologia prevê uma
+VPC própria, com sub-redes públicas e privadas distribuídas em duas zonas de
+disponibilidade; cargas de trabalho sem endereço público, com saída pelo NAT Gateway;
+acesso administrativo mediado por bastion host; API de leitura executada em instâncias
+Amazon EC2 de um Auto Scaling Group, atrás de um Application Load Balancer; e entrega
+do front-end por Amazon CloudFront, com TLS e bucket S3 privado. Essas mudanças ainda
+não substituíram os recursos da versão 3 no Terraform versionado.
 
-&emsp; A migração é deliberadamente parcial. O **caminho síncrono** — a requisição que
-o dashboard faz e cuja latência o usuário percebe — é o que recebe grupo de
-escalonamento e balanceador, porque é onde a variação de carga é observável e onde a
-perda de uma instância tem efeito imediato sobre a experiência. O **caminho assíncrono**
-de ingestão permanece em filas com consumidores no ECS Fargate: o desacoplamento por
-SQS já absorve rajada, o backlog da fila é a métrica de saúde natural desse fluxo, e
+&emsp; A migração proposta é deliberadamente parcial. O **caminho síncrono** — a
+requisição que o dashboard faz e cuja latência o usuário percebe — recebe o grupo de
+escalonamento e o balanceador, porque é onde a variação de carga é observável e a perda
+de uma instância tem efeito imediato sobre a experiência. O **caminho assíncrono** de
+ingestão continua em filas com consumidores no ECS Fargate: o desacoplamento por SQS
+já absorve rajadas, o backlog da fila é a métrica natural de saúde desse fluxo, e
 reescrevê-lo sobre EC2 acrescentaria risco de regressão sem ganho arquitetural
-correspondente. A seção 3.8 registra a decisão junto com a alternativa descartada.
+correspondente. A seção 3.8 registra a decisão e a alternativa descartada.
 
 ### 1.1 Legenda de estado
 
@@ -95,10 +86,11 @@ correspondente. A seção 3.8 registra a decisão junto com a alternativa descar
 
 ### 1.2 O que mudou nesta revisão
 
-> **ATUALIZAR A CADA APLICAÇÃO** · A coluna `Estado` reflete o que existe na conta,
-> não a intenção. Enquanto um item estiver como `Planejado`, o texto correspondente
-> nas seções 3 e 4 descreve projeto; ao aplicar, trocar o estado aqui e verificar se
-> a redação daquela seção passou para o presente do indicativo.
+&emsp; A comparação abaixo usa como base a arquitetura da versão 3. A coluna
+**Estado** registra a situação dos acréscimos da versão 4 na data de corte deste
+documento. Como os respectivos recursos ainda não existem no Terraform versionado,
+todos permanecem planejados; os componentes herdados da versão 3 continuam descritos
+em [`arquitetura-inicial.md`](arquitetura-inicial.md).
 
 | Item | Antes | Agora | Estado |
 |---|---|---|---|
@@ -131,31 +123,38 @@ em [`entendimento_negocio.md`](entendimento_negocio.md) e preservada aqui.
 
 ## 2. Diagrama de implantação do sistema — peso 1,0
 
-> **PREENCHER** · O diagrama é o item mais barato de perder ponto e o mais fácil de
-> acertar. Exigências: notação de implantação (estereótipos `«execution environment»`,
-> `«database»`, `«message queue»`, `«object storage»`), **fronteiras de rede
-> desenhadas** — a VPC, cada zona de disponibilidade, cada sub-rede — e setas
-> rotuladas com o protocolo e a porta reais. Todo recurso citado na seção 3 precisa
-> aparecer aqui, e vice-versa; a matriz de conexões da seção 3.7 é o checklist
-> cruzado dessa correspondência.
->
-> Erros que custam nota: sub-rede privada desenhada sem o NAT visível; ALB colocado
-> dentro da sub-rede privada; RDS sem indicação de zona de disponibilidade; bastion
-> sem a seta mostrando de onde parte o SSH.
-
 <div align="center">
 
-<sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
+<sub>Figura 1 — Topologia de implantação da versão 4 do Argus na AWS, região `us-east-1`</sub>
 
-![Diagrama de implantação do Argus v4](assets/arquitetura-implantacao-v4.png)
+[![Diagrama de implantação da versão 4 do Argus](assets/arquitetura-implantacao-v4.png)](assets/arquitetura-implantacao-v4.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; {{Parágrafo de leitura do diagrama: o que a figura mostra, o que o traço
-tracejado significa e qual é o caminho da requisição do dashboard. Escrever **depois**
-de a topologia estar aplicada, para descrever o que existe e não o que se pretendia.}}
+&emsp; A Figura 1 representa a topologia de destino da versão 4 e mantém visíveis os
+dois estados necessários para interpretá-la. Os nós em azul-cinza são componentes já
+presentes na versão 3; os nós em roxo são os acréscimos previstos nesta revisão. O
+laranja tracejado identifica o standby do RDS Multi-AZ, que não está provisionado na
+configuração de referência porque `db_multi_az` permanece desativado. Os retângulos
+tracejados azuis não são recursos de rede: apenas agrupam logicamente o Auto Scaling
+Group e o Application Load Balancer que atravessam as duas zonas de disponibilidade.
+O estado de provisionamento dos acréscimos roxos é o registrado na seção 1.2, portanto
+a figura documenta o desenho aprovado e não funciona, por si só, como evidência de
+implantação.
+
+&emsp; No caminho de leitura, o navegador estabelece HTTPS na porta 443 com o
+CloudFront. A distribuição usa o bucket S3 privado como origem do conteúdo estático,
+por Origin Access Control, e encaminha `/api/*`, sem cache e com o cabeçalho
+`Authorization`, ao ALB público. O balanceador termina HTTPS e envia HTTP na porta
+8000 para as instâncias privadas do Auto Scaling Group; a API consulta somente as
+views autorizadas do RDS pela porta 5432. No caminho assíncrono, aplicações cliente
+publicam eventos no API Gateway, que os entrega ao SQS; os serviços no ECS Fargate
+consomem as filas por long polling e persistem no mesmo RDS. O NAT Gateway fornece
+somente saída às sub-redes privadas. O acesso operacional parte da estação do
+administrador, com origem restrita, passa pelo bastion host por SSH na porta 22 e pode
+estabelecer um túnel até o banco sem torná-lo público.
 
 ### 2.1 Fonte editável e exportação
 
@@ -175,8 +174,11 @@ escrito.
 
 **Exportar o PNG**
 
-&emsp; O SVG tem 3760 × 2454 px de área útil, o que já é resolução suficiente para o
-avaliador ampliar a figura. Qualquer um dos comandos abaixo produz o PNG:
+&emsp; O SVG declara uma prancheta de 3760 × 2479 px. O PNG publicado tem 3760 × 2454
+px porque a exportação recorta 25 px de margem inferior vazia, sem atingir nós,
+rótulos ou conexões. Essa resolução permite ampliar a figura sem perder a leitura.
+Os comandos abaixo cobrem a exportação integral e a versão recortada usada no
+relatório:
 
 ```bash
 # opção 1 — rsvg-convert, mesma linha usada no v3
@@ -191,11 +193,10 @@ chrome --headless --disable-gpu --hide-scrollbars \
   artefatos/assets/arquitetura-implantacao-v4.svg
 ```
 
-&emsp; **Conferir depois de exportar:** o Markdown do GitHub reduz a figura à largura
-da coluna de leitura, cerca de 880 px, o que torna os rótulos ilegíveis em linha; o
-leitor precisa clicar na imagem para vê-la em tamanho real, e é por isso que o PNG
-exportado tem de ser grande. Fundo branco explícito, nunca transparente — no tema
-escuro do GitHub o texto sumiria.
+&emsp; No GitHub, a figura é reduzida à largura da coluna de leitura; a própria imagem
+funciona como link para o arquivo em resolução integral. O PNG versionado tem 3760 ×
+2454 px e fundo branco, o que preserva a legibilidade dos rótulos quando ampliado e
+evita perda de contraste no tema escuro.
 
 ### 2.2 Convenções de notação
 
@@ -204,7 +205,7 @@ escuro do GitHub o texto sumiria.
 | Nó tridimensional | Nó de implantação: ambiente de execução, serviço gerenciado ou dispositivo |
 | Preenchimento azul-cinza | Nó que **já existia na arquitetura v3** e foi apenas realocado na rede |
 | Preenchimento roxo | Nó **acrescentado nesta revisão** — não tem correspondente no diagrama v3 |
-| Preenchimento laranja tracejado | Nó **planejado**, ainda sem recurso no Terraform |
+| Preenchimento laranja tracejado | Nó **planejado e não provisionado** na configuração de referência |
 | Caixa branca interna `«artifact»` | Artefato de software implantado naquele nó |
 | Retângulo com título no canto superior | Fronteira de rede: VPC, zona de disponibilidade, sub-rede — toda essa camada é nova nesta revisão |
 | Retângulo tracejado sem preenchimento | Agrupamento lógico — Auto Scaling Group e balanceador — que atravessa as zonas de disponibilidade e não é recurso de rede |
@@ -216,7 +217,7 @@ escuro do GitHub o texto sumiria.
 Internet Gateway, NAT Gateway, bastion host, os dois nós do Application Load Balancer,
 as duas instâncias EC2 do Auto Scaling Group, a distribuição CloudFront e a estação do
 administrador. O RDS standby aparece em laranja porque é acréscimo **e** ainda não está
-provisionado — quando o Multi-AZ for ligado, ele passa para roxo.
+provisionado — quando `db_multi_az` for ativado e aplicado, ele passa para roxo.
 
 ---
 
