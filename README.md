@@ -35,7 +35,7 @@ O sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `v
 
 ## Arquitetura
 
-São **dois fluxos de ingestão** independentes que desembocam no mesmo banco, e um fluxo de leitura sobre ele.
+A arquitetura v3, implantada e validada na sprint anterior, possui **dois fluxos de ingestão** independentes que desembocam no mesmo banco, e um fluxo de leitura sobre ele.
 
 O primeiro fluxo é o de **eventos de sessão**: o que o app de TV emite (`request`, `screen_view`, `session`, `video_view`, `vitals`, `error`). O segundo é o de **mudanças (CDC)**: as 33 tabelas de telemetria do parceiro não chegam como evento, chegam como *linha que mudou* — e é isso que o simulador reproduz.
 
@@ -83,6 +83,17 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 > **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
+### Arquitetura v4 da Sprint 3
+
+A **arquitetura v4 foi desenvolvida na Sprint 3, a sprint atual**, para acrescentar
+uma VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade,
+NAT Gateway, bastion host, API de leitura em instâncias EC2 sob Auto Scaling Group,
+Application Load Balancer, CloudFront e a opção de RDS Multi-AZ. O diagrama e a
+documentação dessa evolução estão no artefato de
+[infraestrutura e integração](artefatos/infraestrutura-integracao.md). O artefato
+mantém separado o desenho desenvolvido na Sprint 3 do estado efetivamente
+provisionado na conta do Learner Lab.
+
 ---
 
 ## Estrutura de pastas
@@ -100,7 +111,7 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
 | `/apps/basica/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
 | `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
-| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem e MVP |
+| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem, MVP, infraestrutura e integração |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
 | `/artefatos/postman` | Coleção Postman de teste das duas APIs |
 | `/assets` | Logos usados neste README |
@@ -264,6 +275,7 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 |----------|-----------|
 | [MVP inicial](artefatos/mvp-inicial.md) | O que está implantado, modelo de dados e relatório de testes |
 | [Arquitetura do Argus v3](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
+| [Infraestrutura e integração da Sprint 3](artefatos/infraestrutura-integracao.md) | Arquitetura v4, diagrama em nuvem, componentes, plano de deploy, integração front-end/back-end e riscos conhecidos |
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
