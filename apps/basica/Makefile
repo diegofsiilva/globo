@@ -50,9 +50,20 @@ PG_TEST_URL  := postgresql://argus:argus@localhost:$(PG_PORT)/argus_test
 # `uv run` monta o ambiente sozinho a partir do pyproject de cada app.
 UV := uv run --quiet
 
-# As quatro imagens de container. O build tem contexto em apps/basica/ (e nao na
-# pasta de cada app) porque todas dependem de common/.
-IMAGES := worker simulator processing loader
+# As imagens de container.
+#
+# As quatro do pipeline (worker, simulator, processing, loader) constroem com
+# contexto em apps/basica/ -- e nao na pasta de cada app -- porque todas
+# dependem de common/.
+#
+# `backend` entrou quando a API de leitura saiu da Lambda e passou a rodar nas
+# instancias do Auto Scaling Group (infra/asg.tf): o que antes era um zip agora
+# e uma imagem que a instancia puxa do ECR no boot. Ele NAO depende de common/,
+# entao constroi com contexto so em backend/, que e muito menor.
+IMAGES := worker simulator processing loader backend
+
+# Contexto de build por imagem. Ver acima o porque de o backend ser diferente.
+CONTEXTO = $(if $(filter backend,$(1)),backend,.)
 
 # A tag que as task definitions referenciam. NUNCA `latest`.
 #
@@ -99,8 +110,15 @@ install: ## Instala as dependencias de todos os apps Python
 env: ## Cria o .env a partir dos outputs do Terraform
 	@test -f .env && { echo ".env ja existe — apague antes se quiser regerar."; exit 1; } || true
 	@echo "Lendo os endpoints do Terraform..."
+	@# ARGUS_API_URL prefere o ALB quando ele existe.
+	@#
+	@# Durante a migracao os dois caminhos de leitura coexistem: o HTTP API da
+	@# Lambda (`read_api_url`) e o Application Load Balancer (`api_url_alb`).
+	@# O ALB e o destino definitivo, entao ele vence; enquanto `create_network`
+	@# for falso o output vem vazio e o valor antigo continua valendo.
 	@{ \
-	  echo "ARGUS_API_URL=$$(cd $(INFRA) && terraform output -raw read_api_url 2>/dev/null)"; \
+	  echo "ARGUS_API_URL=$$(cd $(INFRA) && { terraform output -raw api_url_alb 2>/dev/null \
+	    || terraform output -raw read_api_url 2>/dev/null; })"; \
 	  echo "ARGUS_INGEST_URL=$$(cd $(INFRA) && terraform output -raw ingest_url 2>/dev/null)"; \
 	  echo "ARGUS_CHANGES_URL=$$(cd $(INFRA) && terraform output -raw changes_url 2>/dev/null)"; \
 	  echo "HYPOTHESES_SOURCE=mock"; \
@@ -344,14 +362,15 @@ parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
 # Imagens
 # --------------------------------------------------------------------------- #
 
-# O contexto e apps/basica/ (o `.` no fim) e nao a pasta do app: todas as
-# imagens dependem de common/, que fica fora da pasta de cada uma.
+# ARM64 em todas: a Lambda e arm64, as tasks Fargate sao arm64 e as instancias
+# do ASG sao Graviton (t4g). Construir x86 aqui faria a instancia falhar com
+# "exec format error" no `docker run` do user_data.
 .PHONY: images
-images: $(addprefix image-,$(IMAGES)) ## Constroi as quatro imagens (ARM64)
+images: $(addprefix image-,$(IMAGES)) ## Constroi as imagens (ARM64)
 
 .PHONY: $(addprefix image-,$(IMAGES))
 $(addprefix image-,$(IMAGES)): image-%:
-	docker build --platform linux/arm64 -f $*/Dockerfile -t argus-$*:dev .
+	docker build --platform linux/arm64 -f $*/Dockerfile -t argus-$*:dev $(call CONTEXTO,$*)
 
 .PHONY: image-tag
 image-tag: ## Mostra a tag de imagem deste commit
@@ -448,8 +467,9 @@ push: ## Publica as imagens no ECR com a tag do commit
 	for nome in $(IMAGES); do \
 	  url=$$(printf '%s' "$$urls" | python3 -c "import json,sys; print(json.load(sys.stdin)['$$nome'])"); \
 	  echo; echo "--- $$nome"; \
+	  contexto="."; [ "$$nome" = "backend" ] && contexto="backend"; \
 	  docker build --platform linux/arm64 -f $$nome/Dockerfile \
-	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" .; \
+	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" "$$contexto"; \
 	  docker push "$$url:$(IMAGE_TAG)"; \
 	  docker push "$$url:latest"; \
 	done
