@@ -60,15 +60,125 @@ variable "existing_role_arn" {
 # Rede
 # --------------------------------------------------------------------------- #
 
+variable "create_vpc" {
+  description = <<-EOT
+    `true` cria a rede do projeto em `vpc.tf`: VPC propria, duas subnets
+    publicas, duas privadas, Internet Gateway, NAT Gateway, tabelas de rota,
+    gateway endpoint de S3 e Flow Logs. As tasks, a Lambda e o RDS passam a
+    viver nas subnets PRIVADAS.
+
+    `false` volta ao comportamento anterior -- o stack consome a VPC default da
+    conta e nada de rede e gerenciado. Nesse caso `assign_public_ip` precisa
+    voltar a `true`, senao a task nao alcanca o ECR e o service entra em crash
+    loop.
+
+    ATENCAO: a AWS nao move uma instancia RDS entre VPCs. Ligar esta chave num
+    stack ja aplicado RECRIA o banco, e com ele as 33 tabelas carregadas. Tire
+    um snapshot manual antes do apply -- ver "Rede: publica vs privada" no
+    README.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "vpc_cidr" {
+  description = <<-EOT
+    Faixa de enderecos da VPC criada por `create_vpc`. O /16 da 65.536
+    enderecos, dos quais este desenho usa quatro /24: 10.0.0.0/24 e 10.0.1.0/24
+    publicas, 10.0.10.0/24 e 10.0.11.0/24 privadas.
+
+    Um /16 e mais do que o projeto precisa hoje, e de proposito: nao da para
+    aumentar o CIDR primario de uma VPC depois, e o custo de reservar enderecos
+    privados e zero.
+  EOT
+  type        = string
+  default     = "10.0.0.0/16"
+
+  validation {
+    condition     = can(cidrnetmask(var.vpc_cidr))
+    error_message = "vpc_cidr precisa ser um CIDR valido, por exemplo 10.0.0.0/16."
+  }
+}
+
+variable "azs" {
+  description = <<-EOT
+    Zonas de disponibilidade da rede criada. Vazio usa as duas primeiras
+    disponiveis na regiao.
+
+    Duas, e nao uma: o Application Load Balancer exige no minimo duas subnets em
+    AZs diferentes, e um subnet group de RDS tambem. Fixar a lista so importa se
+    o laboratorio restringir alguma zona.
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = length(var.azs) == 0 || length(var.azs) >= 2
+    error_message = "azs precisa estar vazio ou conter ao menos duas zonas."
+  }
+}
+
+variable "flow_logs_destination" {
+  description = <<-EOT
+    Onde os VPC Flow Logs sao entregues: `s3` ou `cloudwatch`.
+
+    `s3` e o padrao porque usa politica de bucket e dispensa papel IAM. O
+    caminho do CloudWatch exige uma role que confie em
+    `vpc-flow-logs.amazonaws.com`, e a LabRole do AWS Academy nao confia -- com
+    `create_iam_roles = false` o apply falha por confianca negada.
+
+    `cloudwatch` e melhor numa conta normal: o Logs Insights consulta os
+    registros direto, sem baixar arquivo.
+  EOT
+  type        = string
+  default     = "s3"
+
+  validation {
+    condition     = contains(["s3", "cloudwatch"], var.flow_logs_destination)
+    error_message = "flow_logs_destination precisa ser \"s3\" ou \"cloudwatch\"."
+  }
+}
+
+variable "flow_logs_bucket_name" {
+  description = <<-EOT
+    Bucket S3 ja existente para receber os flow logs. Vazio (o padrao) faz o
+    Terraform criar o bucket.
+
+    Existe por causa de uma restricao do AWS Academy: a SCP da organizacao nega
+    `s3:GetBucketObjectLockConfiguration`, e o provider AWS chama essa API ao
+    reler qualquer `aws_s3_bucket` recem-criado. O bucket nasce, o apply falha na
+    releitura e o recurso fica no state quebrando todo plan seguinte. Criar o
+    bucket fora do Terraform e informar o nome aqui contorna isso -- politica,
+    bloqueio publico, criptografia e ciclo de vida seguem gerenciados, porque
+    essas chamadas a SCP permite.
+
+        aws s3api create-bucket --bucket <nome> --region us-east-1
+
+    Numa conta sem essa restricao, deixe vazio.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "vpc_id" {
-  description = "VPC onde as tasks Fargate rodam. Vazio usa a VPC default da conta."
+  description = <<-EOT
+    Sobrescreve a VPC das tasks Fargate, do RDS e da Lambda. Tem precedencia
+    sobre `create_vpc`, e existe para apontar o stack a uma rede que ja existe.
+
+    Vazio e o normal: com `create_vpc = true` usa a VPC criada em `vpc.tf`; com
+    `false`, a VPC default da conta.
+  EOT
   type        = string
   default     = ""
 }
 
 variable "subnet_ids" {
   description = <<-EOT
-    Subnets das tasks Fargate. Vazio usa as subnets default da VPC.
+    Sobrescreve as subnets das tasks Fargate, do RDS e da Lambda. Tem
+    precedencia sobre `create_vpc`.
+
+    Vazio e o normal: com `create_vpc = true` usa as subnets PRIVADAS criadas em
+    `vpc.tf`; com `false`, as subnets default da conta.
 
     Se `assign_public_ip = true`, precisam ser subnets publicas (com rota para
     Internet Gateway). Se `false`, precisam ser privadas com NAT Gateway ou os
@@ -77,19 +187,34 @@ variable "subnet_ids" {
   EOT
   type        = list(string)
   default     = []
+
+  # Nomear a VPC e deixar as subnets em branco e a combinacao que falha calada:
+  # com `create_vpc = true` o stack acabaria com `vpc_id` de uma rede e subnets
+  # de outra, e o erro so apareceria no apply, vindo do security group.
+  validation {
+    condition     = var.vpc_id == "" || length(var.subnet_ids) > 0
+    error_message = "Ao informar vpc_id, informe tambem subnet_ids: os dois descrevem a mesma rede e nao valem separados."
+  }
 }
 
 variable "assign_public_ip" {
   description = <<-EOT
-    IP publico na task. `true` evita o NAT Gateway (~US$ 32/mes + trafego), que
-    seria o item mais caro do fluxo inteiro. A task nao aceita conexao de fora:
-    o security group nao tem regra de entrada, so de saida.
+    IP publico na task. O padrao e `false`, que so funciona junto com
+    `create_vpc = true`: a task fica na subnet privada e sai pelo NAT Gateway.
+    E o par que a rubrica de infraestrutura exige, e a postura correta para dado
+    de parceiro -- sem rota de entrada, e nao apenas sem regra de entrada.
 
-    Em producao com dado sensivel, prefira `false` + subnet privada + VPC
-    endpoints (ver infra/README.md).
+    `true` devolve o desenho anterior: task em subnet publica com IP publico,
+    alcancando as APIs da AWS pela internet e economizando o NAT (~US$ 33/mes +
+    trafego). A task continua nao aceitando conexao de fora, porque o security
+    group nao tem regra de entrada -- mas o unico controle passa a ser esse.
+
+    As duas chaves andam juntas. `create_vpc = false` com `assign_public_ip =
+    false` deixa a task sem rota nenhuma para o ECR: ela nao baixa a imagem e o
+    service entra em crash loop.
   EOT
   type        = bool
-  default     = true
+  default     = false
 }
 
 # --------------------------------------------------------------------------- #

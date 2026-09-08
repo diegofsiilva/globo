@@ -274,15 +274,22 @@ inicial, então desligá-lo não é a mesma coisa que desligar um worker.
 Para economizar crédito do lab, `make pause` zera os `desired_count` dos services
 e deixa o banco de pé; só `terraform destroy` derruba tudo, **inclusive a carga**.
 
-O item que **não** está aqui e seria o maior de todos é o NAT Gateway (~US$ 32/mês
-+ tráfego). Ele é evitado por `assign_public_ip = true`.
+O **NAT Gateway** (~US$ 33/mês + tráfego) entra na conta quando
+`create_vpc = true`, que é o padrão — sozinho, ~31% de acréscimo sobre o total
+acima. VPC, subnets, IGW, tabelas de rota, o EIP em uso e o gateway endpoint de
+S3 são gratuitos; os Flow Logs custam de centavos a poucos dólares no volume do
+laboratório.
+
+Ele cobra por hora existindo, em uso ou não, e `make pause` **não** o remove.
+Provisione perto da apresentação e derrube depois — ou volte a
+`create_vpc = false` com `assign_public_ip = true`.
 
 ---
 
 ## AWS Academy — Learner Lab
 
-Três coisas do laboratório quebram um Terraform escrito para conta normal. As
-três estão resolvidas por variável, sem bifurcar o código:
+Quatro coisas do laboratório quebram um Terraform escrito para conta normal. As
+quatro estão resolvidas por variável, sem bifurcar o código:
 
 **1. `iam:CreateRole` é negado.** O ambiente obriga a usar a `LabRole` pronta.
 
@@ -316,6 +323,24 @@ aws rds describe-orderable-db-instance-options --profile g4 \
   --query 'OrderableDBInstanceOptions[].DBInstanceClass' --output text
 ```
 
+**4. A `LabRole` não confia no serviço de Flow Logs.** Entregar os logs de rede
+ao CloudWatch exige uma role que confie em `vpc-flow-logs.amazonaws.com`, e a
+`LabRole` confia apenas nos três serviços listados no item 1. Com
+`create_iam_roles = false` esse caminho falha por confiança negada. O padrão já
+evita o problema, entregando em S3, que usa política de bucket em vez de papel:
+
+```hcl
+flow_logs_destination = "s3"
+```
+
+**Cuidado com o crédito na rede.** O NAT Gateway cobra ~US$ 33/mês existindo, e
+`make pause` não o remove. O limite padrão de Elastic IPs da região são 5 — se o
+apply falhar por cota, libere os EIPs órfãos antes de tentar de novo:
+
+```bash
+aws ec2 describe-addresses --query 'Addresses[?AssociationId==`null`].AllocationId'
+```
+
 **Credenciais expiram.** A sessão do laboratório vence em algumas horas. Quando
 vence, a AWS anexa uma policy `voc-cancel-cred` que **nega tudo** — os comandos
 falham com `AccessDenied ... explicit deny`, e não com `ExpiredToken`, o que
@@ -337,12 +362,60 @@ Com os workers parados, as APIs continuam aceitando e as filas retêm por 4 dias
 
 ## Rede: pública vs privada
 
-O padrão é **subnet pública com IP público e security group sem regra de
-entrada**. As tasks alcançam as APIs da AWS pela internet, mas ninguém alcança as
-tasks — não há porta aberta.
+A rede é **gerenciada pelo projeto**, em `vpc.tf`, e não mais a VPC default da
+conta. Antes o stack *consumia* o que a AWS entrega pronto; agora a faixa de
+endereços, as rotas e a separação público/privado estão descritas em código.
 
-O RDS **não é exceção**: ele é privado e aceita conexão apenas do security
-group das tasks. Não há regra para CIDR externo.
+```
+VPC  10.0.0.0/16   (DNS hostnames e DNS support habilitados)
+│
+├── Internet Gateway
+│
+├── Tabela de rota PÚBLICA          0.0.0.0/0 → IGW
+│   ├── subnet pública  10.0.0.0/24   AZ a  ── NAT Gateway + EIP
+│   └── subnet pública  10.0.1.0/24   AZ b
+│
+├── Tabela de rota PRIVADA          0.0.0.0/0 → NAT Gateway
+│   ├── subnet privada  10.0.10.0/24  AZ a
+│   └── subnet privada  10.0.11.0/24  AZ b
+│          ├── tasks ECS Fargate  (assign_public_ip = false)
+│          ├── Lambda da API de leitura
+│          └── RDS PostgreSQL
+│
+├── Gateway endpoint S3  → tabela de rota privada  (grátis)
+│
+└── Flow Logs (traffic_type = ALL)  →  bucket S3, ou CloudWatch Logs
+```
+
+**O que separa pública de privada não é nada na subnet — é a tabela de rota.**
+Pública é a que manda `0.0.0.0/0` para o Internet Gateway; privada, a que manda
+para o NAT Gateway. É por isso que as duas telas do console que comprovam a
+separação são *Route Tables*, e não *Subnets*.
+
+**O que o NAT Gateway resolve.** As tasks, a Lambda e o banco não têm IP público
+e não estão numa rota que chegue do lado de fora. Elas continuam alcançando ECR,
+SQS, Secrets Manager e CloudWatch porque o NAT deixa a conexão *sair* e a
+resposta voltar — mas ninguém de fora consegue iniciar conexão para dentro.
+
+Antes, o único controle que impedia alguém de alcançar as tasks era o security
+group sem regra de entrada. Agora some também a rota: são dois controles
+independentes em vez de um.
+
+**O que o NAT Gateway não resolve.** Ele não protege a *saída*. A regra
+`tasks_https` de `ecs.tf` libera 443 para `0.0.0.0/0`, e com NAT ela continua
+idêntica. Do ponto de vista de exfiltração a partir de um contêiner comprometido,
+IP público e NAT são equivalentes. Quem fecharia essa lacuna são VPC endpoints de
+interface com política de endpoint — ~US$ 7/mês cada por AZ, fora do escopo desta
+entrega. O gateway endpoint de S3, que é **grátis**, já está aqui: ele tira do
+NAT os ~200 MB de Parquet que o `loader` lê a cada carga inicial.
+
+**Um NAT, não um por AZ.** Em produção o correto é um por zona, com uma tabela de
+rota privada por zona: com um só, a queda daquela AZ derruba a saída das duas. A
+escolha é de custo — US$ 33/mês contra US$ 66 —, consciente, e deve ser declarada
+e não escondida.
+
+O RDS **não é exceção**: ele é privado, fica nas subnets privadas e aceita
+conexão apenas do security group das tasks. Não há regra para CIDR externo.
 
 Até a adequação do RNF09 o banco era público, restrito ao IP de quem estava
 trabalhando. A exposição do dado do parceiro dependia de uma linha de `tfvars` e
@@ -354,23 +427,101 @@ make -C .. migrate-status-aws
 make -C .. migrate-aws
 ```
 
-Para exigência de subnet privada, `assign_public_ip = false` exige uma destas:
+### Ligar a rede gerenciada num stack que já existe
 
-- **NAT Gateway** — simples, ~US$ 32/mês + tráfego.
-- **VPC endpoints** — sem NAT, mas precisa de *todos* estes, senão a task nem
-  baixa a imagem e o service entra em crash loop:
-  - Gateway (grátis): `s3`
-  - Interface (~US$ 7/mês cada por AZ): `sqs`, `ecr.api`, `ecr.dkr`, `logs`,
-    `secretsmanager`
+**A AWS não move uma instância RDS entre VPCs.** Um subnet group só pode conter
+subnets da mesma VPC da instância, então trocar a rede **recria o banco** — e com
+ele as 33 tabelas carregadas.
+
+```bash
+# 1. Rede de segurança, antes de qualquer coisa.
+aws rds create-db-snapshot \
+  --db-instance-identifier argus-events-<env> \
+  --db-snapshot-identifier argus-events-<env>-pre-vpc
+
+# 2. Aplique.
+make -C .. tf-plan          # confira: a instância RDS aparece como replace
+make -C .. tf-apply
+
+# 3. Reconstrua o schema e a carga.
+make -C .. migrate-aws
+make -C .. load
+```
+
+`make load` é o percurso mais testado do projeto — é exercitado a cada recriação
+da conta do Learner Lab. Se houver dado produzido pelo simulador que a carga
+inicial não reproduza, restaure do snapshot em vez de recarregar.
+
+**Valide o NAT antes de depender dele.** Entre criar a rede e mover os serviços,
+suba uma task avulsa na subnet privada e confirme que ela alcança a AWS. Sem esse
+passo, uma task em crash loop tem duas causas possíveis e nenhuma pista — rota de
+saída ausente e defeito de aplicação são indistinguíveis pelo sintoma.
+
+### Voltar atrás
+
+As duas chaves andam juntas, e uma não vale sem a outra:
+
+```hcl
+create_vpc       = false   # volta a consumir a VPC default da conta
+assign_public_ip = true    # task em subnet pública, sem NAT
+```
+
+`create_vpc = false` com `assign_public_ip = false` deixa a task sem rota nenhuma
+para o ECR: ela não baixa a imagem e o service entra em crash loop.
+
+---
+
+## Observabilidade da rede: Flow Logs
+
+Os alarmes de `observability.tf` medem a **aplicação** — profundidade de fila,
+DLQ, CPU do banco, lag do simulador. Nenhum enxerga a rede. Os VPC Flow Logs
+preenchem esse buraco: registram todo fluxo `ACCEPT` e `REJECT` nas interfaces da
+VPC, com origem, destino, porta e bytes.
+
+Na prática é o que responde, sem instrumentar nada:
+
+- a task **está mesmo saindo pelo NAT**? (`ACCEPT` de um IP `10.0.1x.x` para fora)
+- quem está batendo na 5432 e sendo recusado? (`REJECT` para o IP do banco)
+
+`traffic_type = "ALL"`, e não `REJECT`: o rejeitado sozinho conta metade da
+história — é o `ACCEPT` que prova que a máquina privada saiu.
+
+A agregação está em **60 segundos** em vez dos 600 do padrão. Numa apresentação,
+esperar dez minutos pelo primeiro registro é a diferença entre mostrar a
+evidência e falar sobre ela.
+
+**O destino padrão é S3**, e a razão é o laboratório. Entregar ao CloudWatch Logs
+exige um papel IAM que confie em `vpc-flow-logs.amazonaws.com`; a `LabRole`
+confia em `apigateway`, `ecs-tasks` e `lambda` — e não nesse. Com
+`create_iam_roles = false`, obrigatório no Learner Lab, esse caminho falha por
+confiança negada. S3 usa política de bucket em vez de papel, elimina a
+dependência e custa menos por GB.
+
+```bash
+aws iam get-role --role-name LabRole \
+  --query 'Role.AssumeRolePolicyDocument' --output json   # confirme antes
+```
+
+Numa conta normal, `flow_logs_destination = "cloudwatch"` é melhor: o Logs
+Insights consulta os registros com uma linguagem de consulta, sem baixar arquivo.
+
+Onde ler, nos dois casos:
+
+```bash
+make -C .. tf-output                  # flow_logs_location e os comandos prontos
+terraform output network_evidence_commands
+```
 
 ---
 
 ## Segurança e lacunas conhecidas
 
-**Superfície de rede.** As tasks ficam em subnet pública com IP público e
-security group sem regra de entrada: elas alcançam a AWS pela internet, mas
-ninguém alcança as tasks. O RDS é privado e só aceita conexão do security group
-das tasks — não há porta aberta para fora da VPC.
+**Superfície de rede.** As tasks ficam em subnet **privada**, sem IP público e
+com security group sem regra de entrada: elas alcançam a AWS pelo NAT Gateway,
+mas não há rota nem porta que chegue até elas de fora. O RDS é privado, também
+nas subnets privadas, e só aceita conexão do security group das tasks. A lacuna
+que permanece é a **saída** irrestrita na 443, discutida em "Rede: pública vs
+privada".
 
 **Dado pessoal.** A API de leitura remove identificadores e cabeçalhos sensíveis
 na resposta (RNF10). O evento cru fica no banco, com criptografia em repouso, e o
@@ -435,6 +586,7 @@ de propósito. Para remover mesmo, mude para `false`, aplique, e só então dest
 
 | Arquivo | Conteúdo |
 |---|---|
+| `vpc.tf` | VPC, quatro subnets, IGW, NAT Gateway, tabelas de rota, endpoint de S3 e Flow Logs |
 | `rds.tf` | instância PostgreSQL 16, subnet group, parameter group e segredo da senha |
 | `s3_origem.tf` | bucket versionado com o dump e os Parquet da carga inicial |
 | `sqs.tf` | fila de eventos, DLQ, redrive e policy restringindo o publisher à API |
@@ -450,5 +602,5 @@ de propósito. Para remover mesmo, mude para `false`, aplique, e só então dest
 | `frontend_s3.tf` | bucket do dashboard, com website hosting |
 | `iam.tf` | execution role e task role, separadas |
 | `observability.tf` | SNS e os 11 alarmes |
-| `locals.tf` | lookup da VPC/subnets default e a lista de imagens |
+| `locals.tf` | escolha da rede (gerenciada, informada ou default) e a lista de imagens |
 | `outputs.tf` | endpoints, nomes de recurso e comandos prontos (push, carga) |

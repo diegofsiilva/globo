@@ -6,9 +6,25 @@
 # `make migrate` em vez de `terraform apply`, o que numa sessao de laboratorio e
 # a diferenca entre trinta segundos e cinco minutos por tentativa.
 
+# Com `create_vpc = true`, `local.subnet_ids` sao as subnets PRIVADAS de
+# vpc.tf -- o banco deixa de viver na VPC default da conta.
+#
+# `name_prefix` e nao `name`, e o par com `create_before_destroy`, por um motivo
+# especifico: a AWS nao move uma instancia RDS entre VPCs, entao trocar a rede
+# obriga a recriar o subnet group. Com nome fixo o Terraform trava -- nao
+# consegue destruir o antigo, que ainda esta em uso pela instancia, nem criar o
+# novo, que colidiria no mesmo nome. Com prefixo, o novo nasce ao lado e o
+# antigo sai depois.
+#
+# ATENCAO: recriar o subnet group RECRIA a instancia, e com ela as 33 tabelas
+# carregadas. Snapshot manual antes; `make migrate-aws` e `make load` depois.
 resource "aws_db_subnet_group" "main" {
-  name       = local.name
-  subnet_ids = local.subnet_ids
+  name_prefix = "${local.name}-"
+  subnet_ids  = local.subnet_ids
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   tags = {
     Name = local.name

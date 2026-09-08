@@ -1,10 +1,35 @@
 locals {
   name = "${var.name_prefix}-${var.environment}"
 
-  # Rede: usa a VPC/subnets default quando nada e passado, para que um
-  # `terraform apply` numa conta nova funcione sem configuracao previa.
-  vpc_id     = var.vpc_id != "" ? var.vpc_id : data.aws_vpc.default[0].id
-  subnet_ids = length(var.subnet_ids) > 0 ? var.subnet_ids : data.aws_subnets.default[0].ids
+  # Rede. Toda a indirecao do stack passa por estes tres valores: ecs.tf,
+  # ecs_processing.tf, ecs_simulator.tf, ecs_loader.tf, ecs_migration.tf,
+  # api_read.tf e rds.tf consomem `vpc_id` e `subnet_ids` e nao sabem de onde
+  # vieram. E por isso que trocar a VPC default pela VPC gerenciada de `vpc.tf`
+  # nao toca em nenhum dos sete.
+  #
+  # Precedencia, do mais explicito para o mais implicito:
+  #   1. var.vpc_id / var.subnet_ids -- uma rede que ja existe, informada a mao
+  #   2. var.create_vpc              -- a rede gerenciada em vpc.tf
+  #   3. a VPC default da conta      -- para que um apply numa conta nova
+  #                                     funcione sem configuracao previa
+  vpc_id = (
+    var.vpc_id != "" ? var.vpc_id :
+    var.create_vpc ? aws_vpc.main[0].id :
+    data.aws_vpc.default[0].id
+  )
+
+  # As subnets dos WORKLOADS: tasks Fargate, Lambda de leitura e RDS. Com a rede
+  # gerenciada, sao as PRIVADAS -- as publicas ficam reservadas ao NAT e, nas
+  # entregas seguintes, ao bastion e ao balanceador.
+  subnet_ids = (
+    length(var.subnet_ids) > 0 ? var.subnet_ids :
+    var.create_vpc ? aws_subnet.private[*].id :
+    data.aws_subnets.default[0].ids
+  )
+
+  # Vazio quando a rede nao e gerenciada: a VPC default nao tem separacao
+  # publico/privado que este stack possa afirmar.
+  public_subnet_ids = var.create_vpc ? aws_subnet.public[*].id : []
 
   # As quatro imagens do fluxo v3. A chave e o nome do repositorio ECR, da pasta
   # em apps/basica/ e do sufixo do recurso -- manter os tres iguais e o que
@@ -98,13 +123,15 @@ data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {}
 
+# O caminho alternativo: a VPC que a AWS entrega pronta em toda conta. So e
+# consultada quando nem `var.vpc_id` nem `var.create_vpc` respondem pela rede.
 data "aws_vpc" "default" {
-  count   = var.vpc_id == "" ? 1 : 0
+  count   = var.vpc_id == "" && !var.create_vpc ? 1 : 0
   default = true
 }
 
 data "aws_subnets" "default" {
-  count = length(var.subnet_ids) == 0 ? 1 : 0
+  count = length(var.subnet_ids) == 0 && !var.create_vpc ? 1 : 0
 
   filter {
     name   = "vpc-id"

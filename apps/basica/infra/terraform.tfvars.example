@@ -58,9 +58,29 @@ read_api_db_user     = "argus_api"
 read_api_db_password = "outra-senha-longa-so-para-leitura"
 
 # --- Rede -------------------------------------------------------------------
-# Vazio usa a VPC/subnets default da conta.
-# true = subnet publica com IP publico, sem NAT Gateway (economiza ~US$ 32/mes).
-assign_public_ip = true
+# O padrao cria a rede do projeto (VPC 10.0.0.0/16, duas subnets publicas, duas
+# privadas, IGW, NAT Gateway, endpoint de S3 e Flow Logs) e coloca as tasks, a
+# Lambda e o RDS nas PRIVADAS, saindo para a internet pelo NAT.
+#
+# O NAT custa ~US$ 33/mes existindo, em uso ou nao. Provisione perto da
+# apresentacao e destrua depois.
+create_vpc       = true
+assign_public_ip = false
+
+# Onde os Flow Logs sao entregues. "s3" dispensa papel IAM e por isso funciona
+# no Learner Lab; "cloudwatch" exige uma role que confie em
+# vpc-flow-logs.amazonaws.com, que a LabRole NAO tem.
+flow_logs_destination = "s3"
+
+# Para voltar ao desenho anterior -- VPC default da conta, task em subnet
+# publica com IP publico, sem NAT -- as duas chaves andam juntas:
+#   create_vpc       = false
+#   assign_public_ip = true
+
+# Faixa e zonas da rede criada. Os defaults servem; so mude se colidir com uma
+# rede que voce va emparelhar, ou se o laboratorio restringir alguma AZ.
+# vpc_cidr = "10.0.0.0/16"
+# azs      = ["us-east-1a", "us-east-1b"]
 
 # --- Servicos ---------------------------------------------------------------
 worker_desired_count = 1

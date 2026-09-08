@@ -241,3 +241,80 @@ output "read_api_examples" {
     agrupado = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/metrics/breakdown?dimension=device_manufacturer"
   }
 }
+
+# --------------------------------------------------------------------------- #
+# Rede
+# --------------------------------------------------------------------------- #
+
+output "vpc_id" {
+  description = "VPC em uso pelo stack -- a gerenciada por vpc.tf, ou a default da conta."
+  value       = local.vpc_id
+}
+
+output "vpc_cidr" {
+  description = "Faixa de enderecos da VPC gerenciada. Vazio quando create_vpc = false."
+  value       = var.create_vpc ? aws_vpc.main[0].cidr_block : ""
+}
+
+output "public_subnet_ids" {
+  description = <<-EOT
+    Subnets publicas: NAT Gateway hoje, bastion e Application Load Balancer nas
+    entregas seguintes. Vazio quando create_vpc = false.
+  EOT
+  value       = local.public_subnet_ids
+}
+
+output "private_subnet_ids" {
+  description = "Subnets dos workloads: tasks Fargate, Lambda de leitura e RDS."
+  value       = local.subnet_ids
+}
+
+output "nat_gateway_public_ip" {
+  description = <<-EOT
+    IP publico do NAT. E por ele que todo trafego de saida das subnets privadas
+    aparece para o resto da internet -- util para conferir a evidencia nos flow
+    logs. Vazio quando create_vpc = false.
+  EOT
+  value       = var.create_vpc ? aws_eip.nat[0].public_ip : ""
+}
+
+output "flow_logs_location" {
+  description = <<-EOT
+    Onde ler os VPC Flow Logs: o bucket S3 ou o log group do CloudWatch,
+    conforme `flow_logs_destination`. Vazio quando create_vpc = false.
+  EOT
+  value = (
+    !var.create_vpc ? "" :
+    var.flow_logs_destination == "s3"
+    ? "s3://${local.flow_logs_bucket}/AWSLogs/${data.aws_caller_identity.current.account_id}/vpcflowlogs/"
+    : aws_cloudwatch_log_group.flow_logs[0].name
+  )
+}
+
+# Os comandos que fecham a evidencia da clausula (a) sem abrir o console: um
+# mostra as rotas -- 0.0.0.0/0 para o IGW numa tabela, para o NAT na outra --, o
+# outro despeja os primeiros registros de fluxo ja capturados.
+output "network_evidence_commands" {
+  description = "Comandos prontos para conferir rotas e flow logs."
+  value = var.create_vpc ? {
+    rotas = join("", [
+      "aws ec2 describe-route-tables --filters Name=vpc-id,Values=", local.vpc_id,
+      " --query 'RouteTables[].{Tabela:Tags[?Key==`Name`]|[0].Value,",
+      "Rotas:Routes[].{Destino:DestinationCidrBlock,IGW:GatewayId,NAT:NatGatewayId}}'",
+      " --output json",
+    ])
+    subnets = join("", [
+      "aws ec2 describe-subnets --filters Name=vpc-id,Values=", local.vpc_id,
+      " --query 'Subnets[].{Nome:Tags[?Key==`Name`]|[0].Value,CIDR:CidrBlock,",
+      "AZ:AvailabilityZone,IPPublico:MapPublicIpOnLaunch}' --output table",
+    ])
+    flow_logs = (
+      var.flow_logs_destination == "s3"
+      ? "aws s3 ls --recursive s3://${local.flow_logs_bucket}/ | tail -20"
+      : join("", [
+        "aws logs tail ", aws_cloudwatch_log_group.flow_logs[0].name,
+        " --since 15m --format short",
+      ])
+    )
+  } : {}
+}
