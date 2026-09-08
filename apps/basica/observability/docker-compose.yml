@@ -1,0 +1,56 @@
+# Stack de observabilidade local unica do Argus: Prometheus (metricas do k6
+# dos testes de carga RNF01/02/03) e Grafana (dashboards de resiliencia
+# RNF04/05/11 e de testes de carga RNF01/02/03), com CloudWatch e Prometheus
+# como datasources no mesmo Grafana.
+#
+#   make -C apps/basica observabilidade-up
+#
+# Grafana fica em http://localhost:3000, Prometheus em http://localhost:9090,
+# ambos acessiveis so pela propria maquina (bind em 127.0.0.1).
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: argus-prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-remote-write-receiver"
+      - "--storage.tsdb.retention.time=7d"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: argus-grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      AWS_SHARED_CREDENTIALS_FILE: /aws/credentials
+      AWS_PROFILE: g4
+    volumes:
+      # So o perfil g4 chega aqui, nunca o ~/.aws/credentials inteiro -- o
+      # Makefile extrai o bloco [g4] para um arquivo temporario (mktemp) antes
+      # de subir o compose. Sem esse arquivo (uso so do Prometheus/k6, sem
+      # CloudWatch), a variavel cai em /dev/null e o datasource CloudWatch
+      # fica sem credencial, sem quebrar o resto do stack.
+      - ${AWS_CREDS_FILE:-/dev/null}:/aws/credentials:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+    name: argus-prometheus-data
+  grafana_data:
+    name: argus-grafana-data
