@@ -18,6 +18,8 @@ __pycache__/
 apps/basica/infra/.terraform/
 apps/basica/infra/*.tfstate
 apps/basica/infra/*.tfstate.*
+# State dos workspaces: o padrao acima nao alcanca subdiretorio.
+apps/basica/infra/terraform.tfstate.d/
 apps/basica/infra/*.tfvars
 !apps/basica/infra/*.tfvars.example
 apps/basica/infra/backend.tf
