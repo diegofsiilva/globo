@@ -27,7 +27,7 @@ INFRA      := infra
 TOOLS      := tools
 FRONTEND   := frontend
 POSTMAN    := ../../artefatos/postman
-OBSERVABILITY := observability/grafana
+OBSERVABILITY := observability
 
 # O motor de hipóteses ainda não possui endpoint no MVP. O modo mock é
 # explícito nos fluxos suportados e pode ser trocado por `api` quando existir.
@@ -788,32 +788,54 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 	cd $(TOOLS) && $(UV) python replay_events.py --url "$(ARGUS_INGEST_URL)" --src "$(EVENTS_SRC)"
 
 .PHONY: observabilidade-up
-observabilidade-up: ## Sobe Prometheus e Grafana para os testes k6
-	docker compose -f tests/carga/docker-compose.observabilidade.yml up -d
+observabilidade-up: ## Sobe Prometheus e Grafana locais (dashboards de resiliencia RNF04/05/11 e de carga RNF01/02/03)
+	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
+	@test -f "$(HOME)/.aws/credentials" || { echo "erro: $(HOME)/.aws/credentials nao existe."; exit 1; }
+	@# So o perfil g4 vai pro container -- nunca o arquivo inteiro, que pode ter
+	@# outros perfis (ex. default) sem relacao com este dashboard. `mktemp` (nao
+	@# um nome fixo) evita tanto reaproveitar permissao de um arquivo antigo
+	@# quanto ataque de symlink num /tmp compartilhado; o trap cobre o caminho
+	@# de erro do `docker compose` tambem, nao so o de sucesso.
+	creds_tmp=$$(mktemp) && \
+	trap 'rm -f "$$creds_tmp"' EXIT && \
+	awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > "$$creds_tmp" && \
+	test -s "$$creds_tmp" || { echo "erro: perfil [g4] nao encontrado em $(HOME)/.aws/credentials"; exit 1; } && \
+	AWS_CREDS_FILE="$$creds_tmp" docker compose -f $(OBSERVABILITY)/docker-compose.yml up -d
 	@echo "Prometheus: http://localhost:9090"
-	@echo "Grafana:    http://localhost:3001"
+	@echo "Grafana:    http://localhost:3000 (dashboards 'RNF04/05/11 - Resiliencia Argus' e 'Argus — Testes de Carga (RNF01/02/03)'), acessivel so pela propria maquina (bind em 127.0.0.1)."
+	@echo "Credenciais AWS lidas de $(HOME)/.aws/credentials (perfil g4) -- expira junto com a sessao do Learner Lab, so rodar observabilidade-up de novo apos renovar."
+
+.PHONY: observabilidade-down
+observabilidade-down: ## Derruba Prometheus e Grafana locais (preserva os volumes; 'down -v' manual apaga o historico)
+	docker compose -f $(OBSERVABILITY)/docker-compose.yml down
 
 .PHONY: observabilidade-check
-observabilidade-check: ## Valida Prometheus, Grafana, datasource e consulta entre eles
+observabilidade-check: ## Valida Prometheus, Grafana e os dois datasources (Prometheus e CloudWatch)
 	@set -euo pipefail; \
 	curl -fsS http://localhost:9090/-/ready >/dev/null; \
-	curl -fsS http://localhost:3001/api/health >/dev/null; \
+	curl -fsS http://localhost:3000/api/health >/dev/null; \
 	auth="$${GRAFANA_USER:-admin}:$${GRAFANA_PASSWORD:-admin}"; \
 	uid=$$(curl -fsS -u "$$auth" \
-		http://localhost:3001/api/datasources/name/Prometheus | jq -r '.uid'); \
+		http://localhost:3000/api/datasources/name/Prometheus | jq -r '.uid'); \
 	[ "$$uid" = "prometheus" ] || { \
 		echo "FALHA: datasource Prometheus usa uid=$$uid; esperado prometheus."; \
 		exit 1; \
 	}; \
 	series=$$(curl -fsSG -u "$$auth" \
-		http://localhost:3001/api/datasources/proxy/uid/prometheus/api/v1/query \
+		http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/query \
 		--data-urlencode 'query=up{job="prometheus"}' | \
 		jq -r '.data.result | length'); \
 	[ "$$series" -gt 0 ] || { \
 		echo "FALHA: Grafana nao recebeu series do Prometheus."; \
 		exit 1; \
 	}; \
-	echo "OK: Prometheus e Grafana integrados (uid=prometheus, series=$$series)."
+	cw_uid=$$(curl -fsS -u "$$auth" \
+		http://localhost:3000/api/datasources/name/CloudWatch | jq -r '.uid'); \
+	[ "$$cw_uid" = "cloudwatch-g4" ] || { \
+		echo "FALHA: datasource CloudWatch usa uid=$$cw_uid; esperado cloudwatch-g4 (rode observabilidade-up com credencial g4 valida)."; \
+		exit 1; \
+	}; \
+	echo "OK: Prometheus e CloudWatch integrados ao Grafana (series prometheus=$$series)."
 
 # Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
 # ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.
@@ -1045,38 +1067,6 @@ logs: ## Acompanha os logs de um servico (SERVICO=worker|simulator|processing|lo
 logs-api: ## Acompanha os logs da API de leitura
 	@$(call require_env,AWS_PROFILE)
 	aws logs tail "/aws/lambda/$$(cd $(INFRA) && terraform output -raw ecs_cluster_name)-read-api" --follow
-
-.PHONY: grafana-up
-grafana-up: ## Sobe Grafana local (Docker) com datasource CloudWatch pronto (perfil g4)
-	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
-	@test -f "$(HOME)/.aws/credentials" || { echo "erro: $(HOME)/.aws/credentials nao existe."; exit 1; }
-	@# So o perfil g4 vai pro container -- nunca o arquivo inteiro, que pode ter
-	@# outros perfis (ex. default) sem relacao com este dashboard. `mktemp` (nao
-	@# um nome fixo) evita tanto reaproveitar permissao de um arquivo antigo
-	@# quanto ataque de symlink num /tmp compartilhado; o trap cobre o caminho
-	@# de erro do `docker run` tambem, nao so o de sucesso.
-	docker rm -f argus-grafana >/dev/null 2>&1 || true; \
-	creds_tmp=$$(mktemp) && \
-	trap 'rm -f "$$creds_tmp"' EXIT && \
-	awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > "$$creds_tmp" && \
-	test -s "$$creds_tmp" || { echo "erro: perfil [g4] nao encontrado em $(HOME)/.aws/credentials"; exit 1; } && \
-	docker run -d --name argus-grafana \
-	  --user "$$(id -u):$$(id -g)" \
-	  -p 127.0.0.1:3000:3000 \
-	  -e GF_AUTH_ANONYMOUS_ENABLED=true \
-	  -e GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer \
-	  -e AWS_SHARED_CREDENTIALS_FILE=/aws/credentials \
-	  -e AWS_PROFILE=g4 \
-	  -v "$$creds_tmp:/aws/credentials:ro" \
-	  -v "$(PWD)/$(OBSERVABILITY)/provisioning:/etc/grafana/provisioning:ro" \
-	  -v "$(PWD)/$(OBSERVABILITY)/dashboards:/var/lib/grafana/dashboards:ro" \
-	  grafana/grafana:11.2.0
-	@echo "Grafana em http://localhost:3000 (dashboard 'RNF04/05/11 - Resiliencia Argus'), acessivel so pela propria maquina (bind em 127.0.0.1)."
-	@echo "Credenciais lidas de $(HOME)/.aws/credentials (perfil g4) -- expira junto com a sessao do Learner Lab, so recriar o container (make grafana-up) apos renovar."
-
-.PHONY: grafana-down
-grafana-down: ## Derruba o Grafana local
-	docker rm -f argus-grafana >/dev/null 2>&1 || true
 
 .PHONY: dlq
 dlq: ## Mostra o que esta nas filas de rejeitados
