@@ -215,3 +215,41 @@
 &emsp; A abordagem testada foi revogar temporariamente a permissão de rede do worker até o banco de dados, esperando que uma mensagem em processamento falhasse repetidamente até esgotar as tentativas. O resultado não reproduziu o cenário esperado, e a investigação revelou uma limitação estrutural do desenho atual: o worker abre a conexão com o banco de forma bloqueante, antes de começar a consumir a fila. Uma instância que já estava conectada antes da revogação continua operando pela conexão já estabelecida, já que a permissão de rede da nuvem afeta apenas conexões novas, e uma instância nova, iniciada depois da revogação, falha na própria abertura de conexão antes de chegar a receber qualquer mensagem da fila, o que impede o contador de tentativas de avançar para qualquer mensagem específica.
 
 &emsp; Reproduzir esse cenário de forma controlada exigiria interromper uma consulta em andamento sem derrubar a conexão inteira do worker, uma intervenção mais cirúrgica do que a testada. A limitação foi registrada como um achado de engenharia sobre o desenho atual do worker, e não impede o cumprimento dos critérios de aceite do RNF05 nem do RNF11, já que ambos os mecanismos de rejeição (quarentena explícita e redirecionamento nativo) foram descritos e o primeiro foi validado de ponta a ponta nos cenários anteriores.
+
+## 10. Visualização (RNF11)
+
+&emsp; A stack local de observabilidade foi unificada nesta sprint num único Grafana (`apps/basica/observability/docker-compose.yml`, subido por `make -C apps/basica observabilidade-up`), com CloudWatch e Prometheus provisionados como datasource e dois dashboards disponíveis lado a lado, cada um herdado de uma das duas frentes de teste.
+
+&emsp; O dashboard **RNF04/05/11 - Resiliencia Argus**, com CloudWatch como única fonte de dado, reúne cinco gráficos: throughput e erros da rota de ingestão de mudanças, latência da mesma rota em três percentis, tamanho e idade da fila principal e da fila de rejeitados, utilização de CPU dos serviços em container, e utilização de CPU da instância de banco. A configuração foi validada com dado real de todos os cinco gráficos antes do encerramento da sessão de testes de resiliência, e não apenas verificada quanto à inicialização sem erro. As Figuras 1 a 3, na seção 6.1, já mostraram três desses cinco gráficos aplicados ao cenário de fila cheia. As duas figuras a seguir mostram os outros dois, que cobrem a sessão de testes inteira em vez de um único cenário.
+
+<div align="center">
+
+<sub>Figura 4 - Throughput e taxa de erro da rota de ingestão de mudanças ao longo de toda a sessão de testes</sub>
+
+![Painel Grafana: throughput e erros da API Gateway](./assets/captura_dashboard_throughput.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; A Figura 4 soma a requisição por segundo aceita pela API (linha verde) com as taxas de erro 4xx e 5xx (linhas amarela e azul, que permanecem em zero durante toda a sessão). O platô sustentado corresponde à carga constante do cenário de fila cheia, e a oscilação mais irregular que aparece na sequência corresponde aos cenários de timeout e concorrente, executados em seguida com um perfil de carga menos uniforme. A ausência completa de erro 4xx e 5xx ao longo de toda a janela é o retrato direto da taxa de falha de requisição de zero por cento relatada em todas as tabelas de resultado deste documento: nenhum evento aceitável pela API chegou a ser recusado por ela, mesmo nos cenários em que o worker de mesclagem estava fora do ar.
+
+<div align="center">
+
+<sub>Figura 5 - Utilização de CPU da instância de banco de dados ao longo de toda a sessão de testes</sub>
+
+![Painel Grafana: CPU da instância de banco](./assets/captura_dashboard_cpu_rds.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; A Figura 5 mostra a utilização de CPU do banco de teste variando entre cerca de cinco e noventa por cento ao longo da sessão, sem nenhum patamar sustentado próximo do limite. Os vales mais baixos coincidem com os intervalos em que o worker estava desligado nos cenários de fila cheia e concorrente, quando não havia gravação ativa na tabela corrente, e os picos mais altos coincidem com o esvaziamento acelerado da fila logo depois de cada worker ser religado. Isso indica que o gargalo observado nos testes esteve nos serviços de fila e de container, não na capacidade de processamento do banco em si.
+
+&emsp; O dashboard **Argus - Testes de Carga (RNF01/02/03)**, com Prometheus e CloudWatch como fonte de dado, contém oito painéis: throughput, p50/p90/p95/p99, erros por segundo, taxa de sucesso, VUs, total de requisições, latência por cenário e rota, e bytes recebidos e enviados. Na execução de 2 de setembro de 2026, o filtro `testid` foi usado para isolar cada rodada, e a integração com o Prometheus foi confirmada via API: 82 séries no RNF01, 92 no RNF02, 82 em cada fase do RNF03, 74 no cenário de backlog e 82 no cenário de timeout.
+
+&emsp; Este dashboard, porém, ainda não tem captura de tela real embutida neste documento, e essa é uma lacuna conhecida, não resolvida nesta sprint. Dois fatores levaram a essa decisão: o navegador integrado não estava disponível durante a sessão original de testes para uma captura automática, e o Prometheus local que recebeu as métricas daquela execução rodava numa stack que não usa volume persistente entre sessões de trabalho, de modo que a série temporal específica de 2 de setembro não está mais recuperável neste ambiente. Reproduzir os gráficos exigiria rodar novamente a suíte k6 de RNF01 a RNF03 contra uma sessão ativa do Learner Lab, o que a equipe decidiu não fazer agora por custo e tempo de laboratório, retomando apenas se sobrar tempo de sprint, do mesmo modo como já havia sido decidido para a limitação da seção 9.
+
+## 11. Conclusão
+
+&emsp; Os testes de capacidade e tempo de resposta confirmam que o sistema aceita o volume nominal, o pico de 10.000 eventos por minuto e a escala de 2× sem erro, descarte ou degradação relevante de latência, com toda consulta de leitura respondendo bem dentro do limite de cinco segundos. Os dois cenários de falha temporária do pipeline de mudanças, fila cheia e timeout, foram executados e o sistema se recuperou integralmente em ambos, nenhum evento aceito pela API foi perdido, e o processamento voltou a funcionar sem intervenção manual; o mesmo padrão de recuperação foi confirmado, com um método mais leve, também no pipeline de eventos de frontend. O tratamento de eventos inválidos foi validado de forma completa, com identificação correta de cinco tipos distintos de evento incorreto sem interromper o processamento dos eventos válidos ao redor deles, e os registros de causa específica em cada rejeição por quarentena se mostraram suficientes para diferenciar os cenários testados. A única lacuna é a distinção via redirecionamento nativo da fila, cuja investigação foi documentada na seção 9 como um achado de engenharia, não como uma falha do sistema em produção, e a ausência de captura de tela do dashboard de RNF01/02/03, documentada na seção 10 com a causa exata e a condição para fechá-la numa sprint futura. A visualização de latência, throughput, erros e uso de CPU do pipeline de mudanças foi implementada e validada com dado real, fechando o conjunto de evidências deste eixo de testes.
