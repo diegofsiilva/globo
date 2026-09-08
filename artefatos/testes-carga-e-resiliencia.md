@@ -88,3 +88,104 @@
 | CPU ECS máxima | 42,12% | 38,80% |
 
 &emsp; A taxa dobrou, o contrato permaneceu igual, não houve perda, e a latência não se degradou de forma relevante; a redução percentual de CPU é compatível com a distribuição do trabalho entre mais tasks. O RNF03 fica aprovado para o fator testado de 2×, mas este ensaio comprova capacidade mantida após escalar, não localiza o ponto de saturação nem prova que uma única task falharia em 2.000 eventos por minuto. Um teste de capacidade até ruptura, com fatores de 5× e 10×, é uma melhoria futura que exigiria novas fases com mudança proporcional de recursos e orçamento do laboratório, não deve ser inferido destes dados.
+
+## 5. Teste de tratamento de eventos inválidos (RNF04)
+
+&emsp; O objetivo central deste teste é garantir que um evento incorreto não interrompa o recebimento dos demais e que a causa da falha seja identificável posteriormente. Foram exercitados cinco tipos de item inválido dentro de um lote misto, cada um repetido três vezes: tabela de origem ausente, tabela desconhecida, tipo de operação inválido, chave primária vazia e atualização sem o conteúdo alterado. Além desses, foi enviado um corpo de requisição inteiro malformado, que não chega a ser separado em itens individuais.
+
+&emsp; A rejeição acontece de forma assíncrona, dentro do worker de mesclagem, e não no momento da requisição: a integração entre o API Gateway e a fila encaminha o conteúdo recebido sem validá-lo, de modo que toda requisição desta suíte retorna sucesso imediato. O worker é quem separa os itens válidos dos inválidos, processa os primeiros normalmente e desvia os segundos para a fila de rejeitados na primeira tentativa, sem esperar o número máximo de tentativas nativo do serviço de fila.
+
+| Critério de aceite | Resultado |
+|---|---|
+| Cada caso de item inválido é identificável na fila de rejeitados | 18 de 18 casos aparecem com a causa específica registrada |
+| Eventos válidos do mesmo lote de um item inválido continuam sendo processados | 150 de 150 eventos válidos confirmados no log de mudanças, sem perda |
+| O caso de corpo inteiro malformado não contamina eventos válidos do mesmo corpo | confirmado: nenhum evento válido do mesmo corpo malformado aparece como processado |
+| O worker não trava nem reinicia por causa de payload malformado | confirmado por observação da contagem de tarefas em execução durante o teste |
+
+&emsp; A tabela a seguir reproduz uma amostra real capturada da fila de rejeitados nesta sprint, com o motivo exato registrado pelo worker para cada tipo de caso (o mesmo gerador de evento inválido foi reaproveitado no cenário de aprofundamento da seção 7, o que permitiu recapturar a mesma amostra em outra execução).
+
+| Caso enviado | Motivo registrado na fila de rejeitados |
+|---|---|
+| Chave primária vazia (`pk: {}`) | `pk vazia: o MERGE nao tem como identificar a linha` |
+| Tabela de origem desconhecida | `tabela desconhecida: 'tabela_fantasma_k6'. Tabela nova exige migration` |
+| Tipo de operação inválido (`op: "x"`) | `Input should be 'i', 'u', 'd' or 'r'` |
+| Campo `source_table` ausente | `source_table: Field required` |
+| Atualização sem conteúdo alterado (`op: "u"` sem `after`) | `op='u' exige after, que veio vazio` |
+| Corpo inteiro do POST malformado | `JSON invalido: Expecting value: line 1 column 15` |
+
+&emsp; Cada linha identifica exatamente o campo e a regra de validação que causou a rejeição, e não apenas o fato de que algo falhou. É essa especificidade que permite a um operador diferenciar, sem consultar o código, se um evento foi rejeitado por um problema de schema, de tipo, ou de conteúdo ausente, o que resolve diretamente a exigência de que a falha seja identificável posteriormente.
+
+&emsp; O resultado confirma que a rejeição funciona por item dentro de um lote misto, e não por lote inteiro, exceto no caso degenerado de um corpo de requisição que não pode nem ser interpretado como uma lista de itens, situação em que a perda se limita ao próprio corpo malformado e não se propaga a outras requisições.
+
+## 6. Teste de recuperação após falha temporária (RNF05)
+
+&emsp; O objetivo central deste teste é verificar se o sistema retoma o processamento sozinho após uma falha controlada, sem perder silenciosamente eventos já aceitos pela API. As subseções 6.1 e 6.2 exercitam o pipeline de mudanças (fluxo do CDC simulado, worker de mesclagem); a subseção 6.3 exercita o pipeline de eventos de frontend (mesmo fluxo dos RNF01 a RNF03), com um método mais leve mas contra um consumidor real.
+
+### 6.1 Pipeline de mudanças: cenário de fila cheia
+
+&emsp; O worker de mesclagem foi desligado por completo, e uma carga sustentada de dez mil eventos por minuto foi mantida por dez minutos contra a rota de ingestão de mudanças, com o worker desligado durante toda a janela. Em seguida o worker foi religado e o esvaziamento da fila foi acompanhado até se aproximar do volume de tráfego contínuo já gerado pelo simulador de eventos em segundo plano.
+
+| Critério de aceite | Resultado |
+|---|---|
+| A API continua aceitando eventos mesmo com o worker desligado | 96.020 eventos enviados, 100% aceitos, 0% de falha de requisição |
+| Latência da requisição de ingestão permanece estável sob carga | percentil 95 de 266 milissegundos, percentil 99 de 908 milissegundos |
+| A fila de rejeitados não cresce por causa do acúmulo | contagem de mensagens na fila de rejeitados idêntica antes e depois do cenário |
+| O tempo de esvaziamento é documentado | pico de aproximadamente 21.750 mensagens visíveis reduzido ao volume de tráfego ambiente em cerca de 16 minutos após religar o worker |
+
+&emsp; O resultado confirma o desacoplamento entre a aceitação do evento e o seu processamento: a fila absorve o acúmulo integralmente enquanto o consumidor está fora do ar, sem rejeitar nenhuma requisição e sem gerar perda quando o consumo é retomado. As figuras 1 a 3, extraídas do painel Grafana implementado (detalhado na seção 10), mostram esse comportamento a partir de três ângulos diferentes: o tamanho da fila, a latência percebida pelo cliente e o uso de CPU do worker.
+
+<div align="center">
+
+<sub>Figura 1 - Tamanho da fila de mudanças e da fila de rejeitados durante o cenário de fila cheia</sub>
+
+![Painel Grafana: fila changes e DLQ](./assets/captura_dashboard_fila_changes_dlq.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; A linha verde é o número de mensagens visíveis na fila principal, e a linha amarela é a idade em segundos da mensagem mais antiga ainda não processada. As duas sobem de forma constante enquanto o worker está desligado, o que é esperado: sem consumidor, toda mensagem nova se soma ao acúmulo e a mais antiga só fica mais velha. A queda abrupta de ambas as linhas marca o instante em que o worker foi religado e a fila esvaziou em questão de minutos. A linha azul, a fila de rejeitados, permanece em zero durante toda a janela, o que confirma visualmente o critério de aceite de que o acúmulo não gera rejeição.
+
+<div align="center">
+
+<sub>Figura 2 - Latência da rota de ingestão de mudanças durante o cenário de fila cheia</sub>
+
+![Painel Grafana: latência p50, p90 e p99](./assets/captura_dashboard_latencia.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; A Figura 2 mostra a latência da própria requisição de ingestão, não do processamento da mensagem. Os picos do percentil 99, que chegam perto de um segundo e meio, acontecem justamente na janela em que a carga estava mais alta, e ainda assim a mediana (percentil 50) permanece próxima de zero durante todo o teste. Isso mostra que a variação de latência ficou restrita a uma fração pequena das requisições, coerente com o percentil 95 de 266 milissegundos relatado na tabela acima, e reforça que a fila absorveu a carga sem que a maioria dos clientes percebesse lentidão.
+
+<div align="center">
+
+<sub>Figura 3 - Utilização de CPU dos serviços em container durante o cenário de fila cheia</sub>
+
+![Painel Grafana: CPU do merge-worker, event-worker e processing](./assets/captura_dashboard_cpu_ecs.png)
+
+<sup>Fonte: material produzido pelos autores (2026).</sup>
+
+</div>
+
+&emsp; Na Figura 3, a linha verde do `merge-worker` cai a zero exatamente na janela em que ele foi desligado para o teste, o que é a evidência mais direta de que o desligamento realmente aconteceu. Os dois picos de aproximadamente setenta por cento logo depois marcam o esforço de drenar o acúmulo assim que o worker volta a rodar, e o retorno gradual a um patamar mais baixo acompanha o esvaziamento da fila mostrado na Figura 1. As linhas do `event-worker` e do `processing` permanecem baixas durante todo o intervalo, o que é esperado, já que nenhum dos dois participa do fluxo de mudanças testado aqui.
+
+### 6.2 Pipeline de mudanças: cenário de timeout de processamento
+
+&emsp; Com carga sustentada em andamento, uma tarefa do worker de mesclagem foi interrompida à força no meio do processamento de um lote, simulando uma falha de infraestrutura em vez de um desligamento planejado. A mensagem em processamento no momento da interrupção não recebe confirmação de entrega e volta a ficar visível na fila após o tempo de invisibilidade configurado, sendo então entregue a uma nova instância do worker.
+
+| Critério de aceite | Resultado |
+|---|---|
+| A API continua aceitando eventos durante a interrupção | 28.800 eventos enviados, 0% de falha de requisição |
+| O serviço se recupera sozinho, sem intervenção manual | orquestrador de containers reiniciou a tarefa automaticamente, sem ficar abaixo da capacidade desejada |
+| Não há perda nem entrada indevida na fila de rejeitados | fila de rejeitados sem crescimento, fila de mudanças zerada ao final do teste |
+
+&emsp; A garantia de corretude neste cenário não depende de evitar duplicidade no registro de mudanças, que é um log de acréscimo apenas e pode legitimamente registrar a mesma mensagem mais de uma vez após uma reentrega. A garantia está na regra de mesclagem da tabela corrente, que só aplica uma atualização se o identificador sequencial da mudança for mais recente que o já registrado, o que torna reaplicar o mesmo conteúdo uma operação sem efeito adicional.
+
+### 6.3 Pipeline de eventos: backlog e timeout de cliente
+
+&emsp; Como o SQS Standard não possui limite de "fila cheia" literal, o teste sobre o pipeline de eventos substitui essa expressão pelo risco operacional equivalente: consumidor indisponível e backlog crescente. Os dois workers (`event-worker` e `merge-worker`) foram reduzidos a zero, a API recebeu 1.000 eventos por minuto, o backlog e o banco foram observados, e os workers foram restaurados em seguida. Com os dois workers em zero, 1.001 de 1.001 eventos receberam 2xx, o SQS passou de 0 para 1.001 mensagens e o banco permaneceu em 27.509 linhas; após restaurar uma task de cada worker, a fila voltou a zero e o banco passou a 28.510 linhas, ou seja, 1.001 de 1.001 eventos persistidos.
+
+&emsp; O timeout foi induzido no cliente com limite de 1 milissegundo em 100 requisições. Após 35 segundos, cinco requisições usaram o timeout normal de 7 segundos e deveriam responder 200 em até 5 segundos. Este cenário valida a detecção e a recuperação do lado do cliente, não afirma ter provocado timeout interno da Lambda. Na execução, as 100 de 100 requisições com limite de 1 ms expiraram como planejado e, em seguida, as 5 de 5 requisições responderam 200, com p95 de recuperação de 1.631,7 ms, abaixo do limite de 5 s.
+
+&emsp; Estes dois resultados, obtidos com um método mais leve que o das subseções 6.1 e 6.2 (um único ciclo de queda e restauração de workers, em vez de dez minutos de carga sustentada), confirmam o mesmo comportamento de recuperação sem perda também no pipeline de eventos de frontend, complementando a cobertura do RNF05 sobre os dois fluxos de ingestão do sistema.
