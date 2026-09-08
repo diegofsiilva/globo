@@ -196,6 +196,22 @@ output "migration_status_command" {
   ])
 }
 
+output "db_reader_run_command" {
+  description = "Cria ou atualiza o usuario somente-leitura usado pela Lambda, pela VPC."
+  value = join("", [
+    "aws ecs run-task --profile g4 --region ", var.region,
+    " \\\n  --cluster ", aws_ecs_cluster.main.name,
+    " \\\n  --task-definition ", aws_ecs_task_definition.migration.family,
+    " \\\n  --launch-type FARGATE",
+    " \\\n  --network-configuration 'awsvpcConfiguration={subnets=[",
+    join(",", local.subnet_ids), "],securityGroups=[",
+    aws_security_group.worker.id, "],assignPublicIp=",
+    var.assign_public_ip ? "ENABLED" : "DISABLED", "}'",
+    " \\\n  --overrides '{\"containerOverrides\":[{\"name\":\"migration\",",
+    "\"command\":[\"criar-leitor\",\"--usuario\",\"", var.read_api_db_user, "\"]}]}'",
+  ])
+}
+
 # --------------------------------------------------------------------------- #
 # Leitura
 # --------------------------------------------------------------------------- #

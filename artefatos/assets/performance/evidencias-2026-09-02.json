@@ -1,0 +1,154 @@
+{
+  "executado_em": "2026-09-02",
+  "ambiente": {
+    "provedor": "AWS Academy Learner Lab",
+    "regiao": "us-east-1",
+    "branch": "feat/adiciona-testes-performance",
+    "imagem_aplicacao_tag": "66b4fbe59313",
+    "commit_imagem_aplicacao": "66b4fbe593136a94a3920cddf19b45bafd06a9ac",
+    "k6": "0.54.0",
+    "prometheus": "local com remote-write receiver e retencao de 7 dias",
+    "grafana": "11.1.0"
+  },
+  "rnf01": {
+    "test_id": "rnf01-final-20260902T193419Z",
+    "inicio_utc": "2026-09-02T19:34:19Z",
+    "fim_utc": "2026-09-02T19:38:40Z",
+    "nominal": {
+      "alvo_por_minuto": 1000,
+      "aceitos": 1001,
+      "rejeitados": 0,
+      "sucesso_pct": 100.0,
+      "p95_ms": 188.6,
+      "dropped_iterations": 0
+    },
+    "pico": {
+      "alvo_por_minuto": 10000,
+      "aceitos": 10000,
+      "rejeitados": 0,
+      "sucesso_pct": 100.0,
+      "p95_ms": 161.8,
+      "dropped_iterations": 0
+    },
+    "recuperacao": {
+      "alvo_por_minuto": 1000,
+      "aceitos": 1000,
+      "rejeitados": 0,
+      "sucesso_pct": 100.0,
+      "p95_ms": 170.0,
+      "dropped_iterations": 0
+    },
+    "total_com_aquecimento": 12152,
+    "bronze_event_antes": 12154,
+    "bronze_event_depois": 24306,
+    "persistidos_delta": 12152,
+    "fila_final_visivel": 0,
+    "fila_final_em_voo": 0,
+    "prometheus_pico_req_s": 167.1005,
+    "cloudwatch_ecs_cpu_avg_pct": 28.8726,
+    "cloudwatch_ecs_cpu_max_pct": 78.0176,
+    "aprovado": true
+  },
+  "rnf02": {
+    "test_id": "rnf02-final-20260902T194059Z",
+    "inicio_utc": "2026-09-02T19:40:59Z",
+    "fim_utc": "2026-09-02T19:47:00Z",
+    "rotas": 11,
+    "repeticoes_por_rota": 5,
+    "usuarios_concorrentes": 10,
+    "carga_sustentada_por_minuto": 600,
+    "consultas_registradas": 4587,
+    "sucesso_http_pct": 100.0,
+    "respostas_acima_5s_pct": 0.0,
+    "filtros_corretos_pct": 100.0,
+    "p50_ms": 155.2687,
+    "p95_ms": 181.2396,
+    "p99_maximo_entre_rotas_ms": 1412.4769,
+    "max_ms": 1581.0241,
+    "dropped_iterations": 0,
+    "cloudwatch_lambda_invocations_na_janela": 4598,
+    "cloudwatch_lambda_errors": 0,
+    "cloudwatch_lambda_throttles": 0,
+    "cloudwatch_lambda_duration_avg_ms": 13.1751,
+    "cloudwatch_lambda_duration_max_ms": 196.38,
+    "aprovado": true
+  },
+  "rnf03": {
+    "baseline": {
+      "test_id": "rnf03-baseline-20260902T194823Z",
+      "tasks_event_worker": 1,
+      "tasks_merge_worker": 1,
+      "alvo_por_minuto": 1000,
+      "aceitos_medicao": 1000,
+      "total_com_aquecimento": 1101,
+      "persistidos_delta": 1101,
+      "sucesso_pct": 100.0,
+      "p95_ms": 185.7,
+      "p99_ms": 213.8,
+      "dropped_iterations": 0,
+      "cloudwatch_ecs_cpu_avg_pct": 16.2092,
+      "cloudwatch_ecs_cpu_max_pct": 42.1222
+    },
+    "escalado": {
+      "test_id": "rnf03-scaled-20260902T195245Z",
+      "tasks_event_worker": 2,
+      "tasks_merge_worker": 2,
+      "alvo_por_minuto": 2000,
+      "aceitos_medicao": 2001,
+      "total_com_aquecimento": 2102,
+      "persistidos_delta": 2102,
+      "sucesso_pct": 100.0,
+      "p95_ms": 178.1,
+      "p99_ms": 218.7,
+      "dropped_iterations": 0,
+      "cloudwatch_ecs_cpu_avg_pct": 14.7477,
+      "cloudwatch_ecs_cpu_max_pct": 38.7955
+    },
+    "capacidade_relativa": 2.0,
+    "contrato_e_formato_inalterados": true,
+    "aprovado": true
+  },
+  "resiliencia": {
+    "backlog": {
+      "test_id": "backlog-20260902T195711Z",
+      "workers_durante_falha": 0,
+      "aceitos_http": 1001,
+      "falhas_pct": 0.0,
+      "fila_antes": 0,
+      "fila_pico": 1001,
+      "banco_durante_falha_delta": 0,
+      "fila_depois_da_restauracao": 0,
+      "persistidos_depois_da_restauracao": 1001,
+      "aprovado": true
+    },
+    "timeout": {
+      "test_id": "timeout-20260902T200244Z",
+      "timeout_cliente_ms": 1,
+      "timeouts_detectados": 100,
+      "consultas_recuperacao": 5,
+      "falhas_recuperacao_pct": 0.0,
+      "recuperacao_p95_ms": 1631.7,
+      "aprovado": true
+    }
+  },
+  "observabilidade": {
+    "grafana_dashboard_uid": "argus-k6-carga",
+    "grafana_dashboard_paineis": 8,
+    "prometheus_series_por_execucao": {
+      "rnf01": 82,
+      "rnf02": 92,
+      "rnf03_baseline": 82,
+      "rnf03_escalado": 82,
+      "backlog": 74,
+      "timeout": 82
+    },
+    "rds_cpu_periodo_completo_avg_pct": 5.5476,
+    "rds_cpu_periodo_completo_max_pct": 10.2538,
+    "captura_grafana": "pendente: navegador integrado indisponivel; dashboard e APIs validados"
+  },
+  "seguranca": {
+    "credenciais_aws_versionadas": false,
+    "tokens_argus_versionados": false,
+    "endpoints_versionados": false
+  }
+}

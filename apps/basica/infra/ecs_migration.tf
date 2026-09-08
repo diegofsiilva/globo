@@ -27,6 +27,10 @@ resource "aws_ecs_task_definition" "migration" {
 
       environment = concat(local.env_comum, [
         { name = "SERVICE_NAME", value = "${local.name}-migration" },
+        # A mesma task tambem cria/atualiza o login somente-leitura usado pela
+        # Lambda. Sem esta variavel, o primeiro deploy aplica as migrations,
+        # mas deixa argus_api com uma senha diferente da configurada na API.
+        { name = "DB_READER_PASSWORD", value = var.read_api_db_password },
       ])
 
       logConfiguration = {
