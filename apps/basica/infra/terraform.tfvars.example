@@ -58,9 +58,45 @@ read_api_db_user     = "argus_api"
 read_api_db_password = "outra-senha-longa-so-para-leitura"
 
 # --- Rede -------------------------------------------------------------------
-# Vazio usa a VPC/subnets default da conta.
-# true = subnet publica com IP publico, sem NAT Gateway (economiza ~US$ 32/mes).
-assign_public_ip = true
+# VPC dedicada: sub-redes publica e privada em duas AZs, NAT Gateway, bastion,
+# ALB e Auto Scaling Group. `false` volta ao comportamento anterior (VPC default
+# da conta, IP publico nas tasks).
+#
+# CUIDADO ao trocar para `false` num ambiente ja aplicado: o RDS nao muda de VPC,
+# e mover o subnet group forca a SUBSTITUICAO da instancia -- o que apaga o banco.
+create_network = true
+
+# Com a rede dedicada, as tasks vao para a sub-rede privada e saem pelo NAT.
+# `assign_public_ip` so continua valendo quando create_network = false.
+assign_public_ip = false
+
+# `vpc_id` e `subnet_ids` so servem para injetar uma rede pre-existente, quando
+# create_network = false. Vazios usam a VPC default da conta.
+
+# --- Bastion ----------------------------------------------------------------
+# Vazio NAO cria o bastion (sem chave a instancia seria inalcancavel). Crie o
+# par com `aws ec2 create-key-pair --profile g4` e guarde o .pem FORA do repo.
+# bastion_key_name = "argus-bastion"
+
+# Unico CIDR autorizado na porta 22. Ponha o SEU IP em /32.
+# A validacao recusa 0.0.0.0/0 de proposito.
+# bastion_allowed_cidr = "203.0.113.10/32"
+
+# --- Auto Scaling Group e ALB -----------------------------------------------
+# Instancias Graviton (arm64): TODAS as imagens deste repositorio sao arm64.
+# Trocar por familia x86 (t3/t2) exige trocar a AMI em bastion.tf tambem.
+app_instance_type = "t4g.small"
+
+asg_min_size         = 2
+asg_max_size         = 6
+asg_desired_capacity = 2
+
+# Requisicoes por instancia por minuto. Acima disso o grupo cresce.
+asg_target_requests_per_target = 60
+
+# No Learner Lab o profile ja existe e vem anexado a LabRole -- pelo mesmo
+# motivo de existing_role_arn: o papel voclabs recusa iam:CreateRole.
+instance_profile_name = "LabInstanceProfile"
 
 # --- Servicos ---------------------------------------------------------------
 worker_desired_count = 1

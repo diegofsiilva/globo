@@ -1,10 +1,31 @@
 locals {
   name = "${var.name_prefix}-${var.environment}"
 
-  # Rede: usa a VPC/subnets default quando nada e passado, para que um
-  # `terraform apply` numa conta nova funcione sem configuracao previa.
-  vpc_id     = var.vpc_id != "" ? var.vpc_id : data.aws_vpc.default[0].id
-  subnet_ids = length(var.subnet_ids) > 0 ? var.subnet_ids : data.aws_subnets.default[0].ids
+  # Rede: tres origens possiveis, nesta ordem de precedencia.
+  #
+  #   1. `create_network = true` -- a VPC dedicada deste stack (vpc.tf). E o
+  #      caminho desta sprint: sub-redes publica e privada em duas AZs, NAT.
+  #   2. `vpc_id` / `subnet_ids` preenchidos -- rede pre-existente injetada.
+  #   3. Nenhum dos dois -- a VPC default da conta, comportamento anterior.
+  #
+  # As cargas (tasks Fargate, instancias do ASG, RDS) vao para as sub-redes
+  # PRIVADAS quando a rede dedicada existe. Antes iam para as default, que sao
+  # todas publicas -- e era por isso que `assign_public_ip = true` era
+  # necessario para elas terem saida.
+  vpc_id = (
+    var.create_network
+    ? aws_vpc.main[0].id
+    : (var.vpc_id != "" ? var.vpc_id : data.aws_vpc.default[0].id)
+  )
+
+  private_subnet_ids = var.create_network ? aws_subnet.private[*].id : []
+  public_subnet_ids  = var.create_network ? aws_subnet.public[*].id : []
+
+  subnet_ids = (
+    var.create_network
+    ? local.private_subnet_ids
+    : (length(var.subnet_ids) > 0 ? var.subnet_ids : data.aws_subnets.default[0].ids)
+  )
 
   # As quatro imagens do fluxo v3. A chave e o nome do repositorio ECR, da pasta
   # em apps/basica/ e do sufixo do recurso -- manter os tres iguais e o que
@@ -21,6 +42,7 @@ locals {
     "simulator",  # relogio virtual, injecao de falhas, emissor de changes
     "processing", # detector / canario / ETL -- no-op por ora (decisao 7)
     "loader",     # carga inicial one-shot: Parquet -> COPY -> bronze
+    "backend",    # API de leitura -- passou de zip de Lambda a imagem no EC2
   ])
 
   image_uris = {
@@ -35,6 +57,23 @@ locals {
   task_role_arn           = var.create_iam_roles ? aws_iam_role.task[0].arn : var.existing_role_arn
   read_api_role_arn       = var.create_iam_roles ? aws_iam_role.read_api[0].arn : var.existing_role_arn
   authorizer_role_arn     = var.create_iam_roles ? aws_iam_role.authorizer[0].arn : var.existing_role_arn
+
+  # O papel que o servico de VPC Flow Logs assume para escrever no CloudWatch.
+  # Mesmo colapso dos demais: no Learner Lab tudo vira a LabRole.
+  flow_log_role_arn = (
+    var.create_network && var.create_iam_roles
+    ? aws_iam_role.flow_log[0].arn
+    : var.existing_role_arn
+  )
+
+  # Imagem que as instancias do ASG puxam. `backend_image_tag` vazio segue a
+  # mesma tag dos workers, para que um `make rollout` deixe todo o stack no
+  # mesmo commit -- e para que so exista uma tag a conferir num diagnostico.
+  backend_image_uri = join("", [
+    aws_ecr_repository.images["backend"].repository_url,
+    ":",
+    var.backend_image_tag != "" ? var.backend_image_tag : var.worker_image_tag,
+  ])
 
   db_password = (
     var.db_password_from_secrets_manager

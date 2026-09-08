@@ -16,7 +16,11 @@ resource "aws_ecs_cluster" "main" {
 # Um log group por servico. Separados porque `aws logs tail` num group unico com
 # cinco containers e ilegivel exatamente na hora em que se precisa dele.
 resource "aws_cloudwatch_log_group" "servicos" {
-  for_each = local.container_images
+  # `backend` esta em `container_images` para ganhar repositorio no ECR, mas nao
+  # roda no ECS -- ele executa nas instancias do Auto Scaling Group e loga em
+  # `/argus/<name>/app` (ver asg.tf). Um log group `/ecs/<name>/backend` aqui
+  # ficaria vazio para sempre.
+  for_each = setsubtract(local.container_images, ["backend"])
 
   name              = "/ecs/${local.name}/${each.key}"
   retention_in_days = var.log_retention_days

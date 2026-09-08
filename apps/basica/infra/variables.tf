@@ -801,3 +801,309 @@ variable "read_api_db_password" {
   default     = ""
   sensitive   = true
 }
+
+# --------------------------------------------------------------------------- #
+# Rede dedicada (VPC, sub-redes, NAT)
+# --------------------------------------------------------------------------- #
+
+variable "create_network" {
+  description = <<-EOT
+    Cria a VPC dedicada, as sub-redes publica e privada em duas AZs, o Internet
+    Gateway, o NAT Gateway e as tabelas de rota -- mais tudo que depende delas:
+    bastion, ALB e Auto Scaling Group.
+
+    `false` mantem o comportamento anterior a esta sprint: todo o stack roda na
+    VPC default da conta, com IP publico nas tasks. Existe para que a migracao
+    possa ser planejada e validada antes de ser aplicada, e para que uma conta
+    onde o papel do laboratorio recuse criar VPC ainda consiga subir o resto.
+
+    CUIDADO ao trocar de `true` para `false` num ambiente ja aplicado: o RDS nao
+    muda de VPC, e mover o subnet group forca a SUBSTITUICAO da instancia --
+    o que apaga o banco. Numa conta nova isso nao e problema, porque o banco ja
+    nasce na VPC nova (ver secao 4.1 do artefato).
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "vpc_cidr" {
+  description = <<-EOT
+    Bloco da VPC dedicada. /16 da folga para crescer sem renumerar: as quatro
+    sub-redes de hoje ocupam quatro /24, e sobram 252.
+  EOT
+  type        = string
+  default     = "10.0.0.0/16"
+
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "vpc_cidr precisa ser um bloco CIDR valido, por exemplo 10.0.0.0/16."
+  }
+}
+
+variable "public_subnet_cidrs" {
+  description = <<-EOT
+    Sub-redes publicas, uma por zona de disponibilidade. Executam o ALB, o NAT
+    Gateway e o bastion -- os unicos recursos com motivo para ter endereco
+    roteavel.
+
+    Precisam ser pelo menos duas: o Application Load Balancer exige sub-redes em
+    no minimo duas AZs distintas e nao e criado com uma so.
+  EOT
+  type        = list(string)
+  default     = ["10.0.0.0/24", "10.0.1.0/24"]
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) >= 2
+    error_message = "O ALB exige no minimo duas sub-redes publicas em AZs distintas."
+  }
+}
+
+variable "private_subnet_cidrs" {
+  description = <<-EOT
+    Sub-redes privadas, uma por zona de disponibilidade. Executam as instancias
+    do Auto Scaling Group, as tasks Fargate e o subnet group do RDS. Sem rota
+    para o Internet Gateway: a saida e pelo NAT.
+
+    Duas tambem aqui, porque o subnet group do RDS exige duas AZs e porque o ASG
+    precisa poder substituir instancia na zona que sobrou.
+  EOT
+  type        = list(string)
+  default     = ["10.0.10.0/24", "10.0.11.0/24"]
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) >= 2
+    error_message = "O subnet group do RDS e o ASG exigem no minimo duas sub-redes privadas."
+  }
+}
+
+# --------------------------------------------------------------------------- #
+# Bastion
+# --------------------------------------------------------------------------- #
+
+variable "bastion_allowed_cidr" {
+  description = <<-EOT
+    Unico CIDR autorizado na porta 22 do bastion. Preencha com o IP da sua rede
+    em /32.
+
+    A validacao recusa 0.0.0.0/0 de proposito: um bastion aberto para a internet
+    inteira nao reduz exposicao nenhuma -- apenas acrescenta um salto ao caminho
+    do atacante. O custo da restricao e real e esta assumido: quem trocar de rede
+    perde o acesso ate atualizar esta variavel e reaplicar.
+  EOT
+  type        = string
+  default     = "0.0.0.0/32"
+
+  validation {
+    condition     = var.bastion_allowed_cidr != "0.0.0.0/0"
+    error_message = "0.0.0.0/0 expoe a porta 22 para a internet inteira. Use o seu IP em /32."
+  }
+}
+
+variable "bastion_key_name" {
+  description = <<-EOT
+    Nome de um key pair EC2 que ja exista na conta. Vazio (padrao) NAO cria o
+    bastion -- sem chave a instancia seria inalcancavel, e pagar por ela seria
+    desperdicio.
+
+    A chave privada nunca entra no repositorio. Crie o par no console ou com
+    `aws ec2 create-key-pair --profile g4` e guarde o .pem fora da arvore.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "bastion_instance_type" {
+  description = <<-EOT
+    Tipo do bastion. O menor possivel de proposito: ele so encaminha SSH e abre
+    um psql eventual, entao qualquer coisa maior seria custo sem uso -- e uma
+    maquina ociosa maior e superficie maior.
+
+    Familia `t4g` (Graviton, arm64) para casar com a AMI arm64 do bastion e do
+    ASG. Ver a nota sobre arquitetura em `app_instance_type`.
+  EOT
+  type        = string
+  default     = "t4g.micro"
+}
+
+# --------------------------------------------------------------------------- #
+# Camada de aplicacao: ALB e Auto Scaling Group
+# --------------------------------------------------------------------------- #
+
+variable "app_port" {
+  description = <<-EOT
+    Porta em que o gunicorn escuta na instancia, e para a qual o target group
+    encaminha. 5000 e a porta que backend/Dockerfile expoe -- mudar aqui sem
+    mudar la faz o health check reprovar todas as instancias.
+  EOT
+  type        = number
+  default     = 5000
+}
+
+variable "app_instance_type" {
+  description = <<-EOT
+    Tipo das instancias do Auto Scaling Group.
+
+    `small` e nao `micro`: o container roda gunicorn com 2 workers x 4 threads
+    mais o agente CloudWatch, e 1 GiB de memoria fica no limite durante o
+    `docker pull`. Nao e instancia grande de proposito -- a resposta a carga
+    aqui e horizontal, e nao vertical; e para isso que existe o grupo.
+
+    ARQUITETURA: familia `t4g`, que e Graviton (arm64). Isto NAO e escolha de
+    custo, e requisito de compatibilidade: `make push` constroi todas as imagens
+    com `--platform linux/arm64`, e uma instancia x86_64 nao executaria a imagem
+    -- o `docker run` do user_data falharia com "exec format error", e o sintoma
+    chegaria como instancia reprovando no health check, longe da causa.
+
+    Trocar por uma familia x86 (`t3`, `t2`) exige trocar junto a AMI em
+    bastion.tf e o `--platform` do Makefile.
+  EOT
+  type        = string
+  default     = "t4g.small"
+}
+
+variable "asg_min_size" {
+  description = <<-EOT
+    Minimo de instancias. Dois, e nao um: com uma instancia so, perde-la e
+    indisponibilidade total ate a substituta subir -- vaos de varios minutos,
+    contando boot e pull da imagem. Com duas em AZs distintas, a perda de uma
+    instancia ou de uma zona inteira degrada a capacidade sem derrubar o servico.
+  EOT
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.asg_min_size >= 2
+    error_message = "Minimo de 2 para que a perda de uma instancia nao derrube o servico."
+  }
+}
+
+variable "asg_max_size" {
+  description = <<-EOT
+    Teto de instancias. Existe para limitar o estrago de uma rajada anomala ou
+    de um laco de requisicao: sem teto, a politica escalaria ate esgotar o
+    credito do laboratorio. Seis cobre com folga a carga do rnf02.
+  EOT
+  type        = number
+  default     = 6
+}
+
+variable "asg_desired_capacity" {
+  description = <<-EOT
+    Tamanho inicial do grupo. Igual ao minimo: a politica de escalonamento
+    assume dali para cima, e comecar acima do minimo so anteciparia custo.
+  EOT
+  type        = number
+  default     = 2
+}
+
+variable "asg_target_requests_per_target" {
+  description = <<-EOT
+    Valor-alvo da politica de target tracking, em requisicoes por instancia por
+    minuto. O grupo cresce quando a media passa disso e encolhe quando fica
+    abaixo por tempo suficiente.
+
+    60 vem da carga do plano de teste: `tests/carga/rnf02_tempo_resposta.js`
+    sustenta ~600 consultas/min com 10 usuarios virtuais. Contra duas
+    instancias, sao 300 por alvo -- cinco vezes o alvo, o que faz a politica
+    disparar de forma observavel durante a gravacao, e nao no limite.
+
+    Baixo demais oscila o grupo (sobe e desce a cada variacao); alto demais so
+    escala quando a latencia ja subiu, e ai o escalonamento chega tarde.
+  EOT
+  type        = number
+  default     = 60
+}
+
+variable "asg_health_check_grace_period" {
+  description = <<-EOT
+    Segundos entre a instancia iniciar e o health check do ELB comecar a valer.
+    Serve tambem como `instance_warmup` do refresh e da politica.
+
+    300 s cobre boot do Amazon Linux + `dnf install` de docker e agente +
+    `docker pull` da imagem + subida do gunicorn. Curto demais e o pior modo de
+    falha desta configuracao: a instancia e morta antes de terminar de subir, a
+    substituta faz o mesmo, e o grupo entra em ciclo de reciclagem que parece
+    falha da aplicacao.
+  EOT
+  type        = number
+  default     = 300
+}
+
+variable "instance_profile_name" {
+  description = <<-EOT
+    Instance profile das instancias do ASG e do bastion. Precisa permitir pull
+    no ECR, leitura do segredo de tokens e escrita no CloudWatch Logs.
+
+    No AWS Academy Learner Lab o valor e `LabInstanceProfile`, que ja existe na
+    conta e vem anexado a LabRole -- pelo mesmo motivo de `existing_role_arn`:
+    o papel `voclabs` recusa `iam:CreateRole`.
+  EOT
+  type        = string
+  default     = "LabInstanceProfile"
+}
+
+variable "backend_image_tag" {
+  description = <<-EOT
+    Tag da imagem do backend que as instancias puxam do ECR. Vazio usa
+    `worker_image_tag`, mantendo backend e workers na mesma tag de commit.
+
+    Fixar uma tag por SHA e o que da sentido ao rollback: apontar o launch
+    template para a versao anterior so devolve a versao anterior do codigo se a
+    tag daquela versao ainda existir no ECR. `latest` quebraria isso.
+  EOT
+  type        = string
+  default     = ""
+}
+
+# A Lambda de leitura e o HTTP API que a expoe (api_read.tf, auth.tf) NAO foram
+# tornados condicionais.
+#
+# A intencao era uma flag `enable_lambda_read_api` para desligar o caminho antigo
+# depois da migracao. Na pratica ela exigiria `count` em dez recursos espalhados
+# por api_read.tf, auth.tf e outputs.tf, com a reescrita de indice que vem junto
+# -- muita cirurgia em codigo que funciona, para uma flag cujo padrao (`true`)
+# nao mudaria nada hoje.
+#
+# Os dois caminhos coexistem de proposito durante a migracao: derrubar a Lambda
+# no mesmo apply que sobe o ASG deixaria o dashboard sem API caso o grupo nao
+# suba. O desligamento e um passo manual e posterior, descrito na secao 4 do
+# artefato de infraestrutura.
+
+# --------------------------------------------------------------------------- #
+# Observabilidade da rede e do caminho sincrono
+# --------------------------------------------------------------------------- #
+
+variable "alb_access_logs_enabled" {
+  description = <<-EOT
+    Grava os access logs do ALB num bucket S3. O ALB nao entrega esse log no
+    CloudWatch Logs -- so em S3 -- entao o bucket existe porque o servico exige
+    bucket, nao por escolha de destino.
+
+    E o que responde "qual foi o codigo de resposta e quanto tempo o backend
+    levou", por requisicao, sem depender de a aplicacao ter conseguido logar.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "alb_access_logs_retention_days" {
+  description = <<-EOT
+    Dias ate o access log expirar. Access log cresce por requisicao e ninguem
+    volta nele depois de um mes; sem expiracao o bucket vira custo permanente
+    por dado que ja nao se consulta.
+  EOT
+  type        = number
+  default     = 30
+}
+
+variable "alarm_latencia_p95_segundos" {
+  description = <<-EOT
+    Limiar do alarme de tempo de resposta, medido em p95 no target group.
+
+    5 s e o alvo do RNF02, que especifica p99 < 5 s. Alarmar o p95 no mesmo
+    valor da margem: quando o p95 cruza, o p99 ja esta pior, e o aviso chega
+    antes de o requisito ser violado.
+  EOT
+  type        = number
+  default     = 5
+}
