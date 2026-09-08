@@ -189,3 +189,29 @@
 &emsp; O timeout foi induzido no cliente com limite de 1 milissegundo em 100 requisições. Após 35 segundos, cinco requisições usaram o timeout normal de 7 segundos e deveriam responder 200 em até 5 segundos. Este cenário valida a detecção e a recuperação do lado do cliente, não afirma ter provocado timeout interno da Lambda. Na execução, as 100 de 100 requisições com limite de 1 ms expiraram como planejado e, em seguida, as 5 de 5 requisições responderam 200, com p95 de recuperação de 1.631,7 ms, abaixo do limite de 5 s.
 
 &emsp; Estes dois resultados, obtidos com um método mais leve que o das subseções 6.1 e 6.2 (um único ciclo de queda e restauração de workers, em vez de dez minutos de carga sustentada), confirmam o mesmo comportamento de recuperação sem perda também no pipeline de eventos de frontend, complementando a cobertura do RNF05 sobre os dois fluxos de ingestão do sistema.
+
+## 7. Cenário aprofundado: fila cheia e evento inválido simultâneos (pipeline de mudanças)
+
+&emsp; Como aprofundamento dos cenários da seção 6.1, foi testada a combinação dos dois mecanismos de falha ao mesmo tempo, para verificar que a quarentena de eventos inválidos não fica represada atrás do acúmulo normal da fila. O worker foi desligado, e uma carga válida sustentada de cinco minutos foi disparada simultaneamente com uma segunda carga contendo os cinco tipos de item inválido da seção 5. O worker foi religado, e a fila de rejeitados foi observada em intervalos curtos durante o esvaziamento, em vez de conferida apenas ao final.
+
+| Critério de aceite | Resultado |
+|---|---|
+| A causa de cada evento inválido aparece na fila de rejeitados durante o esvaziamento, não só ao final | confirmado: a fila de rejeitados cresceu de 22 para 39 já na terceira amostra, quarenta e cinco segundos após religar o worker, com a fila principal ainda em 2.107 mensagens visíveis |
+| O acúmulo normal esvazia da mesma forma que no cenário isolado | de cerca de 2.100 a 2.400 mensagens, oscilando com o tráfego contínuo do simulador, a zero em aproximadamente 105 segundos |
+| A carga válida é aceita normalmente durante o teste | 48.000 eventos enviados, 0% de falha de requisição |
+
+&emsp; Este foi o resultado mais nítido entre os cenários executados: o mecanismo de quarentena por conteúdo age por mensagem, na primeira vez que ela é recebida, e por isso não espera o esvaziamento completo da fila para identificar um item inválido, mesmo quando o volume de tráfego normal é alto.
+
+## 8. Verificação de regressão dos marcadores incrementais do ETL
+
+&emsp; O pipeline de transformação entre as camadas bronze, silver e gold é incremental e depende de dois marcadores, um por identificador sequencial de mudança e outro por instante de disponibilidade do dado, que nunca podem regredir entre execuções bem sucedidas. Um defeito desse tipo já havia sido identificado e corrigido em sprint anterior, quando uma configuração de janela e margem de segurança incompatíveis fazia o marcador andar para trás a cada execução.
+
+&emsp; Ao final dos cenários das seções 5 a 7, uma consulta específica confirmou que nenhuma execução bem sucedida registrada durante toda a sequência de testes desta sprint apresentou marcador novo menor que o marcador anterior, tanto para o marcador sequencial quanto para o marcador temporal, num total de 853 execuções bem sucedidas somadas entre os dois processos. O resultado indica que a correção aplicada anteriormente continua válida sob a carga e as interrupções produzidas pelos cenários de resiliência.
+
+## 9. Limitação identificada: redirecionamento nativo pela fila
+
+&emsp; Como aprofundamento adicional, foi investigado um cenário que provoca o redirecionamento nativo de mensagens para a fila de rejeitados pelo próprio serviço de fila, após esgotar o número máximo de tentativas de entrega, em vez de pela quarentena explícita do worker. O objetivo era distinguir os dois mecanismos: uma mensagem redirecionada pelo serviço de fila não carrega o motivo específico da falha, enquanto uma mensagem quarentenada pelo worker sempre carrega.
+
+&emsp; A abordagem testada foi revogar temporariamente a permissão de rede do worker até o banco de dados, esperando que uma mensagem em processamento falhasse repetidamente até esgotar as tentativas. O resultado não reproduziu o cenário esperado, e a investigação revelou uma limitação estrutural do desenho atual: o worker abre a conexão com o banco de forma bloqueante, antes de começar a consumir a fila. Uma instância que já estava conectada antes da revogação continua operando pela conexão já estabelecida, já que a permissão de rede da nuvem afeta apenas conexões novas, e uma instância nova, iniciada depois da revogação, falha na própria abertura de conexão antes de chegar a receber qualquer mensagem da fila, o que impede o contador de tentativas de avançar para qualquer mensagem específica.
+
+&emsp; Reproduzir esse cenário de forma controlada exigiria interromper uma consulta em andamento sem derrubar a conexão inteira do worker, uma intervenção mais cirúrgica do que a testada. A limitação foi registrada como um achado de engenharia sobre o desenho atual do worker, e não impede o cumprimento dos critérios de aceite do RNF05 nem do RNF11, já que ambos os mecanismos de rejeição (quarentena explícita e redirecionamento nativo) foram descritos e o primeiro foi validado de ponta a ponta nos cenários anteriores.
