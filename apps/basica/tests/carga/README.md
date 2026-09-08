@@ -136,6 +136,6 @@ Aceitação HTTP não é persistência. Depois de RNF01/RNF03, registre:
 3. diferença de `count(*)` em `bronze.event` igual ao total emitido;
 4. CPU no CloudWatch no mesmo intervalo UTC.
 
-O relatório executado em 2026-09-02 está em
-[`artefatos/testes-carga-e-resiliencia.md`](../../../../artefatos/testes-carga-e-resiliencia.md),
-que também cobre os testes de resiliência do pipeline de mudanças (RNF04/05/11).
+O relatório unificado da execução está em
+[`artefatos/testes-carga-inicial.md`](../../../../artefatos/testes-carga-inicial.md),
+incluindo carga, resiliência e observabilidade de RNF01–RNF05 e RNF11.
