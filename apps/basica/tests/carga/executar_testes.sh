@@ -65,11 +65,11 @@ fi
 
 K6_OPTS=()
 if [ "$COM_GRAFANA" -eq 1 ]; then
-  docker compose -f "$DIR/../../observability/docker-compose.yml" up -d
+  make -C "$DIR/../.." observabilidade-up
   export K6_PROMETHEUS_RW_SERVER_URL="http://localhost:9090/api/v1/write"
   export K6_PROMETHEUS_RW_TREND_STATS="p(50),p(90),p(95),p(99),min,max,avg,count"
   K6_OPTS=(-o experimental-prometheus-rw)
-  echo "Grafana: http://localhost:3000 | Prometheus: http://localhost:9090"
+  echo "Grafana: http://localhost:3001 | Prometheus: http://localhost:9090"
 fi
 
 executar() {

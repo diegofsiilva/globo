@@ -43,20 +43,20 @@ aws sts get-caller-identity --profile g4
 ```bash
 cd apps/basica
 
-# Sobe Prometheus :9090 e Grafana :3000 e executa um requisito.
-./tests/carga/executar_testes.sh rnf01 --com-grafana
-./tests/carga/executar_testes.sh rnf02 --com-grafana
+# Sobe Prometheus :9090 e Grafana :3001 e executa um requisito.
+make teste-performance CENARIO=rnf01 COM_GRAFANA=1
+make teste-performance CENARIO=rnf02 COM_GRAFANA=1
 
 # RNF03 exige uma alteração real entre as duas chamadas.
 RNF03_RECURSOS='1 task por worker; 256 CPU; 512 MiB' \
-  ./tests/carga/executar_testes.sh rnf03-baseline --com-grafana
+  make teste-performance CENARIO=rnf03-baseline COM_GRAFANA=1
 
 # Aplique worker_desired_count=2 e espere services-stable antes desta fase.
 RNF03_RECURSOS='2 tasks por worker; 256 CPU; 512 MiB por task' \
-  ./tests/carga/executar_testes.sh rnf03-escalado --com-grafana
+  make teste-performance CENARIO=rnf03-escalado COM_GRAFANA=1
 
 # Timeout de cliente + recuperação.
-./tests/carga/executar_testes.sh falha-timeout --com-grafana
+make teste-performance CENARIO=falha-timeout COM_GRAFANA=1
 ```
 
 Para o backlog, coloque `event-worker` e `merge-worker` em zero antes da carga,
@@ -64,7 +64,7 @@ registre `ApproximateNumberOfMessages`, restaure os workers e espere a fila
 zerar. O teste k6 é:
 
 ```bash
-./tests/carga/executar_testes.sh falha-backlog --com-grafana
+make teste-performance CENARIO=falha-backlog COM_GRAFANA=1
 ```
 
 Os JSONs e logs brutos ficam em `tests/carga/resultados/` e são ignorados pelo
@@ -83,7 +83,7 @@ make -C apps/basica observabilidade-check
 ```
 
 - Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000` (`admin` / `admin`, ou acesso anônimo de
+- Grafana: `http://localhost:3001` (`admin` / `admin`, ou acesso anônimo de
   leitura), acessível só pela própria máquina (bind em `127.0.0.1`)
 - Dashboards disponíveis: **Argus — Testes de Carga (RNF01/02/03)** e
   **RNF04/05/11 - Resiliencia Argus**
@@ -114,9 +114,11 @@ sum(rate(k6_http_reqs_total{testid=~"$testid",expected_response="false"}[1m]))
 ## CPU real da AWS no mesmo Grafana
 
 O datasource CloudWatch já vem provisionado (perfil `g4`, sem chave estática
-no YAML) junto com o `make observabilidade-up`: o Makefile extrai só o bloco
-`[g4]` de `~/.aws/credentials` para um arquivo temporário, monta esse arquivo
-read-only no container e nunca versiona nada disso. Crie um painel com
+no YAML) junto com o `make observabilidade-up`. Quando o perfil existe, o
+Makefile extrai só o bloco `[g4]` de `~/.aws/credentials` para um arquivo
+temporário, monta esse arquivo read-only no container e nunca versiona nada
+disso. Sem o perfil, a stack ainda sobe para os testes k6; apenas as consultas
+CloudWatch ficam sem autenticação. Crie um painel com
 `Namespace = AWS/ECS`, `Metric = CPUUtilization`, dimensões `ClusterName` e
 `ServiceName`, estatísticas `Average` e `Maximum`, período `1m`; para o banco,
 `AWS/RDS → CPUUtilization → DBInstanceIdentifier`.

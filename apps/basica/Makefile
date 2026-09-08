@@ -28,6 +28,8 @@ TOOLS      := tools
 FRONTEND   := frontend
 POSTMAN    := ../../artefatos/postman
 OBSERVABILITY := observability
+TESTES_CARGA := tests/carga
+OBSERVABILITY_COMPOSE := docker compose -p carga -f $(OBSERVABILITY)/docker-compose.yml
 
 # O motor de hipóteses ainda não possui endpoint no MVP. O modo mock é
 # explícito nos fluxos suportados e pode ser trocado por `api` quando existir.
@@ -207,7 +209,17 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade ## Roda as suites que tem teste
+
+.PHONY: test-observabilidade
+test-observabilidade: ## Valida scripts, Compose e dashboards sem acessar AWS nem subir containers
+	bash -n $(TESTES_CARGA)/executar_testes.sh
+	@command -v docker >/dev/null 2>&1 \
+		&& $(OBSERVABILITY_COMPOSE) config --quiet \
+		|| echo "  compose pulado: Docker ausente."
+	@for painel in $(OBSERVABILITY)/grafana/dashboards/*.json; do \
+		python3 -m json.tool "$$painel" >/dev/null || exit 1; \
+	done
 
 .PHONY: test-authorizer
 test-authorizer: ## Testes do Lambda authorizer (Bearer, audiencias, rotacao)
@@ -790,39 +802,53 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 .PHONY: observabilidade-up
 observabilidade-up: ## Sobe Prometheus e Grafana locais (dashboards de resiliencia RNF04/05/11 e de carga RNF01/02/03)
 	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
-	@test -f "$(HOME)/.aws/credentials" || { echo "erro: $(HOME)/.aws/credentials nao existe."; exit 1; }
 	@# So o perfil g4 vai pro container -- nunca o arquivo inteiro, que pode ter
 	@# outros perfis (ex. default) sem relacao com este dashboard. `mktemp` (nao
-	@# um nome fixo) evita tanto reaproveitar permissao de um arquivo antigo
-	@# quanto ataque de symlink num /tmp compartilhado; o trap cobre o caminho
-	@# de erro do `docker compose` tambem, nao so o de sucesso.
-	creds_tmp=$$(mktemp) && \
-	trap 'rm -f "$$creds_tmp"' EXIT && \
-	awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > "$$creds_tmp" && \
-	test -s "$$creds_tmp" || { echo "erro: perfil [g4] nao encontrado em $(HOME)/.aws/credentials"; exit 1; } && \
-	AWS_CREDS_FILE="$$creds_tmp" docker compose -f $(OBSERVABILITY)/docker-compose.yml up -d
+	@# um nome fixo) evita reaproveitar permissao de um arquivo antigo. Sem o
+	@# perfil, Prometheus e o dashboard k6 continuam disponiveis; apenas as
+	@# consultas CloudWatch ficam sem autenticacao.
+	@set -eu; \
+	creds_tmp=$$(mktemp); \
+	trap 'rm -f "$$creds_tmp"' EXIT; \
+	if [ -f "$(HOME)/.aws/credentials" ]; then \
+		awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > "$$creds_tmp"; \
+	fi; \
+	if [ -s "$$creds_tmp" ]; then \
+		echo "CloudWatch: credencial temporaria do perfil g4 habilitada."; \
+	else \
+		echo "Aviso: perfil g4 ausente; seguindo somente com Prometheus/k6."; \
+	fi; \
+	AWS_CREDS_FILE="$$creds_tmp" $(OBSERVABILITY_COMPOSE) up -d
 	@echo "Prometheus: http://localhost:9090"
-	@echo "Grafana:    http://localhost:3000 (dashboards 'RNF04/05/11 - Resiliencia Argus' e 'Argus — Testes de Carga (RNF01/02/03)'), acessivel so pela propria maquina (bind em 127.0.0.1)."
-	@echo "Credenciais AWS lidas de $(HOME)/.aws/credentials (perfil g4) -- expira junto com a sessao do Learner Lab, so rodar observabilidade-up de novo apos renovar."
+	@echo "Grafana:    http://localhost:3001 (dashboards 'RNF04/05/11 - Resiliencia Argus' e 'Argus — Testes de Carga (RNF01/02/03)'), acessivel so pela propria maquina."
 
 .PHONY: observabilidade-down
 observabilidade-down: ## Derruba Prometheus e Grafana locais (preserva os volumes; 'down -v' manual apaga o historico)
-	docker compose -f $(OBSERVABILITY)/docker-compose.yml down
+	$(OBSERVABILITY_COMPOSE) down
 
 .PHONY: observabilidade-check
 observabilidade-check: ## Valida Prometheus, Grafana e os dois datasources (Prometheus e CloudWatch)
 	@set -euo pipefail; \
-	curl -fsS http://localhost:9090/-/ready >/dev/null; \
-	curl -fsS http://localhost:3000/api/health >/dev/null; \
+	aguardar() { \
+		nome="$$1"; url="$$2"; \
+		for _ in $$(seq 1 30); do \
+			curl -fsS "$$url" >/dev/null 2>&1 && return 0; \
+			sleep 1; \
+		done; \
+		echo "FALHA: $$nome nao ficou pronto em 30 segundos ($$url)."; \
+		return 1; \
+	}; \
+	aguardar Prometheus http://localhost:9090/-/ready; \
+	aguardar Grafana http://localhost:3001/api/health; \
 	auth="$${GRAFANA_USER:-admin}:$${GRAFANA_PASSWORD:-admin}"; \
 	uid=$$(curl -fsS -u "$$auth" \
-		http://localhost:3000/api/datasources/name/Prometheus | jq -r '.uid'); \
+		http://localhost:3001/api/datasources/name/Prometheus | jq -r '.uid'); \
 	[ "$$uid" = "prometheus" ] || { \
 		echo "FALHA: datasource Prometheus usa uid=$$uid; esperado prometheus."; \
 		exit 1; \
 	}; \
 	series=$$(curl -fsSG -u "$$auth" \
-		http://localhost:3000/api/datasources/proxy/uid/prometheus/api/v1/query \
+		http://localhost:3001/api/datasources/proxy/uid/prometheus/api/v1/query \
 		--data-urlencode 'query=up{job="prometheus"}' | \
 		jq -r '.data.result | length'); \
 	[ "$$series" -gt 0 ] || { \
@@ -830,12 +856,17 @@ observabilidade-check: ## Valida Prometheus, Grafana e os dois datasources (Prom
 		exit 1; \
 	}; \
 	cw_uid=$$(curl -fsS -u "$$auth" \
-		http://localhost:3000/api/datasources/name/CloudWatch | jq -r '.uid'); \
+		http://localhost:3001/api/datasources/name/CloudWatch | jq -r '.uid'); \
 	[ "$$cw_uid" = "cloudwatch-g4" ] || { \
-		echo "FALHA: datasource CloudWatch usa uid=$$cw_uid; esperado cloudwatch-g4 (rode observabilidade-up com credencial g4 valida)."; \
+		echo "FALHA: datasource CloudWatch usa uid=$$cw_uid; esperado cloudwatch-g4."; \
 		exit 1; \
 	}; \
 	echo "OK: Prometheus e CloudWatch integrados ao Grafana (series prometheus=$$series)."
+
+.PHONY: teste-performance
+teste-performance: ## Executa a suite k6 (CENARIO=todos; COM_GRAFANA=1 habilita metricas)
+	$(TESTES_CARGA)/executar_testes.sh "$${CENARIO:-todos}" \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
 
 # Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
 # ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.
