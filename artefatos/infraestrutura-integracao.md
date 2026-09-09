@@ -3,17 +3,17 @@
 > **Este arquivo é um template.** Todo bloco de citação marcado `PREENCHER`,
 > `DECIDIR` ou `EVIDÊNCIA` é instrução, não conteúdo: diz o que escrever ali e o
 > que precisa ser mostrado no vídeo. Marcadores `{{ }}` são lacunas. Remova todas
-> as instruções e marcadores antes do commit da entrega — um bloco `PREENCHER`
+> as instruções e marcadores antes do commit da entrega. Um bloco `PREENCHER`
 > sobrevivente é lido pelo avaliador como seção incompleta.
 >
 > Convenções herdadas dos demais artefatos: parágrafos abrem com `&emsp;`,
 > figuras vão centralizadas com legenda `Figura N — ...` e fonte, tabelas
-> resumem decisões, e o texto descreve **o ambiente efetivamente implantado**,
-> não a intenção de projeto. O que ainda não existe é marcado como tal.
+> resumem decisões, e o texto descreve o ambiente efetivamente implantado, não a
+> intenção de projeto. O que ainda não existe é marcado como tal.
 
-&emsp; {{Parágrafo de abertura: o que este artefato cobre — provisionamento da
-infraestrutura em nuvem e integração front-end/back-end —, sobre qual branch e
-qual conta AWS o texto foi escrito, e a data da verificação.}}
+&emsp; {{Parágrafo de abertura: o que este artefato cobre (provisionamento da
+infraestrutura em nuvem e integração front-end/back-end), sobre qual branch e qual
+conta AWS o texto foi escrito, e a data da verificação.}}
 
 ## Divergências de nomenclatura
 
@@ -24,31 +24,32 @@ qual conta AWS o texto foi escrito, e a data da verificação.}}
 | Especificação | Repositório | Tratamento |
 |---|---|---|
 | `infraestrutura_integracao.md` (seção de vídeos) e `infraestrutura-integracao.md` (cabeçalho) | `artefatos/infraestrutura-integracao.md` | {{Adotado o hífen, coerente com `arquitetura-inicial.md`}} |
-| `/apps/fullstack` | `apps/basica` | {{Renomear a pasta **ou** registrar a divergência — decidir, ver seção 9}} |
+| `/apps/fullstack` | `apps/basica` | {{Renomear a pasta ou registrar a divergência: decidir, ver seção 9}} |
 | {{ }} | {{ }} | {{ }} |
 
 ## Rastreabilidade da rubrica
 
 > **PREENCHER** · Mantenha esta tabela atualizada até a véspera da entrega. São
-> **nove** itens de peso 1,0: o item (d), de análise de impacto nos ODS da ONU, foi
+> nove itens avaliados. O item (d), de análise de impacto nos ODS da ONU, foi
 > dispensado pelo professor em 04/09/2026 por já estar contemplado no artefato de
-> negócios — não reescreva a análise aqui, referencie-a se for citada. `Status` aceita apenas: `não iniciado`, `provisionado`,
-> `documentado`, `filmado`, `pronto`.
+> negócios; não reescreva a análise aqui, referencie-a se for citada. `Status`
+> aceita apenas: `não iniciado`, `provisionado`, `documentado`, `filmado`,
+> `pronto`.
 
 | # | Item da rubrica | Peso | Onde está | Status |
 |---|---|---|---|---|
-| R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | documentado — figura existe, pendente o ajuste listado em `assets/NOTAS-DIAGRAMA-V4.md` |
-| R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | **pronto** |
+| R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | documentado; a figura existe, pendente o ajuste listado em `assets/NOTAS-DIAGRAMA-V4.md` |
+| R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | pronto |
 | R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | não iniciado |
-| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1, 4.6 e 6 | **aplicado e verificado** em 08/09/2026 — falta filmar |
-| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | provisionado — falta filmar |
-| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | provisionado — falta filmar |
-| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | provisionado — falta filmar |
+| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1, 4.6 e 6 | aplicado e verificado em 08/09/2026; falta filmar |
+| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | provisionado; falta filmar |
+| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | provisionado; falta filmar |
+| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | provisionado; falta filmar |
 | V2-a | Testes de validação funcional | 1,0 | Seção 7 | não iniciado |
 | V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 7 | não iniciado |
 
-&emsp; `provisionado` aqui significa **escrito e validado no Terraform**, não
-aplicado em conta — ver a nota ao fim de 1.2.
+&emsp; `provisionado` aqui significa escrito e validado no Terraform, não
+aplicado em conta. Ver a nota ao fim de 1.2.
 
 ---
 
@@ -81,10 +82,10 @@ dashboard deixa de ser uma função sem servidor e executa em instâncias Amazon
 um Auto Scaling Group, atrás de um Application Load Balancer; e a entrega do front-end
 passa por uma distribuição do Amazon CloudFront, que fornece o TLS ausente.
 
-&emsp; A migração é deliberadamente parcial. O **caminho síncrono** — a requisição que
-o dashboard faz e cuja latência o usuário percebe — é o que recebe grupo de
+&emsp; A migração é deliberadamente parcial. O caminho síncrono, que é a requisição
+feita pelo dashboard e cuja latência o usuário percebe, é o que recebe grupo de
 escalonamento e balanceador, porque é onde a variação de carga é observável e onde a
-perda de uma instância tem efeito imediato sobre a experiência. O **caminho assíncrono**
+perda de uma instância tem efeito imediato sobre a experiência. O caminho assíncrono
 de ingestão permanece em filas com consumidores no ECS Fargate: o desacoplamento por
 SQS já absorve rajada, o backlog da fila é a métrica de saúde natural desse fluxo, e
 reescrevê-lo sobre EC2 acrescentaria risco de regressão sem ganho arquitetural
@@ -107,37 +108,37 @@ correspondente. A seção 3.8 registra a decisão junto com a alternativa descar
 |---|---|---|---|
 | Ambiente de rede | VPC padrão da conta, apenas sub-redes públicas | VPC dedicada, sub-redes públicas e privadas em duas AZs | Implementado |
 | Saída para a internet das cargas | Endereço público na própria task | NAT Gateway em sub-rede pública | Implementado |
-| Acesso administrativo | Task avulsa `migration` dentro da VPC | Bastion host, com a task `migration` mantida | Condicional — exige `bastion_key_name` |
+| Acesso administrativo | Task avulsa `migration` dentro da VPC | Bastion host, com a task `migration` mantida | Condicional: exige `bastion_key_name` |
 | API de leitura | AWS Lambda (Flask por `lambda_handler`) | EC2 em Auto Scaling Group atrás de ALB | Implementado |
 | Elasticidade do caminho síncrono | Concorrência da Lambda, implícita | Política de escalonamento declarada no ASG | Implementado |
 | Autenticação da API de leitura | Lambda authorizer do API Gateway | Validação do Bearer dentro do Flask | Implementado |
-| Entrega do dashboard | Endpoint de website S3, somente HTTP | CloudFront com TLS e bucket privado por OAC | **Planejado** — fora do escopo desta sprint |
+| Entrega do dashboard | Endpoint de website S3, somente HTTP | CloudFront com TLS e bucket privado por OAC | Planejado; fora do escopo desta sprint |
 | Observabilidade de rede | Log de aplicação e alarmes do CloudWatch | Acrescidos VPC Flow Logs, access logs do ALB e painel do CloudWatch | Implementado |
 | Ingestão e processamento | API Gateway → SQS → ECS Fargate | Inalterado, realocado para sub-rede privada | Implementado |
 | Banco de dados | RDS PostgreSQL 16 privado na VPC padrão | RDS PostgreSQL 16 em subnet group privado da VPC dedicada | Implementado |
-| Alta disponibilidade do banco | Instância única | Multi-AZ | **Planejado** — desligado por custo, ver 5.1 |
+| Alta disponibilidade do banco | Instância única | Multi-AZ | Planejado; desligado por custo, ver 5.1 |
 
-&emsp; **O que “Implementado” significa aqui.** O recurso existe no Terraform
-deste repositório e a configuração passa por `terraform validate`, `terraform fmt`,
-o teste de rede com provider mockado (`make tf-test`) e o portão `make check`.
-Para a maior parte dos itens isso **não** significa aplicado em conta: `validate`
-confirma sintaxe, tipos e referências entre recursos — não que o papel `voclabs`
-autorize criar cada um deles.
+&emsp; O que “Implementado” significa aqui. O recurso existe no Terraform deste
+repositório e a configuração passa por `terraform validate`, `terraform fmt`, o
+teste de rede com provider simulado (`make tf-test`) e o portão `make check`. Para
+a maior parte dos itens isso não significa aplicado em conta: `validate` confirma
+sintaxe, tipos e referências entre recursos, não que o papel `voclabs` autorize
+criar cada um deles.
 
-&emsp; **A camada de rede é a exceção, e foi aplicada.** VPC, sub-redes, Internet
+&emsp; A camada de rede é a exceção, e foi aplicada. VPC, sub-redes, Internet
 Gateway, NAT Gateway, tabelas de rota, gateway endpoint de S3 e Flow Logs foram
-provisionados e verificados numa conta do AWS Academy Learner Lab em **8 de
-setembro de 2026**, região `us-east-1`, num *workspace* próprio do Terraform
-(`individual`) — um estado separado dentro do mesmo diretório de configuração —
-para não tocar o estado do ambiente principal. As evidências
-capturadas — incluindo a demonstração de que uma máquina sem endereço público sai
-pelo NAT — estão na seção 4.6, e as duas restrições do laboratório que apareceram
-só no `apply` estão na seção 8.
+provisionados e verificados numa conta do AWS Academy Learner Lab em 8 de setembro
+de 2026, região `us-east-1`. A aplicação usou um *workspace* próprio do Terraform,
+chamado `individual`: um workspace é um estado separado dentro do mesmo diretório
+de configuração, e usá-lo evitou tocar no estado do ambiente principal. As
+evidências capturadas estão na seção 4.6, entre elas a demonstração de que uma
+máquina sem endereço público sai pelo NAT. As duas restrições do laboratório que
+apareceram só no `apply` estão na seção 8.
 
 &emsp; O bastion, o Auto Scaling Group e o Application Load Balancer ainda não
 passaram por `apply`. Para eles vale integralmente a distância descrita acima, e o
-primeiro `terraform plan` contra a conta é o passo que a fecha — ele é somente
-leitura (ver 4.3).
+primeiro `terraform plan` contra a conta é o passo que a fecha. Esse comando é
+somente leitura (ver 4.3).
 
 ### 1.3 Fora de escopo
 
@@ -151,17 +152,18 @@ em [`correlacao_dados.md`](correlacao_dados.md). Referência cruzada substitui c
 um mesmo fato mantido em dois artefatos diverge no commit seguinte.
 
 &emsp; Permanece igualmente fora de escopo a camada agêntica de correlação, que
-pertence ao roadmap de produção e não ao recorte implantado — distinção estabelecida
-em [`entendimento_negocio.md`](entendimento_negocio.md) e preservada aqui.
+pertence ao roadmap de produção e não ao recorte implantado. A distinção foi
+estabelecida em [`entendimento_negocio.md`](entendimento_negocio.md) e é preservada
+aqui.
 
 ---
 
-## 2. Diagrama de implantação do sistema — peso 1,0
+## 2. Diagrama de implantação do sistema
 
 > **PREENCHER** · O diagrama é o item mais barato de perder ponto e o mais fácil de
 > acertar. Exigências: notação de implantação (estereótipos `«execution environment»`,
-> `«database»`, `«message queue»`, `«object storage»`), **fronteiras de rede
-> desenhadas** — a VPC, cada zona de disponibilidade, cada sub-rede — e setas
+> `«database»`, `«message queue»`, `«object storage»`), fronteiras de rede
+> desenhadas para a VPC, cada zona de disponibilidade e cada sub-rede, e setas
 > rotuladas com o protocolo e a porta reais. Todo recurso citado na seção 3 precisa
 > aparecer aqui, e vice-versa; a matriz de conexões da seção 3.7 é o checklist
 > cruzado dessa correspondência.
@@ -181,18 +183,18 @@ em [`entendimento_negocio.md`](entendimento_negocio.md) e preservada aqui.
 </div>
 
 &emsp; {{Parágrafo de leitura do diagrama: o que a figura mostra, o que o traço
-tracejado significa e qual é o caminho da requisição do dashboard. Escrever **depois**
-de a topologia estar aplicada, para descrever o que existe e não o que se pretendia.}}
+tracejado significa e qual é o caminho da requisição do dashboard. Escrever depois de
+a topologia estar aplicada, para descrever o que existe e não o que se pretendia.}}
 
 ### 2.1 Fonte editável e exportação
 
 &emsp; A fonte do diagrama é [`assets/arquitetura-implantacao-v4.svg`](assets/arquitetura-implantacao-v4.svg),
-SVG escrito à mão e versionado como fonte — mesma convenção do
+SVG escrito à mão e versionado como fonte, na mesma convenção do
 `arquitetura-implantacao-v3.svg`, do qual herda o vocabulário visual: nós
 tridimensionais com estereótipo, caixas de artefato aninhadas, faixa transversal de
 operação e o traço laranja tracejado para o que ainda não existe. Não há binário
 intermediário de ferramenta. O PNG publicado no relatório é gerado a partir do SVG e
-commitado junto; **os dois arquivos andam sempre no mesmo commit**, sob pena de a
+commitado junto; os dois arquivos andam sempre no mesmo commit, sob pena de a
 figura divergir da fonte.
 
 &emsp; O diagrama v3 permanece intacto, porque é a figura referenciada por
@@ -206,35 +208,35 @@ escrito.
 avaliador ampliar a figura. Qualquer um dos comandos abaixo produz o PNG:
 
 ```bash
-# opção 1 — rsvg-convert, mesma linha usada no v3
+# opção 1: rsvg-convert, mesma linha usada no v3
 rsvg-convert -w 3760 -b white \
   artefatos/assets/arquitetura-implantacao-v4.svg \
   -o artefatos/assets/arquitetura-implantacao-v4.png
 
-# opção 2 — Chromium headless, quando o rsvg-convert não estiver disponível
+# opção 2: Chromium headless, quando o rsvg-convert não estiver disponível
 chrome --headless --disable-gpu --hide-scrollbars \
   --window-size=3760,2454 --default-background-color=FFFFFFFF \
   --screenshot=artefatos/assets/arquitetura-implantacao-v4.png \
   artefatos/assets/arquitetura-implantacao-v4.svg
 ```
 
-&emsp; **Conferir depois de exportar:** o Markdown do GitHub reduz a figura à largura
+&emsp; Conferir depois de exportar: o Markdown do GitHub reduz a figura à largura
 da coluna de leitura, cerca de 880 px, o que torna os rótulos ilegíveis em linha; o
 leitor precisa clicar na imagem para vê-la em tamanho real, e é por isso que o PNG
-exportado tem de ser grande. Fundo branco explícito, nunca transparente — no tema
-escuro do GitHub o texto sumiria.
+exportado tem de ser grande. O fundo branco precisa ser explícito, nunca
+transparente: no tema escuro do GitHub o texto sumiria.
 
 ### 2.2 Convenções de notação
 
 | Elemento | Significado |
 |---|---|
 | Nó tridimensional | Nó de implantação: ambiente de execução, serviço gerenciado ou dispositivo |
-| Preenchimento azul-cinza | Nó que **já existia na arquitetura v3** e foi apenas realocado na rede |
-| Preenchimento roxo | Nó **acrescentado nesta revisão** — não tem correspondente no diagrama v3 |
-| Preenchimento laranja tracejado | Nó **planejado**, ainda sem recurso no Terraform |
+| Preenchimento azul-cinza | Nó que já existia na arquitetura v3 e foi apenas realocado na rede |
+| Preenchimento roxo | Nó acrescentado nesta revisão, sem correspondente no diagrama v3 |
+| Preenchimento laranja tracejado | Nó planejado, ainda sem recurso no Terraform |
 | Caixa branca interna `«artifact»` | Artefato de software implantado naquele nó |
-| Retângulo com título no canto superior | Fronteira de rede: VPC, zona de disponibilidade, sub-rede — toda essa camada é nova nesta revisão |
-| Retângulo tracejado sem preenchimento | Agrupamento lógico — Auto Scaling Group e balanceador — que atravessa as zonas de disponibilidade e não é recurso de rede |
+| Retângulo com título no canto superior | Fronteira de rede: VPC, zona de disponibilidade, sub-rede. Toda essa camada é nova nesta revisão |
+| Retângulo tracejado sem preenchimento | Agrupamento lógico, como o Auto Scaling Group e o balanceador, que atravessa as zonas de disponibilidade e não é recurso de rede |
 | `«…»` | Estereótipo do nó |
 | Rótulo da seta | Protocolo e porta efetivamente usados |
 | Faixa inferior tracejada | Serviços transversais ao ASG, ao Fargate e ao RDS |
@@ -242,24 +244,24 @@ escuro do GitHub o texto sumiria.
 &emsp; Os nós em roxo são a resposta visual à pergunta “o que esta sprint acrescentou”:
 Internet Gateway, NAT Gateway, bastion host, os dois nós do Application Load Balancer,
 as duas instâncias EC2 do Auto Scaling Group, a distribuição CloudFront e a estação do
-administrador. O RDS standby aparece em laranja porque é acréscimo **e** ainda não está
-provisionado — quando o Multi-AZ for ligado, ele passa para roxo.
+administrador. O RDS standby aparece em laranja porque é acréscimo e ainda não está
+provisionado; quando o Multi-AZ for ligado, ele passa para roxo.
 
 ---
 
-## 3. Componentes e justificativa da arquitetura — peso 1,0
+## 3. Componentes e justificativa da arquitetura
 
 &emsp; Esta seção descreve cada componente da topologia implantada e justifica a
 escolha. Descrição e justificativa são coisas distintas e as duas são exigidas:
 dizer que “o balanceador distribui carga entre as instâncias” é descrever o que
 o serviço faz. A justificativa está em qual alternativa foi descartada, contra
-qual atributo de qualidade, e a que custo — e é isso que a **ficha padrão** de
-cada componente registra, junto com o modo de falha previsto e o arquivo
-Terraform onde o recurso vive. A tabela consolidada das decisões está em 3.8.
+qual atributo de qualidade, e a que custo. É isso que a ficha padrão de cada
+componente registra, junto com o modo de falha previsto e o arquivo Terraform onde o
+recurso vive. A tabela consolidada das decisões está em 3.8.
 
-&emsp; O estado segue a legenda de 1.1. **Implementado** significa que existe no
+&emsp; O estado segue a legenda de 1.1. “Implementado” significa que existe no
 código Terraform deste repositório e foi validado por `terraform validate` e
-`terraform fmt`; **Planejado** significa decisão registrada sem recurso
+`terraform fmt`; “Planejado” significa decisão registrada sem recurso
 correspondente. A validação de configuração não é o mesmo que aplicação em
 conta: o que o Terraform confirma é sintaxe, tipos e referências entre recursos,
 não que o papel `voclabs` do Learner Lab autorize criar cada um deles.
@@ -273,25 +275,29 @@ com todas as sub-redes públicas e endereço roteável em cada task
 “concessão do laboratório e não a postura recomendada para produção”. A rede
 dedicada descrita aqui paga essa dívida.
 
-&emsp; **As duas chaves andam juntas, e o Terraform recusa a combinação errada.**
+&emsp; As duas chaves andam juntas, e o Terraform recusa a combinação errada.
 `create_network = true` com `assign_public_ip = true` põe a task numa sub-rede
 privada, que não tem rota para o Internet Gateway: o endereço público não serve
-para nada, o *pull* da imagem no ECR falha e o serviço entra em ciclo de
+para nada, o download da imagem no ECR falha e o serviço entra em ciclo de
 reinicialização. Uma validação cruzada entre as duas variáveis transforma isso em
-erro de `plan`, com a explicação junto — sem ela o sintoma chega horas depois,
-como serviço que não estabiliza, e nada aponta para a variável de rede que o
-causou. As faixas das sub-redes são derivadas de `vpc_cidr` pelo mesmo motivo:
-listas fixas deixariam sub-redes penduradas fora da VPC ao primeiro que trocasse
-o bloco. O arquivo `rede.tftest.hcl` exercita as duas regras com provider
-mockado, sem tocar a AWS.
+erro de `plan`, com a explicação junto. Sem ela o sintoma chega horas depois, como
+serviço que não estabiliza, e nada aponta para a variável de rede que o causou. As
+faixas das sub-redes são derivadas de `vpc_cidr` pelo mesmo motivo: listas fixas
+deixariam sub-redes penduradas fora da VPC ao primeiro que trocasse o bloco. O
+arquivo `rede.tftest.hcl` exercita as duas regras com um provider simulado, que
+responde no lugar da AWS sem criar recurso nenhum.
 
-&emsp; A VPC ocupa o bloco `10.0.0.0/16` e tem `enable_dns_hostnames` ligado —
-sem esse atributo o endpoint do RDS não recebe nome DNS resolvível de dentro da
+&emsp; A VPC ocupa o bloco `10.0.0.0/16`. A notação `/16` é o CIDR, a forma de
+escrever uma faixa de endereços IP pelo número de bits fixos: `10.0.0.0/16`
+reserva os 65.536 endereços entre `10.0.0.0` e `10.0.255.255`, e cada `/24`
+recortado dela reserva 256. A VPC tem `enable_dns_hostnames` ligado porque, sem
+esse atributo, o endereço do RDS não recebe nome DNS resolvível de dentro da
 própria VPC, e a `DATABASE_URL` montada em `locals.tf` apontaria para um host
-inexistente. Dentro dela há quatro sub-redes, distribuídas em **duas zonas de
-disponibilidade**. Duas AZs não é preferência de projeto: o Application Load
+inexistente. Dentro dela há quatro sub-redes, distribuídas em duas zonas de
+disponibilidade. Duas zonas não é preferência de projeto: o Application Load
 Balancer exige no mínimo duas sub-redes em zonas distintas e não chega a ser
-criado com uma só, e o subnet group do RDS impõe a mesma condição.
+criado com uma só, e o subnet group do RDS, que é a lista de sub-redes onde o
+banco pode nascer, impõe a mesma condição.
 
 | Sub-rede | Tipo | CIDR | AZ | Rota `0.0.0.0/0` | O que executa |
 |---|---|---|---|---|---|
@@ -307,65 +313,70 @@ conta recebe a lista completa. Fixar o nome faz o `apply` passar numa conta e
 falhar em outra, com a causa aparecendo como “sub-rede inválida” muito depois do
 erro real.
 
-&emsp; **A diferença entre os dois gateways é o que define a sub-rede privada.**
-O Internet Gateway é simétrico: deixa sair e deixa entrar. O NAT Gateway é
-assimétrico — traduz o endereço de saída e não tem como encaminhar uma conexão
-iniciada de fora, porque não existe tradução registrada para ela. A tabela de
-rotas privada aponta `0.0.0.0/0` para o NAT e **não tem nenhuma rota para o
-IGW**; é essa ausência, e não o nome da sub-rede, que impede alcance externo,
+&emsp; A diferença entre os dois gateways é o que define a sub-rede privada. O
+Internet Gateway é simétrico: deixa sair e deixa entrar. O NAT Gateway é
+assimétrico, porque traduz o endereço de saída e não tem como encaminhar uma
+conexão iniciada de fora: não existe tradução registrada para ela. A tabela de
+rotas privada aponta `0.0.0.0/0` para o NAT e não tem nenhuma rota para o Internet
+Gateway. É essa ausência, e não o nome da sub-rede, que impede alcance externo,
 mesmo que um security group fosse afrouxado por engano.
 
 &emsp; Os hosts privados precisam de saída por quatro motivos concretos, todos
 exercitados no boot de cada instância: baixar pacotes do repositório do Amazon
 Linux (`dnf install` de Docker e do agente CloudWatch), autenticar e puxar a
 imagem do ECR, ler o segredo dos tokens no Secrets Manager, e entregar log e
-métrica ao CloudWatch. Sem NAT, a instância sobe, não encontra o que executar, e
-reprova no health check — o grupo entra em ciclo de substituição com o sintoma
-aparecendo como falha da aplicação.
+métrica ao CloudWatch. Sem NAT, a instância sobe, não encontra o que executar e
+reprova na verificação de saúde do balanceador; o grupo entra em ciclo de
+substituição, com o sintoma aparecendo como falha da aplicação.
 
-&emsp; **Há um único NAT Gateway**, na primeira sub-rede pública, e não um por
-zona. A recomendação da AWS para produção é um por AZ, justamente para que a
-queda de uma zona não leve junto a saída da outra. Aqui a decisão é de custo:
-cada NAT custa cerca de US$ 32/mês de hora parada mais o tráfego, e é o item mais
-caro da topologia. A consequência está assumida e detalhada em 5.1 — se a zona do
-NAT cair, as instâncias da outra zona continuam **servindo tráfego**, porque o
-caminho de leitura não passa pelo NAT, mas perdem a saída, e o ASG não consegue
-subir instância nova naquela zona até a zona voltar.
+&emsp; Há um único NAT Gateway, na primeira sub-rede pública, e não um por zona. A
+recomendação da AWS para produção é um por zona, justamente para que a queda de
+uma não leve junto a saída da outra. Aqui a decisão é de custo: cada NAT custa
+cerca de US$ 32/mês de hora parada mais o tráfego, e é o item mais caro da
+topologia. A consequência está assumida e detalhada em 5.1. Se a zona do NAT cair,
+as instâncias da outra zona continuam servindo tráfego, porque o caminho de
+leitura não passa pelo NAT, mas perdem a saída, e o ASG não consegue subir
+instância nova naquela zona até a zona voltar.
 
-&emsp; **VPC endpoints não foram criados, e a decisão é consciente.** Endpoints
-para S3, ECR, Secrets Manager e CloudWatch Logs tirariam esse tráfego do NAT,
-reduzindo custo de transferência e mantendo as chamadas dentro da rede da AWS.
-O custo de não usá-los: todo `docker pull` e toda chamada de API paga tráfego de
-NAT, e o caminho até o ECR sai e volta pela borda. Ficaram de fora porque são
-sete recursos adicionais — um gateway endpoint para S3 e endpoints de interface
-para ECR API, ECR DKR, Secrets Manager, CloudWatch Logs e STS — cada um com
-security group próprio, e os de interface têm custo horário que anula parte da
+&emsp; Os VPC endpoints de interface não foram criados, e a decisão é consciente.
+Um endpoint é uma porta de entrada privada para um serviço da AWS, criada dentro
+da própria VPC; ele vem em duas formas. O *gateway endpoint* é uma entrada a mais
+na tabela de rotas, serve só S3 e DynamoDB e é gratuito: esse foi criado, para
+S3. O *endpoint de interface* é uma placa de rede dentro da sub-rede, atende os
+demais serviços e cobra por hora em cada zona. Endpoints de interface para ECR,
+Secrets Manager e CloudWatch Logs tirariam esse tráfego do NAT, reduzindo o custo
+de transferência e mantendo as chamadas dentro da rede da AWS. O custo de não
+usá-los é que todo `docker pull` e toda chamada de API paga tráfego de NAT, e o
+caminho até o ECR sai e volta pela borda. Ficaram de fora porque seriam cinco
+recursos adicionais, um para ECR API, ECR DKR, Secrets Manager, CloudWatch Logs e
+STS, cada um com security group próprio e com custo horário que anula parte da
 economia num volume tão pequeno. A decisão está registrada em 3.8 (decisão 4).
 
 **Grupos de segurança**
 
 &emsp; A regra que vale em todo o stack: sempre que a origem for um recurso
-nosso, ela referencia **outro security group**, e não um CIDR. Uma sub-rede pode
-ser renumerada e o IP de uma instância muda a cada substituição do ASG, mas a
-identidade do grupo não muda. Há exatamente um `0.0.0.0/0` de entrada em toda a
-topologia, e ele está na porta 80 do balanceador — que existe justamente para
-aceitar conexão de qualquer origem.
+nosso, ela referencia outro security group, e não uma faixa de endereços. Uma
+sub-rede pode ser renumerada e o IP de uma instância muda a cada substituição do
+ASG, mas a identidade do grupo não muda. Há exatamente um `0.0.0.0/0` de entrada
+em toda a topologia, e ele está na porta 80 do balanceador, que existe justamente
+para aceitar conexão de qualquer origem.
 
 | Security group | Regra de entrada | Origem | Regra de saída | Destino |
 |---|---|---|---|---|
 | `argus-events-dev-alb` | TCP 80 | `0.0.0.0/0` | TCP 5000 | `sg-app` |
 | `argus-events-dev-app` | TCP 5000 · TCP 22 | `sg-alb` · `sg-bastion` | TCP 443, TCP 80, TCP 5432 | saída, `sg-rds` |
-| `argus-events-dev-bastion` | TCP 22 | CIDR do time em `/32` — validação recusa `0.0.0.0/0` | TCP 22, TCP 5432, TCP 443 | `sg-app`, `sg-rds`, saída |
+| `argus-events-dev-bastion` | TCP 22 | Endereço do time em `/32`; a validação recusa `0.0.0.0/0` | TCP 22, TCP 5432, TCP 443 | `sg-app`, `sg-rds`, saída |
 | `argus-events-dev-rds` | TCP 5432 | `sg-worker`, `sg-app`, `sg-bastion` | — | — |
 | `argus-events-dev-tasks` | — (nenhuma) | — | TCP 443, TCP 5432 | saída, `sg-rds` |
 
 &emsp; O grupo das tasks Fargate não tem regra de entrada nenhuma, e isso é o
-desenho: os workers fazem *long polling* no SQS e o simulador só faz chamada de
-saída — ninguém conecta neles. A saída do bastion também é restrita a três
-destinos em vez de `0.0.0.0/0`: abrir a saída inteira daria a quem o
-comprometesse um trampolim para qualquer lugar.
+desenho: os workers buscam mensagem na fila por *long polling*, que é uma consulta
+de saída que fica aberta esperando a mensagem chegar, e o simulador também só faz
+chamada de saída. Ninguém conecta neles. A saída do bastion é restrita a três
+destinos em vez de `0.0.0.0/0`: abrir a saída inteira daria a quem o comprometesse
+um trampolim para qualquer lugar.
 
-**Observabilidade da rede — logs distribuídos**
+**Observabilidade da rede: logs distribuídos**
 
 &emsp; O log da aplicação responde “o que a API fez com a requisição”. Ele não
 responde “a conexão chegou?”, e essa é exatamente a pergunta que aparece quando
@@ -375,27 +386,29 @@ fontes, em três níveis, e a utilidade está em cruzá-las.
 
 | Fonte | Destino | Retenção | Pergunta que responde |
 |---|---|---|---|
-| VPC Flow Logs | `/aws/vpc/argus-events-dev/flow-logs` | 30 dias | Tráfego aceito ou rejeitado, por par origem/destino; conexão inesperada |
+| VPC Flow Logs | Bucket `argus-events-dev-flow-logs-<conta>` | 30 dias | Tráfego aceito ou rejeitado, por par origem/destino; conexão inesperada |
 | Aplicação nas EC2 do ASG | `/argus/argus-events-dev/app` | 30 dias | Erro por requisição, latência, `X-Request-Id` |
 | Access logs do ALB | Bucket `argus-events-dev-alb-logs-<conta>` | 30 dias | Código de resposta e tempo do backend, por requisição |
 | Tasks Fargate | `/ecs/argus-events-dev/<serviço>` | 30 dias | Ingestão, ETL, motor de hipóteses |
 | API Gateway de ingestão | `/aws/apigateway/argus-events-dev` | 30 dias | Evento recusado na borda |
 
 &emsp; Os Flow Logs usam formato customizado, e não o padrão, porque o padrão não
-traz `pkt-srcaddr` e `pkt-dstaddr` — os endereços reais **antes** da tradução do
+traz `pkt-srcaddr` e `pkt-dstaddr`, que são os endereços reais antes da tradução do
 NAT. Sem eles, todo tráfego de saída das sub-redes privadas aparece originado no
 NAT, e fica impossível dizer qual instância falou com quem. O intervalo de
 agregação está em 60 segundos e não nos 600 do padrão: numa demonstração ao vivo,
 esperar dez minutos pelo primeiro registro é a diferença entre evidenciar o
-recurso e falar sobre ele.
+recurso e falar sobre ele. O destino é um bucket S3, e a razão está na seção 8.1:
+o papel do laboratório não consegue assumir a identidade que o serviço usaria para
+escrever no CloudWatch Logs.
 
-&emsp; Os access logs do ALB vão para S3 porque o serviço **não** os entrega no
-CloudWatch Logs — não há escolha de destino aqui; o bucket existe porque o
-serviço exige bucket. Ele tem bloqueio total de acesso público e uma regra de
-ciclo de vida que expira os objetos em 30 dias: access log cresce por requisição
-e ninguém volta nele depois de um mês.
+&emsp; Os access logs do ALB vão para S3 porque o serviço não os entrega no
+CloudWatch Logs. Não há escolha de destino aqui; o bucket existe porque o serviço
+exige bucket. Ele tem bloqueio total de acesso público e uma regra de ciclo de
+vida que expira os objetos em 30 dias: access log cresce por requisição e ninguém
+volta nele depois de um mês.
 
-&emsp; **A correlação ponta a ponta usa o `X-Request-Id`.** O cabeçalho já é
+&emsp; A correlação ponta a ponta usa o `X-Request-Id`. O cabeçalho já é
 emitido em toda resposta por `telemetry/observability.py` e aparece na linha de
 log estruturado da aplicação e no corpo dos erros RFC 7807. Uma requisição que
 aparece no flow log e não no access log morreu no security group do balanceador;
@@ -411,8 +424,8 @@ pelo mesmo identificador. É esse encadeamento que o Vídeo 2 percorre.
 | Configuração efetiva | `10.0.0.0/16`; 2 sub-redes públicas `/24` e 2 privadas `/24`, em 2 AZs; DNS e hostnames habilitados |
 | Entradas / saídas | Entrada só pelo IGW nas públicas; saída das privadas pelo NAT |
 | Estado | Implementado |
-| Alternativa descartada | VPC padrão da conta, usada até a v3 — não tem sub-rede privada, e sem ela não há como remover o IP público das cargas |
-| Modo de falha previsto e mitigação | Sub-rede esgotada por crescimento do ASG: `/24` dá 251 endereços úteis contra o teto de 6 instâncias — folga de duas ordens de grandeza |
+| Alternativa descartada | VPC padrão da conta, usada até a v3; ela não tem sub-rede privada, e sem ela não há como remover o IP público das cargas |
+| Modo de falha previsto e mitigação | Sub-rede esgotada por crescimento do ASG: um `/24` dá 251 endereços úteis contra o teto de 6 instâncias, folga de duas ordens de grandeza |
 | Custo estimado | Sem custo próprio |
 | Arquivo Terraform | `apps/basica/infra/vpc.tf` |
 
@@ -424,9 +437,9 @@ pelo mesmo identificador. É esse encadeamento que o Vídeo 2 percorre.
 | Configuração efetiva | Um NAT na primeira sub-rede pública, com Elastic IP fixo |
 | Entradas / saídas | Recebe das tabelas de rota privadas; sai pelo IGW |
 | Estado | Implementado |
-| Alternativa descartada | (a) IP público na carga, usado até a v3 — mais barato e desfaz a rede privada; (b) um NAT por AZ, que é a recomendação de produção e dobra o custo |
+| Alternativa descartada | (a) IP público na carga, usado até a v3: mais barato, mas desfaz a rede privada; (b) um NAT por zona, que é a recomendação de produção e dobra o custo |
 | Modo de falha previsto e mitigação | Queda da AZ do NAT: as instâncias da outra zona seguem servindo tráfego, mas sem saída; o ASG não sobe instância nova ali. Mitigação declarada: subir o segundo NAT (5.1) |
-| Custo estimado | ~US$ 32/mês + tráfego — o item mais caro da topologia |
+| Custo estimado | ~US$ 32/mês mais o tráfego; é o item mais caro da topologia |
 | Arquivo Terraform | `apps/basica/infra/vpc.tf` |
 
 **Ficha — VPC Flow Logs e access logs do ALB**
@@ -436,7 +449,7 @@ pelo mesmo identificador. É esse encadeamento que o Vídeo 2 percorre.
 | Papel no sistema | Observabilidade da camada de rede: responde “a conexão chegou?” |
 | Configuração efetiva | Flow Logs de todo o tráfego, formato customizado com `pkt-srcaddr`, agregação de 60 s, retenção de 30 dias, entregues em bucket S3 com AES256; access logs do ALB em S3 com expiração de 30 dias |
 | Entradas / saídas | VPC → S3 (ou CloudWatch Logs, por `flow_logs_destination`); ALB → S3 |
-| Estado | Implementado e **aplicado** — ver 4.6 |
+| Estado | Implementado e aplicado; ver 4.6 |
 | Alternativa descartada | (a) Formato padrão de flow log, que oculta o endereço real por trás do NAT; (b) destino CloudWatch Logs, inviável no laboratório porque a `LabRole` não confia em `vpc-flow-logs.amazonaws.com` (seção 8) |
 | Modo de falha previsto e mitigação | Volume de log inflando custo: retenção e ciclo de vida de 30 dias em ambos |
 | Custo estimado | ~US$ 1–3/mês no volume do laboratório |
@@ -450,8 +463,8 @@ incidente, ou entrar numa instância para ler um log que não chegou ao CloudWat
 Havia três formas de permitir isso, e duas desfazem o trabalho da seção anterior:
 dar IP público às instâncias anula a rede privada, e tornar o RDS publicamente
 acessível o expõe à varredura contínua, deixando a senha como única barreira. A
-terceira é um host intermediário, mínimo, com uma única porta aberta para um
-CIDR conhecido — e nada além disso.
+terceira é um host intermediário, mínimo, com uma única porta aberta para uma
+faixa de endereços conhecida, e nada além disso.
 
 &emsp; O bastion é uma `t4g.micro`, o menor tipo disponível, na primeira
 sub-rede pública. Pública porque precisa ser alcançável de fora, o que é a
@@ -460,22 +473,21 @@ de escrita: se for comprometido, o atacante ganha o que já teria com a chave SS
 e nada além. A única coisa instalada no boot é o cliente `postgresql16`, para
 que uma investigação não dependa de baixar pacote no meio do incidente.
 
-&emsp; **A chave SSH não está no repositório e não é criada pelo Terraform.** A
+&emsp; A chave SSH não está no repositório e não é criada pelo Terraform. A
 variável `bastion_key_name` recebe o nome de um key pair que já exista na conta,
-criado no console ou por `aws ec2 create-key-pair --profile g4`, com o `.pem`
-guardado fora da árvore. Quando a variável está vazia — que é o padrão — **o
-bastion não é criado**: sem chave a instância seria inalcançável, e pagar por ela
+criado no console ou por `aws ec2 create-key-pair --profile g4`, com o arquivo
+`.pem` guardado fora da árvore. Quando a variável está vazia, que é o padrão, o
+bastion não é criado: sem chave a instância seria inalcançável, e pagar por ela
 seria desperdício. É também o que permite validar e planejar a configuração numa
 conta que ainda não tem o par.
 
-&emsp; A porta 22 aceita um único CIDR, e a validação da variável
-`bastion_allowed_cidr` **recusa `0.0.0.0/0`** — mesmo mecanismo que
-`db_allowed_cidr` já usava para o banco. Um bastion aberto para a internet
-inteira não reduz exposição nenhuma; apenas acrescenta um salto ao caminho do
-atacante. O custo da restrição é real e está assumido: quem trocar de rede — sair
-do campus, mudar de operadora — perde o acesso até atualizar a variável e
-reaplicar. É o preço de a porta 22 não ficar visível para a varredura contínua da
-internet.
+&emsp; A porta 22 aceita uma única faixa de endereços, e a validação da variável
+`bastion_allowed_cidr` recusa `0.0.0.0/0`, pelo mesmo mecanismo que
+`db_allowed_cidr` já usava para o banco. Um bastion aberto para a internet inteira
+não reduz exposição nenhuma; apenas acrescenta um salto ao caminho do atacante. O
+custo da restrição é real e está assumido: quem trocar de rede, saindo do campus
+ou mudando de operadora, perde o acesso até atualizar a variável e reaplicar. É o
+preço de a porta 22 não ficar visível para a varredura contínua da internet.
 
 &emsp; A partir dele fazem-se duas coisas, e a segunda é a que aparece no vídeo:
 
@@ -488,16 +500,16 @@ ssh -N -L 5432:<endpoint-rds>:5432 ec2-user@<ip-bastion>
 psql "postgresql://argus:<senha>@localhost:5432/argus"
 ```
 
-&emsp; **AWS Systems Manager Session Manager foi avaliado e descartado**, não
-ignorado. Ele elimina a porta 22 aberta e a chave SSH por completo, e seria a
-escolha em produção — um bastion sem porta 22 exposta é uma postura estritamente
-melhor. Aqui depende de o papel `voclabs` conceder `ssm:StartSession` e de a
-instância carregar um perfil com a política `AmazonSSMManagedInstanceCore`, duas
-coisas que a conta de laboratório não garante e cuja falha só apareceria na hora
-da demonstração. O bastion clássico funciona em qualquer conta. A task ECS
-`migration`, que era o meio de acesso administrativo até a v3, **continua
-existindo** e segue sendo o caminho das migrations — o bastion acrescenta a
-inspeção interativa, não a substitui.
+&emsp; O AWS Systems Manager Session Manager foi avaliado e descartado, não
+ignorado. Esse serviço abre a sessão pelo agente da própria AWS, o que elimina a
+porta 22 aberta e a chave SSH por completo, e seria a escolha em produção: um
+bastion sem porta 22 exposta é uma postura estritamente melhor. Aqui ele depende de
+o papel `voclabs` conceder `ssm:StartSession` e de a instância carregar um perfil
+com a política `AmazonSSMManagedInstanceCore`, duas coisas que a conta de
+laboratório não garante e cuja falha só apareceria na hora da demonstração. O
+bastion clássico funciona em qualquer conta. A task ECS `migration`, que era o meio
+de acesso administrativo até a v3, continua existindo e segue sendo o caminho das
+migrations; o bastion acrescenta a inspeção interativa, não a substitui.
 
 **Ficha — Bastion Host**
 
@@ -505,8 +517,8 @@ inspeção interativa, não a substitui.
 |---|---|
 | Papel no sistema | Único ponto de entrada humano na rede privada |
 | Configuração efetiva | EC2 `t4g.micro`, Amazon Linux 2023 arm64, sub-rede pública, IMDSv2 obrigatório, disco de 8 GiB criptografado |
-| Entradas / saídas | Entrada: TCP 22 do CIDR do time. Saída: 22 → `sg-app`, 5432 → `sg-rds`, 443 |
-| Estado | Condicional — só existe com `bastion_key_name` preenchido |
+| Entradas / saídas | Entrada: TCP 22 da faixa de endereços do time. Saída: 22 → `sg-app`, 5432 → `sg-rds`, 443 |
+| Estado | Condicional: só existe com `bastion_key_name` preenchido |
 | Alternativa descartada | SSM Session Manager (sem porta 22 nem chave), dependente de permissão que o `voclabs` pode recusar |
 | Modo de falha previsto e mitigação | Perda da chave privada: recriar o key pair e reaplicar. Troca de rede do operador: atualizar `bastion_allowed_cidr` |
 | Custo estimado | ~US$ 3/mês |
@@ -517,18 +529,18 @@ inspeção interativa, não a substitui.
 &emsp; Este é o componente que a revisão acrescenta ao caminho síncrono. Até
 aqui, a API consumida pelo dashboard era uma função Lambda com Flask empacotado
 por `apig-wsgi`, exposta por um HTTP API do API Gateway. Ela escalava sozinha e
-custava quase nada — argumentos bons, registrados no cabeçalho de `api_read.tf`.
-O que ela não oferecia era elasticidade **observável**: a concorrência era
+custava quase nada, argumentos bons e registrados no cabeçalho de `api_read.tf`.
+O que ela não oferecia era elasticidade observável: a concorrência era
 implícita, não havia política para declarar, nem grupo para inspecionar, nem
 instância entrando em serviço para mostrar. A capacidade de absorver carga
 existia, mas não era um objeto do sistema.
 
-&emsp; A migração é deliberadamente parcial. O caminho **assíncrono** de ingestão
+&emsp; A migração é deliberadamente parcial. O caminho assíncrono de ingestão
 permanece em filas com consumidores no ECS Fargate: o desacoplamento por SQS já
 absorve rajada por construção, o backlog da fila é a métrica de saúde natural
-daquele fluxo, e reescrevê-lo sobre EC2 acrescentaria risco de regressão sem
-ganho arquitetural. A elasticidade importa onde a latência é percebida pelo
-usuário — que é no caminho de leitura.
+daquele fluxo, e reescrevê-lo sobre EC2 acrescentaria risco de regressão sem ganho
+arquitetural. A elasticidade importa onde a latência é percebida pelo usuário, que
+é no caminho de leitura.
 
 **Launch template**
 
@@ -537,35 +549,39 @@ possível: cada mudança gera uma versão nova, e voltar atrás é apontar o gru
 para a versão anterior e disparar um *instance refresh*. Sem ele, “rollback”
 seria reconstruir a configuração à mão e torcer para não esquecer um campo.
 
-&emsp; A AMI é o Amazon Linux 2023 **arm64**, obtida pelo parâmetro público do
-SSM e não por um `ami-` fixo — o id muda a cada release e é diferente em cada
-região, e fixá-lo significa subir uma imagem sem os patches dos últimos meses e
-quebrar o `apply` no dia em que aquela AMI for desregistrada. A arquitetura arm64
-**não é escolha de custo, é requisito de compatibilidade**: todas as imagens
-deste repositório são construídas com `--platform linux/arm64`, e uma instância
-x86 falharia no `docker run` com *exec format error* — sintoma que chegaria como
-instância reprovando no health check, longe da causa. Por isso o tipo é
-`t4g.small` (Graviton) e não `t3.small`.
+&emsp; A AMI, que é a imagem de disco com a qual a instância nasce, é o Amazon
+Linux 2023 para arm64, e vem do parâmetro público do SSM em vez de um `ami-` fixo.
+O identificador muda a cada release e é diferente em cada região, então fixá-lo
+significa subir uma imagem sem os patches dos últimos meses e quebrar o `apply` no
+dia em que aquela AMI for desregistrada. A arquitetura arm64 não é escolha de
+custo, é requisito de compatibilidade: todas as imagens deste repositório são
+construídas com `--platform linux/arm64`, e uma instância x86 falharia no
+`docker run` com o erro *exec format error*, sintoma que chegaria como instância
+reprovando na verificação de saúde, longe da causa. Por isso o tipo é `t4g.small`,
+da família Graviton, e não `t3.small`.
 
-&emsp; **O código chega na instância como imagem do ECR.** O `user_data` instala
-Docker e o agente CloudWatch, autentica no ECR com a credencial do instance
-profile, puxa a imagem marcada pelo SHA do commit e a executa com
-`--restart=always`. Reaproveita o `backend/Dockerfile` que já existia — gunicorn
-com 2 workers × 4 threads na porta 5000 — e o mesmo `make push` que publica as
-imagens dos workers, que passou a incluir `backend` na lista `IMAGES`. A
+&emsp; O código chega na instância como imagem do ECR. O `user_data`, que é o
+script executado uma vez no primeiro boot, instala Docker e o agente CloudWatch,
+autentica no ECR com a credencial do instance profile, puxa a imagem marcada pelo
+SHA do commit e a executa com `--restart=always`. Ele reaproveita o
+`backend/Dockerfile` que já existia, com gunicorn servindo 2 processos de 4 threads
+na porta 5000, e o mesmo `make push` que publica as imagens dos workers, que passou
+a incluir `backend` na lista `IMAGES`. A
 alternativa de baixar um tarball do S3 duplicaria um empacotamento que o
 Dockerfile já resolve, e um `git clone` no boot tornaria a versão que sobe não
 reproduzível, esvaziando o sentido do rollback por versão de template.
 
-&emsp; O `user_data` roda sob `set -euo pipefail`, e isso é parte do desenho: se
-qualquer etapa falhar, o container nunca sobe, o health check nunca passa, e o
-ASG substitui a instância — em vez de deixá-la em serviço servindo erro.
+&emsp; O `user_data` roda sob `set -euo pipefail`, o que faz o script abortar no
+primeiro erro em vez de seguir adiante, e isso é parte do desenho: se qualquer
+etapa falhar, o container nunca sobe, a verificação de saúde nunca passa, e o ASG
+substitui a instância, em vez de deixá-la em serviço servindo erro.
 
-&emsp; **O token não entra na instância; o hash dele entra.** Como um ALB não tem
-authorizer, a validação do Bearer passou para dentro do Flask
-(`telemetry/interfaces/auth.py`). Mas a aplicação não fala com a AWS — `boto3`
-foi removido dela de propósito, registrado em `backend/AGENTS.md` — então quem
-consulta o Secrets Manager é o script de boot, que extrai o SHA-256 da audiência
+&emsp; O token não entra na instância; o hash dele entra. Como um ALB não tem
+authorizer, a validação do token Bearer passou para dentro do Flask
+(`telemetry/interfaces/auth.py`). Mas a aplicação não fala com a AWS, porque a
+biblioteca `boto3` foi removida dela de propósito, decisão registrada em
+`backend/AGENTS.md`. Então quem consulta o Secrets Manager é o script de boot, que
+extrai o SHA-256 da audiência
 `dashboard` e o injeta como variável de ambiente do container. A consequência
 está assumida: rotacionar o token com `make auth-rotate` exige um
 `start-instance-refresh`, porque o hash foi congelado no boot; instâncias antigas
@@ -578,27 +594,28 @@ continuam aceitando o token antigo até serem substituídas.
 | Tipo de instância | `t4g.small` | Graviton, casando com as imagens arm64. `small` e não `micro`: gunicorn com 2×4 threads mais o agente CloudWatch deixa 1 GiB no limite durante o `docker pull` |
 | `min` / `desired` / `max` | 2 / 2 / 6 | Mínimo 2 porque com uma só a perda da instância é indisponibilidade total até a substituta subir. Teto 6 limita o estrago de uma rajada anômala contra o crédito do laboratório |
 | Sub-redes | as duas privadas | Sem endereço público; entrada só pelo ALB, saída só pelo NAT |
-| Tipo de health check | `ELB` | Ver abaixo — é a decisão mais consequente do grupo |
+| Tipo de health check | `ELB` | Ver abaixo; é a decisão mais consequente do grupo |
 | `health_check_grace_period` | 300 s | Cobre boot + `dnf install` + `docker pull` + subida do gunicorn |
 | Métrica de escalonamento | `ALBRequestCountPerTarget` | Ver abaixo |
 | Valor-alvo | 60 req/instância/min | Ver abaixo |
 | Health check do target group | `/health/live`, 30 s, 2 de 2 para saudável, 3 para insalubre, código 200 | Ver abaixo |
 | Zonas de disponibilidade | 2 | Exigência do ALB e condição para sobreviver à perda de uma zona |
 
-&emsp; **`health_check_type = "ELB"` e não `"EC2"`.** Com `EC2`, a única pergunta
+&emsp; O `health_check_type` é `ELB`, e não `EC2`. Com `EC2`, a única pergunta
 que o grupo faz é “a máquina virtual está ligada?”. Uma instância cujo gunicorn
 morreu, cujo container saiu, ou que nunca conseguiu puxar a imagem continua
 respondendo “sim” para sempre: fica `InService`, recebe tráfego do balanceador e
-erra toda requisição. Com `ELB`, a pergunta passa a ser a do target group — a
+erra toda requisição. Com `ELB`, a pergunta passa a ser a do target group: a
 instância quebrada reprova, sai do grupo e é substituída. É a diferença entre um
 grupo que funciona e um que apenas parece funcionar.
 
-&emsp; **O health check aponta para `/health/live` e não para `/health/ready`.**
-As duas rotas existem: `live` responde `{"status":"ok"}` fixo, sem tocar no
-banco; `ready` faz *ping* no PostgreSQL e devolve 503 quando ele não responde.
-`ready` parece a escolha mais rigorosa e é a errada aqui. Uma indisponibilidade
-momentânea do RDS — failover, janela de manutenção, esgotamento de conexão —
-faria **todas** as instâncias reprovarem ao mesmo tempo; o ASG as substituiria em
+&emsp; A verificação de saúde aponta para `/health/live` e não para
+`/health/ready`. As duas rotas existem: `live` responde `{"status":"ok"}` fixo, sem
+tocar no banco; `ready` consulta o PostgreSQL e devolve 503 quando ele não
+responde. A segunda parece a escolha mais rigorosa e é a errada aqui. Uma
+indisponibilidade momentânea do RDS, por troca de instância, janela de manutenção
+ou esgotamento de conexão, faria todas as instâncias reprovarem ao mesmo tempo; o
+ASG as substituiria em
 bloco, as substitutas encontrariam o mesmo banco indisponível e reprovariam
 também, e o grupo entraria em ciclo de reciclagem sem que houvesse nada errado
 com elas. O problema estaria no banco, e a reação teria derrubado também a camada
@@ -607,73 +624,77 @@ de target.
 
 **Política de escalonamento**
 
-&emsp; A política é *target tracking* sobre `ALBRequestCountPerTarget`, com alvo
-de **60 requisições por instância por minuto**. A escolha da métrica é o que
-decide se a política funciona.
+&emsp; A política é de *target tracking*, o modo em que se declara o valor que uma
+métrica deve manter e a AWS ajusta o número de instâncias sozinha para persegui-lo.
+A métrica é `ALBRequestCountPerTarget` e o alvo, 60 requisições por instância por
+minuto. A escolha da métrica é o que decide se a política funciona.
 
-&emsp; Esta API passa a maior parte do tempo de cada requisição **esperando** o
+&emsp; Esta API passa a maior parte do tempo de cada requisição esperando o
 PostgreSQL responder, e não calculando. Sob carga real a CPU da instância fica na
-casa de 30–40% enquanto a latência percebida já dobrou. Uma política com alvo de
+casa de 30 a 40% enquanto a latência percebida já dobrou. Uma política com alvo de
 CPU em 70% simplesmente nunca dispararia: o grupo ficaria em duas instâncias
 saturadas de conexão, com a métrica afirmando que está tudo bem.
-`ALBRequestCountPerTarget` mede o que de fato cresce — quantas requisições cada
-instância está tendo que atender — e, por vir do balanceador, é a mesma métrica
-que o painel do CloudWatch mostra.
+`ALBRequestCountPerTarget` mede o que de fato cresce, que é quantas requisições
+cada instância está tendo que atender, e, por vir do balanceador, é a mesma
+métrica que o painel do CloudWatch mostra.
 
 &emsp; O valor 60 vem do plano de teste, e não de estimativa:
 `tests/carga/rnf02_tempo_resposta.js` sustenta cerca de 600 consultas por minuto
-com 10 usuários virtuais. Contra duas instâncias são 300 por alvo — cinco vezes o
-alvo — o que faz a política disparar de forma observável durante a gravação, e
-não no limite. Alvo baixo demais faz o grupo oscilar a cada variação; alto demais
-só escala quando a latência já subiu, e aí o escalonamento chega tarde.
+com 10 usuários virtuais. Contra duas instâncias são 300 por alvo, cinco vezes o
+alvo, o que faz a política disparar de forma observável durante a gravação e não
+no limite. Alvo baixo demais faz o grupo oscilar a cada variação; alto demais só
+escala quando a latência já subiu, e aí o escalonamento chega tarde.
 
-&emsp; `estimated_instance_warmup` está em 300 s, igual ao *grace period*. Sem
-ele, a instância que ainda está puxando a imagem entra no cálculo com zero
-requisição, derruba a média, e a política conclui que já escalou o bastante —
-parando de crescer no meio da rajada.
+&emsp; O `estimated_instance_warmup` está em 300 s, igual ao período de carência.
+É o tempo que a AWS espera antes de contar a instância nova na média. Sem ele, a
+instância que ainda está puxando a imagem entra no cálculo com zero requisição,
+derruba a média e a política conclui que já escalou o bastante, parando de crescer
+no meio da rajada.
 
-&emsp; **O *scale in* fica ligado**, e é onde mora o risco. Desligá-lo evitaria
-cortar requisição em voo, mas deixaria o grupo no tamanho do pico para sempre, o
-que num laboratório com crédito limitado esgota o orçamento sozinho. O risco está
-coberto pelo `deregistration_delay` de 30 segundos do target group: a instância
-sai do balanceador, termina o que já havia aceitado, e só então é encerrada — 30 s
-cobrem com folga a consulta mais longa da API.
+&emsp; A redução automática do grupo fica ligada, e é onde mora o risco.
+Desligá-la evitaria cortar requisição em voo, mas deixaria o grupo no tamanho do
+pico para sempre, o que num laboratório com crédito limitado esgota o orçamento
+sozinho. O risco está coberto pelo `deregistration_delay` de 30 segundos do target
+group: a instância sai do balanceador, termina o que já havia aceitado e só então
+é encerrada. Trinta segundos cobrem com folga a consulta mais longa da API.
 
-&emsp; ***Step scaling* foi a alternativa descartada.** Daria controle fino sobre
-o tamanho do degrau — quantas instâncias por vez, por faixa de métrica — ao custo
-de manter dois alarmes e a tabela de degraus à mão. O ganho aparece com padrão de
-carga conhecido e irregular, que não é o caso aqui.
+&emsp; O *step scaling* foi a alternativa descartada. Nele se declara uma tabela
+de degraus, dizendo quantas instâncias somar em cada faixa da métrica; daria
+controle fino sobre o tamanho de cada passo, ao custo de manter dois alarmes e a
+tabela à mão. O ganho aparece com padrão de carga conhecido e irregular, que não é
+o caso aqui.
 
 **Application Load Balancer**
 
 &emsp; O balanceador resolve três coisas que a Lambda atrás do API Gateway
 resolvia de graça e que passam a ser responsabilidade nossa: um endereço estável,
 já que as instâncias nascem e morrem com o IP mudando junto; a distribuição entre
-as duas zonas com retirada automática da instância que reprova; e o **ponto de
-medição** — `RequestCountPerTarget` e `TargetResponseTime` são métricas do
+as duas zonas com retirada automática da instância que reprova; e o ponto de
+medição, já que `RequestCountPerTarget` e `TargetResponseTime` são métricas do
 balanceador, e sem ele não há o que observar nem sobre o que escalonar.
 
-&emsp; Ele fica nas duas sub-redes **públicas**. É a fronteira: a única coisa do
+&emsp; Ele fica nas duas sub-redes públicas. É a fronteira: a única coisa do
 stack que aceita conexão da internet, e é por isso que as instâncias podem ficar
 privadas. Colocá-lo na sub-rede privada é o erro que torna o sistema inalcançável
-sem que nada no `plan` pareça errado. *Cross-zone* é sempre ativo no ALB e não é
-configurável, o que mantém a distribuição uniforme mesmo com número desigual de
-instâncias por zona. O `idle_timeout` fica nos 60 s padrão, e *stickiness* está
-desligado: a API lê de views e não guarda estado entre requisições, então prender
-sessão ao mesmo alvo só reduziria a uniformidade que a política mede.
+sem que nada no `plan` pareça errado. A distribuição entre zonas é sempre ativa no
+ALB e não é configurável, o que a mantém uniforme mesmo com número desigual de
+instâncias por zona. O `idle_timeout` fica nos 60 s padrão, e a fixação de sessão
+está desligada: a API lê de views e não guarda estado entre requisições, então
+prender o mesmo cliente ao mesmo alvo só reduziria a uniformidade que a política
+mede.
 
-&emsp; **O listener é HTTP na porta 80, e não HTTPS na 443.** Não é descuido. TLS
-no ALB exige certificado no ACM, e um certificado do ACM exige um domínio cujo
-DNS possamos validar; o projeto não tem domínio próprio, e a distribuição
-CloudFront — que resolveria isso com o certificado `*.cloudfront.net` — ficou
-fora do escopo desta sprint. A consequência está registrada como risco na seção
-8: o token Bearer que o operador cola no dashboard trafega em claro entre o
-navegador e o balanceador. É a mesma dívida que
+&emsp; O listener é HTTP na porta 80, e não HTTPS na 443. Não é descuido. Servir
+HTTPS no ALB exige um certificado emitido pelo ACM, e o ACM só emite para um
+domínio cujo DNS possamos validar; o projeto não tem domínio próprio, e a
+distribuição CloudFront, que resolveria isso com o certificado
+`*.cloudfront.net`, ficou fora do escopo desta sprint. A consequência está
+registrada como risco na seção 8: o token Bearer que o operador cola no dashboard
+trafega em claro entre o navegador e o balanceador. É a mesma dívida que
 [`arquitetura-inicial.md`](arquitetura-inicial.md) §4.8 já registrava para o
 endpoint de website do S3, e a correção planejada é a mesma. Vale a coerência:
-como o front também é servido por HTTP, **não há conteúdo misto** — que é
-justamente o problema que apareceria se o CloudFront fosse posto só na frente do
-S3, sem a segunda origem apontando para o ALB.
+como o front também é servido por HTTP, não há conteúdo misto, que é justamente o
+problema que apareceria se o CloudFront fosse posto só na frente do S3, sem a
+segunda origem apontando para o ALB.
 
 **Ficha — Application Load Balancer e target group**
 
@@ -710,7 +731,7 @@ revisão é a posição do banco na rede e quem consegue alcançá-lo.
 
 &emsp; A instância continua sendo uma `db.t3.medium` com 100 GiB em `gp3`,
 PostgreSQL 16, `publicly_accessible = false` e `storage_encrypted = true`. O que
-é novo: o `db_subnet_group` passa a apontar para as **sub-redes privadas** da VPC
+é novo: o `db_subnet_group` passa a apontar para as sub-redes privadas da VPC
 dedicada, e não mais para as sub-redes padrão da conta, que eram todas públicas.
 Antes, “privado” significava apenas que o security group não tinha regra de
 entrada aberta; agora significa também que não existe rota da internet até a
@@ -719,31 +740,33 @@ sub-rede onde a instância está.
 &emsp; Três origens alcançam a porta 5432, todas por referência de security group
 e nenhuma por CIDR: o grupo das tasks Fargate (workers, simulador, ETL, loader,
 migration), o grupo das instâncias EC2 do ASG, e o grupo do bastion. A regra do
-ASG é separada da regra das tasks de propósito — se um dia a API de leitura
+ASG é separada da regra das tasks de propósito: se um dia a API de leitura
 precisar de tratamento diferente do dos workers, há onde expressar isso sem
 afrouxar a regra para os dois.
 
-&emsp; A API entra no banco como **`argus_api`**, e não como o usuário mestre.
-Esse usuário só herda `argus_reader`, que tem `SELECT` apenas nas views `v_*` — e
-toda view filtra `available_at <= sim.now()`. É essa barreira, e não um `WHERE`
+&emsp; A API entra no banco como `argus_api`, e não como o usuário mestre. Esse
+usuário só herda `argus_reader`, que tem `SELECT` apenas nas views `v_*`, e toda
+view filtra `available_at <= sim.now()`. É essa barreira, e não um `WHERE`
 esquecido numa rota, que impede vazamento de futuro. A migração de plataforma
 preservou isso: o `user_data` monta a mesma `DATABASE_URL` de menor privilégio
 que a Lambda usava.
 
-&emsp; **`multi_az` continua desligado, e isso torna o banco um ponto único de
-falha.** A decisão é de custo — Multi-AZ dobra o preço da instância, e o
-orçamento do Learner Lab não comporta. A consequência está escrita com todas as
+&emsp; O `multi_az` continua desligado, e isso torna o banco um ponto único de
+falha. A decisão é de custo: o modo Multi-AZ, que mantém uma cópia sincronizada do
+banco em outra zona, dobra o preço da instância, e o orçamento do Learner Lab não
+comporta. A consequência está escrita com todas as
 letras em 5.1: a perda da instância é indisponibilidade total do sistema até a
 restauração a partir de backup, com RPO de até 24 horas. A variável que reverte a
 decisão é `db_multi_az`, e mudá-la para `true` provisiona o standby síncrono com
 failover automático de endpoint. Backup automático está em 1 dia de retenção,
-`deletion_protection` só em produção, e `skip_final_snapshot` fora dela — num
+`deletion_protection` só em produção e `skip_final_snapshot` fora dela: num
 laboratório cuja conta deixa de existir, snapshot final é lixo com custo.
 
-&emsp; **As migrations não mudaram de mecanismo.** O Terraform provisiona a
-instância e para; o DDL vem de `tools/migrate.py`, aplicado pela task ECS
-`migration` **dentro da VPC** — que agora executa na sub-rede privada, junto do
-banco. Separar as duas coisas é o que permite iterar o schema sem `apply`, que
+&emsp; As migrations não mudaram de mecanismo. O Terraform provisiona a instância
+e para; o DDL, que são os comandos de criação e alteração de tabela, vem de
+`tools/migrate.py`, aplicado pela task ECS `migration` dentro da VPC, que agora
+executa na sub-rede privada, junto do banco. Separar as duas coisas é o que
+permite iterar o schema sem `apply`, que
 numa sessão de laboratório é a diferença entre trinta segundos e cinco minutos
 por tentativa. O bastion acrescenta um segundo caminho, por túnel, para inspeção
 interativa.
@@ -756,30 +779,31 @@ interativa.
 | Configuração efetiva | PostgreSQL 16, `db.t3.medium`, 100 GiB `gp3`, criptografado, subnet group privado, `publicly_accessible = false`, Multi-AZ desligado, backup 1 dia |
 | Entradas / saídas | TCP 5432 dos SGs das tasks, do ASG e do bastion; `sslmode=require` |
 | Estado | Implementado |
-| Alternativa descartada | DynamoDB (v2) — justificado em `arquitetura-inicial.md` §4.2; Multi-AZ, descartado por custo nesta sprint |
+| Alternativa descartada | DynamoDB (v2), justificado em `arquitetura-inicial.md` §4.2; Multi-AZ, descartado por custo nesta sprint |
 | Modo de falha previsto e mitigação | Perda da instância = indisponibilidade total, sem failover automático. Mitigação: restaurar do backup; reversão da decisão por `db_multi_az = true` |
 | Custo estimado | ~US$ 60/mês |
 | Arquivo Terraform | `apps/basica/infra/rds.tf` |
 
 ### 3.5 Entrega do front-end — S3 e CloudFront
 
-&emsp; O dashboard é um site estático — Next.js com `output: "export"` — sincronizado
-para um bucket S3 por `make frontend-deploy` e servido pelo endpoint de website
+&emsp; O dashboard é um site estático, gerado pelo Next.js com `output: "export"`,
+sincronizado para um bucket S3 por `make frontend-deploy` e servido pelo endpoint de website
 do bucket. O bucket tem os quatro bloqueios de acesso público desativados e uma
 policy com `Principal: "*"` para `s3:GetObject`, porque o endpoint de website
 exige leitura anônima.
 
-&emsp; **Esse endpoint atende somente em HTTP**, e a consequência já estava
-registrada em [`arquitetura-inicial.md`](arquitetura-inicial.md) §4.8: o token
-que o operador cola na página trafega em claro, e um intermediário de rede pode
-lê-lo ou alterar o JavaScript entregue. O CloudFront é a correção — traz TLS,
-permite fechar o bucket com Origin Access Control e, na topologia de duas
-origens, elimina o CORS e o risco de conteúdo misto.
+&emsp; Esse endpoint atende somente em HTTP, e a consequência já estava
+registrada em [`arquitetura-inicial.md`](arquitetura-inicial.md) §4.8: o token que
+o operador cola na página trafega em claro, e um intermediário de rede pode lê-lo
+ou alterar o JavaScript entregue. O CloudFront é a correção, porque traz TLS,
+permite fechar o bucket com o Origin Access Control, que autoriza somente a
+distribuição a ler o bucket, e, na topologia de duas origens, elimina o CORS e o
+risco de conteúdo misto.
 
-&emsp; **O CloudFront permanece `Planejado` nesta revisão.** Ficou fora do escopo
+&emsp; O CloudFront permanece como `Planejado` nesta revisão. Ficou fora do escopo
 desta sprint por decisão de recorte, e há um segundo motivo registrado no
 repositório para tratá-lo com cautela: `arquitetura-inicial.md` §4.8 afirma que
-operações de CDN não são permitidas pelo papel `voclabs` do Learner Lab — o que
+operações de CDN não são permitidas pelo papel `voclabs` do Learner Lab, o que
 precisa ser revalidado na conta nova antes de qualquer tentativa. O plano de
 inclusão, com as duas topologias possíveis e a recomendada, está na seção 4.4;
 aqui fica apenas o papel do componente e o registro de que ele ainda não existe
@@ -792,7 +816,7 @@ no Terraform.
 | Papel no sistema | Hospeda o bundle estático do dashboard |
 | Configuração efetiva | Bucket com website configuration, leitura pública, criptografia SSE-S3 |
 | Entradas / saídas | HTTP do navegador; escrita por `aws s3 sync` no deploy |
-| Estado | Implementado — com a limitação de HTTP apenas |
+| Estado | Implementado, com a limitação de atender somente em HTTP |
 | Alternativa descartada | Servir o front pelo próprio ALB, o que exigiria um processo servindo arquivo estático e desperdiçaria a natureza estática do bundle |
 | Modo de falha previsto e mitigação | Token em claro no transporte; mitigação planejada é o CloudFront (4.4) |
 | Custo estimado | < US$ 1/mês |
@@ -805,7 +829,7 @@ no Terraform.
 | Papel no sistema | TLS na borda, origem única para front e API, bucket privado por OAC |
 | Configuração efetiva | — |
 | Entradas / saídas | — |
-| Estado | **Planejado** — sem recurso Terraform |
+| Estado | Planejado; sem recurso Terraform |
 | Alternativa descartada | Uma origem só (apenas S3), que criaria conteúdo misto ao chamar o ALB em HTTP a partir de página HTTPS |
 | Modo de falha previsto e mitigação | Papel `voclabs` pode recusar a criação; nesse caso a seção 4.4 documenta o plano com a recusa evidenciada |
 | Custo estimado | ~US$ 1/mês no volume do laboratório |
@@ -815,14 +839,15 @@ no Terraform.
 
 &emsp; O fluxo de ingestão não mudou de desenho e está descrito em
 [`arquitetura-inicial.md`](arquitetura-inicial.md) §3; não se repete aqui. O que
-mudou é **onde ele executa**: as tasks Fargate deixam de receber endereço público
-e passam a rodar nas sub-redes privadas, com saída pelo NAT Gateway. Isso muda a
+mudou é onde ele executa: as tasks Fargate deixam de receber endereço público e
+passam a rodar nas sub-redes privadas, com saída pelo NAT Gateway. Isso muda a
 rota de saída e acrescenta custo de tráfego de NAT ao que antes saía direto pelo
-IGW — é a contrapartida de as cargas deixarem de ser endereçáveis da internet.
+Internet Gateway, que é a contrapartida de as cargas deixarem de ser endereçáveis
+da internet.
 
-&emsp; Em resumo, e com ponteiro para o detalhe: **API Gateway HTTP** recebe
+&emsp; Em resumo, e com ponteiro para o detalhe: o API Gateway HTTP recebe
 `POST /v1/events` e `POST /v1/changes` com integração direta ao SQS, sem compute
-no caminho; **SQS** tem duas filas com DLQ e *redrive* após 5 tentativas;
+no caminho; o SQS tem duas filas com DLQ e reencaminhamento após 5 tentativas;
 **ECS Fargate** roda os dois workers de ingestão, o simulador do relógio virtual e
 o container de processamento, mais as tasks avulsas `loader` e `migration`;
 **ECR** guarda as imagens marcadas pelo SHA do commit, e passou a incluir o
@@ -881,12 +906,12 @@ justificada; linha sem seta é componente esquecido no desenho.
 
 ---
 
-## 4. Plano de deploy na AWS — peso 1,0
+## 4. Plano de deploy na AWS
 
 > **PREENCHER** · "Detalhado" é o critério. Um leitor que nunca viu o projeto deve
 > conseguir reproduzir o ambiente do zero seguindo esta seção, sem perguntar nada.
 > Cada passo precisa de comando literal, saída esperada e o motivo de estar naquela
-> posição da ordem. O repositório já tem `DEPLOY-WINDOWS.md` e `rodar-aws.ps1` —
+> posição da ordem. O repositório já tem `DEPLOY-WINDOWS.md` e `rodar-aws.ps1`;
 > mantenha o runbook lá e aqui a descrição do plano, com ponteiro cruzado, em vez
 > de duas cópias que divergem na semana seguinte.
 
@@ -896,18 +921,18 @@ justificada; linha sem seta é componente esquecido no desenho.
 > (`aws sts get-caller-identity` e uma chamada com permissão real); variáveis de
 > ambiente; preenchimento do `terraform.tfvars`.
 
-> **CONTA NOVA — decidido em 04/09/2026.** O professor criou um Learner Lab novo,
+> **CONTA NOVA, decidido em 04/09/2026.** O professor criou um Learner Lab novo,
 > acessado pela conta do grupo `t15-cc07-g4@sou.inteli.edu.br`. Isso muda o
 > procedimento em quatro pontos, e cada um precisa aparecer no runbook:
 >
 > 1. **O `terraform.tfstate` atual não serve.** Ele descreve recursos da conta
 >    anterior (`909209557114`, serial 57, ainda da v2). Aplicar esse state contra a
->    conta nova não recria nada — o Terraform tenta ler recursos que não existem ali.
+>    conta nova não recria nada: o Terraform tenta ler recursos que não existem ali.
 >    Preservar uma cópia do state antigo e começar um workspace, chave ou backend
->    correspondente à conta nova, **depois** de confirmar a mudança do account ID.
+>    correspondente à conta nova, depois de confirmar a mudança do account ID.
 > 2. **Nada de destrutivo a preservar.** Como o ambiente nasce vazio, o risco que
->    bloqueava o plano — RDS não muda de VPC, e mover o subnet group forçaria
->    substituição da instância — deixa de existir: o banco já nasce na VPC nova, no
+>    bloqueava o plano, que é o RDS não mudar de VPC (mover o subnet group forçaria
+>    a substituição da instância), deixa de existir: o banco já nasce na VPC nova, no
 >    subnet group privado. Registrar isso como o motivo de a migração ter sido
 >    feita agora e não incrementalmente.
 > 3. **Apply em duas etapas.** Em conta nova, aplicar primeiro com os
@@ -916,15 +941,15 @@ justificada; linha sem seta é componente esquecido no desenho.
 > 4. **Credenciais e `terraform.tfvars` novos.** Role, senhas e CIDR mudam junto com
 >    a conta; o arquivo não é versionado.
 >
-> O que **não** muda: a carga inicial continua indisponível sem o `argus_dump.sql`
+> O que não muda: a carga inicial continua indisponível sem o `argus_dump.sql`
 > (4,15 GB) de alguém do grupo. Sem ele, alimentar o stack pelos fixtures, como
 > descrito na variante do runbook.
 
 ### 4.2 Recursos provisionados
 
 &emsp; Os arquivos abaixo são todos de `apps/basica/infra/`. A convenção do
-diretório é **um arquivo por recurso, sem módulos** — os quatro primeiros são
-novos nesta revisão.
+diretório é um arquivo por recurso, sem módulos. Os quatro primeiros são novos
+nesta revisão.
 
 | Recurso AWS | Finalidade | Arquivo Terraform |
 |---|---|---|
@@ -945,23 +970,23 @@ novos nesta revisão.
 | Papéis e políticas IAM | Condicionais: colapsam na `LabRole` no Learner Lab | `iam.tf` |
 | CloudFront + certificado ACM | **Planejado** — sem recurso; plano em 4.4 | — |
 
-&emsp; **A Lambda de leitura não foi removida.** Ela e o HTTP API que a expõe
+&emsp; A Lambda de leitura não foi removida. Ela e o HTTP API que a expõe
 continuam provisionados de propósito: derrubar o caminho antigo no mesmo `apply`
 que sobe o novo deixaria o dashboard sem API caso o Auto Scaling Group não suba.
 Os dois coexistem durante a transição, e o desligamento é um passo manual e
-posterior — remover os recursos de `api_read.tf` e as rotas correspondentes de
-`auth.tf` — feito só depois de o ALB responder e o front já apontar para ele.
+posterior, que é remover os recursos de `api_read.tf` e as rotas correspondentes
+de `auth.tf`, feito só depois de o ALB responder e o front já apontar para ele.
 
 ### 4.3 Ordem de implantação
 
-> **PREENCHER** · Ordem por dependência real, com o motivo de cada precedência —
+> **PREENCHER** · Ordem por dependência real, com o motivo de cada precedência:
 > o valor da seção está aí, não na lista. Esqueleto sugerido, a ser confirmado
 > contra o que o Terraform realmente exige:
 >
 > 1. Rede primeiro: sem sub-rede não há subnet group de RDS nem ASG.
 > 2. Segurança: SGs e perfis IAM antes de qualquer recurso que os referencie.
 > 3. RDS: leva dezenas de minutos; iniciar cedo evita bloquear os passos seguintes.
-> 4. Artefato da aplicação publicado (imagem no ECR ou pacote no S3) **antes** do
+> 4. Artefato da aplicação publicado (imagem no ECR ou pacote no S3) antes do
 >    launch template, senão a instância sobe e não encontra o que executar.
 > 5. Launch template, ALB e target group, e só então o ASG apontando para eles.
 > 6. Migrations do banco antes de liberar tráfego: instância saudável contra
@@ -980,21 +1005,21 @@ posterior — remover os recursos de `api_read.tf` e as rotas correspondentes de
 
 ### 4.4 Inclusão do AWS CloudFront
 
-> **PREENCHER** · Subseção exigida nominalmente pela rubrica — não a dilua dentro
-> de 4.3. Ela precisa responder: **por que**, **como** e **com que consequência**.
+> **PREENCHER** · Subseção exigida nominalmente pela rubrica; não a dilua dentro
+> de 4.3. Ela precisa responder por que, como e com que consequência.
 >
 > **Por que.** Hoje o dashboard é servido pelo endpoint de website do S3, que só
 > fala HTTP; o operador cola um token na página, e um intermediário de rede pode
 > lê-lo ou alterar o JavaScript entregue (`arquitetura-inicial.md` §4.8). O
-> CloudFront resolve isso com TLS, e não apenas "melhora a latência" — cite o
-> ganho de segurança primeiro, é o argumento mais forte.
+> CloudFront resolve isso com TLS, e não apenas "melhora a latência"; cite o ganho
+> de segurança primeiro, é o argumento mais forte.
 >
-> **DECIDIR — o ponto de maior valor desta seção.** Duas topologias possíveis:
+> **DECIDIR**, e é o ponto de maior valor desta seção. Duas topologias possíveis:
 >
 > - *Uma origem*: CloudFront apenas à frente do S3. O dashboard passa a HTTPS,
 >   mas as chamadas à API continuam indo direto ao ALB. Se o ALB não tiver
 >   certificado, a página HTTPS chamará um endpoint HTTP e o navegador bloqueia
->   por conteúdo misto — problema novo, criado pela própria mudança.
+>   por conteúdo misto: um problema novo, criado pela própria mudança.
 > - *Duas origens*: um comportamento padrão apontando para o S3 e outro, em
 >   `/api/*`, apontando para o ALB. Front e API passam a compartilhar origem,
 >   o conteúdo misto desaparece, o CORS deixa de ser necessário e o certificado
@@ -1002,17 +1027,17 @@ posterior — remover os recursos de `api_read.tf` e as rotas correspondentes de
 >   escreva por quê.
 >
 > **Como.** Descreva, na ordem: origem(ns) e Origin Access Control para manter o
-> bucket privado (o bucket deixa de ter leitura pública — diga isso, é uma
-> melhoria de segurança que vale citar); cache policy por comportamento — estático
-> com TTL longo, `/api/*` com cache desabilitado e encaminhamento do cabeçalho
+> bucket privado (o bucket deixa de ter leitura pública; diga isso, é uma melhoria
+> de segurança que vale citar); política de cache por comportamento, com o estático
+> em TTL longo, `/api/*` com cache desabilitado e encaminhamento do cabeçalho
 > `Authorization`, que por padrão o CloudFront remove e faz toda chamada
 > autenticada retornar 401; `viewer_protocol_policy = redirect-to-https`;
-> certificado no ACM **na região us-east-1**, obrigatória para CloudFront;
+> certificado no ACM na região us-east-1, que é obrigatória para o CloudFront;
 > domínio próprio ou o `*.cloudfront.net` padrão; e invalidação no deploy do
 > front, com o comando literal.
 >
 > **Consequência.** Tempo de propagação da distribuição, custo, e o que acontece
-> se o papel `voclabs` recusar a criação — cenário registrado em
+> se o papel `voclabs` recusar a criação, cenário registrado em
 > `arquitetura-inicial.md` §4.8 e que precisa ser revalidado. Se recusar, esta
 > seção descreve o plano com a recusa documentada (print do erro), e não some.
 
@@ -1029,7 +1054,7 @@ aws cloudfront create-invalidation --distribution-id {{ID}} --paths "/*"
 ### 4.5 Verificação pós-implantação
 
 > **PREENCHER** · Roteiro de aceite executável, com o resultado esperado de cada
-> comando. É também o roteiro do Vídeo 2 — escreva uma vez, use duas.
+> comando. É também o roteiro do Vídeo 2: escreva uma vez, use duas.
 
 | # | Verificação | Comando | Resultado esperado |
 |---|---|---|---|
@@ -1044,7 +1069,7 @@ aws cloudfront create-invalidation --distribution-id {{ID}} --paths "/*"
 
 ### 4.6 Evidências da rede aplicada
 
-&emsp; A camada de rede foi provisionada e verificada em **8 de setembro de 2026**, numa
+&emsp; A camada de rede foi provisionada e verificada em 8 de setembro de 2026, numa
 conta do AWS Academy Learner Lab, região `us-east-1`, em workspace próprio do Terraform
 (`individual`) para não tocar o estado do ambiente principal. Foram 21 recursos: 16 na
 aplicação da rede e 5 na dos Flow Logs.
@@ -1061,7 +1086,7 @@ aplicação da rede e 5 na dos Flow Logs.
 | Sub-redes | Quatro, duas por AZ. `10.0.0.0/24` e `10.0.1.0/24` com *auto-assign public IP*; `10.0.10.0/24` e `10.0.11.0/24` sem |
 | Rota pública | `0.0.0.0/0 → igw-0392604b075205f5a` |
 | Rota privada | `0.0.0.0/0 → nat-0fb2306effb9b2662` |
-| **NAT em operação** | EIP `52.4.149.88`. Ver o teste abaixo |
+| NAT em operação | Elastic IP `52.4.149.88`. Ver o teste abaixo |
 | Gateway endpoint S3 | `vpce-0ae7582c8f2415388`, associado à tabela de rota privada |
 | Logs distribuídos | `fl-0894f5598c97e2016`, entregando no S3. 214 fluxos capturados só da instância de teste |
 | Criptografia do destino | `AES256` no bucket dos Flow Logs |
@@ -1070,14 +1095,14 @@ aplicação da rede e 5 na dos Flow Logs.
 
 &emsp; Provar que o NAT funciona exige mais do que ver o recurso `available` no console:
 é preciso mostrar tráfego atravessando. O teste usado foi uma instância `t3.micro`
-descartável na sub-rede privada `10.0.11.0/24`, **sem IP público**, cujo `user_data`
+descartável na sub-rede privada `10.0.11.0/24`, sem IP público, cujo `user_data`
 consulta o próprio endereço de saída e o grava como tag em si mesma:
 
 > **Esta instância não faz parte da arquitetura.** Ela é instrumento de medição, não
-> componente: foi criada por `aws ec2 run-instances` na linha de comando, **fora do
-> Terraform** — não existe `aws_instance` de teste em nenhum arquivo `.tf` do projeto, e
-> ela nunca entrou no estado. Foi encerrada depois da captura. A rede funciona sem ela;
-> a instância só torna o funcionamento visível.
+> componente: foi criada por `aws ec2 run-instances` na linha de comando, fora do
+> Terraform. Não existe `aws_instance` de teste em nenhum arquivo `.tf` do projeto, e
+> ela nunca entrou no estado. Foi encerrada depois da captura. A rede funciona sem
+> ela; a instância só torna o funcionamento visível.
 
 ```bash
 IP=$(curl -s https://checkip.amazonaws.com)
@@ -1090,7 +1115,7 @@ aws ec2 create-tags --resources $ID --tags Key=IPDeSaida,Value=$IP
 |---|---|
 | `PublicIpAddress` | `null` |
 | `PrivateIpAddress` | `10.0.11.120` |
-| Tag `IPDeSaida` | **`52.4.149.88`** — o EIP do NAT Gateway |
+| Tag `IPDeSaida` | `52.4.149.88`, que é o Elastic IP do NAT Gateway |
 
 &emsp; Uma máquina sem endereço público, cuja saída a internet enxerga com o IP do NAT,
 só pode estar atravessando o NAT. É a demonstração direta da cláusula, e não depende de
@@ -1109,11 +1134,11 @@ interface pública do NAT Gateway (`10.0.0.110`):
 
 &emsp; Isso é evidência de dois fatos ao mesmo tempo: a observabilidade de rede está
 capturando fluxo real, e o único endereço público da VPC é sondado continuamente por
-terceiros — sem que nada disso alcance as sub-redes privadas, que não têm rota de
+terceiros, sem que nada disso alcance as sub-redes privadas, que não têm rota de
 entrada.
 
 &emsp; A travessia do NAT também aparece nos registros. Foram 214 fluxos envolvendo a
-instância de teste, e **todos** os que saem dela passam pela interface do NAT Gateway
+instância de teste, e todos os que saem dela passam pela interface do NAT Gateway
 (`10.0.0.110`), nenhum diretamente para a internet:
 
 ```
@@ -1127,7 +1152,7 @@ instância de teste, e **todos** os que saem dela passam pela interface do NAT G
 da cláusula: a máquina privada não tem caminho para a internet que não seja o NAT, e o
 log prova que ela usou esse caminho.
 
-&emsp; **Detalhe operacional para a gravação:** a entrega no S3 tem latência própria de
+&emsp; Um detalhe operacional para a gravação: a entrega no S3 tem latência própria de
 cerca de cinco minutos, independente do `max_aggregation_interval` de 60 segundos. O
 primeiro arquivo não aparece imediatamente depois de gerar tráfego.
 
@@ -1145,25 +1170,25 @@ ele é o banco.
 |---|---|---|---|
 | Uma instância do ASG | Capacidade cai pela metade; o ALB para de enviar tráfego para ela em até 90 s (3 checks de 30 s) | O ASG substitui a instância para voltar ao `desired`; ~5 min até entrar em serviço | Sim |
 | Uma zona de disponibilidade | As instâncias da zona somem; o ALB concentra o tráfego no nó da outra zona | O ASG sobe as substitutas na zona sobrevivente. **Se for a zona do NAT**, a outra zona fica sem saída e não consegue subir instância nova até a zona voltar | Parcial |
-| Instância do RDS | **Indisponibilidade total do sistema.** Sem standby, não há para onde falhar | Restauração a partir do backup automático, com RPO de até 24 h e RTO de dezenas de minutos | **Não** |
+| Instância do RDS | Indisponibilidade total do sistema; sem standby, não há para onde falhar | Restauração a partir do backup automático, com RPO de até 24 h e RTO de dezenas de minutos | Não |
 | NAT Gateway | O tráfego já em curso não é afetado — o caminho de leitura não passa pelo NAT. As instâncias perdem saída: não puxam imagem, não leem segredo, não entregam log | O NAT é gerenciado e redundante *dentro* da sua AZ; a perda real é a perda da AZ inteira | Sim, dentro da AZ |
 | Application Load Balancer | O ALB tem nós em duas AZs e é gerenciado; a perda de um nó é absorvida pelo DNS do serviço | — | Sim |
 | Bastion | Nenhum efeito sobre o sistema: ele não está no caminho de nenhuma requisição | Recriar com `terraform apply` | Não, e não precisa ser |
 
-&emsp; **O RDS é o ponto único de falha, e a decisão é consciente.**
-`db_multi_az` está em `false` porque o Multi-AZ dobra o custo da instância — de
-cerca de US$ 60 para US$ 120 por mês — e o crédito do Learner Lab não comporta.
+&emsp; O RDS é o ponto único de falha, e a decisão é consciente. O `db_multi_az`
+está em `false` porque o Multi-AZ dobra o custo da instância, de cerca de US$ 60
+para US$ 120 por mês, e o crédito do Learner Lab não comporta.
 A variável que reverte a decisão é exatamente essa: `db_multi_az = true`
 provisiona o standby síncrono em outra zona, com failover automático de endpoint
 em um a dois minutos e sem mudança na aplicação, porque o nome DNS do endpoint
 não muda. É uma linha de `terraform.tfvars` e uma janela de conversão de dezenas
 de minutos.
 
-&emsp; **O NAT único é o segundo compromisso.** Um NAT por zona é a recomendação
-da AWS e custaria mais US$ 32/mês. Vale notar o que a decisão *não* compromete:
-como o tráfego de leitura entra pelo ALB e vai direto às instâncias, a perda da
-zona do NAT **não derruba o serviço** — ela impede o grupo de crescer e de
-substituir instância naquela zona. O impacto é sobre a capacidade de recuperação,
+&emsp; O NAT único é o segundo compromisso. Um NAT por zona é a recomendação da
+AWS e custaria mais US$ 32/mês. Vale notar o que a decisão não compromete: como o
+tráfego de leitura entra pelo ALB e vai direto às instâncias, a perda da zona do
+NAT não derruba o serviço; ela impede o grupo de crescer e de substituir instância
+naquela zona. O impacto é sobre a capacidade de recuperação,
 não sobre a disponibilidade imediata.
 
 ### 5.2 Política de escalonamento
@@ -1173,26 +1198,26 @@ de 60 requisições por instância por minuto, `min` 2 e `max` 6. O raciocínio 
 trás da métrica e do número está em 3.3 e não se repete; o que interessa aqui é o
 comportamento nas duas direções.
 
-&emsp; **Scale out.** O CloudWatch avalia a métrica a cada minuto. Cruzado o
-alvo, a política calcula quantas instâncias faltam para trazer a média de volta
-a 60 e ajusta o `desired` de uma vez — não de uma em uma. A instância nova leva
-cerca de cinco minutos até entrar em serviço: boot do Amazon Linux, `dnf install`
-de Docker e do agente CloudWatch, `docker pull` da imagem e subida do gunicorn.
-Durante esse período ela fica fora do cálculo da média por causa do
-`estimated_instance_warmup` de 300 s — sem isso, uma instância ainda inicializando
+&emsp; Crescimento do grupo. O CloudWatch avalia a métrica a cada minuto.
+Cruzado o alvo, a política calcula quantas instâncias faltam para trazer a média de
+volta a 60 e ajusta o `desired` de uma vez, e não de uma em uma. A instância nova
+leva cerca de cinco minutos até entrar em serviço: boot do Amazon Linux,
+`dnf install` de Docker e do agente CloudWatch, `docker pull` da imagem e subida do
+gunicorn. Durante esse período ela fica fora do cálculo da média por causa do
+`estimated_instance_warmup` de 300 s. Sem isso, uma instância ainda inicializando
 entraria na conta com zero requisição, derrubaria a média e faria a política
 concluir que já escalou o bastante, parando de crescer no meio da rajada.
 
-&emsp; **Scale in é onde mora o risco**, e ele está tratado em três camadas.
+&emsp; A redução do grupo é onde mora o risco, e ele está tratado em três camadas.
 Quando a média cai de forma sustentada, a política reduz o `desired` e o ASG
 escolhe uma instância para encerrar. Antes de encerrá-la:
 
-1. O ALB a coloca em `draining` e **para de enviar requisições novas** para ela.
-2. O `deregistration_delay` do target group segura o encerramento por **30
-   segundos**, tempo em que as requisições já aceitas terminam de ser servidas.
-   Trinta segundos cobrem com folga a consulta mais longa desta API — se houvesse
-   processamento longo, o valor teria de subir, ou seria caso de *instance
-   scale-in protection*.
+1. O ALB a coloca em `draining` e para de enviar requisições novas para ela.
+2. O `deregistration_delay` do target group segura o encerramento por 30 segundos,
+   tempo em que as requisições já aceitas terminam de ser servidas. Trinta
+   segundos cobrem com folga a consulta mais longa desta API; se houvesse
+   processamento longo, o valor teria de subir, ou seria caso de proteger a
+   instância contra o encerramento automático.
 3. `min_size = 2` impede que o grupo encolha a ponto de deixar uma única
    instância servindo.
 
@@ -1201,35 +1226,35 @@ de leitura é sem estado, não mantém trabalho em andamento entre requisições
 não consome fila. O único trabalho que poderia ser interrompido é a requisição em
 voo, e é dela que o `deregistration_delay` cuida.
 
-&emsp; **Cooldown.** *Target tracking* não usa cooldown fixo — ele é
+&emsp; Não há tempo de espera fixo entre ajustes, o chamado cooldown. Ele é
 desaconselhado neste tipo de política, porque a própria natureza do algoritmo já
-amortece a oscilação: a AWS impede um novo *scale out* enquanto o anterior não
-tiver efeito medido, e trata *scale in* de forma mais conservadora que *scale
-out* por padrão. O que controla o ritmo aqui é o `instance_warmup`.
+amortece a oscilação: a AWS impede um novo crescimento enquanto o anterior não
+tiver efeito medido, e por padrão reduz o grupo de forma mais conservadora do que o
+faz crescer. O que controla o ritmo aqui é o `instance_warmup`.
 
 ### 5.3 Estratégia de deploy e rollback
 
 &emsp; “Política de rollback baseada em auto scale groups” tem um significado
-técnico preciso, e não é “usamos Git”. Significa **versão de launch template**.
+técnico preciso, e não é “usamos Git”. Significa versão de launch template.
 
 **Deploy**
 
 &emsp; Uma versão nova da aplicação percorre este caminho:
 
 1. `make push` constrói a imagem `backend` em arm64 e a publica no ECR com a tag
-   do SHA do commit. O alvo **recusa** rodar com a árvore suja: uma imagem
+   do SHA do commit. O alvo recusa rodar com a árvore suja: uma imagem
    construída a partir de código não commitado não corresponde a commit nenhum,
    e o rollback deixaria de ter para onde voltar.
-2. `make tf-apply` propaga a tag nova para o `user_data`, o que produz uma
-   **nova versão do launch template** — o `user_data` faz parte do template, e
-   mudá-lo é o que gera a versão.
+2. `make tf-apply` propaga a tag nova para o `user_data`, o que produz uma nova
+   versão do launch template: o `user_data` faz parte do template, e mudá-lo é o
+   que gera a versão.
 3. O ASG aponta para `$Latest` e o `instance_refresh` substitui as instâncias de
    forma gradual, com `min_healthy_percentage = 50`. Com `min_size = 2`, isso
    significa que sempre resta uma instância servindo: o refresh derruba uma,
    espera a substituta passar no health check e no `instance_warmup` de 300 s, e
    só então segue para a próxima.
 
-&emsp; Uma versão que não sobe **não chega a receber tráfego**. O `user_data` roda
+&emsp; Uma versão que não sobe não chega a receber tráfego. O `user_data` roda
 sob `set -euo pipefail`: se o `docker pull` falhar, o container não é iniciado,
 `/health/live` não responde, o target group reprova a instância e o refresh trava
 em vez de continuar substituindo. A versão antiga permanece servindo.
@@ -1237,16 +1262,16 @@ em vez de continuar substituindo. A versão antiga permanece servindo.
 **Rollback**
 
 &emsp; O gatilho é declarado, e não deixado a critério: o alarme
-**`argus-events-dev-app-sem-alvo-saudavel`** dispara quando `HealthyHostCount`
-fica abaixo de 1 por dois períodos de 60 segundos. Ele publica no tópico SNS de
-alarmes e é o sinal de que a versão nova não sobe. Quem decide é quem está
-conduzindo o deploy — o rollback não é automático, de propósito: um rollback
-automático disparado por uma indisponibilidade momentânea do banco reverteria uma
-versão que estava correta.
+`argus-events-dev-app-sem-alvo-saudavel` dispara quando `HealthyHostCount` fica
+abaixo de 1 por dois períodos de 60 segundos. Ele publica no tópico SNS de alarmes
+e é o sinal de que a versão nova não sobe. Quem decide é quem está conduzindo o
+deploy, e o rollback não é automático de propósito: um rollback automático
+disparado por uma indisponibilidade momentânea do banco reverteria uma versão que
+estava correta.
 
-&emsp; O procedimento é apontar o grupo para a versão **anterior** do launch
-template e disparar novo refresh. O número da versão anterior sai do output
-`launch_template_latest_version`, que deve ser anotado **antes** de publicar:
+&emsp; O procedimento é apontar o grupo para a versão anterior do launch template e
+disparar novo refresh. O número da versão anterior sai do output
+`launch_template_latest_version`, que deve ser anotado antes de publicar:
 
 ```bash
 # 1. Descobrir as versões disponíveis
@@ -1273,14 +1298,14 @@ aws autoscaling describe-instance-refreshes \
 
 &emsp; O output `rollback_command` do Terraform imprime os passos 2 e 3 já
 preenchidos com os identificadores da conta. Depois do rollback, `terraform apply`
-proporia voltar para `$Latest` — então a reversão precisa ser acompanhada de
+proporia voltar para `$Latest`, então a reversão precisa ser acompanhada de
 `backend_image_tag` fixada na tag boa em `terraform.tfvars`, senão o próximo
 `apply` desfaz o rollback.
 
-&emsp; **Rollback do banco é separado e não é automático.** Migration aplicada é
-imutável por construção — `tools/migrate.py` guarda o checksum e aborta se o
-arquivo mudar — e uma alteração destrutiva de schema não é revertida por trocar a
-versão do launch template. O procedimento é outro: snapshot manual **antes** da
+&emsp; O rollback do banco é separado e não é automático. Migration aplicada é
+imutável por construção, porque `tools/migrate.py` guarda o checksum e aborta se o
+arquivo mudar, e uma alteração destrutiva de schema não é revertida por trocar a
+versão do launch template. O procedimento é outro: snapshot manual antes da
 migration destrutiva, e restauração a partir dele se necessário, o que implica
 substituir a instância e reapontar a `DATABASE_URL`. Por isso migration
 destrutiva e deploy de aplicação não devem ir na mesma janela.
@@ -1291,8 +1316,8 @@ destrutiva e deploy de aplicação não devem ir na mesma janela.
 hipóteses e banco. Nenhum deles enxergava o caminho de leitura depois da
 migração: o alarme `read-api-erros` observa `AWS/Lambda`, e a Lambda deixou de
 estar no caminho. Os seis abaixo fecham essa lacuna. Todos publicam no mesmo
-tópico SNS dos demais — destino único é o que evita metade dos alarmes ir para um
-lugar que ninguém acompanha.
+tópico SNS dos demais, porque destino único é o que evita metade dos alarmes ir
+para um lugar que ninguém acompanha.
 
 | Alarme | Métrica | Limiar | Ação |
 |---|---|---|---|
@@ -1306,11 +1331,12 @@ lugar que ninguém acompanha.
 &emsp; Dois detalhes de configuração que mudam o comportamento e valem registro.
 O alarme de alvo saudável usa `treat_missing_data = "breaching"`, ao contrário dos
 demais: ausência de dado nessa métrica não é silêncio benigno, é o balanceador sem
-nada para medir. E o alarme de latência observa o **p95**, não a média — a média
-esconde a cauda, e é a cauda que o usuário percebe; alarmar o p95 no valor que o
-RNF02 exige do p99 dá margem para agir antes de o requisito ser violado.
+nada para medir. E o alarme de latência observa o percentil 95, não a média: a
+média esconde a cauda, e é a cauda que o usuário percebe. O percentil 95 é o valor
+abaixo do qual 95% das respostas ficaram; alarmá-lo no limite que o RNF02 exige do
+percentil 99 dá margem para agir antes de o requisito ser violado.
 
-&emsp; **Um alarme sem destinatário não é observabilidade.** A assinatura de
+&emsp; Um alarme sem destinatário não é observabilidade. A assinatura de
 e-mail do tópico SNS é condicional à variável `alarm_email`, que está comentada no
 `terraform.tfvars.example`. Sem ela, o tópico é criado e ninguém é avisado. Está
 registrado como risco na seção 8, e preenchê-la é pré-requisito de aceite (4.5).
@@ -1322,30 +1348,30 @@ saber que algo quebrou, não para ver o sistema funcionando. O painel
 `argus-events-dev` no CloudWatch agrega quatro visões, que são a leitura do
 caminho síncrono de cima para baixo:
 
-1. **Requisições e erros no ALB** — `RequestCount`, `HTTPCode_Target_5XX_Count` e
+1. Requisições e erros no ALB: `RequestCount`, `HTTPCode_Target_5XX_Count` e
    `HTTPCode_Target_4XX_Count`.
-2. **Tempo de resposta do alvo** — `TargetResponseTime` em p50, p95 e p99, com
+2. Tempo de resposta do alvo: `TargetResponseTime` nos percentis 50, 95 e 99, com
    linha de anotação no alvo do RNF02.
-3. **Escalonamento** — `GroupInServiceInstances`, `HealthyHostCount` e
+3. Escalonamento: `GroupInServiceInstances`, `HealthyHostCount` e
    `RequestCountPerTarget`, com linha de anotação no valor-alvo da política. É
-   este widget que torna o escalonamento visível numa tela só: a carga sobe,
-   cruza a linha, e a contagem de instâncias sobe atrás.
-4. **Banco** — `CPUUtilization` e `DatabaseConnections` do RDS.
+   este quadro que torna o escalonamento visível numa tela só: a carga sobe, cruza
+   a linha, e a contagem de instâncias sobe atrás.
+4. Banco: `CPUUtilization` e `DatabaseConnections` do RDS.
 
-&emsp; O terceiro widget é o material do Vídeo 1: ele mostra causa e efeito na
+&emsp; O terceiro quadro é o material do Vídeo 1: ele mostra causa e efeito na
 mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 
 ---
 
 ## 6. Vídeo 1 — Infraestrutura provisionada
 
-> **PREENCHER** · Duração exigida: **5 a 7 minutos**. Fora da faixa, o item cai.
-> São quatro subitens de peso 1,0, e o avaliador procura evidência no console da
-> AWS — tela do console, recurso real, não slide. Grave com o console em inglês ou
-> português, mas de forma consistente, e com a fonte grande o bastante para leitura.
+> **PREENCHER** · Duração exigida: 5 a 7 minutos. Fora da faixa, o item cai. São
+> quatro subitens avaliados, e o avaliador procura evidência no console da AWS: tela
+> do console, recurso real, não slide. Grave com o console em inglês ou português,
+> mas de forma consistente, e com a fonte grande o bastante para leitura.
 >
-> Regra que mais custa nota: **falar sobre o recurso não é evidenciar o recurso.**
-> Cada item precisa da tela correspondente aberta e do valor visível.
+> Regra que mais custa nota: falar sobre o recurso não é evidenciar o recurso. Cada
+> item precisa da tela correspondente aberta e do valor visível.
 
 **Link:** {{URL}}
 
@@ -1363,11 +1389,11 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 | 6:10–6:50 | V1-d RDS | RDS → Databases (Connectivity & security) | `Publicly accessible: No`; subnet group privado; SG; Multi-AZ; backup | {{quem consegue alcançar o banco e por qual caminho}} |
 | 6:50–7:00 | Fechamento | — | — | {{ }} |
 
-> **EVIDÊNCIA — preparar antes de gravar.** O escalonamento ao vivo é o trecho que
+> **EVIDÊNCIA**, a preparar antes de gravar. O escalonamento ao vivo é o trecho que
 > mais falha na hora. Ensaie: escolha a ferramenta de carga, confirme que a métrica
 > escolhida realmente cruza o limiar com a carga que você consegue gerar, e verifique
-> o tempo entre o alarme e a instância `InService` — se passar de dois minutos,
-> corte o tempo morto na edição ou reduza o cooldown para a demonstração.
+> o tempo entre o alarme e a instância `InService`. Se passar de dois minutos, corte
+> o tempo morto na edição ou reduza o tempo de espera para a demonstração.
 > Plano B, caso o escalonamento não dispare a tempo: alterar `desired` manualmente
 > e mostrar a atividade resultante, dizendo com todas as letras que foi manual.
 
@@ -1383,9 +1409,9 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 
 ## 7. Vídeo 2 — Integração front-end e back-end
 
-> **PREENCHER** · Duração exigida: **2 a 4 minutos**. Dois subitens de peso 1,0:
-> validação funcional e comunicação entre serviços em ambiente integrado. O
-> segundo é o mais esquecido — não basta a tela funcionar; é preciso mostrar a
+> **PREENCHER** · Duração exigida: 2 a 4 minutos. São dois subitens avaliados,
+> validação funcional e comunicação entre serviços em ambiente integrado. O segundo
+> é o mais esquecido: não basta a tela funcionar; é preciso mostrar a
 > requisição atravessando os serviços. As abas Network e Console do navegador,
 > mais o log do back-end aparecendo no CloudWatch para aquela mesma requisição,
 > resolvem o item de forma inequívoca. Use o `X-Request-Id` como fio condutor.
@@ -1405,7 +1431,7 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 
 > **PREENCHER** · Tabela dos casos demonstrados. Inclua ao menos um caminho de
 > erro: sistema que só é mostrado no caminho feliz sugere que o caminho triste não
-> foi testado. Se houver suíte automatizada, cite o comando e onde ela vive —
+> foi testado. Se houver suíte automatizada, cite o comando e onde ela vive:
 > execução de teste em vídeo vale mais do que navegação manual.
 
 | # | Caso | Pré-condição | Passos | Resultado esperado | Resultado obtido |
@@ -1428,7 +1454,7 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 ## 8. Riscos e limitações conhecidas
 
 &emsp; Risco listado sem mitigação é lista de desculpas. As duas primeiras linhas
-não são previsões: foram **confirmadas no `apply`** de 8 de setembro de 2026 e estão
+não são previsões: foram confirmadas no `apply` de 8 de setembro de 2026 e estão
 detalhadas logo abaixo da tabela.
 
 | Risco | Impacto | Probabilidade | Mitigação | Responsável |
@@ -1449,12 +1475,11 @@ detalhadas logo abaixo da tabela.
 ### 8.1 As duas restrições do ambiente, em detalhe
 
 &emsp; As duas apareceram só no `apply`, e as duas condicionam o desenho da camada de
-rede — não são incômodos de operação.
+rede, e não são incômodos de operação.
 
 &emsp; **1. A `LabRole` não confia no serviço de Flow Logs.** A verificação da política
-de confiança devolve 53 serviços — `apigateway`, `ecs-tasks`, `lambda`, `ec2`,
-`elasticloadbalancing`, entre outros — e `vpc-flow-logs.amazonaws.com` **não** está
-entre eles. Com `create_iam_roles = false`, obrigatório no laboratório, o destino
+de confiança devolve 53 serviços, entre eles `apigateway`, `ecs-tasks`, `lambda`,
+`ec2` e `elasticloadbalancing`, e `vpc-flow-logs.amazonaws.com` não está na lista. Com `create_iam_roles = false`, obrigatório no laboratório, o destino
 CloudWatch Logs é inviável. O padrão em S3, escolhido preventivamente, é o que permitiu
 a cláusula ser atendida.
 
@@ -1466,7 +1491,7 @@ aws iam get-role --role-name LabRole \
 &emsp; **2. A SCP da organização nega `s3:GetBucketObjectLockConfiguration`.** O
 provider AWS chama essa API ao reler qualquer `aws_s3_bucket` recém-criado. O bucket
 nasce, o `apply` falha na releitura e o recurso fica no estado quebrando todo `plan`
-seguinte. Verificou-se que **apenas essa chamada** é negada — `GetBucketPolicy`,
+seguinte. Verificou-se que apenas essa chamada é negada: `GetBucketPolicy`,
 `GetPublicAccessBlock`, `GetBucketEncryption`, `GetBucketLifecycleConfiguration` e
 `GetBucketVersioning` são permitidas.
 
@@ -1474,13 +1499,13 @@ seguinte. Verificou-se que **apenas essa chamada** é negada — `GetBucketPolic
 quando preenchidas, o Terraform não cria o bucket, mas continua gerenciando política,
 bloqueio público, criptografia e ciclo de vida. Nenhum controle é perdido.
 
-&emsp; **Esta segunda restrição não é específica desta entrega.** Ela atinge igualmente
-`aws_s3_bucket.origem` e `aws_s3_bucket.frontend`, que já existiam — os dois foram
-testados e recebem a mesma negação. Na prática, **o stack completo não roda `plan` nem
-`apply` nessa conta sem contorno**. O paliativo imediato é `terraform plan
+&emsp; Esta segunda restrição não é específica desta entrega. Ela atinge igualmente
+`aws_s3_bucket.origem` e `aws_s3_bucket.frontend`, que já existiam: os dois foram
+testados e recebem a mesma negação. Na prática, o stack completo não roda `plan` nem
+`apply` nessa conta sem contorno. O paliativo imediato é `terraform plan
 -refresh=false`, já que esses buckets estão no estado e sem refresh o provider não os
 relê. A correção definitiva é estender o padrão de `flow_logs_bucket_name` aos outros
-dois buckets, ou avaliar a migração para o provider 6.x — trabalho independente desta
+dois buckets, ou avaliar a migração para o provider 6.x, trabalho independente desta
 camada de rede.
 
 ---
@@ -1493,13 +1518,13 @@ camada de rede.
 **Controle de versão**
 
 - [ ] Tag `SPRINT{{X}}` criada na data da entrega.
-- [ ] Commits significativos de **todos** os integrantes.
+- [ ] Commits significativos de todos os integrantes.
 - [ ] Commits distribuídos ao longo das duas semanas, não concentrados no último dia.
 
 **Estrutura**
 
 - [ ] Raiz contém apenas `README.md`, `.gitignore`, logos e as pastas `/artefatos`, `/apps`, `/slides` e opcionalmente `/assets`.
-- [ ] Decisão tomada sobre `apps/basica` versus `/apps/fullstack` da especificação — renomear ou documentar a divergência.
+- [ ] Decisão tomada sobre `apps/basica` versus `/apps/fullstack` da especificação: renomear ou documentar a divergência.
 - [ ] `terraform.tfvars`, `.tfstate` e segredos fora do versionamento.
 
 **README**
@@ -1507,7 +1532,7 @@ camada de rede.
 - [ ] Logos, título, nome e número do grupo, integrantes.
 - [ ] Problema e solução em um parágrafo.
 - [ ] Descrição das pastas.
-- [ ] Instruções de execução local **e** na AWS.
+- [ ] Instruções de execução local e na AWS.
 - [ ] Passo a passo de clone e execução por um desenvolvedor novo, via Codespaces ou VS Code, acionável por um comando.
 
 **Documentação do código**
@@ -1542,10 +1567,10 @@ parágrafo cada em `apps/basica/infra/variables.tf`.
 | `public_subnet_cidrs` | `["10.0.0.0/24","10.0.1.0/24"]` | Sub-redes públicas; validação exige no mínimo duas |
 | `private_subnet_cidrs` | `["10.0.10.0/24","10.0.11.0/24"]` | Sub-redes privadas; validação exige no mínimo duas |
 | `bastion_key_name` | `""` | Nome de um key pair existente. **Vazio não cria o bastion** |
-| `bastion_allowed_cidr` | `0.0.0.0/32` | Único CIDR na porta 22. A validação **recusa `0.0.0.0/0`** |
+| `bastion_allowed_cidr` | `0.0.0.0/32` | Única faixa de endereços na porta 22. A validação recusa `0.0.0.0/0` |
 | `bastion_instance_type` | `t4g.micro` | Tipo do bastion |
 | `app_port` | `5000` | Porta do gunicorn e do target group. Mudar aqui sem mudar o `Dockerfile` reprova todas as instâncias |
-| `app_instance_type` | `t4g.small` | Instâncias do ASG. Graviton por **compatibilidade** com as imagens arm64, não por custo |
+| `app_instance_type` | `t4g.small` | Instâncias do ASG. Graviton por compatibilidade com as imagens arm64, não por custo |
 | `asg_min_size` | `2` | Validação exige ≥ 2 |
 | `asg_max_size` | `6` | Teto; limita o estrago de rajada anômala |
 | `asg_desired_capacity` | `2` | Tamanho inicial |

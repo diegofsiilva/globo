@@ -37,7 +37,7 @@ O sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `v
 
 São **dois fluxos de ingestão** independentes que desembocam no mesmo banco, e um fluxo de leitura sobre ele.
 
-O primeiro fluxo é o de **eventos de sessão**: o que o app de TV emite (`request`, `screen_view`, `session`, `video_view`, `vitals`, `error`). O segundo é o de **mudanças (CDC)**: as 33 tabelas de telemetria do parceiro não chegam como evento, chegam como *linha que mudou* — e é isso que o simulador reproduz.
+O primeiro fluxo é o de **eventos de sessão**: o que o app de TV emite (`request`, `screen_view`, `session`, `video_view`, `vitals`, `error`). O segundo é o de **mudanças (CDC)**: as 33 tabelas de telemetria do parceiro não chegam como evento, chegam como *linha que mudou*, e é isso que o simulador reproduz.
 
 ```
 App de TV ──> API Gateway ──> SQS ──> ECS Fargate ─┐
@@ -76,9 +76,9 @@ Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
 
 O dataset do parceiro é um **dump do passado**. Um dashboard "ao vivo" sobre ele mostraria uma tela vazia, porque nada tem a data de hoje. Por isso o sistema tem um presente próprio: `sim.now()`.
 
-Toda linha carrega um `available_at` — o instante em que a informação *ficaria disponível na vida real*, contando a latência da fonte (a NPAW entrega com 28 h de atraso; o Prometheus, com 1 min). E **toda** view `v_*` filtra `available_at <= sim.now()`.
+Toda linha carrega um `available_at`, que é o instante em que a informação *ficaria disponível na vida real*, contando a latência da fonte (a NPAW entrega com 28 h de atraso; o Prometheus, com 1 min). E **toda** view `v_*` filtra `available_at <= sim.now()`.
 
-Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas — então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
+Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas, então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
 
 Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura do Argus v3](artefatos/arquitetura-inicial.md), no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/basica/infra/README.md).
 
@@ -166,17 +166,17 @@ O backend também sobe por um único arquivo, sem `make`:
 python apps/basica/backend/run.py
 ```
 
-Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask** — é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`. Para apenas instalar, testar e analisar o código, não é necessário gerar o `.env` nem possuir credenciais AWS.
+Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask**, que é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`. Para apenas instalar, testar e analisar o código, não é necessário gerar o `.env` nem possuir credenciais AWS.
 
 Os workers não são executados localmente contra a fila real: use `make -C apps/basica images` para construir as quatro imagens e `make -C apps/basica replay` para reenviar os eventos de exemplo à API de ingestão publicada.
 
 ### Sem credenciais AWS
 
-Os testes usam um SQS falso (moto) mas um PostgreSQL **de verdade**, porque a parte difícil deste sistema é o SQL — o MERGE idempotente, o keyset de paginação, a barreira do `available_at`. Um dublê que respondesse "ok" a tudo isso testaria apenas o dublê.
+Os testes usam um SQS falso (moto) mas um PostgreSQL **de verdade**, porque a parte difícil deste sistema é o SQL: o MERGE idempotente, o keyset de paginação, a barreira do `available_at`. Um dublê que respondesse "ok" a tudo isso testaria apenas o dublê.
 
 Com `make db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são **pulados** em vez de quebrarem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
 
-> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore` — o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). As três APIs exigem `Authorization: Bearer` (RNF09); os tokens saem de `make -C apps/basica auth-rotate` e nunca entram no repositório, nem no bundle do dashboard.
+> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore`; o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). As três APIs exigem `Authorization: Bearer` (RNF09); os tokens saem de `make -C apps/basica auth-rotate` e nunca entram no repositório, nem no bundle do dashboard.
 
 Outros alvos úteis, todos com o prefixo `make -C apps/basica`: `lint`, `check`, `smoke`, `dlq`, `pause` e `resume`.
 
@@ -210,7 +210,7 @@ AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`.
 > **O id da conta do Learner Lab muda a cada sessão nova.** Antes do apply, confira com `aws sts get-caller-identity --profile g4 --query Account --output text` e atualize o `existing_role_arn` do `terraform.tfvars`. E **todo** comando `aws` deste projeto leva `--profile g4`: sem ele a CLI usa o profile default, que é outra conta.
 
 ```bash
-# 1. empacota a API de leitura — o Terraform precisa do zip já no plan
+# 1. empacota a API de leitura: o Terraform precisa do zip já no plan
 make -C apps/basica install
 make -C apps/basica lambda-build
 
@@ -258,7 +258,7 @@ make -C apps/basica dlq        # mostra o que foi rejeitado, com o motivo
 make -C apps/basica logs SERVICO=worker    # worker|simulator|processing|loader
 ```
 
-Para economizar crédito do lab, `pause` e `resume` desligam e religam os serviços sem destruir nada — o RDS continua de pé, que é o que guarda o trabalho da carga.
+Para economizar crédito do lab, `pause` e `resume` desligam e religam os serviços sem destruir nada, e o RDS continua de pé, que é o que guarda o trabalho da carga.
 
 ---
 
