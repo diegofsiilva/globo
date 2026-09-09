@@ -38,8 +38,9 @@ services:
       AWS_SHARED_CREDENTIALS_FILE: /aws/credentials
       AWS_PROFILE: g4
     volumes:
-      # So o perfil g4 chega aqui, nunca o ~/.aws/credentials inteiro -- o
-      # Makefile extrai o bloco [g4] para um arquivo temporario (mktemp) antes
+      # So o perfil selecionado chega aqui, nunca o ~/.aws/credentials inteiro.
+      # O Makefile o renomeia para [g4] no arquivo temporario porque o datasource
+      # usa esse nome interno estavel, independentemente do perfil do operador.
       # de subir o compose. Sem esse arquivo (uso so do Prometheus/k6, sem
       # CloudWatch), a variavel cai em /dev/null e o datasource CloudWatch
       # fica sem credencial, sem quebrar o resto do stack.

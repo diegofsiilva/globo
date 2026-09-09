@@ -802,21 +802,24 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 .PHONY: observabilidade-up
 observabilidade-up: ## Sobe Prometheus e Grafana locais (dashboards de resiliencia RNF04/05/11 e de carga RNF01/02/03)
 	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
-	@# So o perfil g4 vai pro container -- nunca o arquivo inteiro, que pode ter
+	@# So o perfil selecionado vai pro container -- nunca o arquivo inteiro, que pode ter
 	@# outros perfis (ex. default) sem relacao com este dashboard. `mktemp` (nao
 	@# um nome fixo) evita reaproveitar permissao de um arquivo antigo. Sem o
 	@# perfil, Prometheus e o dashboard k6 continuam disponiveis; apenas as
 	@# consultas CloudWatch ficam sem autenticacao.
 	@set -eu; \
+	perfil="$${AWS_PROFILE:-g4}"; \
 	creds_tmp=$$(mktemp); \
 	trap 'rm -f "$$creds_tmp"' EXIT; \
 	if [ -f "$(HOME)/.aws/credentials" ]; then \
-		awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > "$$creds_tmp"; \
+		awk -v perfil="$$perfil" '\
+		  $$0 == "[" perfil "]" {f=1; print "[g4]"; next} \
+		  /^\[/ {f=0} f' "$(HOME)/.aws/credentials" > "$$creds_tmp"; \
 	fi; \
 	if [ -s "$$creds_tmp" ]; then \
-		echo "CloudWatch: credencial temporaria do perfil g4 habilitada."; \
+		echo "CloudWatch: credencial temporaria do perfil $$perfil habilitada."; \
 	else \
-		echo "Aviso: perfil g4 ausente; seguindo somente com Prometheus/k6."; \
+		echo "Aviso: perfil $$perfil ausente; seguindo somente com Prometheus/k6."; \
 	fi; \
 	AWS_CREDS_FILE="$$creds_tmp" $(OBSERVABILITY_COMPOSE) up -d
 	@echo "Prometheus: http://localhost:9090"

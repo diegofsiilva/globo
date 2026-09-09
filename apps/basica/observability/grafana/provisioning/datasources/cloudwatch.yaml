@@ -1,6 +1,6 @@
 # Datasource CloudWatch para o Grafana local dos testes de resiliencia
-# (RNF04/05/11). Le credenciais do arquivo compartilhado do host (perfil g4
-# do AWS Academy Learner Lab), montado read-only no container -- nao ha
+# (RNF04/05/11). Le apenas o perfil selecionado pelo operador, copiado como g4
+# para um arquivo temporario e montado read-only no container -- nao ha
 # access key nem secret aqui, so a referencia ao arquivo/perfil.
 apiVersion: 1
 

@@ -18,12 +18,25 @@ e tokens explícitos: uma execução sem alvo real falha no `setup()`.
 O requisito de 10.000 eventos/min em ciclos de 15 minutos equivale a um lote
 logico de 150.000 eventos. O endpoint aceita arrays, mas cada corpo HTTP vira
 uma mensagem SQS; por isso `rnf01_lote_drenagem.js` fragmenta o lote pelo
-tamanho serializado, com teto conservador de 240.000 bytes por mensagem.
+tamanho serializado. Embora o SQS aceite ate 256 KiB, a integracao direta do
+API Gateway devolveu HTTP 414 com corpos de aproximadamente 240 KiB. O teto
+operacional validado ficou em 40.000 bytes, com margem para o encoding feito
+pela integracao.
+
+A injecao usa cinquenta VUs por padrao para representar produtores concorrentes e
+formar backlog antes que o consumidor termine o lote. O valor pode ser reduzido
+no preflight com `K6_VUS_INJECAO`, mas deve permanecer registrado e igual entre
+as rodadas oficiais comparadas.
 
 O k6 mede aceite, latencia e vazao HTTP. Ele nao declara drenagem: resposta 2xx
 prova apenas que o fragmento entrou na fila. Depois da injecao, a evidencia
 precisa combinar fila principal, mensagens em voo, DLQ, persistencia e
 disponibilidade do evento sentinela na API de leitura.
+
+O `timestamp` dos eventos usa `sim_now`, obtido de `/api/v1/clock`, porque as
+views de leitura respeitam o relogio virtual do Argus. O instante real de envio
+fica separado em `load_test_sent_at`; e esse campo que mede frescor, evitando
+confundir tempo simulado do dado com atraso real do pipeline.
 
 ```bash
 # Um lote: 150.000 eventos.
@@ -38,6 +51,14 @@ Cada rodada escreve no resumo o `test_id`, os horarios da injecao e a
 confirme que ele chegou a zero, injete a carga, registre a fila e restaure a
 mesma quantidade de tasks que existia antes do teste. Nao use `make pause`,
 pois ele tambem interrompe processamento e outros servicos.
+
+Antes de uma rodada completa, valide endpoint, token e contrato com uma carga
+diagnostica pequena. `K6_EVENTOS_POR_LOTE` existe apenas para esse preflight; a
+evidencia oficial sempre usa o padrao de 150.000 eventos:
+
+```bash
+K6_EVENTOS_POR_LOTE=100 make -C apps/basica teste-lote-drenagem
+```
 
 Durante a drenagem, registre a cada cinco segundos:
 

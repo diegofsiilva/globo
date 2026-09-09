@@ -9,20 +9,31 @@
 
 import http from "k6/http";
 import { check } from "k6";
+import exec from "k6/execution";
 import { Counter, Rate, Trend } from "k6/metrics";
 import {
   gerarEvento,
   headersIngestao,
+  headersLeitura,
   INGEST_ENDPOINT,
   numero,
+  READ_URL,
   TEST_ID,
   validarConfiguracao,
 } from "./helpers.js";
 
-const EVENTOS_POR_LOTE = 150000;
+const EVENTOS_POR_LOTE = inteiroNoIntervalo(
+  __ENV.K6_EVENTOS_POR_LOTE || "150000",
+  1,
+  150000,
+);
 const QUANTIDADE_LOTES = inteiroNoIntervalo(__ENV.K6_QUANTIDADE_LOTES || "1", 1, 4);
 const TOTAL_EVENTOS = EVENTOS_POR_LOTE * QUANTIDADE_LOTES;
-const MAX_BODY_BYTES = inteiroNoIntervalo(__ENV.K6_MAX_BODY_BYTES || "240000", 1024, 240000);
+const VUS_INJECAO = inteiroNoIntervalo(__ENV.K6_VUS_INJECAO || "50", 1, 50);
+// A integracao SQS-SendMessage do API Gateway serializa parametros na chamada
+// ao servico e devolve 414 antes do limite bruto de 256 KiB do SQS. O teto de
+// 40 KiB foi validado contra a borda publicada e deixa margem para encoding.
+const MAX_BODY_BYTES = inteiroNoIntervalo(__ENV.K6_MAX_BODY_BYTES || "40000", 1024, 240000);
 const SENTINELA_SESSION_ID = `${TEST_ID}-sentinela`;
 
 const eventosAceitos = new Counter("eventos_lote_aceitos");
@@ -37,8 +48,8 @@ export const options = {
   discardResponseBodies: true,
   scenarios: {
     injecao_lotes: {
-      executor: "shared-iterations",
-      vus: 1,
+      executor: "per-vu-iterations",
+      vus: VUS_INJECAO,
       iterations: 1,
       maxDuration: "45m",
       exec: "injetarLotes",
@@ -53,22 +64,38 @@ export const options = {
 };
 
 export function setup() {
-  validarConfiguracao({ ingestao: true });
+  validarConfiguracao({ ingestao: true, leitura: true });
+  const respostaRelogio = http.get(`${READ_URL}/api/v1/clock`, {
+    headers: headersLeitura(),
+    responseType: "text",
+    timeout: "7s",
+    tags: { name: "GET /api/v1/clock", fase: "preflight_lote" },
+  });
+  if (respostaRelogio.status !== 200) {
+    throw new Error(`relogio virtual respondeu HTTP ${respostaRelogio.status}`);
+  }
+  const simNow = respostaRelogio.json("sim_now");
+  if (!simNow) throw new Error("resposta de /api/v1/clock nao contem sim_now");
   return {
     testId: TEST_ID,
     quantidadeLotes: QUANTIDADE_LOTES,
     totalEventos: TOTAL_EVENTOS,
+    vusInjecao: VUS_INJECAO,
+    simNow,
   };
 }
 
-export function injetarLotes() {
+export function injetarLotes(configuracao) {
   let fragmento = [];
   let bytes = 2;
 
-  for (let indice = 0; indice < TOTAL_EVENTOS; indice += 1) {
+  const primeiroIndice = exec.vu.idInTest - 1;
+  for (let indice = primeiroIndice; indice < TOTAL_EVENTOS; indice += VUS_INJECAO) {
     const numeroLote = Math.floor(indice / EVENTOS_POR_LOTE) + 1;
     const ultimoEvento = indice === TOTAL_EVENTOS - 1;
     const identificadores = {
+      timestamp: configuracao.simNow,
+      load_test_sent_at: new Date().toISOString(),
       batch_id: `${TEST_ID}-lote-${String(numeroLote).padStart(2, "0")}`,
       batch_event_index: indice % EVENTOS_POR_LOTE,
     };
@@ -138,6 +165,7 @@ export function handleSummary(data) {
       eventos_por_lote: EVENTOS_POR_LOTE,
       quantidade_lotes: QUANTIDADE_LOTES,
       total_eventos: TOTAL_EVENTOS,
+      vus_injecao: VUS_INJECAO,
       maximo_bytes_por_fragmento: MAX_BODY_BYTES,
     },
     injecao: {
