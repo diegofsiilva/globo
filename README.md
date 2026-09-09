@@ -102,7 +102,7 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 | `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
 | `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem e MVP |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
-| `/artefatos/postman` | Coleção Postman de teste das duas APIs |
+| `/artefatos/postman` | Coleção Postman de teste das duas APIs + evidências `evidencias/newman-*.json` |
 | `/assets` | Logos usados neste README |
 | `/apps/basica/Makefile` | Comandos do projeto; `make -C apps/basica` lista os alvos |
 | `/apps/basica/.env.example` | Chaves de configuração; os valores ficam em `/apps/basica/.env`, fora do repositório |
