@@ -917,33 +917,186 @@ justificada; linha sem seta é componente esquecido no desenho.
 
 ### 4.1 Pré-requisitos
 
-> **PREENCHER** · Ferramentas e versões; verificação de conta e sessão
-> (`aws sts get-caller-identity` e uma chamada com permissão real); variáveis de
-> ambiente; preenchimento do `terraform.tfvars`.
+&emsp; A implantação da arquitetura v4 parte de uma conta nova do AWS Academy Learner
+Lab, criada para a Sprint 3. O computador usado no deploy precisa das ferramentas
+abaixo. Os comandos do `Makefile` devem ser executados no Git Bash ou WSL, pois usam
+recursos de shell POSIX; os comandos de preparação desta subseção podem ser executados
+no PowerShell.
 
-> **CONTA NOVA, decidido em 04/09/2026.** O professor criou um Learner Lab novo,
-> acessado pela conta do grupo `t15-cc07-g4@sou.inteli.edu.br`. Isso muda o
-> procedimento em quatro pontos, e cada um precisa aparecer no runbook:
->
-> 1. **O `terraform.tfstate` atual não serve.** Ele descreve recursos da conta
->    anterior (`909209557114`, serial 57, ainda da v2). Aplicar esse state contra a
->    conta nova não recria nada: o Terraform tenta ler recursos que não existem ali.
->    Preservar uma cópia do state antigo e começar um workspace, chave ou backend
->    correspondente à conta nova, depois de confirmar a mudança do account ID.
-> 2. **Nada de destrutivo a preservar.** Como o ambiente nasce vazio, o risco que
->    bloqueava o plano, que é o RDS não mudar de VPC (mover o subnet group forçaria
->    a substituição da instância), deixa de existir: o banco já nasce na VPC nova, no
->    subnet group privado. Registrar isso como o motivo de a migração ter sido
->    feita agora e não incrementalmente.
-> 3. **Apply em duas etapas.** Em conta nova, aplicar primeiro com os
->    `desired_count = 0` para criar o ECR, empurrar as imagens e só então aplicar com
->    os counts reais. Sem isso as tasks sobem apontando para um repositório vazio.
-> 4. **Credenciais e `terraform.tfvars` novos.** Role, senhas e CIDR mudam junto com
->    a conta; o arquivo não é versionado.
->
-> O que não muda: a carga inicial continua indisponível sem o `argus_dump.sql`
-> (4,15 GB) de alguém do grupo. Sem ele, alimentar o stack pelos fixtures, como
-> descrito na variante do runbook.
+| Ferramenta | Versão mínima ou requisito | Uso no projeto |
+|---|---|---|
+| Git | Versão estável atual | Clonar o repositório e identificar o SHA usado nas imagens |
+| AWS CLI | 2.x | Autenticar no Learner Lab e consultar ou operar os recursos AWS |
+| Terraform | 1.9 ou superior | Inicializar, validar, planejar e aplicar a infraestrutura |
+| Docker Desktop | Buildx habilitado e suporte a `linux/arm64` | Construir as imagens dos serviços para o Amazon ECR |
+| Python | 3.12 ou superior | Executar migrations, carga, testes e ferramentas do projeto |
+| uv | Versão estável atual | Criar os ambientes Python a partir dos arquivos `pyproject.toml` |
+| Node.js e npm | Node.js 20 ou superior | Instalar, testar e gerar o export estático do dashboard |
+| GNU Make e Bash | Disponíveis no Git Bash ou WSL | Executar os alvos de instalação, build, deploy e verificação |
+
+&emsp; Antes de configurar credenciais, as versões instaladas devem ser conferidas. A
+execução pode continuar quando todos os comandos abaixo responderem sem erro e o
+Terraform indicar uma versão igual ou superior a 1.9.
+
+```powershell
+git --version
+aws --version
+terraform version
+docker version
+docker buildx version
+python --version
+uv --version
+node --version
+npm --version
+make --version
+```
+
+#### 4.1.1 Credenciais e validação da conta
+
+&emsp; As credenciais temporárias devem ser copiadas de **AWS Details → AWS CLI** no
+Learner Lab e armazenadas somente no profile local `g4`. O access key, o secret key e
+o session token não entram no repositório, no `.env` nem no `terraform.tfvars`. Como
+as credenciais expiram, a validação é repetida antes de cada `plan` e `apply`.
+
+```powershell
+$env:AWS_PROFILE = "g4"
+$env:AWS_REGION = "us-east-1"
+
+$taskAccountId = aws sts get-caller-identity `
+  --profile g4 `
+  --query Account `
+  --output text
+
+if ($LASTEXITCODE -ne 0 -or $taskAccountId -notmatch '^\d{12}$') {
+  throw "Não foi possível confirmar a conta ativa do Learner Lab."
+}
+
+aws ec2 describe-vpcs `
+  --profile g4 `
+  --region us-east-1 `
+  --max-results 5 `
+  --query 'Vpcs[].{VpcId:VpcId,Cidr:CidrBlock}' `
+  --output table
+
+if ($LASTEXITCODE -ne 0) {
+  throw "A sessão existe, mas não possui uma credencial válida para operar a EC2."
+}
+```
+
+&emsp; A segunda chamada é necessária porque testa uma permissão usada pelo deploy,
+em vez de verificar apenas a identidade. O valor de `$taskAccountId` deve corresponder
+à conta nova da Sprint 3. O ARN a informar em `existing_role_arn` pode ser conferido
+sem digitação manual:
+
+```powershell
+$taskRoleArn = "arn:aws:iam::${taskAccountId}:role/LabRole"
+$taskRoleArn
+```
+
+&emsp; Se a conta não for a esperada, nenhum comando Terraform deve ser executado.
+
+#### 4.1.2 Isolamento do state anterior
+
+&emsp; O `terraform.tfstate` existente descreve a conta anterior e não pode ser usado
+na conta nova. Reutilizá-lo faria o Terraform procurar recursos que não existem na
+sessão atual. Como a conta nova começou vazia, não há recurso da versão anterior a ser
+preservado nela; o RDS e os demais componentes da v4 podem nascer diretamente na nova
+VPC. O state, o backup e o `terraform.tfvars` anteriores devem ser movidos para um
+diretório protegido fora do repositório antes da inicialização.
+
+```powershell
+Set-Location apps/basica/infra
+
+$taskStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$taskStateArchive = Join-Path $env:USERPROFILE "argus-state-archive\$taskStamp"
+New-Item -ItemType Directory -Path $taskStateArchive -Force | Out-Null
+
+foreach ($taskLocalFile in @("terraform.tfstate", "terraform.tfstate.backup", "terraform.tfvars")) {
+  if (Test-Path -LiteralPath $taskLocalFile) {
+    Move-Item -LiteralPath $taskLocalFile -Destination $taskStateArchive
+  }
+}
+
+Copy-Item -LiteralPath "terraform.tfvars.example" -Destination "terraform.tfvars"
+```
+
+&emsp; O diretório de arquivo contém state e valores sensíveis e, portanto, não deve
+ser sincronizado com o Git. Quando as permissões da conta permitirem criar o bucket e
+o mecanismo de lock, [`backend.tf.example`](../apps/basica/infra/backend.tf.example)
+deve ser usado como base para um backend remoto criptografado. Se o laboratório negar
+esses recursos, o state permanece local sob responsabilidade de um único operador por
+janela de implantação.
+
+#### 4.1.3 Configuração do ambiente
+
+&emsp; O novo `terraform.tfvars` deve ser preenchido com valores exclusivos da conta
+atual. Nenhuma senha, token ou identificação real deve ser copiada para arquivos
+versionados.
+
+| Campo | Configuração para a primeira aplicação | Motivo |
+|---|---|---|
+| `region` | `"us-east-1"` | Região adotada pelo diagrama e pelos recursos do projeto |
+| `create_iam_roles` | `false` | O Learner Lab normalmente bloqueia `iam:CreateRole` |
+| `existing_role_arn` | ARN da `LabRole` formado com o account ID confirmado | Impede referência à role da conta anterior |
+| `db_password_from_secrets_manager` | Conforme as permissões da conta; `false` quando o Secrets Manager for negado | Mantém um caminho compatível com o laboratório |
+| `db_password`, `read_api_db_password` e `user_id_hash_salt` | Valores novos, longos e distintos | Evita reutilização de segredos da conta anterior |
+| `db_publicly_accessible` | `false` | O RDS deve permanecer nas sub-redes privadas |
+| `db_allowed_cidr` | `""` | Remove acesso direto ao PostgreSQL pela internet |
+| `assign_public_ip` | `false` | As cargas privadas obtêm saída pelo NAT Gateway |
+| `worker_desired_count` | `0` | Evita iniciar workers antes de as imagens existirem no ECR |
+| `processing_desired_count` | `0` | Evita iniciar processamento antes da carga e das imagens |
+| `simulator_desired_count` | `0` | O relógio virtual só é ligado depois da carga inicial |
+| `db_multi_az` | `false` no laboratório ou `true` quando o orçamento permitir | A decisão de custo e disponibilidade deve permanecer explícita |
+
+&emsp; Antes do `terraform init`, os valores de exemplo devem ser eliminados e a
+classe escolhida para o RDS precisa estar disponível na região.
+
+```powershell
+$taskExampleValues = Select-String `
+  -LiteralPath "terraform.tfvars" `
+  -Pattern "000000000000|troque-|203\.0\.113\.10"
+
+if ($taskExampleValues) {
+  throw "O terraform.tfvars ainda contém valores de exemplo."
+}
+
+aws rds describe-orderable-db-instance-options `
+  --profile g4 `
+  --region us-east-1 `
+  --engine postgres `
+  --engine-version 16 `
+  --db-instance-class db.t3.medium `
+  --query 'OrderableDBInstanceOptions[].DBInstanceClass' `
+  --output text
+
+terraform init -reconfigure
+terraform fmt -check -recursive
+terraform validate
+```
+
+&emsp; A consulta do RDS deve retornar `db.t3.medium`; se retornar vazio, a classe
+precisa ser trocada por outra oferecida pelo laboratório e a limitação deve ser
+registrada. A preparação termina quando `terraform validate` responde
+`Success! The configuration is valid.`. O `plan` e os dois `apply` ficam para a ordem
+de implantação da seção 4.3.
+
+#### 4.1.4 Dados necessários para a carga
+
+&emsp; O dump bruto do parceiro não é versionado. Antes do deploy, a equipe deve
+confirmar a disponibilidade autorizada de `argus_dump.sql` ou dos Parquet já gerados.
+Sem nenhum dos dois, é possível validar a integração com fixtures, mas não reproduzir
+a carga das 33 tabelas nem os testes sobre 68,7 milhões de linhas.
+
+```powershell
+Set-Location ../../..
+
+Test-Path -LiteralPath "argus_dump.sql"
+Test-Path -LiteralPath "data/parquet/_manifest.json"
+```
+
+&emsp; Pelo menos uma das duas verificações deve retornar `True`. Se apenas o dump
+estiver disponível, `make -C apps/basica parquet` gera os Parquet antes da
+sincronização com o bucket de origem.
 
 ### 4.2 Recursos provisionados
 
@@ -1471,6 +1624,10 @@ detalhadas logo abaixo da tabela.
 | Nenhum alarme verifica a API de fora | Indisponibilidade da ponta só aparece pelo usuário | Média | Canário sintético do CloudWatch, ~US$ 10/mês; não implementado | Backlog |
 | Carga inicial indisponível sem o dump de 4,15 GB | Banco recriado não volta ao estado anterior | Baixa | Os Parquet no bucket `origem` são a fonte de `make load`, e são versionados fora do repositório | Infraestrutura |
 | A aplicação está em `/apps/basica` | A especificação da entrega cita `/apps/fullstack` | Certa | Divergência registrada na abertura deste artefato; decisão de nomenclatura a alinhar antes da tag da Sprint | Time |
+| Restrições da `LabRole` para CloudFront, OAC, políticas e papéis IAM | O plano pode funcionar em uma conta AWS comum e falhar no laboratório, impedindo o bucket privado, o TLS do front-end ou a criação de identidades dedicadas | Alta | Validar previamente as ações exigidas pela topologia; quando houver negação, registrar a operação e o erro, reutilizar somente papéis autorizados e documentar o fallback do laboratório sem apresentá-lo como equivalente à arquitetura de produção | Infraestrutura e segurança |
+| Regra SSH do bastion dependente do CIDR do administrador | Uma origem ampla expõe a porta 22; uma origem desatualizada bloqueia o acesso operacional quando a rede do administrador muda | Média | Restringir a entrada a um CIDR `/32`, nunca usar `0.0.0.0/0`, manter chaves individuais e rotacionáveis e revisar a regra antes e depois da manutenção; preferir Session Manager quando as permissões permitirem | Infraestrutura e segurança |
+| Política incorreta do CloudFront para `/api/*` | A omissão do cabeçalho `Authorization` retorna 401; habilitar cache para respostas autenticadas pode servir dados fora do contexto correto | Média | Criar comportamento específico para `/api/*`, desabilitar o cache, encaminhar `Authorization` e testar sessões distintas antes da publicação; o comportamento padrão permanece exclusivo para os arquivos estáticos do S3 via OAC | Infraestrutura e back-end |
+| Migração da API de Lambda para EC2 incompatível com o schema ou com o health check | Instâncias novas podem falhar o `/health/live`, entrar em ciclo de substituição ou receber tráfego antes das migrations necessárias | Média | Manter migrations retrocompatíveis, aplicar alterações de banco antes de liberar a nova versão, validar `/health/live` no target group e preservar a versão anterior do launch template para rollback por `instance refresh` | Back-end, dados e infraestrutura |
 
 ### 8.1 As duas restrições do ambiente, em detalhe
 
