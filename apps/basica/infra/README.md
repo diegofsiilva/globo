@@ -354,6 +354,15 @@ make -C .. migrate-status-aws
 make -C .. migrate-aws
 ```
 
+### Alternativa EC2 para a API de leitura (rubrica 2)
+
+O deploy padrão usa Lambda (`api_read.tf`) por custo no Learner Lab, mas o
+mesmo Flask roda em EC2 sem alteração de código — ver
+`ec2_api.tf.example` (ALB + ASG + launch template, `publicly_accessible = false`
+no RDS, mesma imagem ECR por SHA). O código é idêntico (`app.py` +
+`observability.py` com JSON + `X-Request-Id`), e o custo 24/7 de EC2
+(~US$ 7/mês t3.micro) é o motivo de o padrão ser FaaS no lab.
+
 Para exigência de subnet privada, `assign_public_ip = false` exige uma destas:
 
 - **NAT Gateway** — simples, ~US$ 32/mês + tráfego.
