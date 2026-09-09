@@ -18,7 +18,20 @@ relatório principal.
 | (c) Justificativa da arquitetura e das tecnologias | Seção 4 (tabela de decisões em 4.9) |
 | (d) Plano detalhado de implantação na AWS | Seção 5 |
 
-### O que mudou nesta revisão
+### Escopo deste artefato
+
+&emsp; Este documento foi entregue na **Sprint 2** e descreve a arquitetura daquela
+entrega. A **Sprint 3** acrescentou uma camada de infraestrutura que não existia aqui —
+VPC gerenciada, sub-redes privadas, NAT Gateway, bastion host, Auto Scaling Group e
+Application Load Balancer. Para não deixar o artefato descrevendo um ambiente que já
+não é o atual, as seções afetadas foram atualizadas, e **cada acréscimo da Sprint 3
+está marcado como tal**. O que não tiver marca é da entrega original.
+
+&emsp; O artefato da Sprint 3, com o diagrama de implantação em nuvem, o plano de deploy
+com CloudFront e as evidências de aplicação, é
+[`infraestrutura-integracao.md`](infraestrutura-integracao.md).
+
+### O que mudou na revisão da Sprint 2
 
 &emsp; Esta versão descreve o ambiente **efetivamente implantado**, e não a intenção de
 projeto. As diferenças em relação à revisão anterior:
@@ -32,6 +45,28 @@ projeto. As diferenças em relação à revisão anterior:
 | Tag das imagens | `latest` | SHA do commit; `latest` só como apelido no ECR |
 | Bucket de origem | Descrito como contendo o dump | Apenas Parquet e manifesto; o dump não foi publicado |
 | Observabilidade | Logs em texto | Log JSON por requisição, correlacionado por `X-Request-Id` |
+
+### Acrescentado na Sprint 3 — camada de rede
+
+&emsp; Nada abaixo fazia parte da entrega da Sprint 2. Na Sprint 2 o stack **consumia** a
+VPC padrão da conta, e não havia sub-rede privada, NAT Gateway nem observabilidade de
+rede. A Sprint 3 declarou a rede como recurso, em `infra/vpc.tf`.
+
+| Item | Sprint 2 | Sprint 3 |
+|---|---|---|
+| Rede | VPC padrão da conta, consumida via `data "aws_vpc" "default"` | **VPC gerenciada**, `10.0.0.0/16`, declarada em `infra/vpc.tf` |
+| Sub-redes | As públicas que a conta já trazia | Duas públicas e duas privadas, em duas AZs |
+| Endereço das tasks | IP público em sub-rede pública | Sem IP público, em sub-rede privada |
+| Saída para a internet | Direta, pelo Internet Gateway da VPC padrão | **NAT Gateway**, com tabela de rota privada |
+| Observabilidade de rede | Inexistente | **VPC Flow Logs**, `traffic_type = ALL`, entregues em S3 |
+| Tráfego para o S3 | Pela internet | Gateway endpoint, sem sair da AWS |
+| Sub-redes do RDS | Subnet group sobre as sub-redes padrão | Subnet group sobre as sub-redes privadas |
+| Acesso administrativo | Somente a task avulsa `migration` | Acrescido o **bastion host** em sub-rede pública |
+| Caminho de leitura | Lambda atrás do API Gateway | **Auto Scaling Group de EC2 atrás de um ALB** |
+
+&emsp; As seções 2, 4.7, 4.9 e 5.2 deste artefato foram atualizadas para refletir essa
+camada. O desenho anterior continua acessível por variável: `create_network = false` com
+`assign_public_ip = true` devolve o stack ao comportamento da Sprint 2.
 
 ---
 
@@ -95,15 +130,26 @@ rsvg-convert -w 3300 -b white \
 componentes de software implantados em cada nó. O traço tracejado laranja marca o que é
 **planejado e não provisionado** — hoje, apenas o EventBridge Scheduler.
 
-&emsp; No AWS Academy Learner Lab, a configuração de referência utiliza a VPC e as
-sub-redes públicas da conta, com IP público nas tasks para evitar o custo de um NAT
-Gateway. Isso não abre portas de entrada nos containers: o security group das tasks
-não possui regra de ingresso. **O RDS é privado** (`db_publicly_accessible = false`)
-e aceita conexões na porta 5432 apenas desse security group; não há regra para CIDR
-externo. O acesso administrativo ao banco — migrations e inspeção — passa pela task
-avulsa `migration`, que roda dentro da própria VPC. A configuração recomendada para
-produção acrescenta sub-redes privadas e VPC endpoints ou NAT conforme a política da
-organização.
+&emsp; **[Sprint 3] A rede passou a ser gerenciada pelo projeto.** Na entrega da Sprint 2,
+que é a descrita no diagrama acima, o stack consumia a VPC padrão da conta, com IP
+público nas tasks para evitar o custo de um NAT Gateway — não havia sub-rede privada nem
+NAT. A Sprint 3 acrescentou `infra/vpc.tf`, que declara uma VPC própria — `10.0.0.0/16`,
+duas sub-redes públicas, duas privadas, Internet Gateway, NAT Gateway, gateway endpoint
+de S3 e VPC Flow Logs — e as tasks, a API de leitura e o RDS vivem nas **sub-redes
+privadas**, sem endereço público, alcançando os serviços da AWS pelo NAT. O
+detalhamento, as justificativas e as evidências de aplicação estão em
+[`infraestrutura-integracao.md`](infraestrutura-integracao.md).
+
+&emsp; O ganho é de defesa em profundidade: antes, o único controle que impedia alguém
+de alcançar as tasks era o security group sem regra de entrada; agora some também a
+rota. **O RDS continua privado** (`db_publicly_accessible = false`) e aceita conexões na
+porta 5432 apenas dos security groups autorizados; não há regra para CIDR externo. O
+acesso administrativo ao banco — migrations e inspeção — segue pela task avulsa
+`migration`, que roda dentro da própria VPC, agora com o bastion host como caminho
+adicional para inspeção interativa.
+
+&emsp; O desenho anterior continua acessível por variável: `create_network = false` com
+`assign_public_ip = true` devolve o stack à VPC padrão da conta.
 
 &emsp; Até a adequação do RNF09 o laboratório usava `db_publicly_accessible = true`
 com o IP do desenvolvedor em `db_allowed_cidr`. A exposição do banco dependia, na
@@ -436,10 +482,28 @@ atividades cuja coordenação já é transacional.
 
 ### 4.7 Adaptações de rede ao Learner Lab
 
-&emsp; `assign_public_ip = true` evita o custo de um NAT Gateway, mas o security group
-das tasks continua sem regras de entrada. É uma concessão do laboratório e não a
-postura recomendada para produção, que usaria sub-redes privadas com NAT ou VPC
-endpoints.
+&emsp; **[Sprint 3]** A postura padrão passou a ser a recomendada: `create_network = true`
+e `assign_public_ip = false`, com as tasks em sub-rede privada saindo pelo NAT Gateway.
+Na Sprint 2 o padrão era o oposto — `assign_public_ip = true` sobre a VPC padrão da
+conta, sem NAT, o que evitava o custo mas deixava o security group sem regra de entrada
+como único controle de ingresso. O custo do NAT — ~US$ 32/mês, cobrado por hora
+existindo — é a razão pela qual o desenho anterior existia, e a razão pela qual a
+variável de volta foi mantida: em sessões de laboratório em que a rede não está sendo
+demonstrada, `create_network = false` com `assign_public_ip = true` economiza esse valor
+sem alterar código. A combinação inversa é recusada no `plan`, porque põe a task numa
+sub-rede sem rota para o Internet Gateway.
+
+&emsp; Duas restrições do laboratório foram confirmadas na aplicação e condicionam o
+desenho. A `LabRole` **não confia** em `vpc-flow-logs.amazonaws.com`, o que inviabiliza
+entregar os Flow Logs ao CloudWatch Logs com `create_iam_roles = false` — daí o destino
+padrão ser um bucket S3, que usa política de bucket em vez de papel IAM. E a SCP da
+organização nega `s3:GetBucketObjectLockConfiguration`, chamada que o provider AWS faz
+ao reler qualquer `aws_s3_bucket` recém-criado; as variáveis `flow_logs_bucket_name` e
+`alb_logs_bucket_name` contornam isso aceitando buckets criados fora do Terraform. As
+duas estão detalhadas em [`infraestrutura-integracao.md`](infraestrutura-integracao.md).
+
+&emsp; Um NAT único, e não um por zona, é decisão de custo consciente: com um só, a
+queda daquela AZ derruba a saída das duas sub-redes privadas.
 
 &emsp; `db_publicly_accessible` permanece `false`, inclusive no laboratório. A
 alternativa — banco público restrito ao CIDR de quem estivesse trabalhando — foi
@@ -485,6 +549,8 @@ e não a postura recomendada para produção.
 | 8 | Tag de imagem por SHA do commit | `latest` | Capacidade de manutenção: o `plan` mostra o que muda | Build de árvore suja é recusado por `make push` | — | Apontar o SHA anterior |
 | 9 | Amostragem uniforme em `/timeline` | Truncar o excedente | Desempenho sem perder cobertura da janela | Perda de resolução, sinalizada por `truncated` | — | Elevar `LIMITE_POR_RAIA` |
 | 10 | Índices `025` e `026` | Cache na aplicação | Desempenho (RNF02) sem risco de servir dado velho | Custo de escrita nos índices, desprezível neste volume | Armazenamento | Migration nova que remove o índice |
+| 11 | **[Sprint 3]** VPC gerenciada com sub-rede privada e NAT | Continuar na VPC padrão com IP público nas tasks | Segurança: defesa em profundidade no ingresso — sem rota, além de sem regra | NAT em AZ única é ponto de falha; declarado, não escondido | ~US$ 32/mês | `create_network = false` com `assign_public_ip = true` |
+| 12 | **[Sprint 3]** Flow Logs em S3 | CloudWatch Logs | Observabilidade de rede compatível com a `LabRole`, que não confia no serviço de flow logs | Consulta exige baixar arquivo, sem Logs Insights | Centavos no volume do laboratório | `flow_logs_destination = "cloudwatch"` numa conta sem a restrição |
 
 ---
 
@@ -511,6 +577,7 @@ verificação pode duplicar recursos e retirar seu gerenciamento do Terraform.
 
 | Recurso AWS | Finalidade | Arquivo Terraform principal |
 |---|---|---|
+| VPC, sub-redes, IGW, NAT, rotas, endpoint S3, Flow Logs **[Sprint 3]** | Rede gerenciada e sua observabilidade | `vpc.tf`, `vpc_logs.tf` |
 | API Gateway HTTP API | Ingestão e leitura | `apigateway*.tf`, `api_read.tf` |
 | Lambda `authorizer` | Verificação do token Bearer nas duas APIs | `auth.tf` |
 | Secrets Manager | SHA-256 dos tokens e token de ingestão em claro | `auth.tf`, `rds.tf` |

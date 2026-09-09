@@ -40,7 +40,7 @@ qual conta AWS o texto foi escrito, e a data da verificação.}}
 | R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | documentado — figura existe, pendente o ajuste listado em `assets/NOTAS-DIAGRAMA-V4.md` |
 | R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | **pronto** |
 | R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | não iniciado |
-| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1 e 6 | provisionado — falta filmar |
+| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1, 4.6 e 6 | **aplicado e verificado** em 08/09/2026 — falta filmar |
 | V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | provisionado — falta filmar |
 | V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | provisionado — falta filmar |
 | V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | provisionado — falta filmar |
@@ -118,12 +118,26 @@ correspondente. A seção 3.8 registra a decisão junto com a alternativa descar
 | Alta disponibilidade do banco | Instância única | Multi-AZ | **Planejado** — desligado por custo, ver 5.1 |
 
 &emsp; **O que “Implementado” significa aqui.** O recurso existe no Terraform
-deste repositório e a configuração passa por `terraform validate`, `terraform fmt`
-e pelo portão `make check`. Não significa aplicado em conta: a sessão do Learner
-Lab usada para escrever esta revisão não estava ativa, e `validate` confirma
-sintaxe, tipos e referências entre recursos — não que o papel `voclabs` autorize
-criar cada um deles. O primeiro `terraform plan` contra a conta nova é o passo
-que fecha essa distância, e ele é somente leitura (ver 4.3).
+deste repositório e a configuração passa por `terraform validate`, `terraform fmt`,
+o teste de rede com provider mockado (`make tf-test`) e o portão `make check`.
+Para a maior parte dos itens isso **não** significa aplicado em conta: `validate`
+confirma sintaxe, tipos e referências entre recursos — não que o papel `voclabs`
+autorize criar cada um deles.
+
+&emsp; **A camada de rede é a exceção, e foi aplicada.** VPC, sub-redes, Internet
+Gateway, NAT Gateway, tabelas de rota, gateway endpoint de S3 e Flow Logs foram
+provisionados e verificados numa conta do AWS Academy Learner Lab em **8 de
+setembro de 2026**, região `us-east-1`, num *workspace* próprio do Terraform
+(`individual`) — um estado separado dentro do mesmo diretório de configuração —
+para não tocar o estado do ambiente principal. As evidências
+capturadas — incluindo a demonstração de que uma máquina sem endereço público sai
+pelo NAT — estão na seção 4.6, e as duas restrições do laboratório que apareceram
+só no `apply` estão na seção 8.
+
+&emsp; O bastion, o Auto Scaling Group e o Application Load Balancer ainda não
+passaram por `apply`. Para eles vale integralmente a distância descrita acima, e o
+primeiro `terraform plan` contra a conta é o passo que a fecha — ele é somente
+leitura (ver 4.3).
 
 ### 1.3 Fora de escopo
 
@@ -258,6 +272,18 @@ com todas as sub-redes públicas e endereço roteável em cada task
 [`arquitetura-inicial.md`](arquitetura-inicial.md) §4.7 a registra como
 “concessão do laboratório e não a postura recomendada para produção”. A rede
 dedicada descrita aqui paga essa dívida.
+
+&emsp; **As duas chaves andam juntas, e o Terraform recusa a combinação errada.**
+`create_network = true` com `assign_public_ip = true` põe a task numa sub-rede
+privada, que não tem rota para o Internet Gateway: o endereço público não serve
+para nada, o *pull* da imagem no ECR falha e o serviço entra em ciclo de
+reinicialização. Uma validação cruzada entre as duas variáveis transforma isso em
+erro de `plan`, com a explicação junto — sem ela o sintoma chega horas depois,
+como serviço que não estabiliza, e nada aponta para a variável de rede que o
+causou. As faixas das sub-redes são derivadas de `vpc_cidr` pelo mesmo motivo:
+listas fixas deixariam sub-redes penduradas fora da VPC ao primeiro que trocasse
+o bloco. O arquivo `rede.tftest.hcl` exercita as duas regras com provider
+mockado, sem tocar a AWS.
 
 &emsp; A VPC ocupa o bloco `10.0.0.0/16` e tem `enable_dns_hostnames` ligado —
 sem esse atributo o endpoint do RDS não recebe nome DNS resolvível de dentro da
@@ -408,10 +434,10 @@ pelo mesmo identificador. É esse encadeamento que o Vídeo 2 percorre.
 | Campo | Conteúdo |
 |---|---|
 | Papel no sistema | Observabilidade da camada de rede: responde “a conexão chegou?” |
-| Configuração efetiva | Flow Logs de todo o tráfego, formato customizado com `pkt-srcaddr`, agregação de 60 s, retenção de 30 dias; access logs do ALB em S3 com expiração de 30 dias |
-| Entradas / saídas | VPC → CloudWatch Logs; ALB → S3 |
-| Estado | Implementado |
-| Alternativa descartada | Formato padrão de flow log, que oculta o endereço real por trás do NAT |
+| Configuração efetiva | Flow Logs de todo o tráfego, formato customizado com `pkt-srcaddr`, agregação de 60 s, retenção de 30 dias, entregues em bucket S3 com AES256; access logs do ALB em S3 com expiração de 30 dias |
+| Entradas / saídas | VPC → S3 (ou CloudWatch Logs, por `flow_logs_destination`); ALB → S3 |
+| Estado | Implementado e **aplicado** — ver 4.6 |
+| Alternativa descartada | (a) Formato padrão de flow log, que oculta o endereço real por trás do NAT; (b) destino CloudWatch Logs, inviável no laboratório porque a `LabRole` não confia em `vpc-flow-logs.amazonaws.com` (seção 8) |
 | Modo de falha previsto e mitigação | Volume de log inflando custo: retenção e ciclo de vida de 30 dias em ambos |
 | Custo estimado | ~US$ 1–3/mês no volume do laboratório |
 | Arquivo Terraform | `apps/basica/infra/vpc_logs.tf` |
@@ -832,7 +858,7 @@ justificada; linha sem seta é componente esquecido no desenho.
 | Bastion | RDS | PostgreSQL 5432 (túnel) | usuário do banco | pública → privada |
 | Sub-redes privadas | NAT Gateway | rota `0.0.0.0/0` | — | privada → pública |
 | NAT Gateway / ALB / Bastion | Internet Gateway | rota `0.0.0.0/0` | — | pública → internet |
-| VPC | CloudWatch Logs (Flow Logs) | serviço gerenciado | IAM (role de flow log) | — |
+| VPC | S3 (Flow Logs) | serviço gerenciado | policy do bucket, com `aws:SourceAccount` e `aws:SourceArn` | — |
 | ALB | S3 (access logs) | serviço gerenciado | policy do bucket | — |
 | CloudWatch (alarmes) | SNS | serviço gerenciado | IAM | — |
 
@@ -902,8 +928,8 @@ novos nesta revisão.
 
 | Recurso AWS | Finalidade | Arquivo Terraform |
 |---|---|---|
-| VPC, 4 sub-redes, IGW, NAT, tabelas de rota | Isolamento de rede; saída sem entrada para as cargas privadas | `vpc.tf` |
-| VPC Flow Logs, bucket de access logs do ALB | Logs distribuídos da camada de rede (item V1-a) | `vpc_logs.tf` |
+| VPC, 4 sub-redes, IGW, NAT, tabelas de rota, gateway endpoint de S3 | Isolamento de rede; saída sem entrada para as cargas privadas. O endpoint é gratuito e tira o tráfego do `loader` de cima do NAT | `vpc.tf` |
+| VPC Flow Logs e seu bucket, bucket de access logs do ALB | Logs distribuídos da camada de rede (item V1-a). Destino em S3 pela restrição da `LabRole` (§8.1) | `vpc_logs.tf` |
 | Bastion Host + security group | Único ponto de entrada humano na rede privada (V1-b) | `bastion.tf` |
 | ALB, target group, listener, security group | Fronteira pública e ponto de medição do caminho de leitura (V1-c) | `alb.tf` |
 | Launch template, ASG, política de escalonamento, SG | Execução elástica da API de leitura (V1-c) | `asg.tf` + `templates/user_data.sh.tftpl` |
@@ -1009,10 +1035,101 @@ aws cloudfront create-invalidation --distribution-id {{ID}} --paths "/*"
 |---|---|---|---|
 | 1 | Instâncias saudáveis no target group | {{ }} | {{`healthy` em todas}} |
 | 2 | ALB responde | {{ }} | {{HTTP 200}} |
-| 3 | Instância privada sem IP público, mas com saída | {{ }} | {{ }} |
-| 4 | RDS inacessível de fora, acessível pelo bastion | {{ }} | {{ }} |
-| 5 | Front pelo CloudFront em HTTPS | {{ }} | {{ }} |
-| 6 | Logs chegando aos log groups | {{ }} | {{ }} |
+| 3 | Rotas: uma tabela para o IGW, outra para o NAT | `aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC --query 'RouteTables[].Routes[].{Destino:DestinationCidrBlock,IGW:GatewayId,NAT:NatGatewayId}'` | **Verificado.** Pública `0.0.0.0/0 → igw-…`; privada `0.0.0.0/0 → nat-…` |
+| 4 | Instância privada sem IP público, mas com saída | Instância descartável na sub-rede privada; `user_data` grava o IP de saída como tag em si mesma (ver 4.6) | **Verificado.** `PublicIpAddress: null`, e a internet enxerga a saída com o Elastic IP do NAT — o endereço público fixo associado a ele |
+| 5 | RDS inacessível de fora, acessível pelo bastion | {{ }} | {{ }} |
+| 6 | Front pelo CloudFront em HTTPS | {{ }} | {{ }} |
+| 7 | Flow logs capturando fluxo real | `aws s3 ls --recursive "$(terraform output -raw flow_log_destino)/"` | **Verificado.** 214 fluxos da instância de teste, com `ACCEPT` e `REJECT` |
+| 8 | Logs de aplicação chegando aos log groups | {{ }} | {{ }} |
+
+### 4.6 Evidências da rede aplicada
+
+&emsp; A camada de rede foi provisionada e verificada em **8 de setembro de 2026**, numa
+conta do AWS Academy Learner Lab, região `us-east-1`, em workspace próprio do Terraform
+(`individual`) para não tocar o estado do ambiente principal. Foram 21 recursos: 16 na
+aplicação da rede e 5 na dos Flow Logs.
+
+> **Procedência.** A configuração aplicada é a desta camada de rede, desenvolvida e
+> exercitada na branch `feat/vpc-nat` e depois consolidada aqui. A topologia, o destino
+> dos Flow Logs e o gateway endpoint de S3 são os mesmos que este repositório versiona
+> hoje; a diferença é de nomenclatura de variável (`create_vpc` passou a
+> `create_network`) e o acréscimo da validação cruzada descrita em 3.1.
+
+| Cláusula | Evidência capturada |
+|---|---|
+| VPC gerenciada | `vpc-0fba74730439e3caf`, CIDR `10.0.0.0/16`, DNS support e hostnames habilitados |
+| Sub-redes | Quatro, duas por AZ. `10.0.0.0/24` e `10.0.1.0/24` com *auto-assign public IP*; `10.0.10.0/24` e `10.0.11.0/24` sem |
+| Rota pública | `0.0.0.0/0 → igw-0392604b075205f5a` |
+| Rota privada | `0.0.0.0/0 → nat-0fb2306effb9b2662` |
+| **NAT em operação** | EIP `52.4.149.88`. Ver o teste abaixo |
+| Gateway endpoint S3 | `vpce-0ae7582c8f2415388`, associado à tabela de rota privada |
+| Logs distribuídos | `fl-0894f5598c97e2016`, entregando no S3. 214 fluxos capturados só da instância de teste |
+| Criptografia do destino | `AES256` no bucket dos Flow Logs |
+
+#### O teste do NAT
+
+&emsp; Provar que o NAT funciona exige mais do que ver o recurso `available` no console:
+é preciso mostrar tráfego atravessando. O teste usado foi uma instância `t3.micro`
+descartável na sub-rede privada `10.0.11.0/24`, **sem IP público**, cujo `user_data`
+consulta o próprio endereço de saída e o grava como tag em si mesma:
+
+> **Esta instância não faz parte da arquitetura.** Ela é instrumento de medição, não
+> componente: foi criada por `aws ec2 run-instances` na linha de comando, **fora do
+> Terraform** — não existe `aws_instance` de teste em nenhum arquivo `.tf` do projeto, e
+> ela nunca entrou no estado. Foi encerrada depois da captura. A rede funciona sem ela;
+> a instância só torna o funcionamento visível.
+
+```bash
+IP=$(curl -s https://checkip.amazonaws.com)
+aws ec2 create-tags --resources $ID --tags Key=IPDeSaida,Value=$IP
+```
+
+&emsp; Resultado:
+
+| Atributo | Valor |
+|---|---|
+| `PublicIpAddress` | `null` |
+| `PrivateIpAddress` | `10.0.11.120` |
+| Tag `IPDeSaida` | **`52.4.149.88`** — o EIP do NAT Gateway |
+
+&emsp; Uma máquina sem endereço público, cuja saída a internet enxerga com o IP do NAT,
+só pode estar atravessando o NAT. É a demonstração direta da cláusula, e não depende de
+nenhuma tela de console.
+
+#### O que os Flow Logs mostram
+
+&emsp; Os registros capturados são majoritariamente sondagens da internet contra a
+interface pública do NAT Gateway (`10.0.0.110`):
+
+```
+162.216.149.183 -> 10.0.0.110 :36884   ACCEPT
+116.90.227.175  -> 10.0.0.110 :1433    ACCEPT   <- varredura de SQL Server
+91.230.168.92   -> 10.0.0.110 :1992    ACCEPT
+```
+
+&emsp; Isso é evidência de dois fatos ao mesmo tempo: a observabilidade de rede está
+capturando fluxo real, e o único endereço público da VPC é sondado continuamente por
+terceiros — sem que nada disso alcance as sub-redes privadas, que não têm rota de
+entrada.
+
+&emsp; A travessia do NAT também aparece nos registros. Foram 214 fluxos envolvendo a
+instância de teste, e **todos** os que saem dela passam pela interface do NAT Gateway
+(`10.0.0.110`), nenhum diretamente para a internet:
+
+```
+10.0.11.120 -> 10.0.0.110  :123    ACCEPT     <- NTP saindo pelo NAT
+10.0.0.110  -> 10.0.11.120 :43766  ACCEPT     <- retorno, 15 pacotes
+10.0.11.120 -> 10.0.0.110  :123    ACCEPT
+10.0.0.110  -> 10.0.11.120 :52231  ACCEPT
+```
+
+&emsp; Ler esses quatro registros junto com a tabela de rota privada fecha o argumento
+da cláusula: a máquina privada não tem caminho para a internet que não seja o NAT, e o
+log prova que ela usou esse caminho.
+
+&emsp; **Detalhe operacional para a gravação:** a entrega no S3 tem latência própria de
+cerca de cinco minutos, independente do `max_aggregation_interval` de 60 segundos. O
+primeiro arquivo não aparece imediatamente depois de gerar tráfego.
 
 ---
 
@@ -1238,7 +1355,7 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 |---|---|---|---|---|
 | 0:00–0:30 | Abertura | — | — | {{nome do grupo, integrantes, o que será mostrado}} |
 | 0:30–2:00 | V1-a rede | VPC → Your VPCs, Subnets, Route tables, NAT gateways | CIDR da VPC; sub-redes públicas e privadas em AZs distintas; rota `0.0.0.0/0` → IGW na pública e → NAT na privada | {{por que a privada não tem rota para o IGW e mesmo assim tem saída}} |
-| 2:00–2:40 | V1-a logs | CloudWatch → Log groups; VPC → Flow logs | Log groups com eventos recentes; um flow log e um log de aplicação abertos | {{como se correlaciona uma requisição entre as camadas}} |
+| 2:00–2:40 | V1-a logs | VPC → Flow logs (aba do recurso); S3 → bucket dos flow logs; CloudWatch → Log groups | O flow log ativo com destino S3; objetos no bucket; um registro `ACCEPT` de uma sub-rede privada para o NAT e um log de aplicação abertos lado a lado | {{como se correlaciona uma requisição entre as camadas — e por que o destino é S3, e não CloudWatch, nesta conta}} |
 | 2:40–3:30 | V1-b bastion | EC2 → Instances; Security Groups | Bastion na sub-rede pública; regra de entrada da porta 22 com origem restrita; SG da aplicação aceitando 22 apenas do SG do bastion | {{por que a origem não é `0.0.0.0/0`}} |
 | 3:30–3:50 | V1-b prova | Terminal | SSH no bastion e salto para uma instância privada, ou túnel até o RDS | {{ }} |
 | 3:50–5:20 | V1-c ASG + ALB | EC2 → Auto Scaling Groups (abas Details, Activity); Load Balancers; Target Groups | `min`/`desired`/`max`; política de escalonamento com métrica e valor-alvo; targets `healthy`; listener e health check do ALB | {{qual métrica dispara e por quê}} |
@@ -1310,17 +1427,61 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 
 ## 8. Riscos e limitações conhecidas
 
-> **PREENCHER** · Seção de honestidade técnica, e o repositório já tem cultura
-> disso (`arquitetura-inicial.md` §6). Candidatos: dependência da sessão do
-> Learner Lab e do account ID que muda; recursos que o papel `voclabs` recusa;
-> ausência de backend remoto para o `terraform.tfstate`; custo do NAT Gateway
-> contra o orçamento do laboratório; RDS sem Multi-AZ; carga inicial indisponível
-> sem o dump de 4,15 GB. Cada risco com impacto e mitigação — risco listado sem
-> mitigação é lista de desculpas.
+&emsp; Risco listado sem mitigação é lista de desculpas. As duas primeiras linhas
+não são previsões: foram **confirmadas no `apply`** de 8 de setembro de 2026 e estão
+detalhadas logo abaixo da tabela.
 
 | Risco | Impacto | Probabilidade | Mitigação | Responsável |
 |---|---|---|---|---|
-| {{ }} | {{ }} | {{ }} | {{ }} | {{ }} |
+| A `LabRole` não confia em `vpc-flow-logs.amazonaws.com` | Flow Logs no CloudWatch são criados sem erro e nunca escrevem — cláusula (a) sem evidência | **Confirmado** | Destino padrão em S3, que usa política de bucket em vez de papel IAM | Infraestrutura |
+| A SCP — *Service Control Policy*, a regra que a organização impõe acima da conta e que nenhuma permissão local supera — nega `s3:GetBucketObjectLockConfiguration` | Todo `aws_s3_bucket` criado pelo stack quebra o `plan` seguinte; sem contorno, o stack completo não aplica | **Confirmado** | `flow_logs_bucket_name` e `alb_logs_bucket_name` aceitam bucket criado fora do Terraform; `-refresh=false` como paliativo para os buckets antigos | Infraestrutura |
+| Trocar `create_network` recria o RDS | Perda das 33 tabelas carregadas | Alta, por desenho — a AWS não move instância entre VPCs | Snapshot manual antes do `apply`; `make load` reconstrói em 20–30 min | Infraestrutura |
+| NAT em AZ única | Queda da AZ derruba a saída das duas sub-redes privadas; o ASG não sobe instância nova ali | Certa, por decisão de custo | Declarada, não escondida. Subir o segundo NAT dobra o custo (~US$ 32/mês) | Decisão de projeto |
+| `db_multi_az` desligado | O RDS é ponto único de falha | Certa, por decisão de custo | Declarada. Em produção deve ser tratada como obrigatória | Decisão de projeto |
+| Sessão do Learner Lab expira em horas, e o account ID muda a cada recriação | Trabalho interrompido no meio de um `apply`; saídas versionadas apontariam para conta inexistente | Alta | Nenhum identificador de conta é versionado; `make tf-test` valida a rede offline, sem sessão ativa | Infraestrutura |
+| `terraform.tfstate` sem backend remoto | Estado local perdido significa recursos órfãos, invisíveis ao Terraform | Média | Procedimento de backend em S3 documentado em `infra/README.md` §2; adotar antes de mais de uma pessoa aplicar | Infraestrutura |
+| Custo dos recursos ociosos contra o crédito do laboratório | NAT, ALB, ASG e bastion cobram por hora existindo, em uso ou não (~US$ 74/mês somados) | Alta | Provisionar próximo à apresentação e destruir depois; `make pause` não remove esses quatro | Infraestrutura |
+| Saída irrestrita na porta 443 pelas sub-redes privadas | O NAT não protege contra exfiltração — só contra conexão de entrada | Média | VPC endpoints de interface com política de endpoint; não implementado, custo de ~US$ 7/mês por endpoint por AZ | Backlog |
+| Nenhum alarme verifica a API de fora | Indisponibilidade da ponta só aparece pelo usuário | Média | Canário sintético do CloudWatch, ~US$ 10/mês; não implementado | Backlog |
+| Carga inicial indisponível sem o dump de 4,15 GB | Banco recriado não volta ao estado anterior | Baixa | Os Parquet no bucket `origem` são a fonte de `make load`, e são versionados fora do repositório | Infraestrutura |
+| A aplicação está em `/apps/basica` | A especificação da entrega cita `/apps/fullstack` | Certa | Divergência registrada na abertura deste artefato; decisão de nomenclatura a alinhar antes da tag da Sprint | Time |
+
+### 8.1 As duas restrições do ambiente, em detalhe
+
+&emsp; As duas apareceram só no `apply`, e as duas condicionam o desenho da camada de
+rede — não são incômodos de operação.
+
+&emsp; **1. A `LabRole` não confia no serviço de Flow Logs.** A verificação da política
+de confiança devolve 53 serviços — `apigateway`, `ecs-tasks`, `lambda`, `ec2`,
+`elasticloadbalancing`, entre outros — e `vpc-flow-logs.amazonaws.com` **não** está
+entre eles. Com `create_iam_roles = false`, obrigatório no laboratório, o destino
+CloudWatch Logs é inviável. O padrão em S3, escolhido preventivamente, é o que permitiu
+a cláusula ser atendida.
+
+```bash
+aws iam get-role --role-name LabRole \
+  --query 'Role.AssumeRolePolicyDocument.Statement[].Principal.Service' --output json
+```
+
+&emsp; **2. A SCP da organização nega `s3:GetBucketObjectLockConfiguration`.** O
+provider AWS chama essa API ao reler qualquer `aws_s3_bucket` recém-criado. O bucket
+nasce, o `apply` falha na releitura e o recurso fica no estado quebrando todo `plan`
+seguinte. Verificou-se que **apenas essa chamada** é negada — `GetBucketPolicy`,
+`GetPublicAccessBlock`, `GetBucketEncryption`, `GetBucketLifecycleConfiguration` e
+`GetBucketVersioning` são permitidas.
+
+&emsp; A solução foram as variáveis `flow_logs_bucket_name` e `alb_logs_bucket_name`:
+quando preenchidas, o Terraform não cria o bucket, mas continua gerenciando política,
+bloqueio público, criptografia e ciclo de vida. Nenhum controle é perdido.
+
+&emsp; **Esta segunda restrição não é específica desta entrega.** Ela atinge igualmente
+`aws_s3_bucket.origem` e `aws_s3_bucket.frontend`, que já existiam — os dois foram
+testados e recebem a mesma negação. Na prática, **o stack completo não roda `plan` nem
+`apply` nessa conta sem contorno**. O paliativo imediato é `terraform plan
+-refresh=false`, já que esses buckets estão no estado e sem refresh o provider não os
+relê. A correção definitiva é estender o padrão de `flow_logs_bucket_name` aos outros
+dois buckets, ou avaliar a migração para o provider 6.x — trabalho independente desta
+camada de rede.
 
 ---
 
@@ -1429,4 +1590,7 @@ parágrafo cada em `apps/basica/infra/variables.tf`.
 
 | Data | Decisão | Origem | Participantes |
 |---|---|---|---|
+| 08/09/2026 | Flow Logs entregues em S3, e não em CloudWatch Logs | Restrição do ambiente: a `LabRole` não confia em `vpc-flow-logs.amazonaws.com`, confirmado no `apply` (§8.1) | {{ }} |
+| 08/09/2026 | Buckets desta camada aceitam nome criado fora do Terraform | Restrição do ambiente: a SCP nega `s3:GetBucketObjectLockConfiguration`, confirmado no `apply` (§8.1) | {{ }} |
+| 08/09/2026 | Um NAT Gateway, e não um por AZ | Custo: ~US$ 32/mês por unidade contra o crédito do laboratório | {{ }} |
 | {{ }} | {{ }} | {{reunião, orientação, restrição da rubrica}} | {{ }} |

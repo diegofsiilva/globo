@@ -430,14 +430,119 @@ imagem e o service entra em crash loop:
 
 Cinco interfaces em duas AZs passam de US$ 70/mês contra os ~US$ 32 do NAT.
 
+### Ligar a rede dedicada num stack que já existe
+
+**A AWS não move uma instância RDS entre VPCs.** Um subnet group só pode conter
+sub-redes da mesma VPC da instância, então trocar a rede **recria o banco** — e
+com ele as 33 tabelas carregadas.
+
+```bash
+# 1. Rede de segurança, antes de qualquer coisa.
+aws rds create-db-snapshot \
+  --db-instance-identifier argus-events-<env> \
+  --db-snapshot-identifier argus-events-<env>-pre-vpc
+
+# 2. Aplique.
+make -C .. tf-plan          # confira: a instância RDS aparece como replace
+make -C .. tf-apply
+
+# 3. Reconstrua o schema e a carga.
+make -C .. migrate-aws
+make -C .. load
+```
+
+`make load` é o percurso mais testado do projeto — é exercitado a cada recriação
+da conta do Learner Lab. Se houver dado produzido pelo simulador que a carga
+inicial não reproduza, restaure do snapshot em vez de recarregar.
+
+**Valide o NAT antes de depender dele.** Entre criar a rede e mover os serviços,
+suba uma task avulsa na sub-rede privada e confirme que ela alcança a AWS. Sem
+esse passo, uma task em crash loop tem duas causas possíveis e nenhuma pista —
+rota de saída ausente e defeito de aplicação são indistinguíveis pelo sintoma.
+
+### Voltar atrás
+
+As duas chaves andam juntas, e uma não vale sem a outra:
+
+```hcl
+create_network   = false   # volta a consumir a VPC default da conta
+assign_public_ip = true    # task em sub-rede pública, sem NAT
+```
+
+`create_network = false` com `assign_public_ip = false` deixa a task sem rota
+nenhuma para o ECR: ela não baixa a imagem e o service entra em crash loop. A
+combinação oposta — `create_network = true` com `assign_public_ip = true` — é
+recusada no `plan`, porque põe a task numa sub-rede sem rota para o Internet
+Gateway.
+
+Voltar atrás **também recria o banco**, pelo mesmo motivo da ida. Snapshot antes.
+
+---
+
+## Observabilidade da rede: Flow Logs
+
+Os alarmes de `observability.tf` medem a **aplicação** — profundidade de fila,
+DLQ, CPU do banco, lag do simulador. Nenhum enxerga a rede. Os VPC Flow Logs
+preenchem esse buraco: registram todo fluxo `ACCEPT` e `REJECT` nas interfaces
+da VPC, com origem, destino, porta e bytes.
+
+Na prática é o que responde, sem instrumentar nada:
+
+- a task **está mesmo saindo pelo NAT**? (`ACCEPT` de um IP `10.0.1x.x` para fora)
+- quem está batendo na 5432 e sendo recusado? (`REJECT` para o IP do banco)
+
+`traffic_type = "ALL"`, e não `REJECT`: o rejeitado sozinho conta metade da
+história — é o `ACCEPT` que prova que a máquina privada saiu.
+
+O formato é explícito, e não o padrão, porque o padrão **não traz**
+`pkt-srcaddr`/`pkt-dstaddr` — o endereço real antes da tradução do NAT. Sem eles
+todo tráfego de saída das sub-redes privadas aparece vindo do NAT, e fica
+impossível dizer *qual* instância falou com quem.
+
+A agregação está em **60 segundos** em vez dos 600 do padrão. Numa apresentação,
+esperar dez minutos pelo primeiro registro é a diferença entre mostrar a
+evidência e falar sobre ela. No destino S3 ainda há a latência própria da
+entrega, de cerca de cinco minutos, que esse parâmetro não encurta.
+
+**O destino padrão é S3**, pela restrição da `LabRole` descrita na seção AWS
+Academy. Numa conta normal, `flow_logs_destination = "cloudwatch"` é melhor: o
+Logs Insights consulta os registros com uma linguagem de consulta, sem baixar
+arquivo.
+
+Os comandos que fecham a evidência da cláusula sem abrir o console — um mostra as
+rotas (`0.0.0.0/0` para o IGW numa tabela, para o NAT na outra), o outro despeja
+os registros de fluxo já capturados:
+
+```bash
+VPC=$(terraform output -raw vpc_id)
+
+aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC \
+  --query 'RouteTables[].{Tabela:Tags[?Key==`Name`]|[0].Value,
+            Rotas:Routes[].{Destino:DestinationCidrBlock,IGW:GatewayId,NAT:NatGatewayId}}' \
+  --output json
+
+aws ec2 describe-subnets --filters Name=vpc-id,Values=$VPC \
+  --query 'Subnets[].{Nome:Tags[?Key==`Name`]|[0].Value,CIDR:CidrBlock,
+            AZ:AvailabilityZone,IPPublico:MapPublicIpOnLaunch}' \
+  --output table
+
+# Onde ler os fluxos, conforme o destino configurado
+terraform output flow_log_destino
+aws s3 ls --recursive "$(terraform output -raw flow_log_destino)/" | tail -20
+```
+
 ---
 
 ## Segurança e lacunas conhecidas
 
-**Superfície de rede.** As tasks ficam em subnet pública com IP público e
-security group sem regra de entrada: elas alcançam a AWS pela internet, mas
-ninguém alcança as tasks. O RDS é privado e só aceita conexão do security group
-das tasks — não há porta aberta para fora da VPC.
+**Superfície de rede.** As tasks ficam em sub-rede **privada**, sem endereço
+público, e alcançam a AWS pelo NAT Gateway; o security group continua sem regra
+de entrada. São dois controles independentes: não há regra que autorize entrada e
+não há rota por onde ela chegaria. O RDS é privado e só aceita conexão dos
+security groups autorizados — não há porta aberta para fora da VPC.
+
+Com `create_network = false` o desenho volta ao anterior — sub-rede pública com
+IP público —, e aí o security group passa a ser o único controle.
 
 **Dado pessoal.** A API de leitura remove identificadores e cabeçalhos sensíveis
 na resposta (RNF10). O evento cru fica no banco, com criptografia em repouso, e o

@@ -22,6 +22,11 @@ adaptações do Learner Lab estão no `README.md` deste diretório.
    iniciativa própria.** São ações irreversíveis sobre infraestrutura viva.
    `make tf-destroy` apaga o banco com as 33 tabelas carregadas (20 a 30 min de
    recarga) — o alvo pede confirmação digitada por esse motivo.
+
+   Mudar `create_network` num stack já aplicado tem o mesmo peso, nos dois
+   sentidos: a AWS não move uma instância RDS entre VPCs, então o `apply`
+   **recria o banco**. Leia "Ligar a rede dedicada num stack que já existe" no
+   `README.md` antes.
 4. **`*.tfvars` e `*.tfstate` são gitignored; `.terraform.lock.hcl` é
    versionado** de propósito — é o que garante a mesma versão de provider para
    todo mundo. Só o `*.tfvars.example` entra no repositório, e sem valores.
@@ -36,11 +41,24 @@ adaptações do Learner Lab estão no `README.md` deste diretório.
 
 ## Organização
 
-Um arquivo por recurso, sem módulos: `rds.tf`, `sqs.tf` / `sqs_changes.tf`,
-`apigateway.tf` / `apigateway_changes.tf`, `ecs.tf` e os `ecs_*.tf` por serviço,
-`api_read.tf`, `frontend_s3.tf`, `s3_origem.tf`, `ecr.tf`, `iam.tf`,
-`observability.tf`, mais `variables.tf`, `outputs.tf`, `locals.tf`,
-`providers.tf` e `versions.tf`.
+Um arquivo por recurso, sem módulos: `vpc.tf`, `vpc_logs.tf`, `bastion.tf`,
+`alb.tf`, `asg.tf`, `asg_observability.tf`, `rds.tf`, `sqs.tf` /
+`sqs_changes.tf`, `apigateway.tf` / `apigateway_changes.tf`, `ecs.tf` e os
+`ecs_*.tf` por serviço, `api_read.tf`, `frontend_s3.tf`, `s3_origem.tf`,
+`ecr.tf`, `iam.tf`, `observability.tf`, mais `variables.tf`, `outputs.tf`,
+`locals.tf`, `providers.tf` e `versions.tf`.
+
+A rede toda passa por três valores de `locals.tf` — `vpc_id`, `subnet_ids` e
+`public_subnet_ids`. Os arquivos que consomem rede leem esses locals e não sabem
+de onde vieram; é por isso que trocar a VPC default pela VPC dedicada de `vpc.tf`
+não toca em nenhum deles. **Não referencie `aws_vpc.main` ou `aws_subnet.private`
+direto** fora de `vpc.tf` e `vpc_logs.tf`: isso quebraria o caminho
+`create_network = false`.
+
+`rede.tftest.hcl` testa essa camada com provider mockado, sem tocar a AWS
+(`make -C .. tf-test`, já dentro do `make check`). Toda mudança em `vpc.tf` ou
+nas variáveis de rede passa por ele — `validate` confirma sintaxe e referências,
+não confirma que a **combinação** de variáveis produz uma rede válida.
 
 ## Operação pelo Makefile
 

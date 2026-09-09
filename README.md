@@ -60,6 +60,7 @@ Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
 
 | Componente | Responsabilidade | Serviço AWS |
 |------------|------------------|-------------|
+| Rede | VPC própria com sub-redes pública e privada em duas AZs; os serviços rodam sem IP público e saem pelo NAT | VPC, NAT Gateway, Flow Logs |
 | API de ingestão | Recebe os eventos de sessão e publica na fila por integração direta, sem Lambda no caminho | API Gateway (HTTP API) |
 | API de mudanças | Recebe os *change events* do simulador, mesma integração direta | API Gateway (HTTP API) |
 | Filas | Absorvem picos e garantem a entrega; payload inválido vai para a DLQ com o motivo | SQS + DLQ (duas filas) |
@@ -185,8 +186,11 @@ Outros alvos úteis, todos com o prefixo `make -C apps/basica`: `lint`, `check`,
 
 Toda a infraestrutura é provisionada por Terraform em [`apps/basica/infra`](apps/basica/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado.
 
+A rede é gerenciada pelo projeto: as tarefas, a API de leitura e o banco vivem em **sub-redes privadas**, sem endereço público, e alcançam os serviços da AWS por um **NAT Gateway**. O tráfego da VPC é registrado em Flow Logs. O desenho, as justificativas e as evidências de aplicação estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md); `create_network = false` devolve o stack à VPC padrão da conta e dispensa o custo do NAT.
+
 | Recurso | Configuração |
 |---------|--------------|
+| VPC | `10.0.0.0/16`, duas sub-redes públicas e duas privadas em AZs distintas, Internet Gateway, NAT Gateway, gateway endpoint de S3 e Flow Logs |
 | API Gateway (ingestão) | HTTP API com integração direta `SQS-SendMessage` |
 | API Gateway (mudanças) | HTTP API com integração direta `SQS-SendMessage`, fila separada |
 | SQS | Duas filas (`events` e `changes`), cada uma com DLQ e redrive de 5 tentativas |
@@ -264,6 +268,7 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 |----------|-----------|
 | [MVP inicial](artefatos/mvp-inicial.md) | O que está implantado, modelo de dados e relatório de testes |
 | [Arquitetura do Argus v3](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
+| [Infraestrutura e integração](artefatos/infraestrutura-integracao.md) | Diagrama de implantação em nuvem, componentes e justificativas, plano de deploy com CloudFront, evidências da rede aplicada |
 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
 | [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
