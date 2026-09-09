@@ -12,16 +12,17 @@ Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, proce
 
 ## Resultado executivo
 
-> **Revisao posterior ao ensaio de 2 de setembro:** o requisito de capacidade
+> **Revisão posterior ao ensaio de 2 de setembro:** o requisito de capacidade
 > passou a ser expresso como lote: 10.000 eventos/min em um ciclo de 15 minutos
-> equivalem a 150.000 eventos por lote. Os resultados historicos abaixo
-> continuam descrevendo as execucoes realizadas, mas nao comprovam sozinhos o
-> novo criterio. A nova suite esta preparada; os campos de resultado permanecem
-> pendentes ate uma execucao contra a implantacao ativa.
+> equivalem a 150.000 eventos por lote. Em 9 de setembro, a nova suíte foi
+> executada com um lote e com dois, três e quatro lotes represados. Todos os
+> cenários drenaram em menos de 7 min 30 s; o frescor ponta a ponta permanece
+> não comprovado até a aplicação da migration 029 no ambiente remoto.
 
 | Requisito ou cenário | Resultado principal | Situação |
 |---|---|---|
 | RNF01 — capacidade | pico real de 10.000 eventos/min, p95 de 161,8 ms e 12.152/12.152 eventos persistidos | Aprovado |
+| RNF01 — lotes revisado | 150 mil a 600 mil eventos aceitos sem erro; drenagem entre 2 min e 5 min 46 s | Aprovado para aceite, drenagem e integridade; frescor pendente |
 | RNF02 — tempo de resposta | 4.587 consultas, nenhuma acima de 5 s e máximo de 1.581 ms | Tempo aprovado; base parcialmente representativa |
 | RNF03 — escalabilidade | recursos e carga ampliados em 2×, com 3.203/3.203 eventos persistidos | Aprovado no fator 2× |
 | RNF04 — eventos inválidos | 18/18 falhas identificadas e 150/150 eventos válidos processados | Aprovado |
@@ -30,19 +31,23 @@ Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, proce
 | RNF11 — registros de falha | causas específicas presentes na DLQ; faltam evidências completas de horário, etapa e ausência de dado sensível | Parcialmente comprovado |
 | Observabilidade | latência, throughput, erros, CPU e filas visualizados com dados reais | Implementado e validado |
 
-### Matriz pendente do requisito revisado
+### Matriz de resultados do requisito revisado
 
 | Cenário | Eventos | Injeção | Drenagem | Vazão de drenagem | Frescor p95 | Integridade | Situação |
 |---|---:|---:|---:|---:|---:|---:|---|
-| 1 lote | 150.000 | Pendente | Pendente | Pendente | Pendente | Pendente | Preparado |
-| 2 lotes represados | 300.000 | Pendente | Pendente | Pendente | Pendente | Pendente | Preparado |
-| 3 lotes represados | 450.000 | Pendente | Pendente | Pendente | Pendente | Pendente | Preparado |
-| 4 lotes represados | 600.000 | Pendente | Pendente | Pendente | Pendente | Pendente | Preparado |
+| 1 lote | 150.000 | 10,078 s | 120 s | 1.249,19 eventos/s | Não comprovado¹ | 150.000/150.000; DLQ 0 | Aprovado² |
+| 2 lotes represados | 300.000 | 27,689 s | 191 s | 1.570,68 eventos/s | Não comprovado¹ | 300.000/300.000; DLQ 0 | Aprovado² |
+| 3 lotes represados | 450.000 | 27,987 s | 259 s | 1.737,45 eventos/s | Não comprovado¹ | 450.000/450.000; DLQ 0 | Aprovado² |
+| 4 lotes represados | 600.000 | 38,026 s | 346 s | 1.734,10 eventos/s | Não comprovado¹ | 600.000/600.000; DLQ 0 | Aprovado² |
 
-O lote logico e enviado em fragmentos limitados por bytes porque cada corpo do
+¹ A implantação remota não continha a migration 029, necessária para que eventos
+isolados avancem o watermark entre bronze e silver. ² Aprovação restrita aos
+critérios de aceite HTTP, drenagem, vazão, integridade no `event-worker` e DLQ.
+
+O lote lógico é enviado em fragmentos limitados por bytes porque cada corpo do
 `POST /v1/events` vira uma mensagem SQS. Portanto, profundidade da fila mede
-fragmentos, nao quantidade de eventos. A aprovacao exige reconciliar eventos
-aceitos, persistidos e rejeitados, alem de fila principal e DLQ ao final.
+fragmentos, não quantidade de eventos. A aprovação exige reconciliar eventos
+aceitos, persistidos e rejeitados, além de fila principal e DLQ ao final.
 
 ## 1. Requisitos não funcionais e planos de teste revisados (peso 3,0)
 
@@ -50,7 +55,7 @@ aceitos, persistidos e rejeitados, alem de fila principal e DLQ ao final.
 
 A carga foi gerada com k6 contra uma implantação real no AWS Academy Learner Lab, região `us-east-1`. As execuções de RNF01, RNF02 e RNF03 ocorreram em 2 de setembro de 2026 com a imagem ARM64 `66b4fbe59313`. As métricas do cliente foram enviadas ao Prometheus por Remote Write; métricas de API Gateway, SQS, ECS e RDS vieram do CloudWatch e foram visualizadas no Grafana.
 
-Os valores estruturados estão em [`assets/performance/evidencias-2026-09-02.json`](assets/performance/evidencias-2026-09-02.json). Logs completos do k6 ficam em `apps/basica/tests/carga/resultados/`, diretório ignorado pelo Git. Nenhuma credencial, token ou endpoint foi versionado.
+Os valores estruturados estão em [`assets/performance/evidencias-2026-09-02.json`](assets/performance/evidencias-2026-09-02.json) e [`assets/performance/evidencias-lotes-2026-09-09.json`](assets/performance/evidencias-lotes-2026-09-09.json). Logs completos do k6 ficam em `apps/basica/tests/carga/resultados/`, diretório ignorado pelo Git. Nenhuma credencial, token ou endpoint foi versionado.
 
 Este relatório distingue três estados:
 
@@ -63,6 +68,7 @@ Este relatório distingue três estados:
 | RNF | Objetivo | Cenário | Critérios de aceite | Evidência necessária |
 |---|---|---|---|---|
 | RNF01 | verificar capacidade de ingestão | 1.000 eventos/min, pico de 10.000/min e recuperação em 1.000/min | disponibilidade, sucesso HTTP, p95 dentro do limite e zero descarte | total aceito igual ao persistido após drenagem da fila |
+| RNF01 revisado | verificar capacidade por ciclo | lote de 150.000 eventos e recuperação após dois, três e quatro lotes represados | drenagem <7 min 30 s, vazão >166,67 eventos/s, erro 0, DLQ 0 e frescor mensurado | aceitos = itens gravados; fila e DLQ zeradas; p95 do frescor ponta a ponta |
 | RNF02 | verificar tempo de consultas simples | 11 rotas repetidas cinco vezes, 10 usuários concorrentes e 600 consultas/min | todas as respostas em até 5 s e filtros corretos | resumo k6 e caracterização da base consultada |
 | RNF03 | verificar crescimento sem mudar o contrato | mesmos eventos com recursos 1×/2× e carga 1.000/2.000 eventos/min | vazão mínima de 2×, sucesso ≥99%, p95 <5 s e zero descarte | recursos registrados e total emitido igual ao persistido |
 | RNF04 | impedir que evento inválido interrompa os válidos | lote misto com erros de campo, formato, operação, tabela e chave | inválidos identificados e válidos anteriores e posteriores processados | motivo na DLQ e contagem dos eventos válidos |
@@ -76,6 +82,22 @@ Este relatório distingue três estados:
 - Timeout de processamento e timeout do cliente são cenários distintos. Apenas a interrupção do worker representa falha interna de processamento.
 - Resposta HTTP 2xx comprova aceitação pela fila, não persistência. Ausência de perda exige reconciliação com banco e filas.
 - Os dashboards atendem ao critério visual da entrega, mas não substituem os campos de registro exigidos pelo RNF11.
+- O endpoint de ingestão e a API de consulta continuam sob k6 por serem interfaces requisição–resposta. A drenagem assíncrona é medida por SQS, métricas do worker e consulta de reconciliação.
+- O critério “bem antes de 15 minutos” foi operacionalizado como no máximo metade do ciclo: 7 min 30 s.
+
+### 1.4 Procedimento dos ensaios por lote
+
+Cada lote lógico contém 150.000 eventos. O k6 distribui os fragmentos entre 50
+VUs e limita o corpo a 40.000 bytes. O valor inicial de 240.000 bytes foi
+descartado após uma rodada diagnóstica produzir HTTP 414 no API Gateway.
+
+No cenário nominal, o consumidor permanece ativo. Nos cenários de acúmulo, o
+`event-worker` é escalado para zero, dois a quatro lotes são injetados e a
+profundidade da fila é registrada; em seguida, o worker volta a uma task e a
+fila é observada até permanecer zerada. A DLQ é conferida antes e depois.
+`ItemsWritten`, no CloudWatch, reconcilia a quantidade processada. O script SQL
+`tools/loadtest/drenagem_lotes.sql` calcula drenagem e frescor por `test_id`
+quando a cadeia bronze–silver está atualizada.
 
 ## 2. Resultados e análise de desempenho e resiliência (peso 4,0)
 
@@ -94,6 +116,32 @@ Este relatório distingue três estados:
 | Recuperação | 1.000/min | 1.000 | 0 | 170,0 ms | 0 |
 
 **Análise.** O Prometheus registrou pico de 167,10 req/s, valor coerente com 10.000 eventos/min. Incluindo o aquecimento, foram aceitos 12.152 eventos. `bronze.event` cresceu de 12.154 para 24.306 linhas e a fila terminou sem mensagens visíveis ou em voo. A reconciliação de 12.152/12.152 sustenta a aprovação do RNF01.
+
+### 2.1.1 RNF01 revisado — lote e recuperação de acúmulo
+
+**Execução.** Rodadas `rnf01-lote-1x-final-20260909T204204Z` e
+`rnf01-acumulo-{2x,3x,4x}-final`, realizadas entre 20:42 e 21:04 UTC em 9 de
+setembro de 2026. Foram enviados 1,5 milhão de eventos em quatro medições.
+
+| Cenário | Aceite | p95 do fragmento | Pico SQS | Drenagem | Margem até 7 min 30 s |
+|---|---:|---:|---:|---:|---:|
+| 1 lote | 150.000 em 10,078 s; erro 0 | 207,0 ms | 1.763 | 120 s | 330 s |
+| 2 lotes | 300.000 em 27,689 s; erro 0 | 667,6 ms | 4.500 | 191 s | 259 s |
+| 3 lotes | 450.000 em 27,987 s; erro 0 | 198,9 ms | 6.746 | 259 s | 191 s |
+| 4 lotes | 600.000 em 38,026 s; erro 0 | 201,2 ms | 8.952 | 346 s | 104 s |
+
+**Análise.** A fila voltou a zero em todos os cenários. O CloudWatch registrou
+exatamente 150.000, 300.000, 450.000 e 600.000 itens gravados nas respectivas
+janelas; a DLQ permaneceu zerada. A vazão mínima de drenagem observada foi
+1.249,19 eventos/s, 7,5 vezes o mínimo de 166,67 eventos/s. O cenário mais
+severo recuperou quatro ciclos acumulados 104 segundos antes do limite adotado.
+
+O frescor ponta a ponta não foi aprovado nem estimado. Durante a medição, o
+evento sentinela era aceito e persistido em bronze, mas não aparecia na API de
+consulta. A causa foi localizada em `etl.proxima_faixa_lsn`, que considerava
+somente `bronze.change_log`. A migration 029 inclui também `bronze.event` e o
+teste de regressão local foi aprovado, mas a alteração não foi aplicada no
+Learner Lab nesta execução. Portanto, não há valor p95 remoto válido a reportar.
 
 ### 2.2 RNF02 — tempo de resposta
 
@@ -192,7 +240,21 @@ A stack local unificada usa Prometheus e Grafana em `apps/basica/observability/`
 | Uso de CPU | ECS e RDS/CloudWatch | média e máximo por serviço e instância; pico de 78,02% no `event-worker` durante RNF01 |
 | Filas | SQS/CloudWatch | mensagens visíveis, mensagens em voo e idade da mais antiga durante crescimento e drenagem |
 
-As métricas são reais. O Prometheus representa o ponto de vista do cliente k6; o CloudWatch representa aplicação e infraestrutura. Na execução de 2 de setembro, foram confirmadas via API entre 74 e 92 séries Prometheus por teste, separadas pela etiqueta `testid`.
+As métricas são reais. O Prometheus representa o ponto de vista do cliente k6; o CloudWatch representa aplicação e infraestrutura. Na execução de 2 de setembro, foram confirmadas via API entre 74 e 92 séries Prometheus por teste, separadas pela etiqueta `testid`. Nas quatro execuções por lote de 9 de setembro, a API do Prometheus confirmou 160 séries para cada `testid`, incluindo contadores de eventos aceitos e rejeitados, duração HTTP, VUs e tamanho dos fragmentos.
+
+Para reproduzir a análise, selecione no dashboard de carga a janela absoluta
+`2026-09-09 20:40:00` a `21:05:00 UTC` e um dos quatro `testid` registrados na
+matriz. No Prometheus, a consulta base de aceite é:
+
+```promql
+sum(increase(k6_eventos_lote_aceitos_total{testid=~"rnf01-(lote|acumulo).*final.*"}[$__range])) by (testid)
+```
+
+Para erros, substitua a métrica por
+`k6_eventos_lote_rejeitados_total`. A latência do endpoint usa
+`k6_http_req_duration_p95`, e a vazão de requisições usa
+`rate(k6_http_reqs_total[1m])`. A fila, a DLQ, `ItemsWritten` e CPU são
+consultadas no CloudWatch pelo Grafana.
 
 ### 3.2 Evidências visuais
 
@@ -246,7 +308,7 @@ As métricas são reais. O Prometheus representa o ponto de vista do cliente k6;
 
 </div>
 
-As cinco capturas comprovam a visualização real dos indicadores do fluxo de mudanças. O dashboard dos RNF01–RNF03 foi validado por API e pelas séries persistidas, mas não possui captura da execução original. Essa limitação não altera os resultados numéricos, porém impede tratá-lo como evidência visual completa.
+As cinco capturas comprovam a visualização real dos indicadores do fluxo de mudanças. As figuras 2 e 4 são painéis Grafana alimentados pelo Prometheus e demonstram, respectivamente, latência e throughput/erros. O dashboard dos RNF01–RNF03 foi novamente validado por API nas séries persistidas dos lotes, mas não foi possível gerar uma nova captura nesta sessão porque não havia navegador de captura disponível e o container não possuía o renderizador de imagens compatível. Essa limitação não altera os resultados numéricos, mas significa que os lotes de 9 de setembro têm evidência estruturada e consultas reproduzíveis, não um novo print dedicado.
 
 ### 3.3 Limite da cobertura do RNF11
 
@@ -254,6 +316,6 @@ Os dashboards comprovam capacidade de observação operacional. A DLQ também di
 
 ## 4. Conclusão
 
-Os três itens da entrega estão contemplados: os planos foram revisados com pico de 10.000 eventos/min, backlog e timeout; os resultados apresentam métricas e análise de desempenho e resiliência; e Grafana, Prometheus e CloudWatch exibem latência, throughput, erros, CPU e filas com dados reais.
+Os três itens da entrega estão contemplados: os planos foram revisados com pico de 10.000 eventos/min, lotes de 150.000 eventos, backlog e timeout; os resultados apresentam métricas e análise de desempenho e resiliência; e Grafana, Prometheus e CloudWatch exibem latência, throughput, erros, CPU e filas com dados reais.
 
-RNF01, RNF03 e RNF04 foram comprovados nos fatores testados. O RNF02 atendeu ao limite de tempo, com ressalva sobre representatividade da base. No RNF05, a recuperação foi observada em todos os cenários, mas apenas o recorte de 1.001 eventos possui reconciliação completa. O RNF11 permanece parcial por falta de uma amostra completa e sanitizada dos registros. Essas limitações são mantidas explícitas para separar resultado observado de conclusão comprovada.
+RNF01 foi comprovado para aceite, drenagem e integridade até quatro lotes acumulados; o indicador de frescor ponta a ponta depende da implantação da migration 029 e de uma nova medição. RNF03 e RNF04 foram comprovados nos fatores testados. O RNF02 atendeu ao limite de tempo, com ressalva sobre representatividade da base. No RNF05 histórico, a recuperação foi observada em todos os cenários, mas apenas o recorte de 1.001 eventos possui reconciliação completa. O RNF11 permanece parcial por falta de uma amostra completa e sanitizada dos registros. Essas limitações são mantidas explícitas para separar resultado observado de conclusão comprovada.
