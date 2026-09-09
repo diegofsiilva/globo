@@ -868,6 +868,18 @@ teste-performance: ## Executa a suite k6 (CENARIO=todos; COM_GRAFANA=1 habilita 
 	$(TESTES_CARGA)/executar_testes.sh "$${CENARIO:-todos}" \
 		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
 
+.PHONY: teste-lote-drenagem
+teste-lote-drenagem: ## Injeta 1 lote logico de 150 mil eventos (nao mede sozinho a drenagem)
+	K6_QUANTIDADE_LOTES=1 $(TESTES_CARGA)/executar_testes.sh rnf01-lote \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-lotes-acumulados
+teste-lotes-acumulados: ## Injeta 2-4 lotes logicos (LOTES=2); use com o event-worker parado
+	@lotes=$${LOTES:-2}; \
+	case "$$lotes" in 2|3|4) ;; *) echo "LOTES deve ser 2, 3 ou 4"; exit 2;; esac; \
+	K6_QUANTIDADE_LOTES="$$lotes" $(TESTES_CARGA)/executar_testes.sh rnf01-acumulo \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
 # Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
 # ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.
 .PHONY: carga

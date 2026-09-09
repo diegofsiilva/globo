@@ -1,4 +1,4 @@
-# Testes de performance — RNF01, RNF02 e RNF03
+# Testes de performance — lotes, RNF01, RNF02 e RNF03
 
 Suíte k6 para medir a aplicação Argus publicada, enviar as métricas por
 Prometheus Remote Write e visualizá-las no Grafana. Os scripts exigem endpoints
@@ -12,6 +12,61 @@ e tokens explícitos: uma execução sem alvo real falha no `setup()`.
 | RNF02 | 11 rotas × 5, 10 usuários concorrentes, filtros semânticos e 600 consultas/min | 100% HTTP 200, nenhuma resposta acima de 5 s, p99 < 5 s |
 | RNF03 | mesmo contrato antes/depois de alterar tasks ECS de 1× para 2× | capacidade 2×, sucesso, p95/p99, zero descarte e persistência |
 | Resiliência | consumidor parado e timeout de cliente em 1 ms | backlog cresce/drena; timeout é detectado e a consulta seguinte recupera |
+
+## RNF01 revisado: lote de 150 mil eventos
+
+O requisito de 10.000 eventos/min em ciclos de 15 minutos equivale a um lote
+logico de 150.000 eventos. O endpoint aceita arrays, mas cada corpo HTTP vira
+uma mensagem SQS; por isso `rnf01_lote_drenagem.js` fragmenta o lote pelo
+tamanho serializado, com teto conservador de 240.000 bytes por mensagem.
+
+O k6 mede aceite, latencia e vazao HTTP. Ele nao declara drenagem: resposta 2xx
+prova apenas que o fragmento entrou na fila. Depois da injecao, a evidencia
+precisa combinar fila principal, mensagens em voo, DLQ, persistencia e
+disponibilidade do evento sentinela na API de leitura.
+
+```bash
+# Um lote: 150.000 eventos.
+make -C apps/basica teste-lote-drenagem COM_GRAFANA=1
+
+# Acumulo: execute com event-worker parado e escolha 2, 3 ou 4 lotes.
+make -C apps/basica teste-lotes-acumulados LOTES=2 COM_GRAFANA=1
+```
+
+Cada rodada escreve no resumo o `test_id`, os horarios da injecao e a
+`sentinela_session_id`. Para o cenario acumulado, pare apenas o `event-worker`,
+confirme que ele chegou a zero, injete a carga, registre a fila e restaure a
+mesma quantidade de tasks que existia antes do teste. Nao use `make pause`,
+pois ele tambem interrompe processamento e outros servicos.
+
+Durante a drenagem, registre a cada cinco segundos:
+
+```bash
+aws sqs get-queue-attributes --profile g4 --region us-east-1 \
+  --queue-url "$(terraform -chdir=apps/basica/infra output -raw queue_url)" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
+```
+
+A profundidade SQS conta fragmentos, nao eventos. A contagem exata e o frescor
+em `bronze.event` saem de `tools/loadtest/drenagem_lotes.sql`. O evento final
+de cada execucao usa a sessao sentinela e deve ser consultado ate aparecer:
+
+```bash
+curl -fsS -H "Authorization: Bearer $ARGUS_READ_TOKEN" \
+  "$ARGUS_API_URL/api/v1/sessions/<sentinela_session_id>"
+```
+
+Definicoes usadas no relatorio:
+
+- tempo de injecao: primeiro envio ate o aceite do ultimo fragmento;
+- tempo de drenagem: aceite do ultimo fragmento ate persistencia completa;
+- vazao de drenagem: eventos persistidos divididos pelo tempo de drenagem;
+- frescor ponta a ponta: geracao ate primeira disponibilidade na API;
+- capacidade minima sustentavel: mais de 166,67 eventos/s.
+
+Como criterio operacional proposto, ate 7min30s e aprovado, entre 7min30s e
+15 minutos exige atencao, e 15 minutos ou mais reprova. A margem deve ser
+confirmada com o responsavel pelo requisito antes da execucao real.
 
 O SQS Standard não tem uma capacidade fixa que possa ficar literalmente
 “cheia”. O cenário tecnicamente equivalente interrompe o consumidor, confirma
