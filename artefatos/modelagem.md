@@ -16,10 +16,10 @@ colaboram para realizar cada caso de uso.
 ### 1.1 Objetivo e fronteira
 
 &emsp;Esta seção descreve o comportamento da Plataforma Argus a partir do
-diagrama de casos de uso e dos requisitos já definidos para o projeto. O foco
-está nas interações observáveis entre a plataforma, as fontes de telemetria, o
-usuário operacional, o evento temporal que inicia o processamento e o serviço de
-apoio à observabilidade.
+diagrama de casos de uso e dos requisitos já definidos para o projeto (GRUPO
+GLOBO; INTELI, 2026). O foco está nas interações observáveis entre a plataforma,
+as fontes de telemetria, o usuário operacional, o evento temporal que inicia o
+processamento e o serviço de apoio à observabilidade.
 
 &emsp;As descrições foram escritas em nível essencial: apresentam a intenção dos
 atores e as responsabilidades do sistema, sem transformar decisões internas de
@@ -38,22 +38,22 @@ produção ficam fora dela.
 |---|---|---|
 | **Fontes de telemetria** | Sistema externo | Publicar eventos de sessão e mudanças das fontes monitoradas para que sejam armazenados e analisados pelo Argus. |
 | **Novo checkpoint disponível** | Evento temporal | Informar que uma nova fotografia consistente da camada analítica está pronta para processamento. Não representa uma pessoa, mas o estímulo temporal que inicia o UC02. |
-| **Usuário Operacional** | Ator humano principal | Monitorar a plataforma, explorar dados e investigar degradações. Abrange, sobretudo, os perfis de Engenharia de Observabilidade e Suporte N2 definidos no entendimento de UX. |
+| **Usuário Operacional** | Ator humano principal | Monitorar a plataforma, explorar dados e investigar degradações. Abrange, sobretudo, os perfis de Engenharia de Observabilidade e Suporte N2 definidos no [entendimento de UX](entendimento_ux.md) (EQUIPE ARGUS, 2026b). |
 | **Amazon CloudWatch** | Sistema de apoio | Disponibilizar logs, métricas e alarmes sobre a saúde da ingestão e dos componentes da plataforma. |
 
 O ator **Usuário Operacional** aparece duas vezes no diagrama somente para reduzir o cruzamento de associações. As duas figuras representam o mesmo papel e possuem as mesmas permissões conceituais.
 
 ### 1.3 Diagrama de casos de uso
 
-<div align="center">
+<p align="center"><sub>Figura 1 - Diagrama de casos de uso da Plataforma Argus</sub></p>
 
-<sub>Figura 1 - Diagrama de casos de uso da Plataforma Argus</sub>
+<div align="center">
 
 ![Diagrama de casos de uso da Plataforma Argus](./assets/diagrama_casos_uso.jpg)
 
-<sup>Fonte: material produzido pelos autores (2026).</sup>
-
 </div>
+
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
 
 O diagrama separa os comportamentos em três grupos. **Processamento Automático** contém a entrada e a análise contínua da telemetria. **Monitoramento e Investigação Inicial** reúne as ações que ajudam o operador a reconhecer e começar a apurar um problema. **Diagnóstico e Avaliação** contém os aprofundamentos usados para explicar, delimitar e revisar uma degradação.
 
@@ -69,7 +69,7 @@ O diagrama separa os comportamentos em três grupos. **Processamento Automático
 | UC07 - Identificar e ajustar o recorte afetado | `<<extend>>` | UC12 - Consultar a trajetória de uma sessão | Uma sessão representativa pode ser aberta para validar o comportamento observado no agregado. |
 | UC10 - Analisar hipóteses de causa provável | `<<extend>>` | UC13 - Registrar validade sobre uma hipótese | Depois de avaliar as evidências, o operador pode registrar sua conclusão sobre a hipótese. |
 
-Em UML, `<<include>>` indica um comportamento obrigatório do caso base. `<<extend>>` representa um comportamento condicional, executado somente quando sua condição de extensão é satisfeita.
+Em UML, `<<include>>` indica um comportamento obrigatório do caso base e `<<extend>>` representa um comportamento condicional, executado somente quando sua condição de extensão é satisfeita (OBJECT MANAGEMENT GROUP, 2017).
 
 ### 1.4 Visão geral e rastreabilidade
 
@@ -89,9 +89,13 @@ Em UML, `<<include>>` indica um comportamento obrigatório do caso base. `<<exte
 | UC12 | Consultar a trajetória de uma sessão | Usuário Operacional | Extensão de UC07 | RF08 e RF16; US06 e US08 |
 | UC13 | Registrar validade sobre uma hipótese | Usuário Operacional | Extensão de UC10 | RF17 |
 
-A rastreabilidade indica afinidade entre cada caso de uso e os requisitos, sem impor uma relação de um para um. Um requisito pode participar de mais de um objetivo do usuário, assim como um caso de uso pode reunir vários requisitos complementares.
+A rastreabilidade indica afinidade entre cada caso de uso e os [requisitos](requisitos.md) (EQUIPE ARGUS, 2026c), sem impor uma relação de um para um. Um requisito pode participar de mais de um objetivo do usuário, assim como um caso de uso pode reunir vários requisitos complementares.
 
 ### 1.5 Descrições dos casos de uso
+
+&emsp;As descrições seguem o gabarito de Cockburn (2001): escopo e nível, atores,
+interessados, pré e pós-condições, fluxo básico, fluxos alternativos e exceções,
+requisitos especiais e, por fim, variantes, frequência e questões ainda abertas.
 
 #### 1.5.1 UC01 - Ingerir telemetria
 
@@ -280,7 +284,7 @@ A rastreabilidade indica afinidade entre cada caso de uso e os requisitos, sem i
 - E2. Timeout, rede indisponível ou resposta inválida: o tipo de falha é identificado e nova tentativa é oferecida.
 - E3. Campo sensível: a dimensão não autorizada é recusada e seus valores não viram sugestão.
 
-**Requisitos especiais.** Consultas simples retornam em até cinco segundos; filtros são cumulativos; datas usam UTC e ISO 8601 no contrato; dimensões seguem lista permitida; a paginação é estável; e os estados de carregamento, vazio e erro são acessíveis e distintos.
+**Requisitos especiais.** Consultas simples retornam em até cinco segundos; filtros são cumulativos; datas usam UTC e ISO 8601 no contrato (INTERNATIONAL ORGANIZATION FOR STANDARDIZATION, 2019); dimensões seguem lista permitida; a paginação é estável; e os estados de carregamento, vazio e erro são acessíveis e distintos.
 
 **Variantes, frequência e questões abertas.** Eventos ou séries Gold; lista, indicador, gráfico temporal, agrupamento ou matriz de duas dimensões; filtros de sessão, dispositivo, tipo, aplicativo, sistema operacional, fabricante, modelo, rota, fonte, entidade e métrica. Uso sob demanda, várias vezes por investigação. Em aberto: quais dimensões regionais e de ISP podem ser combinadas, a busca segura por códigos em atributos livres e os limites de paginação com o volume definitivo.
 
@@ -600,7 +604,8 @@ A rastreabilidade indica afinidade entre cada caso de uso e os requisitos, sem i
 &emsp;Esta seção descreve o modelo de domínio da plataforma Argus, isto é, o
 conjunto de abstrações e o vocabulário centrais do sistema, por meio de um
 diagrama de classes UML (Unified Modeling Language, a notação-padrão para
-modelagem de software) e da descrição de cada classe: o que representa, o que
+modelagem de software; OBJECT MANAGEMENT GROUP, 2017) e da descrição de cada
+classe: o que representa, o que
 guarda, o que faz e de quem depende. Onde a seção 1 descreve o comportamento
 observável, esta descreve a estrutura interna que o sustenta, atravessando os
 quatro serviços Python, a carga inicial e a biblioteca compartilhada.
@@ -610,9 +615,10 @@ quatro serviços Python, a carga inicial e a biblioteca compartilhada.
 #### 2.1.1 O que o diagrama cobre
 
 &emsp; O diagrama modela as classes de aplicação do repositório: entidades de
-domínio, objetos de valor (tipos sem identidade própria, definidos apenas pelo
-conteúdo), adaptadores, casos de uso, consumidores e repositórios, que são as
-categorias da arquitetura hexagonal, detalhadas na seção 2.7. São cerca de 45 classes,
+domínio e objetos de valor (tipos sem identidade própria, definidos apenas pelo
+conteúdo), na acepção de Evans (2003), mais adaptadores, casos de uso,
+consumidores e repositórios, que são as categorias da arquitetura hexagonal,
+detalhadas na seção 2.7. São cerca de 45 classes,
 agrupadas em seis contextos:
 
 | Contexto | Serviço / pasta | Papel |
@@ -628,7 +634,8 @@ agrupadas em seis contextos:
 
 &emsp; Não é o modelo de dados: o esquema físico do PostgreSQL, das camadas de
 dados crus (`bronze`) às limpas (`silver`) e às agregadas (`gold`), mais
-`detect`, `sim` e `etl`, está na [arquitetura inicial](arquitetura-inicial.md) e
+`detect`, `sim` e `etl`, está na [arquitetura inicial](arquitetura-inicial.md)
+(EQUIPE ARGUS, 2026a) e
 nos diagramas entidade-relacionamento em [`assets/`](assets/); aqui o banco é um
 único nó de fronteira. Também não é o diagrama de implantação, que descreve nós,
 contêineres e serviços AWS na mesma referência. E não cobre o frontend classe a
@@ -657,9 +664,9 @@ entre colchetes; nos recortes, o contexto já resolve a ambiguidade.
 #### 2.1.4 Fontes e reprodução
 
 &emsp; O texto-fonte de cada diagrama está em [`assets/`](assets/), com extensão
-`.mmd` (Mermaid, a linguagem de texto que descreve os diagramas). O GitLab
-renderiza os blocos `mermaid` deste documento; os PNG ao lado de cada seção são a
-exportação para apresentação. Para regenerá-los:
+`.mmd` (Mermaid, a linguagem de texto que descreve os diagramas; MERMAID,
+2026). O GitLab renderiza os blocos `mermaid` deste documento; os PNG ao lado de
+cada seção são a exportação para apresentação. Para regenerá-los:
 
 ```bash
 cd artefatos/assets
@@ -673,6 +680,8 @@ npx @mermaid-js/mermaid-cli -i diagrama-classes.mmd -o diagrama-classes.png -s 3
 duas fronteiras: as filas SQS (na entrada) e o banco PostgreSQL (no centro).
 O acoplamento entre serviços é, portanto, o contrato de dados, não uma
 dependência de código.
+
+<p align="center"><sub>Figura 2 - Visão geral dos seis contextos e das duas fronteiras de integração</sub></p>
 
 ```
  App de TV ─┐                          ┌─ Dashboard (Next.js) → ALB → EC2 (ASG)
@@ -690,6 +699,8 @@ dependência de código.
    [Relógio virtual] Clock/Janela/Emitter ───┘  (reemite o dump como ChangeEvent)
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 &emsp; O conceito central é o relógio virtual. O conjunto de dados (dataset) é um
 dump do passado; o sistema tem um presente próprio, `sim.now()`, que vive no banco. Toda linha
 carrega `available_at` (o instante em que a informação existiria na vida real,
@@ -704,7 +715,13 @@ conceito.
 caixas nomeadas do Mermaid) e as fronteiras de infraestrutura. É densa por
 natureza: as seções 2.4 a 2.8 trazem o mesmo conteúdo em recortes legíveis.
 
+<p align="center"><sub>Figura 3 - Diagrama de classes unificado da Plataforma Argus</sub></p>
+
+<div align="center">
+
 ![Diagrama de classes unificado](assets/diagrama-classes.png)
+
+</div>
 
 ```mermaid
 classDiagram
@@ -1065,6 +1082,8 @@ classDiagram
     note for EventRepoPort "Referências a DynamoDB nas docstrings são históricas;<br/>a implementação atual é PostgreSQL."
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 ### 2.4 Recorte 1: Ingestão
 
 &emsp; O contexto de ingestão tem duas hierarquias paralelas: a dos modelos de
@@ -1072,7 +1091,13 @@ evento (o que chega e como é validado) e a dos consumidores (o laço de
 consumo do SQS). Cada consumidor casa com um repositório de escrita. A carga
 inicial (`Loader`) escreve nas mesmas tabelas por outro caminho.
 
+<p align="center"><sub>Figura 4 - Diagrama de classes: contexto de ingestão</sub></p>
+
+<div align="center">
+
 ![Diagrama de classes: Ingestão](assets/diagrama-classes-ingestao.png)
+
+</div>
 
 ```mermaid
 classDiagram
@@ -1267,11 +1292,13 @@ classDiagram
     note for EventConsumer "event worker: grava o grão de sessão em bronze.event<br/>com id derivado do conteúdo (idempotência)."
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 #### 2.4.1 Modelos de evento
 
 | Classe | Responsabilidade |
 |---|---|
-| **`BaseEvent`** | Envelope comum a todo evento de sessão. Modelo Pydantic (biblioteca Python de validação de dados) com `extra="allow"`: campo novo enviado pelo app é preservado, não rejeitado. Só quatro campos são obrigatórios (`timestamp`, `event_name`, `session_id`, `device_id`). Os validadores `_to_utc` e `_not_blank` normalizam fuso e recusam string em branco. |
+| **`BaseEvent`** | Envelope comum a todo evento de sessão. Modelo Pydantic (biblioteca Python de validação de dados; PYDANTIC, 2026) com `extra="allow"`: campo novo enviado pelo app é preservado, não rejeitado. Só quatro campos são obrigatórios (`timestamp`, `event_name`, `session_id`, `device_id`). Os validadores `_to_utc` e `_not_blank` normalizam fuso e recusam string em branco. |
 | **`RequestEvent`** | Chamada HTTP feita pelo app: método, URL, status, cabeçalhos. |
 | **`ScreenViewEvent`** | Entrada em uma tela, só o envelope. |
 | **`SessionEvent`** | Ciclo de vida da sessão, com as *capabilities*, as capacidades técnicas negociadas com o aparelho, como HDR, DRM e Dolby Atmos. |
@@ -1294,7 +1321,7 @@ classDiagram
 | Classe | Responsabilidade |
 |---|---|
 | **`ChangeRepository`** | Anexa o lote a `bronze.change_log` e dispara `bronze.merge_do_log` na mesma transação: ou os dois acontecem ou nenhum. `lag_sim_seconds` e `sources_silent` são consultas de métrica com teto de tempo, para que a observabilidade nunca derrube a ingestão. |
-| **`EventRepository`** (worker) | Grava o grão de sessão (o nível de detalhe adotado: uma linha por sessão) em `bronze.event` com `ON CONFLICT (ts, event_id) DO NOTHING` (se a linha já existir, ignora). `event_id` deriva do hash (a impressão digital) do conteúdo, o que dá efeito de *exactly-once*, ou seja, cada evento gravado uma única vez, sobre a entrega *at-least-once* do SQS, que pode repetir a mesma mensagem. |
+| **`EventRepository`** (worker) | Grava o grão de sessão (o nível de detalhe adotado: uma linha por sessão) em `bronze.event` com `ON CONFLICT (ts, event_id) DO NOTHING` (se a linha já existir, ignora). `event_id` deriva do hash (a impressão digital) do conteúdo, o que dá efeito de *exactly-once*, ou seja, cada evento gravado uma única vez, sobre a entrega *at-least-once* do SQS, que pode repetir a mesma mensagem (AMAZON WEB SERVICES, 2026b). |
 | **`ChangeTooLarge`** | Exceção: evento de mudança maior que 4 MB; repetir a tentativa (*retry*) nunca resolveria, então vai direto para a DLQ. |
 | **`Config`** (worker) | *Dataclass* (classe de dados do Python) congelada, isto é, imutável depois de criada, com toda a configuração vinda do ambiente (`modo`, URLs de fila e DLQ, `DATABASE_URL`, tamanhos de lote, tolerância de desvio de relógio). `from_env` valida a presença das variáveis obrigatórias. |
 
@@ -1315,7 +1342,13 @@ lá), `Janela` lê a faixa de tempo que acabou de passar, `Falha` distorce ponto
 de forma determinística (mesma entrada, sempre o mesmo resultado) e `Emitter`
 publica em `POST /v1/changes`.
 
+<p align="center"><sub>Figura 5 - Diagrama de classes: contexto do relógio virtual</sub></p>
+
+<div align="center">
+
 ![Diagrama de classes: Relógio virtual](assets/diagrama-classes-relogio.png)
+
+</div>
 
 ```mermaid
 classDiagram
@@ -1398,6 +1431,8 @@ classDiagram
     note for Clock "sim.now() vive no banco. Todo serviço lê o mesmo<br/>presente virtual; available_at &lt;= sim.now() barra vazamento de futuro."
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 | Classe | Responsabilidade |
 |---|---|
 | **`Clock`** | Lê e avança `sim.clock`. `reset` ancora o relógio no início da janela; `now` lê o presente virtual; `abrir_run`/`fechar_run` registram a execução em `sim.run`; `registrar_falhas` grava o cenário sorteado em `sim.fault` (é o que torna o cenário auditável, isto é, verificável depois); `fontes` lista as fontes presentes na `bronze`. |
@@ -1417,7 +1452,13 @@ invalida quem perdeu a posse); e o catálogo versionado (`Catalog`,
 `MetricPolicy`), cujo `manifest_hash` amarra cada resultado à configuração exata
 que o produziu.
 
+<p align="center"><sub>Figura 6 - Diagrama de classes: contexto de análise</sub></p>
+
+<div align="center">
+
 ![Diagrama de classes: Análise](assets/diagrama-classes-analise.png)
+
+</div>
 
 ```mermaid
 classDiagram
@@ -1663,12 +1704,14 @@ classDiagram
     note for Catalog "manifest_hash amarra o resultado à configuração exata<br/>(catálogos + pesos + parâmetros do detector)."
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 #### 2.6.1 Contratos do detector e do motor
 
 | Classe | Responsabilidade |
 |---|---|
 | **`Fact`** | Uma observação de fonte já normalizada, no grão em que a análise trabalha. Sai de `bronze.change_log` (não da tabela corrente), o que conserva duas mudanças da mesma chave primária (PK) entre ciclos. `available_at` é a barreira causal: nenhuma regra olha um fato cujo `available_at` esteja à frente de `sim.now()`. |
-| **`Baseline`** | Média e variância acumuladas de uma série, pelo método de Welford (que atualiza os dois números a cada novo ponto, sem guardar o histórico). Mutável de propósito: o detector atualiza a cada bucket (cada intervalo de tempo agregado). `n < 3` significa histórico insuficiente. |
+| **`Baseline`** | Média e variância acumuladas de uma série, pelo método de Welford (1962), que atualiza os dois números a cada novo ponto, sem guardar o histórico. Mutável de propósito: o detector atualiza a cada bucket (cada intervalo de tempo agregado). `n < 3` significa histórico insuficiente. |
 | **`Anomaly`** | Um fato que se afastou do baseline (o comportamento esperado, calculado a partir do histórico) o suficiente para virar sinal. Guarda `z` (o desvio em relação à média, medido em desvios-padrão σ), `strength` (a magnitude normalizada) e um `baseline_snapshot` (a foto do baseline naquele instante) para a evidência poder citar o número original. |
 | **`SourceQuality`** | Veredito do canário (a verificação contínua que acusa quando uma fonte para de responder) sobre uma fonte num ciclo. Existe porque uma fonte silenciosa é indistinguível de uma fonte saudável: as duas produzem zero anomalia. Quatro dimensões ponderadas em `quality_score`: `freshness`, `completeness`, `validity` e `consistency`, ou seja, atualidade, completude, validade e consistência. |
 | **`Feature`** | Um componente do score (a nota) de uma hipótese, com sua explicação. `applicability` (`available` / `unavailable` / `not_applicable`) distingue "calculada", "fonte não respondeu" e "não faz sentido para esta família"; sem isso, ausência de dado viraria zero e puxaria o score para baixo. |
@@ -1697,9 +1740,9 @@ classDiagram
 
 ### 2.7 Recorte 4: Leitura
 
-&emsp;A API de leitura segue a arquitetura hexagonal (também chamada portas e
-adaptadores): o núcleo de regras não sabe por qual tecnologia o dado entra ou
-sai. O centro (`domain`) não conhece Flask nem PostgreSQL. A porta
+&emsp;A API de leitura segue a arquitetura hexagonal, também chamada portas e
+adaptadores (COCKBURN, 2005): o núcleo de regras não sabe por qual tecnologia o
+dado entra ou sai. O centro (`domain`) não conhece Flask nem PostgreSQL. A porta
 `EventRepository` (um `Protocol` do Python, isto é, um contrato de métodos sem
 implementação) declara o que a aplicação exige; `PostgresEventRepository` é o
 adaptador concreto. Os casos de uso (`SearchEvents`, `GetTimeseries` e os
@@ -1712,14 +1755,21 @@ nunca se cruzam.
 uma função AWS Lambda exposta por um API Gateway, e quem checava o token era o
 Lambda Authorizer, antes de a aplicação ser chamada. Agora ela roda em
 instâncias EC2 de um Auto Scaling Group (o recurso da AWS que cria e substitui
-instâncias conforme a demanda) atrás de um Application Load Balancer (o
-balanceador que distribui as requisições entre elas). Um balanceador não tem
-authorizer, então a checagem do token Bearer passou para dentro do Flask, no
-módulo `interfaces.auth`. É a única mudança que o recorte incorpora: a
+instâncias conforme a demanda; AMAZON WEB SERVICES, 2026a) atrás de um
+Application Load Balancer, o balanceador que distribui as requisições entre elas
+(AMAZON WEB SERVICES, 2026c). Um balanceador não tem authorizer, então a
+checagem do token Bearer passou para dentro do Flask, no módulo
+`interfaces.auth`. É a única mudança que o recorte incorpora: a
 arquitetura hexagonal e os adaptadores continuam iguais, porque nenhum deles
 depende de como a aplicação é hospedada.
 
+<p align="center"><sub>Figura 7 - Diagrama de classes: contexto de leitura</sub></p>
+
+<div align="center">
+
 ![Diagrama de classes: Leitura](assets/diagrama-classes-leitura.png)
+
+</div>
 
 ```mermaid
 classDiagram
@@ -1972,12 +2022,14 @@ classDiagram
     note for QueryStats "strategy/scanned/returned vão na resposta:<br/>tornam visível o custo de cada consulta."
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 #### 2.7.1 `domain` (o núcleo de regras)
 
 | Classe | Responsabilidade |
 |---|---|
 | **`TelemetryEvent`** | Um evento de telemetria como a API o devolve. `event_id` é `str` (o hash do conteúdo, não um UUID aleatório); `duration_ms` é derivado (o banco guarda segundos); `user_id_hash` nunca é o id cru; campos específicos de cada tipo ficam em `attributes`. |
-| **`TelemetryError`** e subclasses | Hierarquia de erros de domínio previstos: `ValidationError` (→ 422, aponta o campo), `UnsupportedMediaTypeError` (→ 415), `EventNotFoundError` (→ 404), `ResourceNotFoundError` (→ 404), `ConflictError` (→ 409). `create_app` traduz cada uma em uma resposta no formato *Problem Details* (RFC 7807, o padrão de corpo de erro para APIs HTTP). |
+| **`TelemetryError`** e subclasses | Hierarquia de erros de domínio previstos: `ValidationError` (→ 422, aponta o campo), `UnsupportedMediaTypeError` (→ 415), `EventNotFoundError` (→ 404), `ResourceNotFoundError` (→ 404), `ConflictError` (→ 409). `create_app` traduz cada uma em uma resposta no formato *Problem Details*, o padrão de corpo de erro para APIs HTTP (NOTTINGHAM; WILDE, 2016). |
 
 #### 2.7.2 `ports` (as portas: contratos que o núcleo exige)
 
@@ -2016,10 +2068,10 @@ classDiagram
 
 | Classe | Responsabilidade |
 |---|---|
-| **`create_app`** *(factory)* | Monta a aplicação Flask: um único *pool* de conexões (conjunto de conexões com o banco abertas e reaproveitadas) para todos os adaptadores, registra os *blueprints* (os grupos de rotas do Flask), o CORS manual (as regras que autorizam o navegador a chamar a API de outra origem), a observabilidade e os *error handlers* (os tratadores de erro). Aceita adaptadores injetados (é o que os testes usam). |
+| **`create_app`** *(factory)* | Monta a aplicação Flask (PALLETS PROJECTS, 2026): um único *pool* de conexões (conjunto de conexões com o banco abertas e reaproveitadas) para todos os adaptadores, registra os *blueprints* (os grupos de rotas do Flask), o CORS manual (as regras que autorizam o navegador a chamar a API de outra origem), a observabilidade e os *error handlers* (os tratadores de erro). Aceita adaptadores injetados (é o que os testes usam). |
 | **`interfaces.http` / `hypotheses_http` / `signals_http`** *(blueprints)* | As rotas HTTP. Cada rota nova exige entrada correspondente no OpenAPI (a descrição da API em formato legível por máquina), verificada por teste nos dois sentidos. |
 | **`interfaces.openapi`** | Monta a especificação OpenAPI 3.1 em código, importando as mesmas constantes que os adaptadores usam para validar. Também define `ROTAS_PUBLICAS`, a lista de caminhos que dispensam token. |
-| **`interfaces.auth`** | Valida o token Bearer em um `before_request`, checagem que o Flask roda antes de qualquer rota (RNF09). Compara o SHA-256 do token apresentado com o hash que a instância recebeu no boot; responde 401 quando o cabeçalho `Authorization` falta e 403 quando o token está errado. Dispensa as rotas públicas e `/health/live`, usada pela verificação de saúde do balanceador, que não envia cabeçalho. Assumiu o papel que era do Lambda Authorizer no caminho de leitura. |
+| **`interfaces.auth`** | Valida o token Bearer (JONES; HARDT, 2012) em um `before_request`, checagem que o Flask roda antes de qualquer rota (RNF09). Compara o SHA-256 do token apresentado com o hash que a instância recebeu no boot; responde 401 quando o cabeçalho `Authorization` falta e 403 quando o token está errado. Dispensa as rotas públicas e `/health/live`, usada pela verificação de saúde do balanceador, que não envia cabeçalho. Assumiu o papel que era do Lambda Authorizer no caminho de leitura. |
 | **`Config` / `TestConfig`** | Configuração vinda do ambiente: `DATABASE_URL`, `USER_ID_HASH_SALT` (RNF10; o *salt* é um valor secreto somado ao identificador antes de aplicar o hash), janelas e tetos de varredura, origens de CORS, além de `AUTH_REQUIRED` e `DASHBOARD_TOKEN_SHA256`, que ligam e alimentam a checagem de token. |
 
 ### 2.8 Código comum (`common`)
@@ -2029,7 +2081,7 @@ compartilham. Aparecem nos recortes como dependências externas.
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Database`** | *Pool* de conexões com o PostgreSQL. `sim_now()` lê o relógio virtual do banco, nunca do relógio do contêiner: se cada serviço derivasse o próprio tempo, dois contêineres discordariam sobre o que já aconteceu. Sobrevive ao *failover* do RDS, o PostgreSQL gerenciado da AWS, que troca automaticamente para uma réplica quando o servidor principal cai: a conexão morta é descartada. |
+| **`Database`** | *Pool* de conexões com o PostgreSQL (POSTGRESQL GLOBAL DEVELOPMENT GROUP, 2026). `sim_now()` lê o relógio virtual do banco, nunca do relógio do contêiner: se cada serviço derivasse o próprio tempo, dois contêineres discordariam sobre o que já aconteceu. Sobrevive ao *failover* do RDS, o PostgreSQL gerenciado da AWS, que troca automaticamente para uma réplica quando o servidor principal cai: a conexão morta é descartada. |
 | **`Heartbeat`** | Marca presença para o *healthcheck* do contêiner (a checagem periódica de que o processo está vivo). Precisa bater a cada ciclo, inclusive com fila vazia: um worker saudável num domingo de madrugada seria reiniciado sem parar se o heartbeat (esse sinal de vida) só batesse quando houvesse mensagem. |
 | **`ShutdownSignal`** | Encerramento ordenado (*graceful shutdown*): o sinal `SIGTERM` faz o processo parar só depois de terminar o ciclo atual. O `sleep` acorda mais cedo quando a parada é pedida, para o sistema não precisar recorrer ao `SIGKILL` (o encerramento forçado, que interrompe no meio). |
 | **`Metrics`** | Coletor de métricas para o CloudWatch (o serviço de métricas e logs da AWS): `count`, `duration_ms` e `flush` (o envio do que se acumulou) em cadência. |
@@ -2092,6 +2144,8 @@ apenas o que a figura não mostra sozinha.
 
 ### 3.1 Ingestão de um evento de sessão
 
+<p align="center"><sub>Figura 8 - Diagrama de sequência: ingestão de um evento de sessão</sub></p>
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -2141,6 +2195,8 @@ sequenceDiagram
     end
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 O `202 Accepted` confirma que o lote foi recebido para processamento, não que
 os eventos já estão no banco: quem autoriza a entrada é o Lambda Authorizer, que
 checa a audiência `ingest` do token, e o corpo original segue para a fila. Esse
@@ -2159,6 +2215,8 @@ removidas da fila. Com o banco indisponível, nada é apagado; passado o tempo d
 invisibilidade, o SQS reentrega e a idempotência absorve a repetição.
 
 ### 3.2 Um passo do relógio virtual
+
+<p align="center"><sub>Figura 9 - Diagrama de sequência: um passo do relógio virtual</sub></p>
 
 ```mermaid
 sequenceDiagram
@@ -2214,6 +2272,8 @@ sequenceDiagram
     CC->>GW: delete_message_batch
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 A semente da execução gera uma lista determinística de falhas, registrada no
 banco: mesma semente, mesmo cenário, o que permite auditar e reproduzir a
 simulação. Em seguida o relógio virtual é ancorado no instante inicial.
@@ -2231,6 +2291,8 @@ simulador. Para cada lote, o repositório registra as alterações em
 as duas etapas são confirmadas, ou nenhuma. Só então a mensagem sai da fila.
 
 ### 3.3 Uma consulta do dashboard à API de leitura
+
+<p align="center"><sub>Figura 10 - Diagrama de sequência: consulta do dashboard à API de leitura</sub></p>
 
 ```mermaid
 sequenceDiagram
@@ -2282,6 +2344,8 @@ sequenceDiagram
     end
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 O fluxo começa quando o dashboard pede eventos à API de leitura e envia um token
 com a audiência `dashboard`. A requisição chega pelo Application Load Balancer,
 que a encaminha para uma das instâncias EC2 do Auto Scaling Group, escolhida
@@ -2316,6 +2380,8 @@ retorna `422` no formato `application/problem+json`, informando o campo e o
 identificador associados ao erro.
 
 ### 3.4 Um ciclo do motor de análise
+
+<p align="center"><sub>Figura 11 - Diagrama de sequência: um ciclo do motor de análise</sub></p>
 
 ```mermaid
 sequenceDiagram
@@ -2376,6 +2442,8 @@ sequenceDiagram
     end
 ```
 
+<p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
+
 O ciclo começa numa transação de leitura consistente: trava curta, consulta ao
 checkpoint mais recente e bloqueio do cursor de análise. Uma execução anterior
 com prazo de posse vencido é marcada como abandonada antes de o trabalho ser
@@ -2400,22 +2468,26 @@ concorrentes para o mesmo intervalo de dados.
 
 ## Referências
 
-- AMAZON WEB SERVICES. *Amazon EC2 Auto Scaling User Guide*. Disponível em: [https://docs.aws.amazon.com/autoscaling/ec2/userguide/](https://docs.aws.amazon.com/autoscaling/ec2/userguide/). Acesso em: 9 set. 2026.
-- AMAZON WEB SERVICES. *Amazon Simple Queue Service Developer Guide*. Disponível em: [https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/). Acesso em: 9 set. 2026.
-- AMAZON WEB SERVICES. *User Guide for Application Load Balancers*. Disponível em: [https://docs.aws.amazon.com/elasticloadbalancing/latest/application/](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/). Acesso em: 9 set. 2026.
+&emsp;As citações no corpo do documento seguem o formato autor-data. Entradas da
+mesma autoria e do mesmo ano recebem uma letra (2026a, 2026b, 2026c) para que a
+citação aponte a fonte exata.
+
+- AMAZON WEB SERVICES. *Amazon EC2 Auto Scaling User Guide*, 2026a. Disponível em: [https://docs.aws.amazon.com/autoscaling/ec2/userguide/](https://docs.aws.amazon.com/autoscaling/ec2/userguide/). Acesso em: 9 set. 2026.
+- AMAZON WEB SERVICES. *Amazon Simple Queue Service Developer Guide*, 2026b. Disponível em: [https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/). Acesso em: 9 set. 2026.
+- AMAZON WEB SERVICES. *User Guide for Application Load Balancers*, 2026c. Disponível em: [https://docs.aws.amazon.com/elasticloadbalancing/latest/application/](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/). Acesso em: 9 set. 2026.
 - COCKBURN, Alistair. *Hexagonal Architecture (Ports and Adapters)*. 2005. Disponível em: [https://alistair.cockburn.us/hexagonal-architecture/](https://alistair.cockburn.us/hexagonal-architecture/). Acesso em: 9 set. 2026.
 - COCKBURN, Alistair. *Writing Effective Use Cases*. Boston: Addison-Wesley, 2001.
-- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Arquitetura inicial da Plataforma Argus*. Artefato do repositório: [arquitetura-inicial.md](arquitetura-inicial.md), 2026.
-- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Entendimento de UX*. Artefato do repositório: [entendimento_ux.md](entendimento_ux.md), 2026.
-- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Requisitos funcionais e não funcionais*. Artefato do repositório: [requisitos.md](requisitos.md), 2026.
+- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Arquitetura inicial da Plataforma Argus*, 2026a. Artefato do repositório: [arquitetura-inicial.md](arquitetura-inicial.md).
+- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Entendimento de UX*, 2026b. Artefato do repositório: [entendimento_ux.md](entendimento_ux.md).
+- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Requisitos funcionais e não funcionais*, 2026c. Artefato do repositório: [requisitos.md](requisitos.md).
 - EVANS, Eric. *Domain-Driven Design: Tackling Complexity in the Heart of Software*. Boston: Addison-Wesley, 2003.
 - GRUPO GLOBO; INTELI. *TAPI - Turma 15 - Ciência da Computação - Módulo 7: Monitoração Agêntica*. Documento de definição do projeto parceiro, 2026.
 - INTERNATIONAL ORGANIZATION FOR STANDARDIZATION. *ISO 8601-1:2019 — Date and time — Representations for information interchange — Part 1: Basic rules*. Genebra: ISO, 2019.
 - JONES, Michael; HARDT, Dick. *RFC 6750: The OAuth 2.0 Authorization Framework: Bearer Token Usage*. IETF, 2012. Disponível em: [https://www.rfc-editor.org/rfc/rfc6750](https://www.rfc-editor.org/rfc/rfc6750). Acesso em: 9 set. 2026.
-- MERMAID. *Mermaid Documentation*. Disponível em: [https://mermaid.js.org/](https://mermaid.js.org/). Acesso em: 9 set. 2026.
+- MERMAID. *Mermaid Documentation*, 2026. Disponível em: [https://mermaid.js.org/](https://mermaid.js.org/). Acesso em: 9 set. 2026.
 - NOTTINGHAM, Mark; WILDE, Erik. *RFC 7807: Problem Details for HTTP APIs*. IETF, 2016. Disponível em: [https://www.rfc-editor.org/rfc/rfc7807](https://www.rfc-editor.org/rfc/rfc7807). Acesso em: 9 set. 2026.
 - OBJECT MANAGEMENT GROUP. *OMG Unified Modeling Language (OMG UML), version 2.5.1*. 2017. Disponível em: [https://www.omg.org/spec/UML/](https://www.omg.org/spec/UML/). Acesso em: 9 set. 2026.
-- PALLETS PROJECTS. *Flask Documentation*. Disponível em: [https://flask.palletsprojects.com/](https://flask.palletsprojects.com/). Acesso em: 9 set. 2026.
-- POSTGRESQL GLOBAL DEVELOPMENT GROUP. *PostgreSQL 16 Documentation*. Disponível em: [https://www.postgresql.org/docs/16/](https://www.postgresql.org/docs/16/). Acesso em: 9 set. 2026.
-- PYDANTIC. *Pydantic Documentation*. Disponível em: [https://docs.pydantic.dev/](https://docs.pydantic.dev/). Acesso em: 9 set. 2026.
+- PALLETS PROJECTS. *Flask Documentation*, 2026. Disponível em: [https://flask.palletsprojects.com/](https://flask.palletsprojects.com/). Acesso em: 9 set. 2026.
+- POSTGRESQL GLOBAL DEVELOPMENT GROUP. *PostgreSQL 16 Documentation*, 2026. Disponível em: [https://www.postgresql.org/docs/16/](https://www.postgresql.org/docs/16/). Acesso em: 9 set. 2026.
+- PYDANTIC. *Pydantic Documentation*, 2026. Disponível em: [https://docs.pydantic.dev/](https://docs.pydantic.dev/). Acesso em: 9 set. 2026.
 - WELFORD, B. P. Note on a method for calculating corrected sums of squares and products. *Technometrics*, v. 4, n. 3, p. 419-420, 1962.
