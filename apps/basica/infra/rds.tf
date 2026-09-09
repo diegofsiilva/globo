@@ -174,8 +174,8 @@ resource "aws_db_instance" "main" {
   # (make migrate-aws). A variavel var.db_publicly_accessible permanece apenas
   # para compatibilidade com workspaces legados e eh ignorada; qualquer valor
   # diferente de false gera erro em `terraform validate` via variavel validada.
-  publicly_accessible    = false
-  multi_az               = var.db_multi_az
+  publicly_accessible = false
+  multi_az            = var.db_multi_az
 
   parameter_group_name       = aws_db_parameter_group.main.name
   backup_retention_period    = var.db_backup_retention_days
