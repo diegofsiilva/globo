@@ -172,26 +172,26 @@ variable "db_password" {
 
 variable "db_publicly_accessible" {
   description = <<-EOT
-    Endereco publico na instancia.
+    Legado — mantido apenas para compatibilidade com tfvars antigos.
 
-    `false` e a postura de producao, o padrao aqui, e o que o ambiente de
-    entrega usa.
-
-    Ate a adequacao do RNF09 o laboratorio ligava `true` para rodar `make
-    migrate` da propria maquina. Isso deixava a decisao de exposicao do banco
-    depender de uma linha de tfvars e do IP de quem estava trabalhando: mudar de
-    rede quebrava o acesso, e esquecer de reverter deixava o banco alcancavel de
-    fora. O caminho agora e a task `migration`, que roda dentro da VPC e nao
-    precisa de nenhuma regra de entrada externa:
+    A instancia RDS eh fixada em `publicly_accessible = false` diretamente em
+    `rds.tf` por exigencia da rubrica (3). Esta variavel eh IGNORADA pelo
+    recurso; mantem-se aqui para nao quebrar `terraform plan` de workspaces
+    que ainda a definem. Para acesso administrativo use a task `migration`:
 
       cd infra && terraform output -raw migration_status_command | bash
       cd infra && terraform output -raw migration_run_command | bash
 
-    Ligar isto NAO abre o banco sozinho: quem abre e db_allowed_cidr, e sem ele
-    o security group nao tem regra de entrada externa nenhuma.
+    Qualquer valor diferente de `false` eh rejeitado para evitar reexposicao
+    acidental do banco.
   EOT
   type        = bool
   default     = false
+
+  validation {
+    condition     = var.db_publicly_accessible == false
+    error_message = "db_publicly_accessible deve ser false — o RDS eh privado por exigencia da rubrica. Use a task migration dentro da VPC para administracao."
+  }
 }
 
 variable "db_allowed_cidr" {

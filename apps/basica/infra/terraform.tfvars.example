@@ -43,11 +43,13 @@ db_allocated_storage = 100
 db_password_from_secrets_manager = false
 db_password                      = "troque-por-uma-senha-longa-de-verdade"
 
-# Publico + CIDR do seu IP: e o que permite rodar as migrations e inspecionar o
-# banco da sua maquina sem bastion. NUNCA 0.0.0.0/0 (a validacao recusa).
-# Descubra o seu IP com: curl -s ifconfig.me
-db_publicly_accessible = true
-db_allowed_cidr        = "203.0.113.10/32"
+# RDS eh privado por exigencia da rubrica (3) — fixado em false em rds.tf.
+# Para inspecionar/migrar use a task dentro da VPC (make migrate-aws), nao IP publico.
+# db_publicly_accessible DEVE ser false; qualquer outro valor falha no validate.
+# db_allowed_cidr so tem efeito se a instancia fosse publica, o que nao ocorre mais;
+# mantenha vazio (padrao seguro) ou remova a linha.
+db_publicly_accessible = false
+db_allowed_cidr        = ""
 
 # --- Usuario de leitura da API ----------------------------------------------
 # Precisa ser a MESMA senha que voce passar em DB_READER_PASSWORD ao rodar

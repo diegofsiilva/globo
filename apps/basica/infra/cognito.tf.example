@@ -1,0 +1,51 @@
+# Evolucao para identidade por pessoa (RNF09) — Cognito User Pool
+#
+# Limite atual: dois tokens estaticos de servico (dashboard/ingest) com SHA-256
+# no Secrets Manager. O token do dashboard eh compartilhado por todo operador
+# no navegador — autenticacao maquina-a-maquina, sem login, perfil ou revogacao
+# individual (desconto da rubrica 3). A alternativa JWT abaixo resolve isso
+# sem alterar o handler do Authorizer além de verificar o `aud`.
+#
+# Para ativar em conta com permissao cognito: cp cognito.tf.example cognito.tf
+# e configure o Authorizer para tipo JWT em vez de REQUEST.
+#
+# resource "aws_cognito_user_pool" "argus" {
+#   name = "${local.name}-users"
+#   password_policy { minimum_length = 12 require_lowercase = true require_numbers = true require_symbols = true }
+#   account_recovery_setting { recovery_mechanism { name = "verified_email" priority = 1 } }
+#   auto_verified_attributes = ["email"]
+#   username_attributes      = ["email"]
+# }
+#
+# resource "aws_cognito_user_pool_client" "dashboard" {
+#   name                 = "${local.name}-dashboard"
+#   user_pool_id         = aws_cognito_user_pool.argus.id
+#   generate_secret      = false
+#   allowed_oauth_flows  = ["password"]
+#   allowed_oauth_scopes = ["openid", "email", "profile"]
+#   explicit_auth_flows  = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
+#   prevent_user_existence_errors = "ENABLED"
+# }
+#
+# resource "aws_cognito_user_pool_domain" "argus" {
+#   domain       = "${local.name}-${var.environment}"
+#   user_pool_id = aws_cognito_user_pool.argus.id
+# }
+#
+# # API Gateway JWT Authorizer (substitui o REQUEST de auth.tf quando Cognito estiver ativo):
+# # resource "aws_apigatewayv2_authorizer" "read_jwt" {
+# #   api_id           = aws_apigatewayv2_api.read.id
+# #   authorizer_type  = "JWT"
+# #   identity_sources = ["$request.header.Authorization"]
+# #   name             = "${local.name}-read-jwt"
+# #   jwt_configuration {
+# #     audience = [aws_cognito_user_pool_client.dashboard.id]
+# #     issuer   = "https://${aws_cognito_user_pool.argus.endpoint}"
+# #   }
+# # }
+# # Trocar em api_read.tf: authorizer_id = aws_apigatewayv2_authorizer.read_jwt.id
+# # e remover aws_apigatewayv2_authorizer.read (ou manter os dois em rotas diferentes).
+#
+# # Revogacao individual: Cognito GlobalSignOut / AdminUserGlobalSignOut invalida
+# # refresh token do usuario; short-lived access token (15 min) limita janela.
+# # O token deixa de ser compartilhado: cada operador autentica com email/senha.

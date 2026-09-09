@@ -169,7 +169,12 @@ resource "aws_db_instance" "main" {
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
-  publicly_accessible    = var.db_publicly_accessible
+  # Fixado em false por exigencia da rubrica (3): o banco nunca eh exposto
+  # publicamente. O acesso administrativo usa a task `migration` dentro da VPC
+  # (make migrate-aws). A variavel var.db_publicly_accessible permanece apenas
+  # para compatibilidade com workspaces legados e eh ignorada; qualquer valor
+  # diferente de false gera erro em `terraform validate` via variavel validada.
+  publicly_accessible    = false
   multi_az               = var.db_multi_az
 
   parameter_group_name       = aws_db_parameter_group.main.name
