@@ -41,6 +41,22 @@ class Config:
     # psycopg, o que e util numa investigacao e caro como padrao.
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+    # Autenticacao Bearer dentro da aplicacao.
+    #
+    # Existe desde que a API saiu da Lambda: o API Gateway tinha um authorizer,
+    # o Application Load Balancer nao tem, e sem isto tirar o gateway do caminho
+    # deixaria a API aberta. Ver interfaces/auth.py.
+    #
+    # Desligada por padrao porque o desenvolvimento local, os testes e o e2e do
+    # frontend sobem a aplicacao sem segredo nenhum. Quem liga na AWS e o
+    # user_data do launch template (infra/asg.tf).
+    AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "0")
+
+    # SHA-256 do token da audiencia `dashboard`. NAO e o token: o valor em claro
+    # nunca entra na instancia. O user_data le o hash do Secrets Manager no boot
+    # e o injeta aqui -- e por isso que a aplicacao nao precisa de boto3.
+    DASHBOARD_TOKEN_SHA256 = os.getenv("DASHBOARD_TOKEN_SHA256", "")
+
     # O unico POST desta API e feedback textual curto.
     MAX_CONTENT_LENGTH = 4096
 

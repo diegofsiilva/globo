@@ -1,0 +1,83 @@
+#!/bin/bash
+# Boot da instancia do Auto Scaling Group que serve a API de leitura.
+#
+# A ordem das etapas nao e arbitraria: cada uma so pode rodar depois que a
+# anterior terminou, e a instancia so deve comecar a responder na porta da
+# aplicacao quando TUDO tiver dado certo -- o target group aprova o alvo assim
+# que /health/live responder 200, e um 200 dado por um container sem banco
+# colocaria em servico uma instancia que erra toda consulta.
+#
+# `set -euo pipefail` e o que garante isso: qualquer etapa que falhe aborta o
+# script, o container nunca sobe, o health check nunca passa, e o ASG substitui
+# a instancia em vez de deixa-la servindo erro.
+set -euo pipefail
+
+exec > >(tee /var/log/argus-boot.log | logger -t argus-boot) 2>&1
+
+echo "== 1. dependencias"
+dnf install -y docker amazon-cloudwatch-agent
+systemctl enable --now docker
+
+echo "== 2. login no ECR"
+# A credencial vem do instance profile, por IMDSv2. Nao ha chave de acesso na
+# instancia, e e por isso que o rollback nao precisa rotacionar segredo nenhum.
+aws ecr get-login-password --region ${region} \
+  | docker login --username AWS --password-stdin ${registry}
+
+echo "== 3. hash do token de leitura"
+# O que entra na instancia e o SHA-256 do token, nunca o token.
+#
+# Quem valida o Bearer agora e o proprio Flask (interfaces/auth.py), porque um
+# ALB nao tem authorizer como o API Gateway tinha. Mas a app nao fala com a AWS
+# -- `boto3` foi removido dela de proposito (backend/AGENTS.md, regra 5) -- entao
+# quem consulta o Secrets Manager e este script, no boot, e passa o hash adiante
+# por variavel de ambiente.
+#
+# Consequencia assumida: rotacionar o token (`make auth-rotate`) exige um
+# `start-instance-refresh` para que as instancias releiam o segredo. Sem isso as
+# instancias antigas continuam aceitando o token antigo ate serem substituidas.
+TOKEN_HASHES=$(aws secretsmanager get-secret-value \
+  --region ${region} \
+  --secret-id ${secret_id} \
+  --query SecretString --output text)
+DASHBOARD_HASH=$(printf '%s' "$TOKEN_HASHES" | python3 -c 'import json,sys; print(json.load(sys.stdin)["dashboard"])')
+
+echo "== 4. agente CloudWatch"
+# O log do container vai para o mesmo log group que a Lambda usava, para que as
+# consultas do Logs Insights e os alarmes existentes continuem valendo depois da
+# migracao -- e para que o historico nao fique partido em dois lugares.
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWEOF'
+${cloudwatch_config}
+CWEOF
+systemctl enable amazon-cloudwatch-agent
+systemctl restart amazon-cloudwatch-agent
+
+echo "== 5. aplicacao"
+docker pull ${image}
+
+# `--restart=always` cobre a falha do processo; o health check do target group
+# cobre a falha que o Docker nao enxerga (gunicorn vivo mas travado). Os dois
+# juntos sao o que faz `health_check_type = "ELB"` valer a pena.
+#
+# `--log-driver=awslogs` entrega o stdout do gunicorn direto ao CloudWatch, sem
+# passar por arquivo em disco: um disco cheio deixaria de derrubar o log.
+docker run -d \
+  --name argus-api \
+  --restart=always \
+  -p ${app_port}:5000 \
+  --log-driver=awslogs \
+  --log-opt awslogs-region=${region} \
+  --log-opt awslogs-group=${log_group} \
+  --log-opt awslogs-stream=$(hostname) \
+  -e DATABASE_URL='${database_url}' \
+  -e CORS_ORIGINS='${cors_origins}' \
+  -e LOG_LEVEL='${log_level}' \
+  -e DEFAULT_WINDOW_HOURS='${default_window_hours}' \
+  -e MAX_ITEMS_SCANNED='${max_items_scanned}' \
+  -e USER_ID_HASH_SALT='${user_id_hash_salt}' \
+  -e AWS_REGION='${region}' \
+  -e AUTH_REQUIRED=1 \
+  -e DASHBOARD_TOKEN_SHA256="$DASHBOARD_HASH" \
+  ${image}
+
+echo "== boot concluido"
