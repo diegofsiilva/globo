@@ -163,6 +163,19 @@ classDiagram
     class OpenApiSpec["interfaces.openapi"] {
         <<module>>
         +build_spec() dict
+        +ROTAS_PUBLICAS
+    }
+    class AuthGuard["interfaces.auth"] {
+        <<module>>
+        +register_auth(Flask) void
+        +hash_do_token(str) str$
+        +rota_publica(str) bool$
+    }
+    class ALB["Application Load Balancer + Auto Scaling Group"] {
+        <<boundary: EC2>>
+        +listener HTTP 80
+        +target group HTTP 5000
+        +health check /health/live
     }
 
     class Config {
@@ -171,10 +184,12 @@ classDiagram
         +int DEFAULT_WINDOW_HOURS
         +int MAX_ITEMS_SCANNED
         +str CORS_ORIGINS
+        +bool AUTH_REQUIRED
+        +str DASHBOARD_TOKEN_SHA256
     }
     class TestConfig
 
-    class BancoPostgres["Banco — views v_* de silver / gold / sim"] {
+    class BancoPostgres["Banco: views v_* de silver / gold / sim"] {
         <<RDS PostgreSQL>>
     }
 
@@ -218,7 +233,12 @@ classDiagram
     AppFactory ..> HypothesisRepository : instancia
     AppFactory ..> SignalsRepository : instancia
     AppFactory ..> HttpBlueprints : registra
+    AppFactory ..> AuthGuard : registra before_request
     AppFactory o-- Config
+    AuthGuard ..> OpenApiSpec : lê ROTAS_PUBLICAS
+    AuthGuard ..> Config : AUTH_REQUIRED, hash do token
+    ALB ..> AppFactory : HTTP 5000 (gunicorn)
+    ALB ..> AuthGuard : /health/live sem token
     HttpBlueprints ..> SearchEvents
     HttpBlueprints ..> GenerateSignals
     HttpBlueprints ..> TelemetryError : traduz p/ Problem Details (RFC 7807)
@@ -226,4 +246,5 @@ classDiagram
 
     note for EventRepositoryPort "Porta só de leitura: sem add/delete.<br/>A escrita pertence ao pipeline de ingestão."
     note for PostgresEventRepository "Lê de silver.v_session_event.<br/>Redação de dado pessoal na saída (RNF10)."
+    note for AuthGuard "Recebe o hash do token, nunca o token.<br/>401 sem cabeçalho, 403 com token errado."
     note for QueryStats "strategy/scanned/returned vão na resposta:<br/>tornam visível o custo de cada consulta."

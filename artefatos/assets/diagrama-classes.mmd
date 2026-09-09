@@ -250,22 +250,33 @@ classDiagram
             <<factory>>
             +create_app(...) Flask
         }
+        class AuthGuard["interfaces.auth"] {
+            <<module>>
+            +register_auth(Flask) void
+            +hash_do_token(str) str$
+        }
         class TelemetryError {
             <<exception>>
         }
     }
 
-    class APIIngestao["API Gateway — ingestão + mudanças"] {
-        <<boundary — HTTP API>>
+    class APIIngestao["API Gateway: ingestão + mudanças"] {
+        <<boundary: HTTP API>>
     }
     class FilaSQS["SQS events + changes (com DLQ)"] {
-        <<boundary — fila>>
+        <<boundary: fila>>
     }
-    class LambdaAuthorizer["Lambda Authorizer"] {
-        <<boundary — Lambda>>
+    class LambdaAuthorizer["Lambda Authorizer (só ingestão)"] {
+        <<boundary: Lambda>>
         +handler(event) policy
     }
-    class Banco["Banco Argus — bronze / silver / gold / detect / sim / etl"] {
+    class ALB["Application Load Balancer + Auto Scaling Group"] {
+        <<boundary: EC2>>
+        +listener HTTP 80
+        +target group HTTP 5000
+        +health check /health/live
+    }
+    class Banco["Banco Argus: bronze / silver / gold / detect / sim / etl"] {
         <<RDS PostgreSQL 16>>
     }
     class Dashboard["Dashboard (Next.js, export estático)"] {
@@ -336,9 +347,12 @@ classDiagram
     GoldRepository --> Banco : views gold / silver / sim
     HypothesisRepository --> Banco : views gold + função de feedback
     SignalsRepository --> Banco : gold.v_feature_bucket
-    Dashboard ..> AppFactory : HTTP (Bearer)
-    Dashboard ..> LambdaAuthorizer : valida Bearer
+    Dashboard ..> ALB : HTTP 80 (Bearer)
+    ALB ..> AppFactory : encaminha para gunicorn na porta 5000
+    AppFactory ..> AuthGuard : registra before_request
+    AuthGuard ..> ALB : /health/live dispensa token
     Database --> Banco
 
     note for Banco "Fonte de verdade única dos dois fluxos de ingestão.<br/>Toda view v_* filtra available_at &lt;= sim.now()."
-    note for EventRepoPort "Docstrings herdadas da v2 ainda citam DynamoDB;<br/>a implementação real é PostgreSQL."
+    note for ALB "A API de leitura roda em instâncias EC2 de um Auto Scaling Group.<br/>Como o balanceador não tem authorizer, quem valida o Bearer é o Flask."
+    note for EventRepoPort "Referências a DynamoDB nas docstrings são históricas;<br/>a implementação atual é PostgreSQL."
