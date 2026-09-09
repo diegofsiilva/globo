@@ -12,6 +12,13 @@ Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, proce
 
 ## Resultado executivo
 
+> **Revisao posterior ao ensaio de 2 de setembro:** o requisito de capacidade
+> passou a ser expresso como lote: 10.000 eventos/min em um ciclo de 15 minutos
+> equivalem a 150.000 eventos por lote. Os resultados historicos abaixo
+> continuam descrevendo as execucoes realizadas, mas nao comprovam sozinhos o
+> novo criterio. A nova suite esta preparada; os campos de resultado permanecem
+> pendentes ate uma execucao contra a implantacao ativa.
+
 | Requisito ou cenário | Resultado principal | Situação |
 |---|---|---|
 | RNF01 — capacidade | pico real de 10.000 eventos/min, p95 de 161,8 ms e 12.152/12.152 eventos persistidos | Aprovado |
@@ -22,6 +29,20 @@ Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, proce
 | RNF05 — falhas no fluxo de mudanças | serviço recuperado após fila cheia e interrupção do worker, sem reconciliação total dos eventos | Parcialmente comprovado |
 | RNF11 — registros de falha | causas específicas presentes na DLQ; faltam evidências completas de horário, etapa e ausência de dado sensível | Parcialmente comprovado |
 | Observabilidade | latência, throughput, erros, CPU e filas visualizados com dados reais | Implementado e validado |
+
+### Matriz pendente do requisito revisado
+
+| Cenário | Eventos | Injeção | Drenagem | Vazão de drenagem | Frescor p95 | Integridade | Situação |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 1 lote | 150.000 | Pendente | Pendente | Pendente | Pendente | Pendente | Preparado |
+| 2 lotes represados | 300.000 | Pendente | Pendente | Pendente | Pendente | Pendente | Preparado |
+| 3 lotes represados | 450.000 | Pendente | Pendente | Pendente | Pendente | Pendente | Preparado |
+| 4 lotes represados | 600.000 | Pendente | Pendente | Pendente | Pendente | Pendente | Preparado |
+
+O lote logico e enviado em fragmentos limitados por bytes porque cada corpo do
+`POST /v1/events` vira uma mensagem SQS. Portanto, profundidade da fila mede
+fragmentos, nao quantidade de eventos. A aprovacao exige reconciliar eventos
+aceitos, persistidos e rejeitados, alem de fila principal e DLQ ao final.
 
 ## 1. Requisitos não funcionais e planos de teste revisados (peso 3,0)
 
