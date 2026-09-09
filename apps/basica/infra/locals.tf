@@ -59,9 +59,14 @@ locals {
   authorizer_role_arn     = var.create_iam_roles ? aws_iam_role.authorizer[0].arn : var.existing_role_arn
 
   # O papel que o servico de VPC Flow Logs assume para escrever no CloudWatch.
-  # Mesmo colapso dos demais: no Learner Lab tudo vira a LabRole.
+  # So existe nesse destino: no S3 quem autoriza e a politica do bucket.
+  #
+  # O colapso na LabRole, que funciona para os demais papeis do stack, NAO
+  # funciona para este: a politica de confianca da LabRole nao inclui
+  # `vpc-flow-logs.amazonaws.com`. E por isso que `flow_logs_destination` tem
+  # `s3` como padrao -- ver a variavel.
   flow_log_role_arn = (
-    var.create_network && var.create_iam_roles
+    var.create_network && var.flow_logs_destination == "cloudwatch" && var.create_iam_roles
     ? aws_iam_role.flow_log[0].arn
     : var.existing_role_arn
   )
@@ -137,13 +142,17 @@ data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {}
 
+# O caminho alternativo: a VPC que a AWS entrega pronta em toda conta. So e
+# consultada quando nem `var.vpc_id` nem `var.create_network` respondem pela
+# rede -- consultar sempre custaria uma chamada inutil e, numa conta sem VPC
+# default, faria o plan falhar por uma rede que este stack nem usa.
 data "aws_vpc" "default" {
-  count   = var.vpc_id == "" ? 1 : 0
+  count   = var.vpc_id == "" && !var.create_network ? 1 : 0
   default = true
 }
 
 data "aws_subnets" "default" {
-  count = length(var.subnet_ids) == 0 ? 1 : 0
+  count = length(var.subnet_ids) == 0 && !var.create_network ? 1 : 0
 
   filter {
     name   = "vpc-id"

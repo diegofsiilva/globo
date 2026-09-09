@@ -296,9 +296,25 @@ output "nat_gateway_ip" {
   value       = var.create_network ? aws_eip.nat[0].public_ip : null
 }
 
-output "flow_log_group_name" {
-  description = "Log group dos VPC Flow Logs. Responde 'a conexao chegou?'."
-  value       = var.create_network ? aws_cloudwatch_log_group.vpc_flow[0].name : null
+output "flow_log_destino" {
+  description = <<-EOT
+    Onde procurar os VPC Flow Logs -- o bucket S3 ou o log group, conforme
+    `flow_logs_destination`. Responde "a conexao chegou?".
+  EOT
+  value = (
+    !var.create_network ? null :
+    var.flow_logs_destination == "s3"
+    ? "s3://${local.flow_logs_bucket}"
+    : aws_cloudwatch_log_group.vpc_flow[0].name
+  )
+}
+
+output "s3_gateway_endpoint_id" {
+  description = <<-EOT
+    Gateway endpoint de S3 associado a tabela de rota privada. E o que tira o
+    trafego do `loader` de cima do NAT -- e o NAT cobra por GB.
+  EOT
+  value       = var.create_network ? aws_vpc_endpoint.s3[0].id : null
 }
 
 output "alb_dns_name" {

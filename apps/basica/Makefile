@@ -312,7 +312,7 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(INFRA) && terraform fmt -recursive
 
 .PHONY: check
-check: lint test frontend-build-check test-frontend-e2e tf-validate ## Tudo que a CI deveria rodar
+check: lint test frontend-build-check test-frontend-e2e tf-validate tf-test ## Tudo que a CI deveria rodar
 
 # O build do dashboard faz parte do portao, e nao so o lint.
 #
@@ -387,6 +387,15 @@ tf-init: ## Inicializa o Terraform
 .PHONY: tf-validate
 tf-validate: ## Valida a configuracao sem tocar na AWS
 	cd $(INFRA) && terraform validate
+
+.PHONY: tf-test
+tf-test: ## Testa a rede com provider mockado, sem tocar na AWS
+# `validate` confirma sintaxe, tipos e referencias. Nao confirma que a
+# COMBINACAO de variaveis produz uma rede valida -- CIDR de sub-rede fora da
+# VPC, ou task privada pedindo IP publico, passam por ele. Isto pega.
+#
+# Roda offline: nao precisa de sessao do Learner Lab, que vence em horas.
+	cd $(INFRA) && terraform test
 
 .PHONY: tf-plan
 tf-plan: lambda-build ## Mostra o que mudaria na AWS (somente leitura)

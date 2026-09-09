@@ -292,9 +292,20 @@ existing_role_arn = "arn:aws:iam::<conta>:role/LabRole"
 ```
 
 A `LabRole` confia em `apigateway.amazonaws.com`, `ecs-tasks.amazonaws.com` e
-`lambda.amazonaws.com`, os três de que este stack precisa. Mas ela é **muito**
-mais permissiva do que o necessário: numa conta normal deixe
-`create_iam_roles = true` e cada componente ganha permissão mínima.
+`lambda.amazonaws.com`. Mas ela é **muito** mais permissiva do que o necessário:
+numa conta normal deixe `create_iam_roles = true` e cada componente ganha
+permissão mínima.
+
+A lista de confiança tem 53 serviços e **`vpc-flow-logs.amazonaws.com` não está
+entre eles** — verificado na conta. Por isso `flow_logs_destination` tem `s3`
+como padrão: esse destino usa política de bucket em vez de papel IAM. O caminho
+do CloudWatch é criado sem erro e simplesmente nunca escreve, que é o pior modo
+de falha possível para uma evidência de entrega.
+
+```bash
+aws iam get-role --role-name LabRole --profile g4 \
+  --query 'Role.AssumeRolePolicyDocument.Statement[].Principal.Service' --output json
+```
 
 **2. O Secrets Manager é imprevisível no lab.** A senha do RDS pode vir do
 `tfvars` em vez do Secrets Manager:
@@ -315,6 +326,26 @@ aws rds describe-orderable-db-instance-options --profile g4 \
   --engine postgres --engine-version 16 \
   --query 'OrderableDBInstanceOptions[].DBInstanceClass' --output text
 ```
+
+**4. A SCP da organização nega `s3:GetBucketObjectLockConfiguration`.** O provider
+AWS chama exatamente essa API ao reler qualquer `aws_s3_bucket` recém-criado. O
+bucket nasce, o `apply` falha na releitura, e o recurso fica no estado quebrando
+todo `plan` seguinte. Apenas essa chamada é negada — `GetBucketPolicy`,
+`GetPublicAccessBlock`, `GetBucketEncryption`, `GetBucketLifecycleConfiguration`
+e `GetBucketVersioning` passam.
+
+Os buckets desta camada aceitam um nome criado fora do Terraform, e continuam
+com política, bloqueio público, criptografia e ciclo de vida gerenciados aqui:
+
+```hcl
+flow_logs_bucket_name = "argus-flow-logs-<conta>"
+alb_logs_bucket_name  = "argus-alb-logs-<conta>"
+```
+
+A restrição atinge igualmente `aws_s3_bucket.origem` e `aws_s3_bucket.frontend`,
+que são anteriores a esta entrega e ainda não têm a mesma válvula. O paliativo
+para eles é `terraform plan -refresh=false`, já que estão no estado e sem refresh
+o provider não os relê.
 
 **Credenciais expiram.** A sessão do laboratório vence em algumas horas. Quando
 vence, a AWS anexa uma policy `voc-cancel-cred` que **nega tudo** — os comandos
@@ -337,12 +368,47 @@ Com os workers parados, as APIs continuam aceitando e as filas retêm por 4 dias
 
 ## Rede: pública vs privada
 
-O padrão é **subnet pública com IP público e security group sem regra de
-entrada**. As tasks alcançam as APIs da AWS pela internet, mas ninguém alcança as
-tasks — não há porta aberta.
+O padrão é a **VPC dedicada** de `vpc.tf` (`create_network = true`): duas
+sub-redes públicas e duas privadas, em duas AZs, com NAT Gateway.
 
-O RDS **não é exceção**: ele é privado e aceita conexão apenas do security
-group das tasks. Não há regra para CIDR externo.
+O que separa pública de privada não é nada na sub-rede — é a **tabela de rota**
+associada a ela. A pública roteia `0.0.0.0/0` para o Internet Gateway, que é
+simétrico (deixa sair e deixa entrar). A privada roteia para o NAT Gateway, que
+é assimétrico: a máquina de dentro inicia conexão para fora e a resposta volta,
+mas ninguém de fora consegue iniciar conexão para dentro, porque não existe
+caminho de entrada.
+
+| Sub-rede | Quem mora lá |
+|---|---|
+| Pública | ALB, NAT Gateway, bastion — os únicos com motivo para ter endereço roteável |
+| Privada | instâncias do ASG, tasks Fargate, Lambda de leitura, subnet group do RDS |
+
+Antes desta camada, as tasks rodavam na VPC default com `assign_public_ip =
+true`. O único controle que impedia alguém de alcançá-las era o security group
+sem regra de entrada. Com sub-rede privada some também a rota: **dois controles
+independentes em vez de um**.
+
+As duas chaves andam juntas, e o Terraform recusa a combinação errada já no
+`plan` — `create_network = true` com `assign_public_ip = true` põe a task numa
+sub-rede sem rota para o IGW, onde o endereço público não serve para nada e o
+pull do ECR falha.
+
+Um **gateway endpoint de S3** (grátis) está associado à tabela de rota privada.
+Ele tira do NAT os ~200 MB de Parquet que o `loader` lê por carga — e o NAT
+cobra por GB trafegado.
+
+**Um NAT, não um por AZ.** A recomendação da AWS para produção é um por zona,
+para que a queda de uma não leve junto a saída da outra. Aqui é um só, por custo
+(~US$ 32/mês cada). A consequência está assumida: se a AZ do NAT cair, as
+instâncias da outra zona continuam servindo tráfego pelo ALB — o caminho de
+leitura não passa pelo NAT — mas perdem a saída para a internet.
+
+**Trocar de rede recria o banco.** A AWS não move uma instância RDS entre VPCs, e
+um subnet group só aceita sub-redes da própria VPC. Tire um snapshot manual antes
+de ligar ou desligar `create_network` num ambiente já aplicado.
+
+O RDS **não é exceção** à postura privada: ele aceita conexão apenas dos security
+groups autorizados. Não há regra para CIDR externo.
 
 Até a adequação do RNF09 o banco era público, restrito ao IP de quem estava
 trabalhando. A exposição do dado do parceiro dependia de uma linha de `tfvars` e
@@ -354,14 +420,15 @@ make -C .. migrate-status-aws
 make -C .. migrate-aws
 ```
 
-Para exigência de subnet privada, `assign_public_ip = false` exige uma destas:
+A alternativa ao NAT seria trocá-lo por **VPC endpoints de interface**. Sairia
+mais caro no desenho atual e exigiria *todos* estes, senão a task nem baixa a
+imagem e o service entra em crash loop:
 
-- **NAT Gateway** — simples, ~US$ 32/mês + tráfego.
-- **VPC endpoints** — sem NAT, mas precisa de *todos* estes, senão a task nem
-  baixa a imagem e o service entra em crash loop:
-  - Gateway (grátis): `s3`
-  - Interface (~US$ 7/mês cada por AZ): `sqs`, `ecr.api`, `ecr.dkr`, `logs`,
-    `secretsmanager`
+- Gateway (grátis): `s3` — **este já existe**, e é complementar ao NAT
+- Interface (~US$ 7/mês cada por AZ): `sqs`, `ecr.api`, `ecr.dkr`, `logs`,
+  `secretsmanager`
+
+Cinco interfaces em duas AZs passam de US$ 70/mês contra os ~US$ 32 do NAT.
 
 ---
 
@@ -454,5 +521,11 @@ de propósito. Para remover mesmo, mude para `false`, aplique, e só então dest
 | `frontend_s3.tf` | bucket do dashboard, com website hosting |
 | `iam.tf` | execution role e task role, separadas |
 | `observability.tf` | SNS e os 11 alarmes |
-| `locals.tf` | lookup da VPC/subnets default e a lista de imagens |
+| `vpc.tf` | VPC dedicada, sub-redes, IGW, NAT, tabelas de rota e gateway endpoint de S3 |
+| `vpc_logs.tf` | VPC Flow Logs (S3 ou CloudWatch) e access logs do ALB |
+| `bastion.tf` | bastion host e as regras de acesso administrativo |
+| `alb.tf` | Application Load Balancer, target group e listener |
+| `asg.tf` | launch template, Auto Scaling Group e política de escalonamento |
+| `asg_observability.tf` | alarmes e painel do caminho síncrono |
+| `locals.tf` | resolução da rede, papéis e a lista de imagens |
 | `outputs.tf` | endpoints, nomes de recurso e comandos prontos (push, carga) |

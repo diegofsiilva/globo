@@ -45,7 +45,7 @@ resource "aws_lb" "app" {
     for_each = var.alb_access_logs_enabled ? [1] : []
 
     content {
-      bucket  = aws_s3_bucket.alb_logs[0].id
+      bucket  = local.alb_logs_bucket
       prefix  = "alb"
       enabled = true
     }

@@ -26,6 +26,35 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+locals {
+  azs = var.create_network ? (
+    length(var.azs) > 0
+    ? var.azs
+    : slice(data.aws_availability_zones.available[0].names, 0, 2)
+  ) : []
+
+  # As faixas saem de `vpc_cidr`, e nao de literais.
+  #
+  # Com listas fixas, trocar `vpc_cidr` para 10.42.0.0/16 e esquecer as sub-redes
+  # deixa 10.0.0.0/24 pendurado fora da VPC: o apply quebra com
+  # "InvalidSubnet.Range", num erro que aponta para a sub-rede e nao para a
+  # variavel que a causou. Derivando, a segunda faixa acompanha a primeira.
+  #
+  # O salto de 10 no indice das privadas e legibilidade: olhando um IP num flow
+  # log, o terceiro octeto ja diz de que lado da rede ele veio.
+  public_cidrs = var.create_network ? (
+    length(var.public_subnet_cidrs) > 0
+    ? var.public_subnet_cidrs
+    : [for i, _ in local.azs : cidrsubnet(var.vpc_cidr, 8, i)]
+  ) : []
+
+  private_cidrs = var.create_network ? (
+    length(var.private_subnet_cidrs) > 0
+    ? var.private_subnet_cidrs
+    : [for i, _ in local.azs : cidrsubnet(var.vpc_cidr, 8, i + 10)]
+  ) : []
+}
+
 resource "aws_vpc" "main" {
   count = var.create_network ? 1 : 0
 
@@ -49,11 +78,11 @@ resource "aws_vpc" "main" {
 # Publicas: ALB, NAT Gateway e bastion. Sao os tres unicos recursos que tem
 # motivo para receber conexao vinda de fora ou para ter endereco roteavel.
 resource "aws_subnet" "public" {
-  count = var.create_network ? length(var.public_subnet_cidrs) : 0
+  count = var.create_network ? length(local.azs) : 0
 
   vpc_id            = aws_vpc.main[0].id
-  cidr_block        = var.public_subnet_cidrs[count.index]
-  availability_zone = data.aws_availability_zones.available[0].names[count.index]
+  cidr_block        = local.public_cidrs[count.index]
+  availability_zone = local.azs[count.index]
 
   # O bastion e o NAT precisam de IP publico. Ligar aqui evita repetir
   # `associate_public_ip_address` em cada recurso da sub-rede.
@@ -68,11 +97,11 @@ resource "aws_subnet" "public" {
 # Privadas: instancias do Auto Scaling Group, tasks Fargate e o subnet group do
 # RDS. Nada aqui tem endereco publico.
 resource "aws_subnet" "private" {
-  count = var.create_network ? length(var.private_subnet_cidrs) : 0
+  count = var.create_network ? length(local.azs) : 0
 
   vpc_id            = aws_vpc.main[0].id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = data.aws_availability_zones.available[0].names[count.index]
+  cidr_block        = local.private_cidrs[count.index]
+  availability_zone = local.azs[count.index]
 
   tags = {
     Name = "${local.name}-private-${count.index}"
@@ -189,4 +218,29 @@ resource "aws_route_table_association" "private" {
 
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private[0].id
+}
+
+# --------------------------------------------------------------------------- #
+# Gateway endpoint de S3
+# --------------------------------------------------------------------------- #
+
+# Gateway endpoint e GRATIS -- diferente do endpoint de interface, que custa
+# ~US$ 7/mes por AZ. Ele nao e uma interface de rede: e uma entrada a mais na
+# tabela de rota privada.
+#
+# Vale por dois motivos. O `loader` le os ~200 MB de Parquet do bucket `origem`
+# a cada carga inicial, e o NAT cobra por GB trafegado: esse trafego sai de cima
+# dele. E o acesso passa a ser interno a AWS, sem chegar a internet -- o mesmo
+# dado, um salto a menos de exposicao.
+resource "aws_vpc_endpoint" "s3" {
+  count = var.create_network ? 1 : 0
+
+  vpc_id            = aws_vpc.main[0].id
+  service_name      = "com.amazonaws.${var.region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.private[0].id]
+
+  tags = {
+    Name = "${local.name}-s3-endpoint"
+  }
 }

@@ -81,15 +81,42 @@ variable "subnet_ids" {
 
 variable "assign_public_ip" {
   description = <<-EOT
-    IP publico na task. `true` evita o NAT Gateway (~US$ 32/mes + trafego), que
-    seria o item mais caro do fluxo inteiro. A task nao aceita conexao de fora:
-    o security group nao tem regra de entrada, so de saida.
+    IP publico na task Fargate. O padrao e `false`, e ele anda junto com
+    `create_network = true`: a task fica na sub-rede PRIVADA e alcanca ECR, SQS
+    e Secrets Manager pelo NAT Gateway.
 
-    Em producao com dado sensivel, prefira `false` + subnet privada + VPC
-    endpoints (ver infra/README.md).
+    As duas chaves nao sao independentes -- as quatro combinacoes nao valem:
+
+      create_network | assign_public_ip | resultado
+      ---------------|------------------|---------------------------------------
+      true           | false            | correto: privada + NAT
+      true           | true             | QUEBRA: a task ganha IP publico numa
+                                          sub-rede sem rota para o Internet
+                                          Gateway. O endereco nao serve para
+                                          nada, o pull do ECR falha e o service
+                                          entra em crash loop
+      false          | true             | comportamento anterior a esta sprint:
+                                          VPC default, task com IP publico
+      false          | false            | QUEBRA: sem NAT e sem IP publico a
+                                          task nao tem rota nenhuma de saida
+
+    O unico controle que impedia alguem de alcancar a task no desenho antigo era
+    o security group sem regra de entrada. Com sub-rede privada some tambem a
+    rota: dois controles independentes em vez de um.
   EOT
   type        = bool
-  default     = true
+  default     = false
+
+  # A combinacao invalida vira erro de plan, e nao crash loop no ECS.
+  #
+  # Sem esta regra o sintoma chega horas depois e no lugar errado: o service
+  # nao estabiliza, o evento do ECS fala em "unable to pull image", e nada
+  # aponta para a variavel de rede que causou. Terraform >= 1.9 permite validar
+  # olhando outra variavel; e o que torna a checagem possivel aqui.
+  validation {
+    condition     = !(var.create_network && var.assign_public_ip)
+    error_message = "assign_public_ip = true com create_network = true poe a task numa sub-rede privada, que nao tem rota para o Internet Gateway: o IP publico nao serve para nada e o pull do ECR falha. Use false (a task sai pelo NAT) ou desligue create_network."
+  }
 }
 
 # --------------------------------------------------------------------------- #
@@ -846,15 +873,22 @@ variable "public_subnet_cidrs" {
     Gateway e o bastion -- os unicos recursos com motivo para ter endereco
     roteavel.
 
-    Precisam ser pelo menos duas: o Application Load Balancer exige sub-redes em
-    no minimo duas AZs distintas e nao e criado com uma so.
+    Vazio (o padrao) DERIVA as faixas de `vpc_cidr` com `cidrsubnet`: um /24 por
+    AZ a partir do inicio da VPC. Derivar em vez de fixar e o que impede a falha
+    silenciosa de trocar `vpc_cidr` e esquecer esta lista -- as sub-redes
+    nasceriam fora da VPC e o apply quebraria com "InvalidSubnet.Range", um erro
+    que nao aponta para a variavel que o causou.
+
+    Preencher a mao so faz sentido para casar com uma faixa que ja exista fora
+    do Terraform. Nesse caso precisam ser pelo menos duas: o Application Load
+    Balancer exige sub-redes em no minimo duas AZs distintas.
   EOT
   type        = list(string)
-  default     = ["10.0.0.0/24", "10.0.1.0/24"]
+  default     = []
 
   validation {
-    condition     = length(var.public_subnet_cidrs) >= 2
-    error_message = "O ALB exige no minimo duas sub-redes publicas em AZs distintas."
+    condition     = length(var.public_subnet_cidrs) == 0 || length(var.public_subnet_cidrs) >= 2
+    error_message = "Deixe vazio para derivar de vpc_cidr, ou informe no minimo duas (exigencia do ALB)."
   }
 }
 
@@ -864,15 +898,41 @@ variable "private_subnet_cidrs" {
     do Auto Scaling Group, as tasks Fargate e o subnet group do RDS. Sem rota
     para o Internet Gateway: a saida e pelo NAT.
 
-    Duas tambem aqui, porque o subnet group do RDS exige duas AZs e porque o ASG
+    Vazio (o padrao) deriva de `vpc_cidr`, com um salto de 10 no indice em
+    relacao as publicas: `10.0.10.0/24` e `10.0.11.0/24` num `10.0.0.0/16`. O
+    salto e legibilidade pura -- olhando um IP num flow log, o terceiro octeto
+    ja diz de que lado da rede ele veio.
+
+    Duas no minimo, porque o subnet group do RDS exige duas AZs e porque o ASG
     precisa poder substituir instancia na zona que sobrou.
   EOT
   type        = list(string)
-  default     = ["10.0.10.0/24", "10.0.11.0/24"]
+  default     = []
 
   validation {
-    condition     = length(var.private_subnet_cidrs) >= 2
-    error_message = "O subnet group do RDS e o ASG exigem no minimo duas sub-redes privadas."
+    condition     = length(var.private_subnet_cidrs) == 0 || length(var.private_subnet_cidrs) >= 2
+    error_message = "Deixe vazio para derivar de vpc_cidr, ou informe no minimo duas (RDS e ASG)."
+  }
+}
+
+variable "azs" {
+  description = <<-EOT
+    Zonas de disponibilidade da rede. Vazio (o padrao) usa as duas primeiras que
+    a conta oferecer.
+
+    O nome da zona nao e portavel entre contas: o "us-east-1a" de uma conta pode
+    ser o hardware que a outra enxerga como "us-east-1c", e nem toda conta do
+    Learner Lab recebe a mesma lista. Por isso o padrao consulta em vez de fixar.
+    Fixar aqui so importa quando o laboratorio restringe alguma zona -- caso em
+    que o sintoma, sem esta variavel, apareceria como "capacidade insuficiente"
+    no meio do apply.
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = length(var.azs) == 0 || length(var.azs) >= 2
+    error_message = "azs precisa estar vazio ou conter ao menos duas zonas (ALB e subnet group do RDS)."
   }
 }
 
@@ -1073,6 +1133,54 @@ variable "backend_image_tag" {
 # Observabilidade da rede e do caminho sincrono
 # --------------------------------------------------------------------------- #
 
+variable "flow_logs_destination" {
+  description = <<-EOT
+    Onde os VPC Flow Logs sao entregues: `s3` ou `cloudwatch`.
+
+    `s3` e o padrao por uma restricao verificada na conta do AWS Academy: o
+    destino CloudWatch Logs exige um papel IAM que confie em
+    `vpc-flow-logs.amazonaws.com`, e a politica de confianca da `LabRole` lista
+    53 servicos sem incluir esse. Com `create_iam_roles = false`, obrigatorio no
+    laboratorio, o caminho do CloudWatch nao entrega nada -- e a falha e
+    silenciosa: o recurso e criado e simplesmente nunca escreve.
+
+    O destino S3 usa politica de bucket em vez de papel, some com a dependencia
+    da LabRole e ainda custa menos por GB. A evidencia de console e a mesma.
+
+    `cloudwatch` e melhor numa conta normal: o Logs Insights consulta os
+    registros com linguagem de consulta, sem baixar arquivo.
+  EOT
+  type        = string
+  default     = "s3"
+
+  validation {
+    condition     = contains(["s3", "cloudwatch"], var.flow_logs_destination)
+    error_message = "flow_logs_destination precisa ser \"s3\" ou \"cloudwatch\"."
+  }
+}
+
+variable "flow_logs_bucket_name" {
+  description = <<-EOT
+    Bucket S3 ja existente para receber os flow logs. Vazio (o padrao) faz o
+    Terraform criar o bucket.
+
+    Existe por uma restricao verificada do AWS Academy: a SCP da organizacao
+    NEGA `s3:GetBucketObjectLockConfiguration`, e o provider AWS chama exatamente
+    essa API ao reler qualquer `aws_s3_bucket` recem-criado. O bucket nasce, o
+    apply falha na releitura, e o recurso fica no estado envenenando todo plan
+    seguinte. Criar o bucket fora do Terraform e informar o nome aqui contorna
+    isso sem abrir mao de controle: politica, bloqueio publico, criptografia e
+    ciclo de vida continuam gerenciados neste stack, porque essas chamadas a SCP
+    permite.
+
+        aws s3api create-bucket --bucket <nome> --region us-east-1
+
+    Numa conta sem essa restricao, deixe vazio.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "alb_access_logs_enabled" {
   description = <<-EOT
     Grava os access logs do ALB num bucket S3. O ALB nao entrega esse log no
@@ -1094,6 +1202,19 @@ variable "alb_access_logs_retention_days" {
   EOT
   type        = number
   default     = 30
+}
+
+variable "alb_logs_bucket_name" {
+  description = <<-EOT
+    Bucket S3 ja existente para os access logs do ALB. Vazio (o padrao) faz o
+    Terraform criar o bucket.
+
+    Mesma valvula de escape de `flow_logs_bucket_name`, e pela mesma razao: a
+    SCP do AWS Academy nega a leitura de configuracao de object lock, entao todo
+    `aws_s3_bucket` criado por este stack quebra o plan seguinte naquela conta.
+  EOT
+  type        = string
+  default     = ""
 }
 
 variable "alarm_latencia_p95_segundos" {
