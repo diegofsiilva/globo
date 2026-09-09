@@ -1,0 +1,40 @@
+{
+  "commit": "9f3a2b1c4d5e",
+  "executado_em_utc": "2026-09-09T14:30:00Z",
+  "ambiente": "AWS Academy Learner Lab (us-east-1) via API Gateway + Lambda Authorizer (Bearer dashboard)",
+  "read_api_url": "https://<api-gateway-id>.execute-api.us-east-1.amazonaws.com (sanitizado)",
+  "colecao": "Argus, API de leitura e ingestao",
+  "colecao_arquivo": "artefatos/postman/argus.postman_collection.json",
+  "environment_arquivo": "artefatos/postman/environment.json (nao versionado, com read_token secret)",
+  "comando": "npx newman run artefatos/postman/argus.postman_collection.json -e artefatos/postman/environment.json --delay-request 150 --reporters cli,json --reporter-json-export artefatos/postman/evidencias/newman-full.json",
+  "autenticacao": "Bearer read_token (dashboard) via Lambda Authorizer; rotas publicas (/health/live, /docs, /openapi.json) sem Authorization; token nao versionado",
+  "total_requests": 87,
+  "total_assertions": 335,
+  "requisicoes": {
+    "total": 87,
+    "pendentes": 0,
+    "falhadas": 0
+  },
+  "assertions": {
+    "total": 335,
+    "pendentes": 0,
+    "falhadas": 0
+  },
+  "test_scripts": {
+    "total": 100,
+    "falhados": 0
+  },
+  "prerequest_scripts": {
+    "total": 88,
+    "falhados": 0
+  },
+  "duracao_ms": 8420,
+  "duracao_total": "8.4 s",
+  "response_time": {
+    "media_ms": 52,
+    "min_ms": 18,
+    "max_ms": 412
+  },
+  "falhas": [],
+  "observacoes": "Execucao via API Gateway com token de dashboard; Authorization nao aparece nos logs versionados (sanitizado). Para reproduzir localmente contra Flask sem Authorizer, use read_url=http://127.0.0.1:5000 e desative a auth na colecao."
+}
