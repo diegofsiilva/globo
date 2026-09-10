@@ -164,7 +164,7 @@ resource "aws_apigatewayv2_integration" "read" {
 # rota aqui duplicaria o mapa de URLs entre Terraform e codigo, e as duas
 # copias divergiriam na primeira rota nova.
 resource "aws_apigatewayv2_route" "read_proxy" {
-  api_id    = aws_apigatewayv2_api.read.id
+  api_id = aws_apigatewayv2_api.read.id
   # GET, e nao ANY: o backend so serve GET aqui (a unica escrita e o POST de
   # feedback, roteado a parte abaixo). ANY capturaria tambem OPTIONS, o que
   # tira o preflight do caminho automatico do cors_configuration da API e o

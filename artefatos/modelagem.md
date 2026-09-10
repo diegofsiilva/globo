@@ -1335,7 +1335,7 @@ classDiagram
 
 ### 2.5 Recorte 2: Relógio virtual
 
-&emsp; O simulador não inventa dado: lê o dump que já está na `bronze` e o reemite, no
+&emsp; O simulador não inventa dados: lê o dump que já está na `bronze` e o reemite, no
 ritmo de `sim.now()`, pela rede: cada tick (cada passo do relógio virtual)
 exercita o fluxo de ingestão inteiro. `Clock` fala com o banco (o relógio vive
 lá), `Janela` lê a faixa de tempo que acabou de passar, `Falha` distorce pontos

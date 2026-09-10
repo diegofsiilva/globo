@@ -27,6 +27,7 @@ INFRA      := infra
 TOOLS      := tools
 FRONTEND   := frontend
 POSTMAN    := ../../artefatos/postman
+OBSERVABILITY := observability/grafana
 
 # O motor de hipóteses ainda não possui endpoint no MVP. O modo mock é
 # explícito nos fluxos suportados e pode ser trocado por `api` quando existir.
@@ -49,9 +50,20 @@ PG_TEST_URL  := postgresql://argus:argus@localhost:$(PG_PORT)/argus_test
 # `uv run` monta o ambiente sozinho a partir do pyproject de cada app.
 UV := uv run --quiet
 
-# As quatro imagens de container. O build tem contexto em apps/basica/ (e nao na
-# pasta de cada app) porque todas dependem de common/.
-IMAGES := worker simulator processing loader
+# As imagens de container.
+#
+# As quatro do pipeline (worker, simulator, processing, loader) constroem com
+# contexto em apps/basica/ -- e nao na pasta de cada app -- porque todas
+# dependem de common/.
+#
+# `backend` entrou quando a API de leitura saiu da Lambda e passou a rodar nas
+# instancias do Auto Scaling Group (infra/asg.tf): o que antes era um zip agora
+# e uma imagem que a instancia puxa do ECR no boot. Ele NAO depende de common/,
+# entao constroi com contexto so em backend/, que e muito menor.
+IMAGES := worker simulator processing loader backend
+
+# Contexto de build por imagem. Ver acima o porque de o backend ser diferente.
+CONTEXTO = $(if $(filter backend,$(1)),backend,.)
 
 # A tag que as task definitions referenciam. NUNCA `latest`.
 #
@@ -98,16 +110,28 @@ install: ## Instala as dependencias de todos os apps Python
 env: ## Cria o .env a partir dos outputs do Terraform
 	@test -f .env && { echo ".env ja existe — apague antes se quiser regerar."; exit 1; } || true
 	@echo "Lendo os endpoints do Terraform..."
+	@# ARGUS_API_URL prefere o ALB quando ele existe.
+	@#
+	@# Durante a migracao os dois caminhos de leitura coexistem: o HTTP API da
+	@# Lambda (`read_api_url`) e o Application Load Balancer (`api_url_alb`).
+	@# O ALB e o destino definitivo, entao ele vence; enquanto `create_network`
+	@# for falso o output vem vazio e o valor antigo continua valendo.
 	@{ \
-	  echo "ARGUS_API_URL=$$(cd $(INFRA) && terraform output -raw read_api_url 2>/dev/null)"; \
+	  echo "ARGUS_API_URL=$$(cd $(INFRA) && { terraform output -raw api_url_alb 2>/dev/null \
+	    || terraform output -raw read_api_url 2>/dev/null; })"; \
 	  echo "ARGUS_INGEST_URL=$$(cd $(INFRA) && terraform output -raw ingest_url 2>/dev/null)"; \
+	  echo "ARGUS_CHANGES_URL=$$(cd $(INFRA) && terraform output -raw changes_url 2>/dev/null)"; \
 	  echo "HYPOTHESES_SOURCE=mock"; \
 	  echo "HYPOTHESES_API_URL="; \
 	  echo "AWS_PROFILE=$${AWS_PROFILE:-default}"; \
 	  echo "AWS_REGION=$${AWS_REGION:-us-east-1}"; \
+	  echo "ARGUS_READ_TOKEN="; \
+	  echo "ARGUS_INGEST_TOKEN="; \
 	  echo '# DATABASE_URL: monte com "make db-url" (a senha nao passa por arquivo)'; \
 	} > .env
 	@echo ".env criado (esta no .gitignore)."
+	@echo "Tokens ficam vazios de proposito -- preencha com 'make auth-show-ingest'"
+	@echo "(so o de ingestao e recuperavel; o de leitura precisa de 'make auth-rotate')."
 
 # --------------------------------------------------------------------------- #
 # Banco
@@ -171,6 +195,13 @@ migrate-aws: ## Aplica as migrations pendentes no RDS, pela VPC
 migrate-status-aws: ## Lista as migrations aplicadas no RDS, pela VPC
 	@$(call require_env,AWS_PROFILE)
 	@cd $(INFRA) && terraform output -raw migration_status_command | bash
+	@echo
+	@echo "Acompanhe: make logs SERVICO=processing"
+
+.PHONY: db-reader-aws
+db-reader-aws: ## Cria/atualiza o usuario de leitura no RDS, pela VPC
+	@$(call require_env,AWS_PROFILE)
+	@cd $(INFRA) && terraform output -raw db_reader_run_command | bash
 	@echo
 	@echo "Acompanhe: make logs SERVICO=processing"
 
@@ -281,7 +312,7 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(INFRA) && terraform fmt -recursive
 
 .PHONY: check
-check: lint test frontend-build-check test-frontend-e2e tf-validate ## Tudo que a CI deveria rodar
+check: lint test frontend-build-check test-frontend-e2e tf-validate tf-test ## Tudo que a CI deveria rodar
 
 # O build do dashboard faz parte do portao, e nao so o lint.
 #
@@ -331,14 +362,15 @@ parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
 # Imagens
 # --------------------------------------------------------------------------- #
 
-# O contexto e apps/basica/ (o `.` no fim) e nao a pasta do app: todas as
-# imagens dependem de common/, que fica fora da pasta de cada uma.
+# ARM64 em todas: a Lambda e arm64, as tasks Fargate sao arm64 e as instancias
+# do ASG sao Graviton (t4g). Construir x86 aqui faria a instancia falhar com
+# "exec format error" no `docker run` do user_data.
 .PHONY: images
-images: $(addprefix image-,$(IMAGES)) ## Constroi as quatro imagens (ARM64)
+images: $(addprefix image-,$(IMAGES)) ## Constroi as imagens (ARM64)
 
 .PHONY: $(addprefix image-,$(IMAGES))
 $(addprefix image-,$(IMAGES)): image-%:
-	docker build --platform linux/arm64 -f $*/Dockerfile -t argus-$*:dev .
+	docker build --platform linux/arm64 -f $*/Dockerfile -t argus-$*:dev $(call CONTEXTO,$*)
 
 .PHONY: image-tag
 image-tag: ## Mostra a tag de imagem deste commit
@@ -355,6 +387,15 @@ tf-init: ## Inicializa o Terraform
 .PHONY: tf-validate
 tf-validate: ## Valida a configuracao sem tocar na AWS
 	cd $(INFRA) && terraform validate
+
+.PHONY: tf-test
+tf-test: ## Testa a rede com provider mockado, sem tocar na AWS
+# `validate` confirma sintaxe, tipos e referencias. Nao confirma que a
+# COMBINACAO de variaveis produz uma rede valida -- CIDR de sub-rede fora da
+# VPC, ou task privada pedindo IP publico, passam por ele. Isto pega.
+#
+# Roda offline: nao precisa de sessao do Learner Lab, que vence em horas.
+	cd $(INFRA) && terraform test
 
 .PHONY: tf-plan
 tf-plan: lambda-build ## Mostra o que mudaria na AWS (somente leitura)
@@ -435,8 +476,9 @@ push: ## Publica as imagens no ECR com a tag do commit
 	for nome in $(IMAGES); do \
 	  url=$$(printf '%s' "$$urls" | python3 -c "import json,sys; print(json.load(sys.stdin)['$$nome'])"); \
 	  echo; echo "--- $$nome"; \
+	  contexto="."; [ "$$nome" = "backend" ] && contexto="backend"; \
 	  docker build --platform linux/arm64 -f $$nome/Dockerfile \
-	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" .; \
+	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" "$$contexto"; \
 	  docker push "$$url:$(IMAGE_TAG)"; \
 	  docker push "$$url:latest"; \
 	done
@@ -494,25 +536,57 @@ auth-rotate: ## Gera e publica tokens Bearer novos (invalida os antigos)
 	  echo "      Rode 'make tf-apply' antes -- e o apply que os cria."; \
 	  exit 1; }
 	@read -p "Digite 'rotacionar' para confirmar: " r; [ "$$r" = "rotacionar" ] || { echo "cancelado."; exit 1; }
-	@hashes_id=$$(cd $(INFRA) && terraform output -raw auth_tokens_secret); \
+	@set -euo pipefail; \
+	 region="$${AWS_REGION:-us-east-1}"; \
+	 hashes_id=$$(cd $(INFRA) && terraform output -raw auth_tokens_secret); \
 	 ingest_id=$$(cd $(INFRA) && terraform output -raw ingest_token_secret); \
+	 read_api_id=$$(cd $(INFRA) && terraform output -raw read_api_id); \
+	 ingest_api_id=$$(cd $(INFRA) && terraform output -raw ingest_api_id); \
+	 echo "Validando credenciais e acesso aos segredos..."; \
+	 aws secretsmanager describe-secret --profile "$$AWS_PROFILE" --region "$$region" \
+	   --secret-id "$$hashes_id" >/dev/null; \
+	 aws secretsmanager describe-secret --profile "$$AWS_PROFILE" --region "$$region" \
+	   --secret-id "$$ingest_id" >/dev/null; \
 	 dash=$$(openssl rand -hex 32); ing=$$(openssl rand -hex 32); \
 	 dash_h=$$(printf '%s' "$$dash" | openssl dgst -sha256 -r | cut -d' ' -f1); \
 	 ing_h=$$(printf '%s' "$$ing" | openssl dgst -sha256 -r | cut -d' ' -f1); \
-	 aws secretsmanager put-secret-value --profile $$AWS_PROFILE \
-	   --secret-id "$$hashes_id" \
-	   --secret-string "{\"dashboard\":\"$$dash_h\",\"ingest\":\"$$ing_h\"}" >/dev/null; \
-	 aws secretsmanager put-secret-value --profile $$AWS_PROFILE \
-	   --secret-id "$$ingest_id" --secret-string "$$ing" >/dev/null; \
+	 printf '%s' "$$ing" | aws secretsmanager put-secret-value \
+	   --profile "$$AWS_PROFILE" --region "$$region" --secret-id "$$ingest_id" \
+	   --secret-string file:///dev/stdin >/dev/null; \
+	 printf '{"dashboard":"%s","ingest":"%s"}' "$$dash_h" "$$ing_h" \
+	   | aws secretsmanager put-secret-value --profile "$$AWS_PROFILE" --region "$$region" \
+	       --secret-id "$$hashes_id" --secret-string file:///dev/stdin >/dev/null; \
+	 hashes_publicados=$$(aws secretsmanager get-secret-value \
+	   --profile "$$AWS_PROFILE" --region "$$region" --secret-id "$$hashes_id" \
+	   --query SecretString --output text); \
+	 printf '%s' "$$hashes_publicados" \
+	   | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d == {"dashboard": sys.argv[1], "ingest": sys.argv[2]}' \
+	       "$$dash_h" "$$ing_h"; \
+	 ingest_publicado=$$(aws secretsmanager get-secret-value \
+	   --profile "$$AWS_PROFILE" --region "$$region" --secret-id "$$ingest_id" \
+	   --query SecretString --output text); \
+	 [ "$$ingest_publicado" = "$$ing" ] || { echo "erro: verificacao do token de ingestao falhou." >&2; exit 1; }; \
+	 cache_falhou=0; \
+	 for api_id in "$$read_api_id" "$$ingest_api_id"; do \
+	   if ! aws apigatewayv2 reset-authorizers-cache --profile "$$AWS_PROFILE" \
+	     --region "$$region" --api-id "$$api_id" --stage-name '$$default'; then \
+	     cache_falhou=1; \
+	   fi; \
+	 done; \
 	 echo; \
-	 echo "  Token de LEITURA  (cole na tela de acesso do dashboard):"; \
+	 echo "  Token de LEITURA  (cole somente os 64 caracteres, sem 'Bearer '):"; \
 	 echo "    $$dash"; \
 	 echo; \
 	 echo "  Token de INGESTAO (export ARGUS_INGEST_TOKEN=...):"; \
 	 echo "    $$ing"; \
 	 echo; \
-	 echo "  Guarde-os agora. A AWS so tem os hashes."; \
-	 echo "  O authorizer cacheia por 5 min: a troca leva ate esse tempo para valer."
+	 echo "  Guarde-os agora. A AWS so tem o hash do token de leitura."; \
+	 if [ $$cache_falhou -ne 0 ]; then \
+	   echo "  AVISO: tokens publicados, mas o cache nao foi limpo por completo." >&2; \
+	   echo "         O token antigo pode continuar valido por ate 5 minutos." >&2; \
+	   exit 1; \
+	 fi; \
+	 echo "  Rotacao concluida: o token novo ja pode ser usado."
 
 .PHONY: auth-show-ingest
 auth-show-ingest: ## Imprime o token de ingestao (o unico recuperavel)
@@ -681,11 +755,28 @@ smoke: ## Verifica a API publicada: autenticacao, status, latencia e tamanho
 	@echo "Testando $$ARGUS_API_URL"
 	@fail=0; \
 	auth="Authorization: Bearer $$ARGUS_READ_TOKEN"; \
-	echo; echo "  --- autenticacao (RNF09)"; \
+	origin=$$(cd $(INFRA) && terraform output -raw frontend_url); \
+	origin=$${origin%/}; \
+	headers=$$(mktemp); \
+	trap 'rm -f "$$headers"' EXIT; \
 	check() { \
 	  code=$$(curl -s -o /dev/null -w '%{http_code}' "$$@"); \
 	  echo "$$code"; \
 	}; \
+	echo; echo "  --- CORS do dashboard"; \
+	c=$$(curl -s -o /dev/null -D "$$headers" -w '%{http_code}' -X OPTIONS \
+	  -H "Origin: $$origin" -H "Access-Control-Request-Method: GET" \
+	  -H "Access-Control-Request-Headers: authorization" \
+	  "$(ARGUS_API_URL)/api/v1/clock"); \
+	if [ "$$c" = "200" ] || [ "$$c" = "204" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
+	printf "  %s %3s  preflight OPTIONS   (esperado 200/204)\n" "$$st" "$$c"; \
+	allow_origin=$$(awk 'tolower($$0) ~ /^access-control-allow-origin: */ {sub(/^[^:]+: */, ""); gsub(/\r/, ""); print}' "$$headers" | tail -1); \
+	if [ "$$allow_origin" = "$$origin" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
+	printf "  %s      origem do dashboard permitida\n" "$$st"; \
+	allow_headers=$$(awk -F': *' 'tolower($$1) == "access-control-allow-headers" {gsub(/\r/, "", $$2); print tolower($$2)}' "$$headers" | tail -1 | tr -d ' '); \
+	case ",$$allow_headers," in *,authorization,*) st="ok   ";; *) st="FALHA"; fail=1;; esac; \
+	printf "  %s      header Authorization permitido\n" "$$st"; \
+	echo; echo "  --- autenticacao (RNF09)"; \
 	c=$$(check "$(ARGUS_API_URL)/api/v1/sources"); \
 	if [ "$$c" = "401" ]; then st="ok   "; else st="FALHA"; fail=1; fi; \
 	printf "  %s %3s  sem token           (esperado 401)\n" "$$st" "$$c"; \
@@ -725,6 +816,34 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 	@$(call require_env,ARGUS_INGEST_TOKEN)
 	cd $(TOOLS) && $(UV) python replay_events.py --url "$(ARGUS_INGEST_URL)" --src "$(EVENTS_SRC)"
 
+.PHONY: observabilidade-up
+observabilidade-up: ## Sobe Prometheus e Grafana para os testes k6
+	docker compose -f tests/carga/docker-compose.observabilidade.yml up -d
+	@echo "Prometheus: http://localhost:9090"
+	@echo "Grafana:    http://localhost:3001"
+
+.PHONY: observabilidade-check
+observabilidade-check: ## Valida Prometheus, Grafana, datasource e consulta entre eles
+	@set -euo pipefail; \
+	curl -fsS http://localhost:9090/-/ready >/dev/null; \
+	curl -fsS http://localhost:3001/api/health >/dev/null; \
+	auth="$${GRAFANA_USER:-admin}:$${GRAFANA_PASSWORD:-admin}"; \
+	uid=$$(curl -fsS -u "$$auth" \
+		http://localhost:3001/api/datasources/name/Prometheus | jq -r '.uid'); \
+	[ "$$uid" = "prometheus" ] || { \
+		echo "FALHA: datasource Prometheus usa uid=$$uid; esperado prometheus."; \
+		exit 1; \
+	}; \
+	series=$$(curl -fsSG -u "$$auth" \
+		http://localhost:3001/api/datasources/proxy/uid/prometheus/api/v1/query \
+		--data-urlencode 'query=up{job="prometheus"}' | \
+		jq -r '.data.result | length'); \
+	[ "$$series" -gt 0 ] || { \
+		echo "FALHA: Grafana nao recebeu series do Prometheus."; \
+		exit 1; \
+	}; \
+	echo "OK: Prometheus e Grafana integrados (uid=prometheus, series=$$series)."
+
 # Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
 # ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.
 .PHONY: carga
@@ -738,6 +857,214 @@ carga: ## Carga sustentada de ingestao (EVENTOS_POR_MINUTO=1000 MINUTOS=5)
 	  --url "$(ARGUS_INGEST_URL)" --src "$(EVENTS_SRC)" \
 	  --repeat $$((total / 6 + 1)) --rate $$(($$epm / 60))
 
+# Carga sustentada contra /v1/changes (CDC), nao /v1/events -- e o fluxo do
+# pivot v3 que a Sprint de NFR pede testar (10 mil eventos/min). Mesmo script
+# serve de gerador de trafego de fundo nos cenarios de resiliencia (fila
+# cheia, timeout), que escalam o merge-worker por fora enquanto isto roda.
+.PHONY: carga-changes
+carga-changes: ## Carga K6 contra /v1/changes (EVENTOS_POR_MINUTO=10000 MINUTOS=5)
+	@command -v k6 >/dev/null || { \
+	  echo "erro: k6 nao encontrado no PATH."; \
+	  echo "      Instale a partir de https://k6.io/docs/get-started/installation/"; \
+	  exit 1; \
+	}
+	@$(call require_env,ARGUS_CHANGES_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
+	cd $(TOOLS)/loadtest && k6 run \
+	  -e ARGUS_CHANGES_URL="$(ARGUS_CHANGES_URL)" \
+	  -e ARGUS_INGEST_TOKEN="$(ARGUS_INGEST_TOKEN)" \
+	  -e EVENTOS_POR_MINUTO=$${EVENTOS_POR_MINUTO:-10000} \
+	  -e MINUTOS=$${MINUTOS:-5} \
+	  changes_load.js
+
+# --------------------------------------------------------------------------- #
+# Cenarios de resiliencia (RNF04, RNF05) -- ver /projeto/plano-teste-resiliencia.md
+# (fora do repo). Ao contrario de carga-changes, os tres primeiros mexem em
+# infraestrutura de verdade (terraform apply / aws ecs) e exigem credencial
+# AWS valida -- so o resiliencia-evento-invalido fala so HTTP.
+# --------------------------------------------------------------------------- #
+
+.PHONY: resiliencia-evento-invalido
+resiliencia-evento-invalido: ## RNF04: eventos invalidos misturados a validos (REPETICOES=3)
+	@command -v k6 >/dev/null || { \
+	  echo "erro: k6 nao encontrado no PATH."; \
+	  exit 1; \
+	}
+	@$(call require_env,ARGUS_CHANGES_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
+	cd $(TOOLS)/loadtest && k6 run \
+	  -e ARGUS_CHANGES_URL="$(ARGUS_CHANGES_URL)" \
+	  -e ARGUS_INGEST_TOKEN="$(ARGUS_INGEST_TOKEN)" \
+	  -e REPETICOES=$${REPETICOES:-3} \
+	  eventos_invalidos.js
+	@echo "Agora rode: make dlq   (confere FailureReason)"
+	@echo "        e:  make count (confere que os validos do mesmo lote sobreviveram)"
+
+.PHONY: resiliencia-fila-cheia
+resiliencia-fila-cheia: ## RNF05a "fila cheia": desliga o merge-worker, sustenta carga, religa e observa a drenagem
+	@command -v k6 >/dev/null || { echo "erro: k6 nao encontrado no PATH."; exit 1; }
+	@$(call require_env,ARGUS_CHANGES_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
+	@$(call require_env,AWS_PROFILE)
+	@echo "1/4: escalando merge-worker para 0 (terraform vai pedir confirmacao)"
+	cd $(INFRA) && terraform apply -var="worker_desired_count=0"
+	@echo "2/4: carga sustentada com o worker desligado ($${EVENTOS_POR_MINUTO:-10000} ev/min por $${MINUTOS:-10} min)"
+	cd $(TOOLS)/loadtest && k6 run \
+	  -e ARGUS_CHANGES_URL="$(ARGUS_CHANGES_URL)" \
+	  -e ARGUS_INGEST_TOKEN="$(ARGUS_INGEST_TOKEN)" \
+	  -e EVENTOS_POR_MINUTO=$${EVENTOS_POR_MINUTO:-10000} \
+	  -e MINUTOS=$${MINUTOS:-10} \
+	  changes_load.js
+	@echo "3/4: religando o merge-worker (terraform vai pedir confirmacao)"
+	cd $(INFRA) && terraform apply -var="worker_desired_count=$${WORKER_DESIRED_COUNT:-1}"
+	@echo "4/4: aguardando a fila 'changes' drenar"
+	@fila=$$(cd $(INFRA) && terraform output -raw changes_queue_url); \
+	while true; do \
+	  n=$$(aws sqs get-queue-attributes --profile "$(AWS_PROFILE)" --region "$${AWS_REGION:-us-east-1}" \
+	    --queue-url "$$fila" --attribute-names ApproximateNumberOfMessages \
+	    --query 'Attributes.ApproximateNumberOfMessages' --output text); \
+	  echo "  mensagens visiveis na fila changes: $$n"; \
+	  [ "$$n" = "0" ] && break; \
+	  sleep 15; \
+	done
+	@echo "Fila drenada. Reconcilie com 'make count' e confira 'make dlq' (deve continuar vazia -- so entram la evento invalido, nao backlog)."
+
+.PHONY: resiliencia-timeout
+# NUNCA chame `$(MAKE)` (nem `resiliencia-evento-invalido`) de dentro deste
+# alvo, nem em linha separada nem continuada com `\`. O GNU Make executa de
+# verdade QUALQUER linha de receita que contenha `$(MAKE)` mesmo sob `make -n`
+# -- inclusive o resto da mesma linha continuada, aws incluso. Ja aconteceu
+# aqui: um `make -n` desta suite chegou a chamar `aws ecs stop-task` de
+# verdade (so nao teve efeito porque a credencial estava expirada). Por isso
+# o k6 e chamado direto abaixo, nao via `carga-changes`.
+.PHONY: resiliencia-timeout
+resiliencia-timeout: ## RNF05b "timeout": derruba uma task do merge-worker no meio do processamento
+	@command -v k6 >/dev/null || { echo "erro: k6 nao encontrado no PATH."; exit 1; }
+	@$(call require_env,ARGUS_CHANGES_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
+	@$(call require_env,AWS_PROFILE)
+	@cluster=$$(cd $(INFRA) && terraform output -raw ecs_cluster_name); \
+	servico=$$(cd $(INFRA) && terraform output -json ecs_service_names | python3 -c "import json,sys; print(json.load(sys.stdin)['merge-worker'])"); \
+	echo "1/3: disparando carga em segundo plano ($${MINUTOS:-3} min)"; \
+	( cd $(TOOLS)/loadtest && k6 run \
+	    -e ARGUS_CHANGES_URL="$(ARGUS_CHANGES_URL)" \
+	    -e ARGUS_INGEST_TOKEN="$(ARGUS_INGEST_TOKEN)" \
+	    -e EVENTOS_POR_MINUTO=$${EVENTOS_POR_MINUTO:-10000} \
+	    -e MINUTOS=$${MINUTOS:-3} \
+	    changes_load.js ) & \
+	carga_pid=$$!; \
+	sleep 15; \
+	task=$$(aws ecs list-tasks --profile "$(AWS_PROFILE)" --region "$${AWS_REGION:-us-east-1}" \
+	  --cluster "$$cluster" --service-name "$$servico" --query 'taskArns[0]' --output text); \
+	echo "2/3: derrubando a task $$task no meio do processamento"; \
+	aws ecs stop-task --profile "$(AWS_PROFILE)" --region "$${AWS_REGION:-us-east-1}" \
+	  --cluster "$$cluster" --task "$$task" --reason "teste de resiliencia RNF05b (timeout)"; \
+	echo "3/3: aguardando a carga terminar..."; \
+	wait $$carga_pid; \
+	echo "Carga concluida. Confira RunningTaskCount do merge-worker (deve voltar sozinho) e rode make count."
+
+# Profundidade (nao exigido pelo minimo do artefato): fila cheia e evento
+# invalido ao mesmo tempo, pra garantir que os dois mecanismos (backlog e DLQ)
+# nao interferem um no outro -- ver secao 6.3 do plano de teste. Mesma regra
+# do alvo acima: k6 chamado direto, nunca via `$(MAKE)`.
+.PHONY: resiliencia-concorrente
+resiliencia-concorrente: ## Profundidade: fila cheia + evento invalido ao mesmo tempo
+	@command -v k6 >/dev/null || { echo "erro: k6 nao encontrado no PATH."; exit 1; }
+	@$(call require_env,ARGUS_CHANGES_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
+	@$(call require_env,AWS_PROFILE)
+	@echo "1/3: escalando merge-worker para 0 (terraform vai pedir confirmacao)"
+	cd $(INFRA) && terraform apply -var="worker_desired_count=0"
+	@echo "2/3: carga normal + eventos invalidos ao mesmo tempo, worker desligado"
+	@( cd $(TOOLS)/loadtest && k6 run \
+	     -e ARGUS_CHANGES_URL="$(ARGUS_CHANGES_URL)" \
+	     -e ARGUS_INGEST_TOKEN="$(ARGUS_INGEST_TOKEN)" \
+	     -e EVENTOS_POR_MINUTO=$${EVENTOS_POR_MINUTO:-10000} \
+	     -e MINUTOS=$${MINUTOS:-5} \
+	     changes_load.js ) & \
+	carga_pid=$$!; \
+	( cd $(TOOLS)/loadtest && k6 run \
+	     -e ARGUS_CHANGES_URL="$(ARGUS_CHANGES_URL)" \
+	     -e ARGUS_INGEST_TOKEN="$(ARGUS_INGEST_TOKEN)" \
+	     -e REPETICOES=$${REPETICOES:-3} \
+	     eventos_invalidos.js ) & \
+	invalidos_pid=$$!; \
+	wait $$carga_pid $$invalidos_pid
+	@echo "3/3: religando o merge-worker (terraform vai pedir confirmacao)"
+	cd $(INFRA) && terraform apply -var="worker_desired_count=$${WORKER_DESIRED_COUNT:-1}"
+	@echo "Confira 'make dlq' logo apos religar: o invalido nao deve ficar preso atras do backlog normal."
+
+# Profundidade: confere que os watermarks do ETL (015_etl_incremental.sql)
+# nunca regrediram -- e o bug real documentado em plano-argus-v3.md secao 12.
+# So faz sentido rodar depois de algum dos cenarios acima ja ter passado dado
+# pelo ETL.
+.PHONY: resiliencia-watermark-check
+resiliencia-watermark-check: ## Profundidade: confere que os watermarks do ETL nunca regrediram
+	@$(call require_env,DATABASE_URL)
+	psql "$(DATABASE_URL)" -f $(TOOLS)/loadtest/watermark_check.sql
+
+# Avancado (fora do minimo do artefato): aciona o redrive NATIVO do SQS --
+# 5 tentativas -> changes-dlq SEM FailureReason -- em vez da quarentena
+# explicita do worker (que e o caminho comum, ja coberto por
+# resiliencia-evento-invalido e sempre acontece na 1a tentativa). Exige o RDS
+# genuinamente inacessivel para os workers por ~15 min (5 x
+# changes_visibility_timeout_seconds=180s); autorizado explicitamente pelo
+# usuario em 2026-09-01 para este ambiente de Learner Lab individual -- ver
+# plano-teste-resiliencia.md secao 6.2.
+#
+# SEGURANCA: a regra do security group e restaurada num `trap ... EXIT`, que
+# roda mesmo se o alvo for interrompido (Ctrl+C) ou falhar no meio -- nunca
+# deveria deixar o RDS inacessivel para o resto do sistema além da janela do
+# teste. Se o "acesso restaurado" no final NAO aparecer, rode a mesma
+# `authorize-security-group-ingress` na mao antes de continuar qualquer outra
+# coisa no ambiente.
+.PHONY: resiliencia-dlq-fronteira
+resiliencia-dlq-fronteira: ## Avancado: redrive nativo do SQS via ~15-20min de RDS inacessivel aos workers
+	@command -v k6 >/dev/null || { echo "erro: k6 nao encontrado no PATH."; exit 1; }
+	@$(call require_env,ARGUS_CHANGES_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
+	@$(call require_env,AWS_PROFILE)
+	@nome=$$(cd $(INFRA) && terraform output -raw ecs_cluster_name); \
+	regiao="$${AWS_REGION:-us-east-1}"; \
+	rds_sg=$$(aws ec2 describe-security-groups --profile "$(AWS_PROFILE)" --region "$$regiao" \
+	  --filters "Name=group-name,Values=$${nome}-rds" --query 'SecurityGroups[0].GroupId' --output text); \
+	worker_sg=$$(aws ec2 describe-security-groups --profile "$(AWS_PROFILE)" --region "$$regiao" \
+	  --filters "Name=group-name,Values=$${nome}-tasks" --query 'SecurityGroups[0].GroupId' --output text); \
+	if [ "$$rds_sg" = "None" ] || [ -z "$$rds_sg" ] || [ "$$worker_sg" = "None" ] || [ -z "$$worker_sg" ]; then \
+	  echo "erro: nao encontrei os security groups (rds_sg=$$rds_sg worker_sg=$$worker_sg)"; exit 1; \
+	fi; \
+	echo "RDS SG: $$rds_sg | worker SG: $$worker_sg"; \
+	trap 'echo; echo "restaurando acesso do worker ao RDS..."; \
+	  aws ec2 authorize-security-group-ingress --profile "$(AWS_PROFILE)" --region "'"$$regiao"'" \
+	    --group-id "'"$$rds_sg"'" --protocol tcp --port 5432 --source-group "'"$$worker_sg"'" >/dev/null 2>&1 \
+	    && echo "acesso restaurado." \
+	    || echo "AVISO: a regra pode ja existir (ok) ou a restauracao falhou de verdade -- confira com: aws ec2 describe-security-groups --group-ids '"$$rds_sg"' --profile $(AWS_PROFILE)"' EXIT; \
+	echo "1/4: revogando o acesso do worker ao RDS (porta 5432)"; \
+	aws ec2 revoke-security-group-ingress --profile "$(AWS_PROFILE)" --region "$$regiao" \
+	  --group-id "$$rds_sg" --protocol tcp --port 5432 --source-group "$$worker_sg"; \
+	echo "2/4: enviando trafego minimo (vai falhar 5x e cair na changes-dlq sem FailureReason)"; \
+	( cd $(TOOLS)/loadtest && k6 run \
+	    -e ARGUS_CHANGES_URL="$(ARGUS_CHANGES_URL)" \
+	    -e ARGUS_INGEST_TOKEN="$(ARGUS_INGEST_TOKEN)" \
+	    -e EVENTOS_POR_MINUTO=20 -e MINUTOS=0.1 \
+	    changes_load.js ) >/dev/null; \
+	echo "3/4: aguardando ate 20 min pela 5a tentativa (visibility timeout de 180s x5)"; \
+	fila_dlq=$$(cd $(INFRA) && terraform output -raw changes_dlq_url); \
+	limite=$$(( $$(date +%s) + 1200 )); \
+	while true; do \
+	  n=$$(aws sqs get-queue-attributes --profile "$(AWS_PROFILE)" --region "$$regiao" \
+	    --queue-url "$$fila_dlq" --attribute-names ApproximateNumberOfMessages \
+	    --query 'Attributes.ApproximateNumberOfMessages' --output text); \
+	  echo "  mensagens na changes-dlq: $$n"; \
+	  [ "$$n" != "0" ] && break; \
+	  [ $$(date +%s) -ge $$limite ] && { echo "timeout de 20 min sem a mensagem cair na DLQ -- confira 'make logs SERVICO=worker'"; break; }; \
+	  sleep 30; \
+	done; \
+	echo "4/4: FailureReason deve estar AUSENTE aqui (prova de que foi o SQS, nao o worker, quem quarentenou):"; \
+	aws sqs receive-message --profile "$(AWS_PROFILE)" --region "$$regiao" \
+	  --queue-url "$$fila_dlq" --message-attribute-names All --max-number-of-messages 1 \
+	  --query 'Messages[0].{motivo:MessageAttributes.FailureReason.StringValue,corpo:Body}' --output json
+
 .PHONY: logs
 logs: ## Acompanha os logs de um servico (SERVICO=worker|simulator|processing|loader)
 	@$(call require_env,AWS_PROFILE)
@@ -747,6 +1074,35 @@ logs: ## Acompanha os logs de um servico (SERVICO=worker|simulator|processing|lo
 logs-api: ## Acompanha os logs da API de leitura
 	@$(call require_env,AWS_PROFILE)
 	aws logs tail "/aws/lambda/$$(cd $(INFRA) && terraform output -raw ecs_cluster_name)-read-api" --follow
+
+.PHONY: grafana-up
+grafana-up: ## Sobe Grafana local (Docker) com datasource CloudWatch pronto (perfil g4)
+	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
+	@test -f "$(HOME)/.aws/credentials" || { echo "erro: $(HOME)/.aws/credentials nao existe."; exit 1; }
+	@# So o perfil g4 vai pro container -- nunca o arquivo inteiro, que pode ter
+	@# outros perfis (ex. default) sem relacao com este dashboard.
+	@umask 077 && awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > /tmp/argus-grafana-creds
+	@test -s /tmp/argus-grafana-creds || { echo "erro: perfil [g4] nao encontrado em $(HOME)/.aws/credentials"; rm -f /tmp/argus-grafana-creds; exit 1; }
+	docker rm -f argus-grafana >/dev/null 2>&1 || true
+	docker run -d --name argus-grafana \
+	  --user "$$(id -u):$$(id -g)" \
+	  -p 127.0.0.1:3000:3000 \
+	  -e GF_AUTH_ANONYMOUS_ENABLED=true \
+	  -e GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer \
+	  -e AWS_SHARED_CREDENTIALS_FILE=/aws/credentials \
+	  -e AWS_PROFILE=g4 \
+	  -v "/tmp/argus-grafana-creds:/aws/credentials:ro" \
+	  -v "$(PWD)/$(OBSERVABILITY)/provisioning:/etc/grafana/provisioning:ro" \
+	  -v "$(PWD)/$(OBSERVABILITY)/dashboards:/var/lib/grafana/dashboards:ro" \
+	  grafana/grafana:11.2.0
+	@rm -f /tmp/argus-grafana-creds
+	@echo "Grafana em http://localhost:3000 (dashboard 'RNF04/05/11 - Resiliencia Argus'), acessivel so pela propria maquina (bind em 127.0.0.1)."
+	@echo "Credenciais lidas de $(HOME)/.aws/credentials (perfil g4) -- expira junto com a sessao do Learner Lab, so recriar o container (make grafana-up) apos renovar."
+
+.PHONY: grafana-down
+grafana-down: ## Derruba o Grafana local
+	docker rm -f argus-grafana >/dev/null 2>&1 || true
+	@rm -f /tmp/argus-grafana-creds
 
 .PHONY: dlq
 dlq: ## Mostra o que esta nas filas de rejeitados

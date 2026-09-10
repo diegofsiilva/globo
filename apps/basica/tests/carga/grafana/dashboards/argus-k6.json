@@ -1,0 +1,234 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Throughput (req/s)",
+      "description": "Requisições HTTP por segundo — indicador principal de capacidade (RNF01).",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(k6_http_reqs_total{testid=~\"$testid\"}[1m]))",
+          "legendFormat": "req/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 20, "lineWidth": 2 },
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "title": "Latência (ms) — p50, p90, p95, p99",
+      "description": "Distribuição de latência das requisições HTTP. O RNF02 exige p99 ≤ 5.000 ms.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "max by (scenario) (k6_http_req_duration_p50{testid=~\"$testid\"}) * 1000",
+          "legendFormat": "p50 {{scenario}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (scenario) (k6_http_req_duration_p90{testid=~\"$testid\"}) * 1000",
+          "legendFormat": "p90 {{scenario}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max by (scenario) (k6_http_req_duration_p95{testid=~\"$testid\"}) * 1000",
+          "legendFormat": "p95 {{scenario}}",
+          "refId": "C"
+        },
+        {
+          "expr": "max by (scenario) (k6_http_req_duration_p99{testid=~\"$testid\"}) * 1000",
+          "legendFormat": "p99 {{scenario}}",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2000 },
+              { "color": "red", "value": 5000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Erros por Segundo",
+      "description": "Taxa de erros HTTP (4xx + 5xx). Alarme se > 1% da carga.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(k6_http_reqs_total{testid=~\"$testid\",expected_response=\"false\"}[1m]))",
+          "legendFormat": "erros/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "custom": { "fillOpacity": 30, "lineWidth": 2 },
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "title": "Taxa de Sucesso (%)",
+      "description": "Percentual de requisições HTTP bem-sucedidas (2xx). Meta: ≥ 99%.",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(k6_http_reqs_total{testid=~\"$testid\",expected_response=\"true\"}[1m])) / sum(rate(k6_http_reqs_total{testid=~\"$testid\"}[1m]))",
+          "legendFormat": "sucesso %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 95 },
+              { "color": "green", "value": 99 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "VUs Ativos",
+      "description": "Número de Virtual Users ativos durante o teste.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(k6_vus{testid=~\"$testid\"})",
+          "legendFormat": "VUs",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" },
+          "custom": { "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Total de Requisições",
+      "description": "Contador cumulativo de requisições HTTP enviadas.",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(k6_http_reqs_total{testid=~\"$testid\"}[$__range]))",
+          "legendFormat": "total",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "green", "mode": "fixed" },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Latência por Cenário / Rota",
+      "description": "Latência p95 por cenário k6 (carga_nominal, pico_10k, rajada, etc).",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "max by (scenario, name) (k6_http_req_duration_p95{testid=~\"$testid\"}) * 1000",
+          "legendFormat": "{{scenario}} / {{name}}",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "title": "Dados Recebidos / Enviados",
+      "description": "Volume de dados transferidos durante o teste.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(k6_data_received_total{testid=~\"$testid\"}[1m]))",
+          "legendFormat": "recebido (bytes/s)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(k6_data_sent_total{testid=~\"$testid\"}[1m]))",
+          "legendFormat": "enviado (bytes/s)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 20 },
+          "unit": "Bps"
+        }
+      }
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["argus", "k6", "carga", "rnf01", "rnf02", "rnf03"],
+  "templating": {
+    "list": [
+      {
+        "name": "testid",
+        "label": "Execução (testid)",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(k6_http_reqs_total, testid)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "definition": "label_values(k6_http_reqs_total, testid)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "sort": 2
+      }
+    ]
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Argus — Testes de Carga (RNF01/02/03)",
+  "uid": "argus-k6-carga",
+  "version": 1
+}

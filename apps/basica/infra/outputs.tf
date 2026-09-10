@@ -196,6 +196,22 @@ output "migration_status_command" {
   ])
 }
 
+output "db_reader_run_command" {
+  description = "Cria ou atualiza o usuario somente-leitura usado pela Lambda, pela VPC."
+  value = join("", [
+    "aws ecs run-task --profile g4 --region ", var.region,
+    " \\\n  --cluster ", aws_ecs_cluster.main.name,
+    " \\\n  --task-definition ", aws_ecs_task_definition.migration.family,
+    " \\\n  --launch-type FARGATE",
+    " \\\n  --network-configuration 'awsvpcConfiguration={subnets=[",
+    join(",", local.subnet_ids), "],securityGroups=[",
+    aws_security_group.worker.id, "],assignPublicIp=",
+    var.assign_public_ip ? "ENABLED" : "DISABLED", "}'",
+    " \\\n  --overrides '{\"containerOverrides\":[{\"name\":\"migration\",",
+    "\"command\":[\"criar-leitor\",\"--usuario\",\"", var.read_api_db_user, "\"]}]}'",
+  ])
+}
+
 # --------------------------------------------------------------------------- #
 # Leitura
 # --------------------------------------------------------------------------- #
@@ -203,6 +219,16 @@ output "migration_status_command" {
 output "read_api_url" {
   description = "URL base da API de leitura. E esta que o dashboard consome."
   value       = aws_apigatewayv2_api.read.api_endpoint
+}
+
+output "read_api_id" {
+  description = "ID da API de leitura. Usado para limpar o cache do authorizer na rotacao."
+  value       = aws_apigatewayv2_api.read.id
+}
+
+output "ingest_api_id" {
+  description = "ID da API de ingestao. Usado para limpar o cache do authorizer na rotacao."
+  value       = aws_apigatewayv2_api.events.id
 }
 
 output "frontend_url" {
@@ -240,4 +266,141 @@ output "read_api_examples" {
     janelas  = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/incidents"
     agrupado = "${aws_apigatewayv2_api.read.api_endpoint}/api/v1/metrics/breakdown?dimension=device_manufacturer"
   }
+}
+
+# --------------------------------------------------------------------------- #
+# Rede dedicada e camada de aplicacao
+# --------------------------------------------------------------------------- #
+
+output "vpc_id" {
+  description = "VPC efetivamente em uso: a dedicada, a injetada ou a default da conta."
+  value       = local.vpc_id
+}
+
+output "private_subnet_ids" {
+  description = "Sub-redes privadas. Vazio quando create_network = false."
+  value       = local.private_subnet_ids
+}
+
+output "public_subnet_ids" {
+  description = "Sub-redes publicas. Vazio quando create_network = false."
+  value       = local.public_subnet_ids
+}
+
+output "nat_gateway_ip" {
+  description = <<-EOT
+    IP de saida das sub-redes privadas. E este endereco que aparece como origem
+    para qualquer servico externo chamado pelas instancias -- util quando
+    alguem precisa liberar o Argus numa allowlist de terceiro.
+  EOT
+  value       = var.create_network ? aws_eip.nat[0].public_ip : null
+}
+
+output "flow_log_destino" {
+  description = <<-EOT
+    Onde procurar os VPC Flow Logs -- o bucket S3 ou o log group, conforme
+    `flow_logs_destination`. Responde "a conexao chegou?".
+  EOT
+  value = (
+    !var.create_network ? null :
+    var.flow_logs_destination == "s3"
+    ? "s3://${local.flow_logs_bucket}"
+    : aws_cloudwatch_log_group.vpc_flow[0].name
+  )
+}
+
+output "s3_gateway_endpoint_id" {
+  description = <<-EOT
+    Gateway endpoint de S3 associado a tabela de rota privada. E o que tira o
+    trafego do `loader` de cima do NAT -- e o NAT cobra por GB.
+  EOT
+  value       = var.create_network ? aws_vpc_endpoint.s3[0].id : null
+}
+
+output "alb_dns_name" {
+  description = <<-EOT
+    DNS do Application Load Balancer. E o valor de NEXT_PUBLIC_API_URL do
+    dashboard depois da migracao (prefixado por http://, ver secao 4 do
+    artefato de infraestrutura).
+  EOT
+  value       = local.criar_app ? aws_lb.app[0].dns_name : null
+}
+
+output "api_url_alb" {
+  description = "URL base da API de leitura servida pelo ALB, pronta para o .env."
+  value       = local.criar_app ? "http://${aws_lb.app[0].dns_name}" : null
+}
+
+output "alb_zone_id" {
+  description = "Zona hospedada do ALB, necessaria para um alias de Route 53 ou do CloudFront."
+  value       = local.criar_app ? aws_lb.app[0].zone_id : null
+}
+
+output "target_group_arn" {
+  description = "Target group da API. Use com `aws elbv2 describe-target-health` para conferir os alvos."
+  value       = local.criar_app ? aws_lb_target_group.app[0].arn : null
+}
+
+output "asg_name" {
+  description = "Nome do Auto Scaling Group da API de leitura."
+  value       = local.criar_app ? aws_autoscaling_group.app[0].name : null
+}
+
+output "launch_template_id" {
+  description = "Launch template do ASG. E o alvo do comando de rollback."
+  value       = local.criar_app ? aws_launch_template.app[0].id : null
+}
+
+output "launch_template_latest_version" {
+  description = <<-EOT
+    Versao mais recente do launch template.
+
+    Guarde este numero ANTES de publicar uma versao nova: o rollback consiste em
+    apontar o ASG de volta para a versao anterior e disparar um instance
+    refresh, e para isso e preciso saber qual era.
+  EOT
+  value       = local.criar_app ? aws_launch_template.app[0].latest_version : null
+}
+
+output "bastion_public_ip" {
+  description = <<-EOT
+    IP publico do bastion. Nulo quando `bastion_key_name` esta vazio.
+
+      ssh -J ec2-user@<ip> ec2-user@<ip-privado>
+      ssh -N -L 5432:<endpoint-rds>:5432 ec2-user@<ip>
+  EOT
+  value       = local.criar_bastion ? aws_instance.bastion[0].public_ip : null
+}
+
+output "app_log_group_name" {
+  description = "Log group da API de leitura nas instancias do ASG."
+  value       = local.criar_app ? aws_cloudwatch_log_group.app[0].name : null
+}
+
+output "dashboard_url" {
+  description = "Painel do CloudWatch com o caminho sincrono ponta a ponta."
+  value = (
+    local.criar_app
+    ? "https://${var.region}.console.aws.amazon.com/cloudwatch/home?region=${var.region}#dashboards:name=${aws_cloudwatch_dashboard.main[0].dashboard_name}"
+    : null
+  )
+}
+
+output "rollback_command" {
+  description = <<-EOT
+    Comando literal de rollback: devolve o ASG a versao anterior do launch
+    template e substitui as instancias. Troque <versao> pelo numero que
+    `launch_template_latest_version` mostrava antes do deploy ruim.
+  EOT
+  value = (
+    local.criar_app
+    ? join(" ", [
+      "aws autoscaling update-auto-scaling-group",
+      "--auto-scaling-group-name ${aws_autoscaling_group.app[0].name}",
+      "--launch-template LaunchTemplateId=${aws_launch_template.app[0].id},Version=<versao>",
+      "--profile g4 && aws autoscaling start-instance-refresh",
+      "--auto-scaling-group-name ${aws_autoscaling_group.app[0].name} --profile g4",
+    ])
+    : null
+  )
 }
