@@ -17,6 +17,7 @@ from telemetry.infrastructure.gold import GoldRepository
 from telemetry.infrastructure.hypotheses import HypothesisRepository
 from telemetry.infrastructure.postgres import PostgresEventRepository, build_pool
 from telemetry.infrastructure.signals import SignalsRepository
+from telemetry.interfaces.auth import register_auth
 from telemetry.interfaces.http import api, health
 from telemetry.interfaces.hypotheses_http import hypotheses_api
 from telemetry.interfaces.signals_http import signals_api
@@ -96,6 +97,10 @@ def create_app(
     # coisa a rodar e enxerga os cabecalhos que o CORS acrescentou.
     register_observability(app)
     register_cors(app)
+    # A autenticacao entra DEPOIS do CORS: `before_request` roda na ordem de
+    # registro, e o preflight precisa dos cabecalhos de CORS mesmo quando a
+    # requisicao seguinte vier a ser recusada por token.
+    register_auth(app)
     register_error_handlers(app)
     return app
 

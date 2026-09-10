@@ -202,3 +202,38 @@ resource "aws_db_instance" "main" {
     Name = local.name
   }
 }
+
+# --------------------------------------------------------------------------- #
+# Acesso a partir da camada de aplicacao nova
+# --------------------------------------------------------------------------- #
+
+# As instancias do Auto Scaling Group entram pelo seu proprio security group, e
+# nao pelo das tasks. Separar importa: se um dia a API de leitura precisar de
+# permissao diferente da dos workers de ingestao, ha onde expressar isso sem
+# afrouxar a regra para os dois.
+resource "aws_security_group_rule" "rds_from_app" {
+  count = local.criar_app ? 1 : 0
+
+  type                     = "ingress"
+  description              = "PostgreSQL vindo das instancias EC2 da API de leitura"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.app[0].id
+}
+
+# O bastion e o unico caminho humano ate o banco depois que ele deixa de ser
+# publico. Substitui, para inspecao interativa, o que hoje se faz disparando a
+# task ECS `migration` -- que continua existindo para as migrations.
+resource "aws_security_group_rule" "rds_from_bastion" {
+  count = local.criar_bastion ? 1 : 0
+
+  type                     = "ingress"
+  description              = "PostgreSQL vindo do bastion, para tunel e inspecao"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.bastion[0].id
+}
