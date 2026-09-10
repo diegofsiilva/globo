@@ -1526,7 +1526,7 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 > Regra que mais custa nota: falar sobre o recurso não é evidenciar o recurso. Cada
 > item precisa da tela correspondente aberta e do valor visível.
 
-**Link:** {{URL}}
+**Link:** [Vídeo 1 — Infraestrutura provisionada](https://drive.google.com/file/d/1mkoyWfkYK4TOf163Gpez1w779KHUotQt/view?usp=sharing)
 
 **Roteiro e evidências**
 
