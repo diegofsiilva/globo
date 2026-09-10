@@ -92,6 +92,18 @@ locals {
     ["http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"],
     var.dashboard_origins_extra,
   )
+
+  # Buckets de origem/frontend criados FORA do Terraform (aws s3api
+  # create-bucket), pela mesma razao de flow_logs/alb_logs: a SCP do AWS
+  # Academy nega s3:GetBucketObjectLockConfiguration, a chamada que o provider
+  # faz ao ler qualquer `aws_s3_bucket` recem-criado ou importado. Nesta versao
+  # do provider isso nao da so erro -- derruba o Terraform com panic ao tentar
+  # serializar o estado do bucket recem-criado. O nome continua deterministico
+  # (nome + conta), so o resource `aws_s3_bucket` que deixa de existir; os
+  # sub-recursos (versioning, encryption, PAB, policy, website) continuam
+  # gerenciados aqui, referenciando o nome direto.
+  frontend_bucket_name = "${local.name}-site-${data.aws_caller_identity.current.account_id}"
+  origem_bucket_name   = "${local.name}-origem-${data.aws_caller_identity.current.account_id}"
 }
 
 data "aws_caller_identity" "current" {}

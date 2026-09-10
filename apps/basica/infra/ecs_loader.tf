@@ -41,7 +41,7 @@ resource "aws_ecs_task_definition" "loader" {
 
       environment = concat(local.env_comum, [
         { name = "SERVICE_NAME", value = "${local.name}-loader" },
-        { name = "ORIGEM_BUCKET", value = aws_s3_bucket.origem.id },
+        { name = "ORIGEM_BUCKET", value = local.origem_bucket_name },
         { name = "ORIGEM_PREFIX", value = "parquet/" },
         { name = "HEARTBEAT_PATH", value = "/tmp/argus-heartbeat" },
       ])
