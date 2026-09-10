@@ -37,10 +37,9 @@ que já a tem. A seção 3.8 registra a decisão junto com a alternativa descart
 &emsp; As duas cargas rodam numa rede dedicada, com sub-redes públicas e privadas
 distribuídas em duas zonas de disponibilidade. Nenhuma delas tem endereço roteável
 da internet: a saída passa por um NAT Gateway, a entrada passa pelo balanceador, e o
-acesso administrativo passa por um bastion host. O dashboard é entregue por uma
-distribuição do Amazon CloudFront, que encerra o TLS na borda e serve o front e a
-API sob a mesma origem. Toda a persistência fica num Amazon RDS PostgreSQL em
-sub-rede privada.
+acesso administrativo passa por um bastion host. O dashboard é um site estático
+servido a partir de um bucket do Amazon S3, e chama o balanceador diretamente. Toda
+a persistência fica num Amazon RDS PostgreSQL em sub-rede privada.
 
 ### 1.1 Fora de escopo
 
@@ -93,14 +92,14 @@ agrupamento lógico e não recurso de rede: o Auto Scaling Group e o balanceador
 &emsp; Fora da VPC, a coluna da esquerda reúne o caminho de ingestão e a faixa
 inferior reúne os serviços que atendem a todos os demais ao mesmo tempo: ECR, IAM,
 CloudWatch, SNS, o Lambda authorizer, o Secrets Manager e o bucket de access logs do
-balanceador. À direita ficam a distribuição CloudFront, o bucket que guarda o
-dashboard e a estação do administrador, de onde parte o SSH para o bastion.
+balanceador. À direita ficam o bucket que guarda o dashboard e a estação do
+administrador, de onde parte o SSH para o bastion.
 
 &emsp; O caminho da requisição do dashboard é o que a figura mais precisa deixar
-claro. O navegador fala apenas com o CloudFront, em HTTPS. A distribuição resolve os
-arquivos estáticos do dashboard no bucket do S3 e encaminha o que vem sob `/api/*`
-ao Application Load Balancer, em HTTP na porta 80, levando adiante o cabeçalho
-`Authorization`. O balanceador repassa a requisição a uma das instâncias do grupo,
+claro. O navegador busca os arquivos estáticos do dashboard no endpoint de website
+do bucket, em HTTP, e chama a API diretamente no Application Load Balancer, também
+em HTTP na porta 80, levando o token no cabeçalho `Authorization`. O balanceador
+repassa a requisição a uma das instâncias do grupo,
 na porta 5000, onde o gunicorn, que é o servidor que executa a aplicação Flask
 dentro do container, responde. A instância consulta o RDS na porta 5432 como o
 usuário `argus_api`, que só enxerga as views `v_*`. A resposta volta pelo mesmo
@@ -551,18 +550,18 @@ está desligada: a API lê de views e não guarda estado entre requisições, en
 prender o mesmo cliente ao mesmo alvo só reduziria a uniformidade que a política
 mede.
 
-&emsp; O listener é HTTP na porta 80, e não HTTPS na 443. Quem encerra o TLS é a
-distribuição CloudFront, na borda (3.5): o navegador nunca fala com o balanceador
-diretamente, e o trecho entre a distribuição e o balanceador corre dentro da rede da
-AWS. Concentrar o certificado num lugar só evita mantê-lo em dois e evita a
-dependência de um domínio próprio, já que o certificado da distribuição cobre o nome
-`*.cloudfront.net`. O que essa escolha custa está registrado como risco na seção 8:
-o trecho entre a borda e o balanceador não é criptografado, e fechá-lo exigiria um
-certificado no balanceador e, portanto, um domínio validável.
+&emsp; O listener é HTTP na porta 80, e não HTTPS na 443. Servir HTTPS no
+balanceador exige um certificado emitido pelo ACM, e o ACM só emite para um domínio
+cujo DNS possa ser validado; o projeto não tem domínio registrado. A consequência
+está declarada como risco na seção 8: o token que o operador cola no dashboard
+trafega em claro entre o navegador e o balanceador, e um intermediário de rede
+consegue lê-lo. O plano que corrige isso, pondo uma distribuição CloudFront à frente
+das duas origens e usando o certificado dela, está em 4.4.
 
-&emsp; O grupo de segurança do balanceador é o que impede que alguém contorne a
-borda: ele aceita a porta 80 de qualquer origem, porque é o que um balanceador
-público faz, mas as instâncias por trás só aceitam conexão vinda desse grupo.
+&emsp; O grupo de segurança do balanceador é o que impede que alguém alcance as
+instâncias por fora: ele aceita a porta 80 de qualquer origem, porque é o que um
+balanceador público faz, mas as instâncias por trás só aceitam conexão vinda desse
+grupo.
 
 **Ficha — Application Load Balancer e target group**
 
@@ -647,56 +646,36 @@ caminho, por túnel, para inspeção interativa.
 | Custo estimado | ~US$ 60/mês |
 | Arquivo Terraform | `apps/basica/infra/rds.tf` |
 
-### 3.5 Entrega do front-end — CloudFront e S3
+### 3.5 Entrega do front-end — Amazon S3
 
 &emsp; O dashboard é um site estático, gerado pelo Next.js com `output: "export"` e
-sincronizado para um bucket do Amazon S3. Quem o entrega ao navegador é uma
-distribuição do Amazon CloudFront, que é a rede de distribuição de conteúdo da AWS:
-um conjunto de pontos de presença que ficam na frente da origem, encerram a conexão
-do usuário e servem o conteúdo. Ela entra na topologia por segurança antes de por
-latência.
+sincronizado para um bucket do Amazon S3. Quem o entrega ao navegador é o endpoint de
+website do próprio bucket. A alternativa seria servi-lo pelo balanceador, o que
+exigiria um processo entregando arquivo estático e desperdiçaria a natureza estática
+do bundle: um conjunto de arquivos que não muda entre requisições não precisa de
+aplicação para ser devolvido.
 
-&emsp; São três os ganhos, e o primeiro é o que justifica o componente. A
-distribuição encerra o TLS na borda com o certificado do domínio
-`*.cloudfront.net`, sem exigir domínio registrado nem validação de DNS. Sem ela, o
-operador colaria o token de leitura numa página servida em texto claro, e um
-intermediário de rede poderia lê-lo ou alterar o JavaScript entregue.
+&emsp; O endpoint de website exige leitura anônima, e é por isso que o bucket tem os
+quatro bloqueios de acesso público desativados e uma policy com `Principal: "*"` para
+`s3:GetObject`. O conteúdo é público por natureza, já que é o bundle que qualquer
+navegador precisa baixar antes de pedir o token; o que ele não contém é dado do
+sistema, que só vem depois, pela API e mediante autenticação.
 
-&emsp; O segundo é o fechamento do bucket. A leitura é autorizada pelo Origin Access
-Control, o mecanismo pelo qual apenas a distribuição consegue ler os objetos: os
-quatro bloqueios de acesso público ficam ligados e não existe policy com
-`Principal: "*"`. Sem esse mecanismo, o bucket precisaria de leitura anônima, e
-qualquer pessoa poderia buscar o bundle direto nele, contornando a borda.
-
-&emsp; O terceiro vem da topologia de duas origens. O comportamento padrão resolve
-`/*` no bucket e um segundo comportamento resolve `/api/*` no Application Load
-Balancer. Front e API passam a ser servidos pelo mesmo endereço, o que elimina o
-CORS, já que deixa de haver origem cruzada, e elimina a possibilidade de conteúdo
-misto, que é uma página em HTTPS chamando um endereço em HTTP, situação que o
-navegador bloqueia. A configuração dos dois comportamentos e as armadilhas que ela
-tem estão em 4.4.
-
-**Ficha — Amazon CloudFront**
-
-| Campo | Conteúdo |
-|---|---|
-| Papel no sistema | Fronteira externa do sistema: encerra o TLS, serve o dashboard e encaminha as chamadas de API |
-| Configuração efetiva | Duas origens; comportamento padrão para o bucket via Origin Access Control, com cache longo; comportamento `/api/*` para o balanceador, sem cache e encaminhando `Authorization`; `viewer_protocol_policy` em `redirect-to-https`; certificado do ACM em `us-east-1` |
-| Entradas / saídas | Entrada: HTTPS 443 do navegador. Saída: leitura do bucket via OAC e HTTP 80 para o balanceador |
-| Alternativa descartada | Distribuição de origem única, apenas à frente do bucket, que deixaria a API fora da borda e criaria conteúdo misto na página |
-| Modo de falha previsto e mitigação | Cabeçalho `Authorization` não encaminhado devolve 401 em toda chamada autenticada; a verificação 6b de 4.5 apanha isso antes da publicação |
-| Custo estimado | ~US$ 1/mês no volume deste projeto, cobrado por tráfego servido e por requisição |
-| Arquivo Terraform | `apps/basica/infra/cloudfront.tf` |
+&emsp; Esse endpoint atende somente em HTTP, e a consequência é direta: o token que o
+operador cola na página trafega em claro, e um intermediário de rede consegue lê-lo ou
+alterar o JavaScript entregue. A limitação está registrada na seção 8, e o plano que a
+corrige, com uma distribuição CloudFront à frente do bucket e do balanceador, está em
+4.4.
 
 **Ficha — S3 do front-end**
 
 | Campo | Conteúdo |
 |---|---|
-| Papel no sistema | Guarda o bundle estático do dashboard |
-| Configuração efetiva | Bucket sem acesso público, leitura autorizada apenas à distribuição por Origin Access Control, criptografia SSE-S3 |
-| Entradas / saídas | Leitura pela distribuição; escrita por `aws s3 sync` na publicação do front |
-| Alternativa descartada | Servir o front pelo próprio balanceador, o que exigiria um processo entregando arquivo estático e desperdiçaria a natureza estática do bundle |
-| Modo de falha previsto e mitigação | Bundle novo publicado e cache antigo ainda servido; resolvido pela invalidação que fecha o passo de publicação (4.3) |
+| Papel no sistema | Guarda e entrega o bundle estático do dashboard |
+| Configuração efetiva | Bucket com website configuration, leitura anônima de objeto, criptografia SSE-S3 |
+| Entradas / saídas | HTTP 80 do navegador; escrita por `aws s3 sync` na publicação do front |
+| Alternativa descartada | Servir o front pelo próprio balanceador, o que exigiria um processo entregando arquivo estático |
+| Modo de falha previsto e mitigação | Token em claro no transporte, porque o endpoint não fala HTTPS; a correção está planejada em 4.4 |
 | Custo estimado | < US$ 1/mês |
 | Arquivo Terraform | `apps/basica/infra/frontend_s3.tf` |
 
@@ -735,9 +714,8 @@ justificada; linha sem seta é componente esquecido no desenho.
 | ECS `loader` | S3 «origem» | HTTPS 443, `GetObject` | IAM (task role) | privada → NAT |
 | ECS (workers, simulador, ETL) | RDS | PostgreSQL 5432, `sslmode=require` | usuário mestre | privada |
 | ECS `migration` | RDS | PostgreSQL 5432 | usuário mestre | privada |
-| Navegador do usuário | CloudFront | HTTPS 443 | anônimo em `/*`; Bearer, audiência `dashboard`, em `/api/*` | internet → borda |
-| CloudFront | S3 «frontend» | HTTPS, leitura de objeto | Origin Access Control | borda → serviço gerenciado |
-| CloudFront | Application Load Balancer | HTTP 80 | encaminha o `Authorization` do navegador | borda → pública |
+| Navegador do usuário | S3 «frontend» | HTTP 80 | anônima; o bundle é público | internet → serviço gerenciado |
+| Navegador do usuário | Application Load Balancer | HTTP 80 | Bearer, audiência `dashboard` | internet → pública |
 | ALB | EC2 do ASG | HTTP 5000 | — (rede: só o `sg-alb` alcança) | pública → privada |
 | ALB | Target group (health check) | HTTP 5000 `/health/live` | nenhuma, por desenho | pública → privada |
 | EC2 do ASG | RDS | PostgreSQL 5432, `sslmode=require` | usuário `argus_api` (só views `v_*`) | privada |
@@ -770,7 +748,7 @@ caminho de volta é uma aposta, não uma escolha.
 | 6 | Verificação de saúde do tipo `ELB` sobre `/health/live` | Tipo `EC2`, ou `ELB` sobre `/health/ready` | Disponibilidade: evita reciclagem em massa por falha do banco | Processo travado sem morrer não é detectado; coberto pelo alarme de latência | — | Trocar o `path` do target group |
 | 7 | Escalonamento por `ALBRequestCountPerTarget` | CPU média, ou degraus declarados à mão | Elasticidade efetiva numa carga limitada por espera de banco | Rajada muito curta termina antes de a instância entrar em serviço | — | Trocar `predefined_metric_type` |
 | 8 | Banco em instância única | Réplica síncrona em segunda zona | Custo sobre disponibilidade | Ponto único de falha: a perda da instância é indisponibilidade total | Metade do custo do RDS | `db_multi_az = true` |
-| 9 | TLS encerrado no CloudFront, com o balanceador em HTTP | Certificado no próprio balanceador, com listener 443 | Um certificado só, sem dependência de domínio registrado | O trecho entre a borda e o balanceador não é criptografado | — | Registrar um domínio, emitir certificado no ACM e acrescentar o listener 443 |
+| 9 | Balanceador e dashboard em HTTP, sem TLS | Listener 443 com certificado do ACM, que exige um domínio cujo DNS possa ser validado | Independência de domínio registrado, ao custo do transporte em claro | O token trafega em claro entre o navegador e o balanceador | — | Acrescentar a distribuição CloudFront de 4.4, que traz o certificado `*.cloudfront.net` |
 | 10 | Validação do token dentro do Flask | Authorizer na borda, como no caminho de ingestão | Necessidade: um balanceador não tem authorizer | Rotação de token exige substituir as instâncias | — | Voltar a expor a API pelo API Gateway |
 | 11 | Imagem do ECR puxada pelo `user_data` | Pacote no S3, ou clone do código no boot | Reprodutibilidade: é o que dá sentido ao rollback por versão de template | Imagem ausente aborta o boot; coberto pela verificação de saúde | — | Trocar o `user_data` do template |
 | 12 | Instâncias Graviton (`t4g`, arm64) | Família x86 (`t3`) | Compatibilidade com as imagens arm64 dos containers | Trocar de família sem trocar a AMI causa *exec format error* | ~10% mais barato | Trocar tipo, AMI e plataforma de build juntos |
@@ -988,7 +966,6 @@ diretório é um arquivo por conjunto de recursos, sem módulos.
 | Launch template, Auto Scaling Group, política de escalonamento e security group | Execução elástica da API de leitura | `asg.tf` e `templates/user_data.sh.tftpl` |
 | Alarmes do balanceador e do grupo, e painel do CloudWatch | Observabilidade do caminho síncrono | `asg_observability.tf` |
 | RDS PostgreSQL 16 e subnet group privado | Toda a persistência | `rds.tf` |
-| CloudFront e certificado do ACM | Fronteira externa: TLS na borda e origem única para front e API | `cloudfront.tf` |
 | ECR, cinco repositórios | Imagens dos containers, marcadas pelo identificador do código | `ecr.tf` |
 | ECS Fargate: cluster, 4 serviços e 2 tasks avulsas | Ingestão, simulador, ETL, carga inicial e migrations | `ecs.tf`, `ecs_*.tf` |
 | API Gateway HTTP e SQS, com 2 filas e 2 DLQs | Caminho assíncrono de ingestão | `apigateway*.tf`, `sqs*.tf` |
@@ -1077,12 +1054,10 @@ make -C apps/basica tf-apply
 as referências entre recursos a declaram: as sub-redes nascem antes do subnet
 group do RDS e antes do balanceador; os security groups e o perfil da instância
 nascem antes de quem os referencia; o launch template e o target group nascem
-antes do Auto Scaling Group; o bucket do dashboard e o balanceador nascem antes da
-distribuição CloudFront, que os referencia como origens. O que o grafo de
-dependências não expressa é tempo, e é aí que a ordem importa para quem está
-operando: o RDS leva de dez a vinte minutos para ficar disponível e a distribuição
-leva de dez a quinze para propagar. Os dois correm em paralelo dentro do mesmo
-apply, mas nenhum dos dois se conserta em cima da hora. No Learner Lab, este apply
+antes do Auto Scaling Group. O que o grafo de dependências não expressa é tempo, e é
+aí que a ordem importa para quem está operando: o RDS leva de dez a vinte minutos
+para ficar disponível e é o recurso mais demorado do apply. No Learner Lab, este
+apply
 depende de `create_iam_roles = false` e de `existing_role_arn` apontando para a
 `LabRole` da conta atual, como fixado em 4.1.3.
 
@@ -1138,23 +1113,18 @@ make -C apps/basica sim-on
 tentasse consumir fila antes de haver imagem e schema. Este é o passo que os
 religa.
 
-**9. Dashboard publicado e cache invalidado**
+**9. Dashboard publicado**
 
 ```bash
 make -C apps/basica env
 make -C apps/basica frontend-deploy
-aws cloudfront create-invalidation \
-  --distribution-id "$(cd apps/basica/infra && terraform output -raw cloudfront_distribution_id)" \
-  --paths "/*" --profile g4
-# saída esperada: bundle sincronizado no bucket e invalidação com status InProgress
+# saída esperada: bundle sincronizado no bucket e a URL do dashboard impressa
 ```
 
-&emsp; O `make env` grava `ARGUS_API_URL` a partir dos outputs do Terraform, e é esse
-valor que o bundle passa a chamar. O endereço entra em tempo de compilação e não em
-tempo de execução: trocar a URL da API exige compilar de novo e republicar, não basta
-mexer numa variável do servidor. A invalidação fecha o passo porque, sem ela, os
-pontos de presença continuam servindo o bundle anterior até o cache vencer, e a
-publicação parece não ter surtido efeito.
+&emsp; O `make env` grava `ARGUS_API_URL` a partir dos outputs do Terraform,
+preferindo o endereço do balanceador, e é esse valor que o bundle passa a chamar. O
+endereço entra em tempo de compilação e não em tempo de execução: trocar a URL da API
+exige compilar de novo e republicar, não basta mexer numa variável do servidor.
 
 **10. Aceite**
 
@@ -1167,17 +1137,46 @@ make -C apps/basica smoke
 &emsp; O roteiro completo de verificação, com o resultado esperado de cada checagem,
 está em 4.5.
 
-### 4.4 Configuração da distribuição CloudFront
+### 4.4 Inclusão do Amazon CloudFront
 
-&emsp; A distribuição é a fronteira externa do sistema, e a seção 3.5 já registra o
-papel dela. Esta subseção trata da configuração: como os dois comportamentos são
-montados, quais parâmetros mudam o resultado e o que acontece quando cada um deles é
-esquecido.
+&emsp; Esta subseção é o plano de inclusão da distribuição CloudFront no ambiente
+descrito acima: por que ela entra, em que topologia, com qual configuração e com que
+consequências. O CloudFront é a rede de distribuição de conteúdo da AWS: um conjunto
+de pontos de presença espalhados pelo mundo que ficam na frente da origem, encerram a
+conexão do usuário e servem o conteúdo.
 
-**Os dois comportamentos**
+**Por que**
 
-&emsp; Um comportamento é a regra que associa um padrão de caminho a uma origem e a
-uma política de cache. A distribuição tem dois.
+&emsp; O motivo é de segurança antes de ser de latência. O dashboard é servido pelo
+endpoint de website do bucket, que atende somente em HTTP, e o balanceador escuta na
+porta 80 pelo mesmo motivo: servir HTTPS exigiria um certificado do ACM, e o ACM só
+emite para um domínio cujo DNS possa ser validado. Sem domínio registrado, os dois
+ficam em texto claro, e o token que o operador cola na página pode ser lido por um
+intermediário de rede, assim como o JavaScript entregue pode ser alterado.
+
+&emsp; A distribuição resolve os dois casos ao mesmo tempo, porque traz um certificado
+próprio no domínio `*.cloudfront.net` sem exigir domínio registrado nem validação de
+DNS. O ganho de desempenho existe, mas é secundário: o volume deste sistema não
+justificaria uma CDN por latência.
+
+**Em que topologia**
+
+&emsp; Há duas formas de montar a distribuição, e a escolha entre elas é o ponto de
+decisão desta subseção.
+
+&emsp; A primeira é uma origem só, com a distribuição apenas à frente do bucket. O
+dashboard passaria a HTTPS, mas as chamadas à API continuariam indo direto ao
+balanceador em HTTP. Uma página servida em HTTPS que chama um endereço HTTP cai no
+que o navegador chama de conteúdo misto, e ele bloqueia a chamada. A mudança criaria
+um problema que hoje não existe.
+
+&emsp; A segunda é duas origens na mesma distribuição, e é a topologia recomendada
+aqui. O comportamento padrão resolve `/*` no bucket e um segundo comportamento resolve
+`/api/*` no balanceador. Front e API passam a ser servidos pelo mesmo endereço, o que
+elimina o conteúdo misto e dispensa o CORS, já que deixa de haver origem cruzada e o
+navegador não precisa mais do preflight que o `make smoke` verifica hoje. Um
+comportamento é a regra que associa um padrão de caminho a uma origem e a uma política
+de cache.
 
 | Comportamento | Caminho | Origem | Cache | Cabeçalhos encaminhados |
 |---|---|---|---|---|
@@ -1186,42 +1185,87 @@ uma política de cache. A distribuição tem dois.
 
 &emsp; O padrão `/api/*` cobre a superfície inteira da API sem exceção, porque todas
 as rotas ficam sob `/api/v1/`. As duas rotas de saúde, `/health/live` e
-`/health/ready`, ficam de fora dele de propósito: quem as consulta é o target group
-do balanceador, dentro da VPC, e não o navegador.
+`/health/ready`, ficam de fora dele de propósito: quem as consulta é o target group do
+balanceador, dentro da VPC, e não o navegador.
 
-**Os quatro pontos onde um descuido custa caro**
+**Com qual configuração**
+
+&emsp; São quatro os pontos onde um descuido custa caro.
 
 &emsp; O primeiro é o Origin Access Control, o mecanismo pelo qual apenas a
-distribuição consegue ler o bucket. Sem ele, o bucket precisaria de leitura anônima,
-e qualquer pessoa poderia buscar o bundle direto nele, contornando a borda e tudo o
-que ela impõe.
+distribuição consegue ler o bucket. Com ele, o bucket do dashboard deixa de precisar
+de leitura anônima: os quatro bloqueios de acesso público voltam a ficar ligados e a
+policy com `Principal: "*"` sai. É uma melhoria de segurança independente do TLS,
+porque hoje qualquer pessoa pode buscar o bundle direto no bucket, contornando
+qualquer controle que a distribuição venha a ter.
 
 &emsp; O segundo é o cabeçalho `Authorization`. Por padrão o CloudFront remove os
 cabeçalhos que não estão declarados na política de requisição de origem. Sem esse
 cabeçalho declarado, toda chamada autenticada chega ao balanceador sem token e volta
 401, e o sintoma aparece como se a autenticação tivesse quebrado, longe da linha de
-configuração que o causou.
+configuração que o causou. É a falha mais comum desta topologia.
 
-&emsp; O terceiro é o cache do comportamento `/api/*`, que fica desabilitado.
+&emsp; O terceiro é o cache do comportamento `/api/*`, que precisa ficar desabilitado.
 Guardar em cache uma resposta autenticada significa servir a um operador a resposta
 montada para outro, e a API devolve recortes que dependem do token apresentado.
 
-&emsp; O quarto é o `viewer_protocol_policy`, em `redirect-to-https`. Uma chamada que
-chegue em HTTP é redirecionada em vez de atendida, o que fecha a porta de o cliente
-cair para texto claro sem perceber. O certificado vive no ACM da região `us-east-1`,
-exigência do próprio CloudFront, e o nome coberto é o `*.cloudfront.net` que
-acompanha a distribuição.
+&emsp; O quarto é o `viewer_protocol_policy`, que fica em `redirect-to-https`: uma
+chamada que chegue em HTTP é redirecionada em vez de atendida, o que fecha a porta de
+o cliente cair para texto claro sem perceber. O certificado vive no ACM da região
+`us-east-1`, exigência do próprio CloudFront, e o nome coberto é o `*.cloudfront.net`
+que acompanha a distribuição.
 
-**O que a borda não resolve**
+&emsp; Duas mudanças fora da distribuição acompanham a inclusão. O bundle do dashboard
+precisa ser recompilado com `ARGUS_API_URL` apontando para o domínio da distribuição,
+porque o endereço da API entra em tempo de compilação. E toda publicação do front
+passa a terminar com uma invalidação, senão os pontos de presença continuam servindo o
+bundle anterior até o cache vencer:
 
-&emsp; O trecho entre a distribuição e o balanceador corre em HTTP. Ele fica dentro
-da rede da AWS e não atravessa a internet pública, mas não é criptografado, e essa
-consequência está registrada na seção 8. Fechá-la exige um certificado no próprio
-balanceador e, portanto, um domínio cujo DNS possa ser validado.
+```bash
+make -C apps/basica frontend-deploy
+aws cloudfront create-invalidation \
+  --distribution-id "$(cd apps/basica/infra && terraform output -raw cloudfront_distribution_id)" \
+  --paths "/*" --profile g4
+```
+
+**Como verificar**
+
+&emsp; Duas checagens fecham a inclusão, e ambas devem ser feitas antes de considerar
+o front publicado:
+
+```bash
+DOM=$(cd apps/basica/infra && terraform output -raw cloudfront_domain)
+
+curl -s -o /dev/null -w '%{http_code}\n' "https://$DOM/"
+# esperado: 200; a mesma URL em http:// responde 301 para HTTPS
+
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $ARGUS_READ_TOKEN" "https://$DOM/api/v1/clock"
+# esperado: 200. Um 401 aqui, com 200 direto no balanceador, significa que o
+# cabeçalho Authorization não está sendo encaminhado
+```
+
+**Com que consequências**
+
+&emsp; Criar ou alterar uma distribuição leva de dez a quinze minutos para propagar,
+o que precisa entrar no planejamento da janela: não é um recurso que se conserta em
+cima da hora. O custo é baixo no volume deste sistema, na casa de um dólar por mês,
+porque a cobrança é por tráfego servido e por requisição.
 
 &emsp; A distribuição também não substitui o controle de acesso da aplicação. Ela
 encaminha o token, não o valida: quem decide se a requisição prossegue continua sendo
-o Flask dentro da instância, como descrito em 3.3.
+o Flask dentro da instância, como descrito em 3.3. E o trecho entre a distribuição e o
+balanceador segue em HTTP; ele passa a correr dentro da rede da AWS, sem atravessar a
+internet pública, mas fechá-lo exigiria um certificado no próprio balanceador e,
+portanto, um domínio validável.
+
+&emsp; O risco que pesa mais é o de permissão.
+[`arquitetura-inicial.md`](arquitetura-inicial.md) §4.8 registra que operações de CDN
+não eram permitidas pelo papel `voclabs` do AWS Academy Learner Lab, e isso precisa ser
+revalidado na conta antes de abrir a janela. Havendo negação, o procedimento é capturar
+a mensagem de erro como evidência e manter o dashboard no endpoint de website do
+bucket, com a limitação de HTTP declarada na seção 8 e sem apresentá-la como
+equivalente.
 
 ### 4.5 Verificação pós-implantação
 
@@ -1237,8 +1281,7 @@ comandos assumem o diretório `apps/basica/infra` e a variável `AWS_PROFILE=g4`
 | 3 | Rotas: uma tabela para o IGW, outra para o NAT | `aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC --query 'RouteTables[].Routes[].{Destino:DestinationCidrBlock,IGW:GatewayId,NAT:NatGatewayId}'` | Verificado. Pública `0.0.0.0/0 → igw-…`; privada `0.0.0.0/0 → nat-…` |
 | 4 | Instância privada sem IP público, mas com saída | Instância descartável na sub-rede privada; o `user_data` grava o IP de saída como tag em si mesma (ver 4.6) | Verificado. `PublicIpAddress: null`, e a internet enxerga a saída com o Elastic IP do NAT, que é o endereço público fixo associado a ele |
 | 5 | RDS fechado para fora, aberto pelo bastion | `aws rds describe-db-instances --query 'DBInstances[0].{Publico:PubliclyAccessible,Subnets:DBSubnetGroup.DBSubnetGroupName,MultiAZ:MultiAZ}'` e o túnel de 3.2 | `Publico: false` e subnet group privado; a conexão direta de fora expira, e a mesma consulta pelo túnel devolve a linha |
-| 6 | Dashboard servido em HTTPS pela borda | `curl -s -o /dev/null -w '%{http_code}\n' "https://$(terraform output -raw cloudfront_domain)/"` | `200`, e a mesma URL em `http://` responde `301` para HTTPS |
-| 6b | Chamada autenticada atravessando a borda | `curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $ARGUS_READ_TOKEN" "https://$(terraform output -raw cloudfront_domain)/api/v1/clock"` | `200`. Um `401` aqui com `200` direto no balanceador significa que o cabeçalho `Authorization` não está sendo encaminhado (4.4) |
+| 6 | Dashboard no ar | `curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw frontend_url)"` | `200`. O endpoint atende em HTTP; as checagens equivalentes em HTTPS acompanham o plano de 4.4 |
 | 7 | Flow logs capturando fluxo real | `aws s3 ls --recursive "$(terraform output -raw flow_log_destino)/"` | Verificado. 214 fluxos da instância de teste, com `ACCEPT` e `REJECT` |
 | 8 | Logs de aplicação chegando ao log group | `aws logs tail "$(terraform output -raw app_log_group_name)" --since 10m` | Uma linha JSON por requisição, com `request_id`, `route`, `status` e `latency_ms` |
 | 9 | Contrato da API publicada | `make -C apps/basica smoke` | `401` sem token, `403` com token inválido, `200` em `/health/live` e nas doze rotas autenticadas, todas abaixo de 5 s |
@@ -1352,8 +1395,8 @@ minutos.
 
 &emsp; O NAT único é o segundo compromisso. Um NAT por zona é a recomendação da AWS
 e custaria mais US$ 32 por mês. O que essa decisão não compromete merece registro:
-como o tráfego de leitura entra pela borda e vai direto às instâncias, a perda da
-zona do NAT não derruba o serviço; ela impede o grupo de crescer e de substituir
+como o tráfego de leitura entra pelo balanceador e vai direto às instâncias, a perda
+da zona do NAT não derruba o serviço; ela impede o grupo de crescer e de substituir
 instância naquela zona. O impacto é sobre a capacidade de recuperação, não sobre a
 disponibilidade imediata.
 
@@ -1561,12 +1604,12 @@ Esse é o identificador que a API devolve em toda resposta e repete na linha de 
 
 | Tempo | O que o vídeo mostra | Evidência na tela |
 |---|---|---|
-| 0:00–0:20 | O dashboard aberto pela URL pública | A aplicação no ar, servida pela borda em HTTPS, com a tela de acesso pedindo o token |
+| 0:00–0:20 | O dashboard aberto pela URL pública | A aplicação no ar, servida pelo endpoint de website do bucket, com a tela de acesso pedindo o token |
 | 0:20–1:20 | O fluxo principal ponta a ponta | O token aceito, a tela Agora carregando os sinais e a navegação passando por Explorar, Comparar, Hipóteses, Timeline e Recorte, cada uma com dado vindo da API (7.1) |
 | 1:20–2:00 | O caminho de erro | Token com forma inválida recusado na própria página, sem ir à rede; chamada à API sem cabeçalho `Authorization` devolvendo 401 e com token errado devolvendo 403, em corpo RFC 7807 e sem stack trace (7.1) |
-| 2:00–3:00 | A comunicação entre os serviços | Aba Network do navegador com a chamada do front à API: URL sob `/api/`, status 200, cabeçalho `Authorization` enviado e `X-Request-Id` na resposta (7.2) |
+| 2:00–3:00 | A comunicação entre os serviços | Aba Network do navegador com a chamada do front à API: o endereço do balanceador, status 200, cabeçalho `Authorization` enviado e `X-Request-Id` na resposta (7.2) |
 | 3:00–3:40 | O rastro da mesma requisição | O identificador da resposta localizado no log da aplicação no CloudWatch, na linha JSON com `route`, `status` e `latency_ms` (7.2) |
-| 3:40–4:00 | Encerramento | O caminho completo recapitulado: navegador, borda, balanceador, instância e banco |
+| 3:40–4:00 | Encerramento | O caminho completo recapitulado: navegador, balanceador, instância e banco |
 
 ### 7.1 Testes de validação funcional
 
@@ -1610,8 +1653,8 @@ dado certo antes, e a ingestão, que é quem põe no banco o dado que a tela mos
 
 | Salto | Origem → destino | Protocolo | Autenticação | Falha esperada se indisponível |
 |---|---|---|---|---|
-| 1 | Navegador → CloudFront → bucket do dashboard | HTTPS 443 na borda; leitura do bucket por Origin Access Control | nenhuma para o bundle | A página não carrega e nada da aplicação chega a rodar |
-| 2 | CloudFront → Application Load Balancer | HTTP 80, sob o caminho `/api/*` | o cabeçalho `Authorization` do navegador, encaminhado pela borda | O dashboard monta e cada painel mostra erro de rede; nada aparece no log da aplicação, porque a requisição não chegou nela |
+| 1 | Navegador → bucket do dashboard | HTTP 80, pelo endpoint de website | nenhuma; o bundle é público | A página não carrega e nada da aplicação chega a rodar |
+| 2 | Navegador → Application Load Balancer | HTTP 80 | token no cabeçalho `Authorization`, audiência `dashboard` | O dashboard monta e cada painel mostra erro de rede; nada aparece no log da aplicação, porque a requisição não chegou nela |
 | 3 | Balanceador → instância EC2 do grupo | HTTP 5000 | nenhuma; quem restringe é a rede, já que só o grupo de segurança do balanceador alcança a porta | Sem alvo saudável, o balanceador devolve 503 e o alarme `app-sem-alvo-saudavel` dispara, que é o gatilho de rollback de 5.3 |
 | 4 | Instância EC2 → RDS | PostgreSQL 5432, com `sslmode=require` | usuário `argus_api`, restrito às views `v_*` | `/health/ready` passa a devolver 503 e as rotas de consulta devolvem erro em corpo RFC 7807; `/health/live` continua respondendo 200, de propósito, para o grupo não reciclar em massa |
 | 5 | Instância EC2 no boot → ECR e Secrets Manager | HTTPS 443, saindo pelo NAT | perfil da instância, sem chave no disco | O `user_data` aborta, o container não sobe, a verificação de saúde reprova e o grupo substitui a instância |
@@ -1656,10 +1699,10 @@ confirmadas na aplicação de 8 de setembro de 2026 e estão detalhadas em 8.1.
 | `alarm_email` não preenchida | Os 23 alarmes existem e ninguém é avisado quando algum dispara; a falha só aparece pelo usuário | Média | Preencher `alarm_email` no `terraform.tfvars` e confirmar a assinatura pelo e-mail; a verificação 10 de 4.5 checa isso | Infraestrutura |
 | Nenhum alarme verifica a API de fora | Uma indisponibilidade da ponta chega pelo usuário, e não pelo alarme | Média | Os alarmes de 5.4 cobrem alvo saudável, erro e latência medidos no balanceador; a checagem externa exigiria um canário sintético, a ~US$ 10/mês | Infraestrutura |
 | Carga inicial indisponível sem o dump de 4,15 GB | Um banco recriado não volta ao conteúdo anterior | Baixa | Os arquivos Parquet no bucket de origem são a fonte do `make load` e ficam guardados fora do controle de versão | Infraestrutura |
-| A `LabRole` pode recusar a criação de distribuição, de Origin Access Control e de papéis IAM | A topologia funciona numa conta AWS comum e falha no laboratório, deixando o dashboard sem TLS e o bucket com leitura aberta | Alta | Testar as chamadas antes de abrir a janela de implantação; havendo negação, o dashboard é servido pelo endpoint de website do bucket, com a limitação registrada e sem apresentá-la como equivalente | Infraestrutura |
+| Dashboard e balanceador atendem em HTTP, sem TLS | O token que o operador cola na página trafega em claro, e o JavaScript entregue pode ser alterado por um intermediário de rede | Certa, por falta de domínio validável | O plano de 4.4 corrige a limitação com uma distribuição CloudFront e o certificado `*.cloudfront.net`; até lá, o acesso deve ser feito em rede confiável | Infraestrutura e segurança |
+| A `LabRole` pode recusar a criação de distribuição e de Origin Access Control | O plano de 4.4 funciona numa conta AWS comum e falha no laboratório | Alta | Validar as chamadas antes de abrir a janela; havendo negação, capturar o erro como evidência e manter o endpoint de website do bucket, com a limitação declarada | Infraestrutura |
 | A porta 22 do bastion depende do endereço de quem opera | Uma faixa ampla expõe a porta à varredura; uma faixa desatualizada tranca o acesso quando o time troca de rede | Média | `bastion_allowed_cidr` restrito a um `/32`, com a validação recusando `0.0.0.0/0`; chave individual por pessoa; conferir a faixa antes de cada janela | Infraestrutura |
-| O trecho entre a distribuição e o balanceador corre em HTTP | O tráfego não é criptografado nesse salto, embora não atravesse a internet pública | Certa, por decisão de escopo | Registrada na decisão 9 de 3.8; fechá-la exige um domínio validável e um certificado no balanceador | Infraestrutura |
-| Comportamento `/api/*` mal configurado na distribuição | Sem encaminhar `Authorization`, toda chamada volta 401; com cache ligado, a resposta montada para um operador é servida a outro | Média | As quatro regras de 4.4, conferidas com dois tokens distintos pela verificação 6b de 4.5 | Infraestrutura e back-end |
+| Comportamento `/api/*` mal configurado, ao incluir a distribuição | Sem encaminhar `Authorization`, toda chamada volta 401; com cache ligado, a resposta montada para um operador é servida a outro | Média | As quatro regras de 4.4, conferidas com dois tokens distintos pelas checagens da própria subseção | Infraestrutura e back-end |
 | Versão nova da API incompatível com o schema no ar | A instância sobe, reprova na verificação de saúde e entra em ciclo de substituição, ou entra em serviço antes da migration que ela exige | Média | Migrations retrocompatíveis e aplicadas antes de liberar a versão, como no passo 6 de 4.3; a versão anterior do launch template fica disponível para o rollback de 5.3 | Back-end e infraestrutura |
 
 ### 8.1 As duas restrições do ambiente, em detalhe

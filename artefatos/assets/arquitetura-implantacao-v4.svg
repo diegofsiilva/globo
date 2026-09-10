@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="3760" height="2454" viewBox="0 0 3760 2454" role="img" aria-labelledby="title desc">
   <title id="title">Diagrama de implantação do Argus</title>
-  <desc id="desc">VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade, NAT Gateway, bastion host, Auto Scaling Group de EC2 atrás de Application Load Balancer, RDS privado e CloudFront na borda.</desc>
+  <desc id="desc">VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade, NAT Gateway, bastion host, Auto Scaling Group de EC2 atrás de Application Load Balancer e RDS privado.</desc>
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L12,5 L0,10 z" fill="#40556b"/></marker>
     <style>
@@ -46,7 +46,7 @@
 
   <rect width="3760" height="2454" fill="#ffffff"/>
   <text x="1880.0" y="55" class="page-title">Diagrama de implantação do Argus</text>
-  <text x="1880.0" y="92" class="page-subtitle">VPC dedicada · duas AZs · Auto Scaling Group de EC2 atrás de ALB · RDS privado · CloudFront na borda · AWS us-east-1</text>
+  <text x="1880.0" y="92" class="page-subtitle">VPC dedicada · duas AZs · Auto Scaling Group de EC2 atrás de ALB · RDS privado · AWS us-east-1</text>
   <rect x="606" y="96" width="2530" height="1846" class="vpc"/>
   <text x="632" y="140" class="vpc-title">VPC dedicada — 10.0.0.0/16</text>
   <text x="632" y="170" class="vpc-note">sub-redes públicas e privadas em duas zonas de disponibilidade · saída pelo NAT Gateway</text>
@@ -78,9 +78,9 @@
   <path d="M2465.0 560 V432" class="flow"/>
   <path d="M2670 695.0 H2236 V844 H2162" class="flow"/>
   <path d="M2845.0 830 V977 H1420 V939" class="flow"/>
-  <path d="M3206 659.5 H3164 V915.0 H3042" class="flow"/>
-  <path d="M3441.0 849 V919" class="flow"/>
   <path d="M3206 1640.0 H3188 V765.0 H3042" class="flow"/>
+  <path d="M3400 402 H3100 V1035 H3042" class="flow"/>
+  <path d="M3480 352 H3730 V1054 H3676" class="flow"/>
   <path d="M1617 2253.0 H1655" class="flow"/>
   <path d="M2637 2253.0 H2675" class="flow"/>
   <path d="M1325.0 1942 V2132" class="flow"/>
@@ -277,22 +277,6 @@
     <text x="2500.0" y="377" class="artifact-small">sub-redes públicas</text>
   </g>
   <g>
-    <polygon points="3206,470 3228,448 3698,448 3676,470" class="node-top"/>
-    <polygon points="3676,470 3698,448 3698,827 3676,849" class="node-side"/>
-    <rect x="3206" y="470" width="470" height="379" class="node-face"/>
-    <text x="3441.0" y="512" class="stereo">«cdn»</text>
-    <text x="3441.0" y="550" class="node-title">Amazon CloudFront</text>
-    <text x="3441.0" y="582" class="node-subtitle">TLS · certificado ACM us-east-1</text>
-    <rect x="3231" y="613" width="420" height="95" class="artifact"/>
-    <text x="3441.0" y="633" class="artifact-stereo">«artifact»</text>
-    <text x="3441.0" y="660" class="artifact-text">origem 1 · S3 «frontend» por OAC</text>
-    <text x="3441.0" y="685" class="artifact-small">origem 2 · ALB em /api/*</text>
-    <rect x="3231" y="722" width="420" height="95" class="artifact"/>
-    <text x="3441.0" y="742" class="artifact-stereo">«artifact»</text>
-    <text x="3441.0" y="769" class="artifact-text">Authorization encaminhado</text>
-    <text x="3441.0" y="794" class="artifact-small">cache desabilitado em /api/*</text>
-  </g>
-  <g>
     <polygon points="3206,919 3228,897 3698,897 3676,919" class="node-top"/>
     <polygon points="3676,919 3698,897 3698,1167 3676,1189" class="node-side"/>
     <rect x="3206" y="919" width="470" height="270" class="node-face"/>
@@ -302,7 +286,7 @@
     <rect x="3231" y="1062" width="420" height="95" class="artifact"/>
     <text x="3441.0" y="1082" class="artifact-stereo">«artifact»</text>
     <text x="3441.0" y="1109" class="artifact-text">dashboard Next.js · export estático</text>
-    <text x="3441.0" y="1134" class="artifact-small">leitura restrita à distribuição por OAC</text>
+    <text x="3441.0" y="1134" class="artifact-small">endpoint de website · leitura pública</text>
   </g>
   <g>
     <polygon points="3206,1519 3228,1497 3698,1497 3676,1519" class="node-top"/>
@@ -423,10 +407,12 @@
   <text x="2234" y="810" class="flow-label">SSH 22</text>
   <rect x="1941.0" y="943" width="118.0" height="32" class="flow-label-bg"/>
   <text x="2000" y="963" class="flow-label">túnel 5432</text>
-  <rect x="3025.6" y="863.0" width="154.79999999999998" height="32" class="flow-label-bg"/>
-  <text x="3103.0" y="883.0" class="flow-label">HTTP 80 · /api/*</text>
-  <rect x="3531.2" y="870.0" width="99.6" height="32" class="flow-label-bg"/>
-  <text x="3581.0" y="890.0" class="flow-label">OAC · /*</text>
+  <rect x="3048" y="998" width="152" height="32" class="flow-label-bg"/>
+  <text x="3124" y="1018" class="flow-label">HTTP 80 · Bearer</text>
+  <g transform="translate(3712 760) rotate(-90)">
+    <rect x="-105" y="-22" width="210" height="32" class="flow-label-bg"/>
+    <text x="0" y="0" class="flow-label">HTTP 80 · website S3</text>
+  </g>
   <rect x="3115.2" y="1147.5" width="145.6" height="58" class="flow-label-bg"/>
   <text x="3188" y="1167.5" class="flow-label">SSH 22</text>
   <text x="3188" y="1193.5" class="flow-label">CIDR restrito</text>
@@ -442,8 +428,6 @@
   <text x="2565" y="2010" class="flow-label">boot · hash do token</text>
   <rect x="3180" y="1970" width="142" height="32" class="flow-label-bg"/>
   <text x="3251" y="1990" class="flow-label">access logs</text>
-  <rect x="3534.6" y="432" width="108.8" height="32" class="flow-label-bg"/>
-  <text x="3589.0" y="452" class="flow-label">HTTPS 443</text>
   <rect x="1702" y="520" width="478" height="1356" class="group"/>
   <rect x="1722" y="503" width="380" height="32" class="flow-label-bg"/>
   <text x="1732" y="528" class="group-title">Auto Scaling Group · mín 2 · máx 6</text>
@@ -452,6 +436,5 @@
   <text x="2302" y="868" class="group-title">Balanceador único, duas AZs</text>
   <circle cx="3441.0" cy="202" r="26" class="actor"/><path d="M3441.0 228 V298 M3397.0 254 H3485.0 M3441.0 298 L3403.0 352 M3441.0 298 L3479.0 352" class="actor"/>
   <text x="3441.0" y="390" class="actor-label">Navegador do usuário</text>
-  <path d="M3441.0 402 V470" class="flow"/>
   <g transform="translate(3240,28)"><rect x="-22" y="-28" width="500" height="88" fill="#ffffff" opacity="0.96" stroke="#c8d4df" stroke-width="2" rx="6"/><text x="0" y="0" class="legend-title">Legenda</text><rect x="0" y="14" width="70" height="22" class="node-face"/><text x="86" y="31" class="legend-text">nó de implantação</text><rect x="0" y="46" width="70" height="22" fill="none" stroke="#40556b" stroke-width="2.5" stroke-dasharray="14 9"/><text x="86" y="63" class="legend-text">agrupamento lógico, não recurso de rede</text></g>
 </svg>
