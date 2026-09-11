@@ -1503,31 +1503,9 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 
 &emsp; O primeiro vídeo reúne as quatro evidências de infraestrutura exigidas pela
 rubrica diretamente no console da AWS: rede e logs distribuídos, acesso por bastion,
-balanceamento com autoescalonamento e banco RDS. O roteiro abaixo registra a ordem e
-o objetivo de cada trecho da gravação publicada.
+balanceamento com autoescalonamento e banco RDS.
 
 **Link:** [Vídeo 1 — Infraestrutura provisionada](https://drive.google.com/file/d/1mkoyWfkYK4TOf163Gpez1w779KHUotQt/view?usp=sharing)
-
-**Roteiro e evidências**
-
-| Tempo | Item | Tela do console | O que precisa estar visível | O que dizer |
-|---|---|---|---|---|
-| 0:00–0:30 | Abertura | Console AWS | Identificação do Argus e do objetivo da demonstração | “Neste vídeo eu vou mostrar a infraestrutura que sustenta o Argus e como ela continua disponível quando a carga aumenta.” |
-| 0:30–2:00 | V1-a rede | VPC → Your VPCs, Subnets, Route tables, NAT gateways | CIDR da VPC; sub-redes públicas e privadas em AZs distintas; rota `0.0.0.0/0` → IGW na pública e → NAT na privada | As sub-redes privadas não recebem tráfego direto da internet; o NAT oferece somente a saída necessária às cargas. |
-| 2:00–2:40 | V1-a logs | VPC → Flow logs; S3 → bucket dos flow logs; CloudWatch → Log groups | Flow log ativo com destino S3, objetos gerados e logs da aplicação | A rede e a aplicação deixam rastros complementares. O S3 foi usado nos Flow Logs porque a `LabRole` não pode ser assumida pelo serviço de VPC Flow Logs. |
-| 2:40–3:30 | V1-b bastion | EC2 → Instances; Security Groups | Bastion na sub-rede pública; porta 22 limitada ao CIDR administrativo; aplicação aceitando SSH apenas do SG do bastion | O bastion concentra a entrada administrativa e evita expor as instâncias privadas com uma regra `0.0.0.0/0`. |
-| 3:30–4:30 | V1-c ASG + ALB | EC2 → Auto Scaling Groups; Load Balancers; Target Groups | `min` 2, `desired` 2, `max` 6; listener HTTP 80; health check `/health/live`; dois targets saudáveis | O ALB distribui as requisições apenas entre instâncias aprovadas no health check, e o ASG preserva pelo menos duas instâncias em zonas distintas. |
-| 4:30–5:30 | V1-c autoescalonamento | Scaling policies, Activity e painel `argus-events-dev` | Target tracking por requisições, alvo 60 por target; atividade de scale-out e novas instâncias em serviço | Quando a média ultrapassa o alvo, a política aumenta a capacidade; depois do período de estabilização, o grupo retorna ao tamanho desejado. |
-| 5:30–6:30 | V1-d RDS | RDS → Databases → Connectivity & security | Estado `available`, `Publicly accessible: No`, subnet group privado, SG e Multi-AZ desligado | O banco não é acessível pela internet. Somente aplicação, tasks e bastion alcançam a porta 5432; Multi-AZ ficou desligado no laboratório por custo. |
-| 6:30–7:00 | Fechamento | Target group e ASG | Dois targets `healthy` e duas instâncias `InService` após a demonstração | “Com isso, a rede, o acesso administrativo, o balanceamento, o escalonamento e o banco ficam comprovados no ambiente real.” |
-
-**Checklist da evidência entregue**
-
-- [x] VPC, sub-redes, rotas, NAT e Flow Logs aparecem na demonstração.
-- [x] Bastion e regras restritas de acesso são explicados.
-- [x] ALB, health check, dois targets saudáveis e política de target tracking são mostrados.
-- [x] RDS privado e sua configuração de conectividade são apresentados.
-- [x] Link do vídeo responde sem solicitar login na conferência final.
 
 ---
 
@@ -1539,15 +1517,6 @@ real entre o navegador, o API Gateway, as funções Lambda, o RDS e o CloudWatch
 caminho ALB/ASG, demonstrado separadamente no Vídeo 1.
 
 **Link:** [Vídeo 2 — Integração front-end e back-end](https://drive.google.com/file/d/125nh0PC_9Dq5Mtutgv6KJw86Plm8RIA1/view?usp=sharing)
-
-| Tempo | Item | O que mostrar | Resultado esperado |
-|---|---|---|---|
-| 0:00–0:20 | Abertura | Website S3 do Argus aberto no navegador | Página pública de acesso ao painel carregada |
-| 0:20–1:10 | V2-a funcional | Token de leitura mascarado e painel após autenticação | API aceita o token da audiência `dashboard` e a interface abre sem expor o segredo |
-| 1:10–1:40 | V2-a caso de erro | Tentativa com token inválido | Mensagem “Token recusado”, sem stack trace ou detalhe interno |
-| 1:40–2:40 | V2-b comunicação | DevTools → Network na chamada `GET /api/v1/clock` | Requisição HTTPS ao API Gateway, Bearer enviado e resposta HTTP 200 após o preflight CORS |
-| 2:40–3:30 | V2-b rastro | CloudWatch → log group da função de leitura | Registro estruturado com rota, método, status, latência, audiência e identificador da requisição |
-| 3:30–4:00 | Fechamento | Dashboard e CloudWatch | Interface e telemetria funcionando no mesmo ambiente integrado |
 
 ### 7.1 Testes de validação funcional
 
