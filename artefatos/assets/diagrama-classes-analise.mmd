@@ -200,7 +200,7 @@ classDiagram
     class Database {
         <<comum>>
     }
-    class BancoPostgres["Banco — silver / gold / detect"] {
+    class BancoPostgres["Banco: silver / gold / detect"] {
         <<RDS PostgreSQL>>
     }
 
@@ -239,5 +239,5 @@ classDiagram
     Database --> BancoPostgres
 
     note for Fact "Sai de bronze.change_log, não da tabela corrente.<br/>Nenhuma regra olha um fato com available_at &gt; sim.now()."
-    note for Hypothesis "Explicação candidata e auditável, para revisão humana —<br/>não é causa-raiz confirmada."
+    note for Hypothesis "Explicação candidata e auditável, para revisão humana;<br/>não é causa-raiz confirmada."
     note for Catalog "manifest_hash amarra o resultado à configuração exata<br/>(catálogos + pesos + parâmetros do detector)."
