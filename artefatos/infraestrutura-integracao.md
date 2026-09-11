@@ -1,55 +1,41 @@
 # Infraestrutura e integração
 
-> **Este arquivo é um template.** Todo bloco de citação marcado `PREENCHER`,
-> `DECIDIR` ou `EVIDÊNCIA` é instrução, não conteúdo: diz o que escrever ali e o
-> que precisa ser mostrado no vídeo. Marcadores `{{ }}` são lacunas. Remova todas
-> as instruções e marcadores antes do commit da entrega. Um bloco `PREENCHER`
-> sobrevivente é lido pelo avaliador como seção incompleta.
->
-> Convenções herdadas dos demais artefatos: parágrafos abrem com `&emsp;`,
-> figuras vão centralizadas com legenda `Figura N — ...` e fonte, tabelas
-> resumem decisões, e o texto descreve o ambiente efetivamente implantado, não a
-> intenção de projeto. O que ainda não existe é marcado como tal.
-
-&emsp; {{Parágrafo de abertura: o que este artefato cobre (provisionamento da
-infraestrutura em nuvem e integração front-end/back-end), sobre qual branch e qual
-conta AWS o texto foi escrito, e a data da verificação.}}
+&emsp; Este artefato documenta o provisionamento da infraestrutura em nuvem e a
+integração entre o front-end e o back-end do Argus. O texto foi finalizado na branch
+`docs/Videosdaimplementação` e conferido em 10 de setembro de 2026 numa conta do AWS
+Academy Learner Lab, na região `us-east-1`. Identificadores da conta, credenciais e
+tokens não são registrados: as evidências usam nomes lógicos, estados e contagens
+suficientes para reproduzir e avaliar o ambiente sem expor segredos temporários.
 
 ## Divergências de nomenclatura
 
-> **PREENCHER** · Registre as divergências entre a especificação e o repositório
-> antes que o avaliador as encontre sozinho. O `backend.md` já faz isso na
-> abertura; siga o mesmo padrão. As duas conhecidas hoje estão pré-listadas.
-
 | Especificação | Repositório | Tratamento |
 |---|---|---|
-| `infraestrutura_integracao.md` (seção de vídeos) e `infraestrutura-integracao.md` (cabeçalho) | `artefatos/infraestrutura-integracao.md` | {{Adotado o hífen, coerente com `arquitetura-inicial.md`}} |
-| `/apps/fullstack` | `apps/basica` | {{Renomear a pasta ou registrar a divergência: decidir, ver seção 9}} |
-| {{ }} | {{ }} | {{ }} |
+| `infraestrutura_integracao.md` (seção de vídeos) e `infraestrutura-integracao.md` (cabeçalho) | `artefatos/infraestrutura-integracao.md` | Adotado o hífen, coerente com `arquitetura-inicial.md` e com os links já existentes no repositório |
+| `/apps/fullstack` | `apps/basica` | Mantido o nome histórico `apps/basica` para não quebrar Makefile, caminhos de build e referências entre artefatos; a divergência fica registrada aqui |
 
 ## Rastreabilidade da rubrica
 
-> **PREENCHER** · Mantenha esta tabela atualizada até a véspera da entrega. São
-> nove itens avaliados. O item (d), de análise de impacto nos ODS da ONU, foi
-> dispensado pelo professor em 04/09/2026 por já estar contemplado no artefato de
-> negócios; não reescreva a análise aqui, referencie-a se for citada. `Status`
-> aceita apenas: `não iniciado`, `provisionado`, `documentado`, `filmado`,
-> `pronto`.
+&emsp; A tabela consolida os nove itens avaliados. O item de análise de impacto nos
+ODS da ONU foi dispensado pelo professor em 4 de setembro de 2026 por já estar
+contemplado no artefato de negócios. O status abaixo considera a documentação,
+as verificações de 10 de setembro e os dois vídeos publicados.
 
 | # | Item da rubrica | Peso | Onde está | Status |
 |---|---|---|---|---|
-| R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | documentado; a figura existe, pendente o ajuste listado em `assets/NOTAS-DIAGRAMA-V4.md` |
+| R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | pronto |
 | R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | pronto |
-| R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | não iniciado |
-| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1, 4.6 e 6 | aplicado e verificado em 08/09/2026; falta filmar |
-| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | provisionado; falta filmar |
-| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | provisionado; falta filmar |
-| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | provisionado; falta filmar |
-| V2-a | Testes de validação funcional | 1,0 | Seção 7 | não iniciado |
-| V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 7 | não iniciado |
+| R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | pronto |
+| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1, 4.6 e 6 | pronto |
+| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | pronto |
+| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | pronto |
+| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | pronto |
+| V2-a | Testes de validação funcional | 1,0 | Seção 7 | pronto |
+| V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 7 | pronto |
 
-&emsp; `provisionado` aqui significa escrito e validado no Terraform, não
-aplicado em conta. Ver a nota ao fim de 1.2.
+&emsp; O item R-c avalia o plano de inclusão do CloudFront, não a existência da
+distribuição no Learner Lab. A seção 4.4 registra a topologia recomendada e deixa
+explícito que o recurso não foi criado nesta sprint.
 
 ---
 
@@ -73,14 +59,14 @@ produção” (§4.7) e a segunda como “fallback temporário para demonstraç�
 confiável” (§4.8), esta com a consequência explícita de que o token colado pelo
 operador trafega em claro e pode ser observado por um intermediário de rede.
 
-&emsp; Esta revisão paga essas duas dívidas e acrescenta a camada de escalabilidade
-horizontal que faltava ao caminho de leitura. O sistema passa a ter rede própria, com
-sub-redes públicas e privadas distribuídas em duas zonas de disponibilidade; as cargas
-de trabalho deixam de ter endereço público e alcançam a internet por NAT Gateway; o
-acesso administrativo passa a ser mediado por um bastion host; a API consumida pelo
-dashboard deixa de ser uma função sem servidor e executa em instâncias Amazon EC2 sob
-um Auto Scaling Group, atrás de um Application Load Balancer; e a entrega do front-end
-passa por uma distribuição do Amazon CloudFront, que fornece o TLS ausente.
+&emsp; Esta revisão implementa a rede própria e acrescenta a camada de
+escalabilidade horizontal que faltava ao caminho de leitura. A VPC possui sub-redes
+públicas e privadas em duas zonas de disponibilidade; as cargas privadas alcançam a
+internet pelo NAT Gateway; o acesso administrativo passa pelo bastion; e uma versão
+da API de leitura executa em instâncias EC2 sob Auto Scaling Group, atrás de um
+Application Load Balancer. A Lambda de leitura foi mantida durante a transição e é o
+caminho usado pelo dashboard no Vídeo 2. O CloudFront, que fecharia a dívida de TLS do
+site S3, permanece planejado e não é apresentado como recurso implantado.
 
 &emsp; A migração é deliberadamente parcial. O caminho síncrono, que é a requisição
 feita pelo dashboard e cuja latência o usuário percebe, é o que recebe grupo de
@@ -99,17 +85,15 @@ correspondente. A seção 3.8 registra a decisão junto com a alternativa descar
 
 ### 1.2 O que mudou nesta revisão
 
-> **ATUALIZAR A CADA APLICAÇÃO** · A coluna `Estado` reflete o que existe na conta,
-> não a intenção. Enquanto um item estiver como `Planejado`, o texto correspondente
-> nas seções 3 e 4 descreve projeto; ao aplicar, trocar o estado aqui e verificar se
-> a redação daquela seção passou para o presente do indicativo.
+&emsp; A coluna `Estado` reflete o ambiente verificado em 10 de setembro de 2026.
+Itens planejados são descritos como proposta e não como recurso existente.
 
 | Item | Antes | Agora | Estado |
 |---|---|---|---|
 | Ambiente de rede | VPC padrão da conta, apenas sub-redes públicas | VPC dedicada, sub-redes públicas e privadas em duas AZs | Implementado |
 | Saída para a internet das cargas | Endereço público na própria task | NAT Gateway em sub-rede pública | Implementado |
-| Acesso administrativo | Task avulsa `migration` dentro da VPC | Bastion host, com a task `migration` mantida | Condicional: exige `bastion_key_name` |
-| API de leitura | AWS Lambda (Flask por `lambda_handler`) | EC2 em Auto Scaling Group atrás de ALB | Implementado |
+| Acesso administrativo | Task avulsa `migration` dentro da VPC | Bastion host, com a task `migration` mantida | Implementado no ambiente verificado; condicional a `bastion_key_name` em novos deploys |
+| API de leitura | AWS Lambda (Flask por `lambda_handler`) | EC2 em Auto Scaling Group atrás de ALB, em paralelo ao caminho Lambda/API Gateway durante a transição | Implementado |
 | Elasticidade do caminho síncrono | Concorrência da Lambda, implícita | Política de escalonamento declarada no ASG | Implementado |
 | Autenticação da API de leitura | Lambda authorizer do API Gateway | Validação do Bearer dentro do Flask | Implementado |
 | Entrega do dashboard | Endpoint de website S3, somente HTTP | CloudFront com TLS e bucket privado por OAC | Planejado; fora do escopo desta sprint |
@@ -118,27 +102,15 @@ correspondente. A seção 3.8 registra a decisão junto com a alternativa descar
 | Banco de dados | RDS PostgreSQL 16 privado na VPC padrão | RDS PostgreSQL 16 em subnet group privado da VPC dedicada | Implementado |
 | Alta disponibilidade do banco | Instância única | Multi-AZ | Planejado; desligado por custo, ver 5.1 |
 
-&emsp; O que “Implementado” significa aqui. O recurso existe no Terraform deste
-repositório e a configuração passa por `terraform validate`, `terraform fmt`, o
-teste de rede com provider simulado (`make tf-test`) e o portão `make check`. Para
-a maior parte dos itens isso não significa aplicado em conta: `validate` confirma
-sintaxe, tipos e referências entre recursos, não que o papel `voclabs` autorize
-criar cada um deles.
-
-&emsp; A camada de rede é a exceção, e foi aplicada. VPC, sub-redes, Internet
-Gateway, NAT Gateway, tabelas de rota, gateway endpoint de S3 e Flow Logs foram
-provisionados e verificados numa conta do AWS Academy Learner Lab em 8 de setembro
-de 2026, região `us-east-1`. A aplicação usou um *workspace* próprio do Terraform,
-chamado `individual`: um workspace é um estado separado dentro do mesmo diretório
-de configuração, e usá-lo evitou tocar no estado do ambiente principal. As
-evidências capturadas estão na seção 4.6, entre elas a demonstração de que uma
-máquina sem endereço público sai pelo NAT. As duas restrições do laboratório que
-apareceram só no `apply` estão na seção 8.
-
-&emsp; O bastion, o Auto Scaling Group e o Application Load Balancer ainda não
-passaram por `apply`. Para eles vale integralmente a distância descrita acima, e o
-primeiro `terraform plan` contra a conta é o passo que a fecha. Esse comando é
-somente leitura (ver 4.3).
+&emsp; “Implementado” significa que o recurso existe no Terraform, foi aplicado e
+foi observado na conta usada para a gravação. Em 10 de setembro de 2026, o ASG
+mantinha duas instâncias `InService`, o target group mostrava dois targets
+`healthy`, `/health/live` respondia HTTP 200, o RDS privado estava `available`, o
+bastion existia e havia streams recentes no log group da aplicação. A camada de
+rede já havia sido verificada em 8 de setembro, inclusive com uma instância privada
+saindo pelo NAT sem endereço público. As restrições encontradas no laboratório
+estão documentadas na seção 8. CloudFront e o standby Multi-AZ do RDS são as duas
+exceções planejadas mostradas no diagrama.
 
 ### 1.3 Fora de escopo
 
@@ -160,18 +132,6 @@ aqui.
 
 ## 2. Diagrama de implantação do sistema
 
-> **PREENCHER** · O diagrama é o item mais barato de perder ponto e o mais fácil de
-> acertar. Exigências: notação de implantação (estereótipos `«execution environment»`,
-> `«database»`, `«message queue»`, `«object storage»`), fronteiras de rede
-> desenhadas para a VPC, cada zona de disponibilidade e cada sub-rede, e setas
-> rotuladas com o protocolo e a porta reais. Todo recurso citado na seção 3 precisa
-> aparecer aqui, e vice-versa; a matriz de conexões da seção 3.7 é o checklist
-> cruzado dessa correspondência.
->
-> Erros que custam nota: sub-rede privada desenhada sem o NAT visível; ALB colocado
-> dentro da sub-rede privada; RDS sem indicação de zona de disponibilidade; bastion
-> sem a seta mostrando de onde parte o SSH.
-
 <div align="center">
 
 <sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
@@ -182,9 +142,15 @@ aqui.
 
 </div>
 
-&emsp; {{Parágrafo de leitura do diagrama: o que a figura mostra, o que o traço
-tracejado significa e qual é o caminho da requisição do dashboard. Escrever depois de
-a topologia estar aplicada, para descrever o que existe e não o que se pretendia.}}
+&emsp; A figura separa a VPC, as duas zonas de disponibilidade e as sub-redes
+públicas e privadas, deixando visíveis o NAT, o bastion, o ALB, as instâncias do ASG
+e o RDS. As ligações sólidas representam recursos e caminhos implementados; o traço
+laranja indica o CloudFront e o standby Multi-AZ do RDS, ainda planejados. O caminho
+escalável validado parte do navegador para o ALB em HTTP 80, segue para um target na
+porta 5000 e chega ao PostgreSQL privado na porta 5432. Durante a transição, o
+dashboard demonstrado no Vídeo 2 continua no website S3 e consulta a API de leitura
+por API Gateway e Lambda; os dois caminhos coexistem para permitir rollback sem
+indisponibilidade.
 
 ### 2.1 Fonte editável e exportação
 
@@ -243,9 +209,9 @@ transparente: no tema escuro do GitHub o texto sumiria.
 
 &emsp; Os nós em roxo são a resposta visual à pergunta “o que esta sprint acrescentou”:
 Internet Gateway, NAT Gateway, bastion host, os dois nós do Application Load Balancer,
-as duas instâncias EC2 do Auto Scaling Group, a distribuição CloudFront e a estação do
-administrador. O RDS standby aparece em laranja porque é acréscimo e ainda não está
-provisionado; quando o Multi-AZ for ligado, ele passa para roxo.
+as duas instâncias EC2 do Auto Scaling Group e a estação do administrador. CloudFront
+e o RDS standby aparecem em laranja porque ainda não foram provisionados; quando a
+distribuição e o Multi-AZ forem habilitados, esses nós passam para roxo.
 
 ---
 
@@ -414,7 +380,9 @@ log estruturado da aplicação e no corpo dos erros RFC 7807. Uma requisição q
 aparece no flow log e não no access log morreu no security group do balanceador;
 uma que aparece no access log com 502 e não no log da aplicação morreu antes do
 gunicorn; e uma que aparece nos três é rastreável do navegador até a consulta SQL
-pelo mesmo identificador. É esse encadeamento que o Vídeo 2 percorre.
+pelo mesmo identificador. Esse encadeamento é o procedimento de diagnóstico do
+caminho ALB/ASG; o caminho Lambda usado no Vídeo 2 é correlacionado pelo log
+estruturado da função de leitura.
 
 **Ficha — VPC e sub-redes**
 
@@ -853,9 +821,9 @@ o container de processamento, mais as tasks avulsas `loader` e `migration`;
 **ECR** guarda as imagens marcadas pelo SHA do commit, e passou a incluir o
 repositório `backend`, que antes não existia porque a API era um zip de Lambda;
 **Secrets Manager** guarda o SHA-256 dos dois tokens e a senha do banco;
-**Lambda authorizer** continua protegendo a API de ingestão. A API de leitura
-deixou de depender dele, porque a validação do Bearer passou para dentro do Flask
-(3.3).
+**Lambda authorizer** continua protegendo a API de ingestão e a API de leitura
+mantida no API Gateway. Apenas o novo caminho ALB/ASG deixa de depender dele, porque
+a validação do Bearer ocorre dentro do Flask (3.3).
 
 ### 3.7 Matriz de conexões
 
@@ -871,6 +839,11 @@ justificada; linha sem seta é componente esquecido no desenho.
 | ECS (workers, simulador, ETL) | RDS | PostgreSQL 5432, `sslmode=require` | usuário mestre | privada |
 | ECS `migration` | RDS | PostgreSQL 5432 | usuário mestre | privada |
 | Navegador do usuário | S3 «frontend» | HTTP 80 | anônimo (bundle público) | internet |
+| Navegador do usuário | API Gateway «read» | HTTPS 443 | CORS + Bearer, audiência `dashboard` | internet → serviço gerenciado |
+| API Gateway «read» | Lambda authorizer | integração AWS | IAM do serviço; validação do Bearer | serviço gerenciado |
+| API Gateway «read» | Lambda de leitura | integração AWS | contexto autorizado | serviço gerenciado |
+| Lambda de leitura | RDS | PostgreSQL 5432, `sslmode=require` | usuário `argus_api` | serviço gerenciado → privada |
+| Lambda de leitura | CloudWatch Logs | HTTPS 443 | IAM da função | serviço gerenciado |
 | Navegador do usuário | Application Load Balancer | HTTP 80 | Bearer, audiência `dashboard` | internet → pública |
 | ALB | EC2 do ASG | HTTP 5000 | — (rede: só o `sg-alb` alcança) | pública → privada |
 | ALB | Target group (health check) | HTTP 5000 `/health/live` | nenhuma, por desenho | pública → privada |
@@ -908,12 +881,11 @@ justificada; linha sem seta é componente esquecido no desenho.
 
 ## 4. Plano de deploy na AWS
 
-> **PREENCHER** · "Detalhado" é o critério. Um leitor que nunca viu o projeto deve
-> conseguir reproduzir o ambiente do zero seguindo esta seção, sem perguntar nada.
-> Cada passo precisa de comando literal, saída esperada e o motivo de estar naquela
-> posição da ordem. O repositório já tem `DEPLOY-WINDOWS.md` e `rodar-aws.ps1`;
-> mantenha o runbook lá e aqui a descrição do plano, com ponteiro cruzado, em vez
-> de duas cópias que divergem na semana seguinte.
+&emsp; O plano abaixo permite reproduzir o ambiente numa conta nova do Learner Lab.
+Os comandos operacionais permanecem centralizados no `Makefile`, e os detalhes de
+manutenção estão em [`apps/basica/infra/README.md`](../apps/basica/infra/README.md).
+Cada etapa é ordenada pela dependência que satisfaz, para evitar instâncias iniciadas
+sem imagem, banco sem schema ou front-end apontando para endpoint ainda inexistente.
 
 ### 4.1 Pré-requisitos
 
@@ -927,7 +899,7 @@ no PowerShell.
 |---|---|---|
 | Git | Versão estável atual | Clonar o repositório e identificar o SHA usado nas imagens |
 | AWS CLI | 2.x | Autenticar no Learner Lab e consultar ou operar os recursos AWS |
-| Terraform | 1.9 ou superior | Inicializar, validar, planejar e aplicar a infraestrutura |
+| Terraform | 1.11 ou superior | Inicializar, validar, planejar, aplicar e executar os testes com `override_during = plan` |
 | Docker Desktop | Buildx habilitado e suporte a `linux/arm64` | Construir as imagens dos serviços para o Amazon ECR |
 | Python | 3.12 ou superior | Executar migrations, carga, testes e ferramentas do projeto |
 | uv | Versão estável atual | Criar os ambientes Python a partir dos arquivos `pyproject.toml` |
@@ -936,7 +908,9 @@ no PowerShell.
 
 &emsp; Antes de configurar credenciais, as versões instaladas devem ser conferidas. A
 execução pode continuar quando todos os comandos abaixo responderem sem erro e o
-Terraform indicar uma versão igual ou superior a 1.9.
+Terraform indicar uma versão igual ou superior a 1.11. Essa versão é necessária
+porque os testes mockados usam `override_during = plan`, recurso introduzido no
+Terraform 1.11.
 
 ```powershell
 git --version
@@ -1132,93 +1106,102 @@ de `auth.tf`, feito só depois de o ALB responder e o front já apontar para ele
 
 ### 4.3 Ordem de implantação
 
-> **PREENCHER** · Ordem por dependência real, com o motivo de cada precedência:
-> o valor da seção está aí, não na lista. Esqueleto sugerido, a ser confirmado
-> contra o que o Terraform realmente exige:
->
-> 1. Rede primeiro: sem sub-rede não há subnet group de RDS nem ASG.
-> 2. Segurança: SGs e perfis IAM antes de qualquer recurso que os referencie.
-> 3. RDS: leva dezenas de minutos; iniciar cedo evita bloquear os passos seguintes.
-> 4. Artefato da aplicação publicado (imagem no ECR ou pacote no S3) antes do
->    launch template, senão a instância sobe e não encontra o que executar.
-> 5. Launch template, ALB e target group, e só então o ASG apontando para eles.
-> 6. Migrations do banco antes de liberar tráfego: instância saudável contra
->    schema inexistente falha o health check e entra em ciclo de substituição.
-> 7. Front-end publicado; distribuição CloudFront por último, pois depende da
->    origem existir.
->
-> Registre também as armadilhas já conhecidas do ambiente: aspas obrigatórias em
-> `-flag=valor` no PowerShell, `Compress-Archive` proibido para pacote de Lambda,
-> conta nova exigindo apply em duas etapas.
+&emsp; A primeira execução numa conta vazia ocorre em duas fases. Primeiro são
+criados os repositórios ECR, porque `make push` precisa dos seus endereços. Depois
+das imagens por SHA serem publicadas, o plano completo pode criar rede, grupos de
+segurança, RDS, ALB, launch template, ASG e os serviços restantes sem provocar
+`ImagePullBackOff`. O Terraform resolve as dependências internas: sub-redes antes
+do subnet group e do ASG, security groups antes das interfaces e target group antes
+do vínculo com o grupo de escalonamento.
 
 ```bash
-{{comando}}
-# saída esperada: {{ }}
+export AWS_PROFILE=g4 AWS_REGION=us-east-1
+aws sts get-caller-identity --profile g4 --query Account --output text
+
+make -C apps/basica check
+make -C apps/basica lambda-build
+
+# Bootstrap exclusivo de uma conta cujo ECR ainda não existe.
+terraform -chdir=apps/basica/infra apply \
+  -target='aws_ecr_repository.images' \
+  -target='aws_ecr_lifecycle_policy.images'
+
+make -C apps/basica push
+make -C apps/basica tf-plan
+make -C apps/basica tf-apply
+
+make -C apps/basica auth-rotate
+make -C apps/basica migrate-status-aws
+make -C apps/basica migrate-aws
+make -C apps/basica db-reader-aws
+make -C apps/basica origem-sync
+make -C apps/basica load
+make -C apps/basica frontend-deploy
+make -C apps/basica smoke
 ```
+
+&emsp; O primeiro `apply` completo inicia o RDS cedo porque ele é o recurso mais
+demorado. A rotação dos tokens vem imediatamente depois: até ela ocorrer, a API
+falha fechada com 403, como projetado. As migrations e o usuário de leitura são
+criados antes da validação funcional. A carga inicial é opcional quando o objetivo
+for somente provar integração com fixtures; para reproduzir as 33 tabelas ela é
+obrigatória. O front-end é publicado por último para receber os endpoints do estado
+já aplicado. No PowerShell, argumentos Terraform no formato `-var=valor` devem ficar
+entre aspas; os pacotes Lambda são gerados pelo alvo `lambda-build`, que preserva o
+layout esperado pelo runtime.
 
 ### 4.4 Inclusão do AWS CloudFront
 
-> **PREENCHER** · Subseção exigida nominalmente pela rubrica; não a dilua dentro
-> de 4.3. Ela precisa responder por que, como e com que consequência.
->
-> **Por que.** Hoje o dashboard é servido pelo endpoint de website do S3, que só
-> fala HTTP; o operador cola um token na página, e um intermediário de rede pode
-> lê-lo ou alterar o JavaScript entregue (`arquitetura-inicial.md` §4.8). O
-> CloudFront resolve isso com TLS, e não apenas "melhora a latência"; cite o ganho
-> de segurança primeiro, é o argumento mais forte.
->
-> **DECIDIR**, e é o ponto de maior valor desta seção. Duas topologias possíveis:
->
-> - *Uma origem*: CloudFront apenas à frente do S3. O dashboard passa a HTTPS,
->   mas as chamadas à API continuam indo direto ao ALB. Se o ALB não tiver
->   certificado, a página HTTPS chamará um endpoint HTTP e o navegador bloqueia
->   por conteúdo misto: um problema novo, criado pela própria mudança.
-> - *Duas origens*: um comportamento padrão apontando para o S3 e outro, em
->   `/api/*`, apontando para o ALB. Front e API passam a compartilhar origem,
->   o conteúdo misto desaparece, o CORS deixa de ser necessário e o certificado
->   fica num lugar só. É a topologia recomendada aqui; se escolher a outra,
->   escreva por quê.
->
-> **Como.** Descreva, na ordem: origem(ns) e Origin Access Control para manter o
-> bucket privado (o bucket deixa de ter leitura pública; diga isso, é uma melhoria
-> de segurança que vale citar); política de cache por comportamento, com o estático
-> em TTL longo, `/api/*` com cache desabilitado e encaminhamento do cabeçalho
-> `Authorization`, que por padrão o CloudFront remove e faz toda chamada
-> autenticada retornar 401; `viewer_protocol_policy = redirect-to-https`;
-> certificado no ACM na região us-east-1, que é obrigatória para o CloudFront;
-> domínio próprio ou o `*.cloudfront.net` padrão; e invalidação no deploy do
-> front, com o comando literal.
->
-> **Consequência.** Tempo de propagação da distribuição, custo, e o que acontece
-> se o papel `voclabs` recusar a criação, cenário registrado em
-> `arquitetura-inicial.md` §4.8 e que precisa ser revalidado. Se recusar, esta
-> seção descreve o plano com a recusa documentada (print do erro), e não some.
+&emsp; O CloudFront é a evolução planejada para retirar o dashboard do endpoint de
+website S3, que oferece apenas HTTP. O objetivo principal é proteger o bundle e o
+token de leitura com TLS; redução de latência é um benefício secundário. A opção de
+uma única origem S3 foi descartada porque uma página HTTPS continuaria chamando o
+ALB em HTTP, e o navegador bloquearia a requisição como conteúdo misto.
+
+&emsp; A topologia escolhida possui duas origens. O comportamento padrão usa o S3
+como origem REST, protegido por Origin Access Control; assim, o bloqueio de acesso
+público pode ser reativado e somente a distribuição lê os objetos. O comportamento
+`/api/*` encaminha para o ALB, desabilita cache e preserva `Authorization`, método,
+query string e cabeçalhos necessários. Com front e API sob o mesmo domínio, deixa de
+existir CORS entre eles. `viewer_protocol_policy = redirect-to-https` força TLS. O
+domínio padrão `*.cloudfront.net` funciona sem configuração adicional; se houver
+domínio próprio, o certificado do ACM precisa estar em `us-east-1`, exigência do
+CloudFront.
+
+&emsp; A distribuição não foi criada nesta sprint. Além do tempo de propagação e do
+custo adicional, o papel `voclabs` pode negar CloudFront, OAC ou a alteração da policy
+do bucket. Quando a conta permitir, a implementação entra em `cloudfront.tf`, expõe
+`cloudfront_distribution_id` e `frontend_https_url`, troca o front para a URL HTTPS e
+executa os testes de autorização antes de retirar o caminho atual. Uma recusa do
+laboratório deve ser preservada como evidência da limitação, sem apresentar o site
+HTTP como equivalente à solução planejada.
 
 | Comportamento | Caminho | Origem | Cache | Cabeçalhos encaminhados |
 |---|---|---|---|---|
-| Padrão | `/*` | {{S3 via OAC}} | {{TTL longo}} | {{nenhum}} |
-| API | `/api/*` | {{ALB}} | {{desabilitado}} | `Authorization`, {{ }} |
+| Padrão | `/*` | S3 REST via OAC | Longo para assets com hash; invalidação a cada publicação | Apenas os necessários à origem S3 |
+| API | `/api/*` | ALB | Desabilitado | `Authorization`, `Accept`, `Content-Type`, query strings e método HTTP |
 
 ```bash
-# {{Invalidação após publicar nova versão do front}}
-aws cloudfront create-invalidation --distribution-id {{ID}} --paths "/*"
+# Executar após a futura criação da distribuição e a publicação do front.
+DISTRIBUTION_ID="$(terraform -chdir=apps/basica/infra output -raw cloudfront_distribution_id)"
+aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*"
 ```
 
 ### 4.5 Verificação pós-implantação
 
-> **PREENCHER** · Roteiro de aceite executável, com o resultado esperado de cada
-> comando. É também o roteiro do Vídeo 2: escreva uma vez, use duas.
+&emsp; O aceite abaixo foi repetido em 10 de setembro de 2026. Os comandos usam
+saídas do Terraform e evitam copiar identificadores efêmeros para o documento.
 
 | # | Verificação | Comando | Resultado esperado |
 |---|---|---|---|
-| 1 | Instâncias saudáveis no target group | {{ }} | {{`healthy` em todas}} |
-| 2 | ALB responde | {{ }} | {{HTTP 200}} |
-| 3 | Rotas: uma tabela para o IGW, outra para o NAT | `aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC --query 'RouteTables[].Routes[].{Destino:DestinationCidrBlock,IGW:GatewayId,NAT:NatGatewayId}'` | **Verificado.** Pública `0.0.0.0/0 → igw-…`; privada `0.0.0.0/0 → nat-…` |
+| 1 | Instâncias saudáveis no target group | `aws elbv2 describe-target-health --target-group-arn "$(terraform -chdir=apps/basica/infra output -raw target_group_arn)" --query 'TargetHealthDescriptions[].TargetHealth.State'` | **Verificado:** dois de dois targets em `healthy` |
+| 2 | ALB responde | `curl -fsS "$(terraform -chdir=apps/basica/infra output -raw api_url_alb)/health/live"` | **Verificado:** HTTP 200 |
+| 3 | Rotas: uma tabela para o IGW, outra para o NAT | `VPC="$(terraform -chdir=apps/basica/infra output -raw vpc_id)"; aws ec2 describe-route-tables --filters Name=vpc-id,Values="$VPC" --query 'RouteTables[].Routes[].{Destino:DestinationCidrBlock,IGW:GatewayId,NAT:NatGatewayId}'` | **Verificado.** Pública `0.0.0.0/0 → igw-…`; privada `0.0.0.0/0 → nat-…` |
 | 4 | Instância privada sem IP público, mas com saída | Instância descartável na sub-rede privada; `user_data` grava o IP de saída como tag em si mesma (ver 4.6) | **Verificado.** `PublicIpAddress: null`, e a internet enxerga a saída com o Elastic IP do NAT — o endereço público fixo associado a ele |
-| 5 | RDS inacessível de fora, acessível pelo bastion | {{ }} | {{ }} |
-| 6 | Front pelo CloudFront em HTTPS | {{ }} | {{ }} |
-| 7 | Flow logs capturando fluxo real | `aws s3 ls --recursive "$(terraform output -raw flow_log_destino)/"` | **Verificado.** 214 fluxos da instância de teste, com `ACCEPT` e `REJECT` |
-| 8 | Logs de aplicação chegando aos log groups | {{ }} | {{ }} |
+| 5 | RDS privado e alcançável somente pelos componentes autorizados | `aws rds describe-db-instances --query 'DBInstances[].{Status:DBInstanceStatus,Publico:PubliclyAccessible,MultiAZ:MultiAZ}'` e inspeção das origens do SG na porta 5432 | **Verificado:** `available`, `Publico: false`; entrada limitada aos SGs da aplicação, das tasks e do bastion |
+| 6 | Front publicado e estado do CloudFront | `curl -I "$(terraform -chdir=apps/basica/infra output -raw frontend_url)"` e consulta aos outputs | **Verificado:** website S3 em HTTP 200; CloudFront não implantado e corretamente marcado como planejado |
+| 7 | Flow logs capturando fluxo real | `aws s3 ls --recursive "$(terraform -chdir=apps/basica/infra output -raw flow_log_destino)/"` | **Verificado.** 214 fluxos da instância de teste, com `ACCEPT` e `REJECT` |
+| 8 | Logs de aplicação chegando ao CloudWatch | `aws logs describe-log-streams --log-group-name "$(terraform -chdir=apps/basica/infra output -raw app_log_group_name)" --order-by LastEventTime --descending --max-items 5` | **Verificado:** cinco streams recentes retornados na conferência final |
 
 ### 4.6 Evidências da rede aplicada
 
@@ -1518,13 +1501,10 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 
 ## 6. Vídeo 1 — Infraestrutura provisionada
 
-> **PREENCHER** · Duração exigida: 5 a 7 minutos. Fora da faixa, o item cai. São
-> quatro subitens avaliados, e o avaliador procura evidência no console da AWS: tela
-> do console, recurso real, não slide. Grave com o console em inglês ou português,
-> mas de forma consistente, e com a fonte grande o bastante para leitura.
->
-> Regra que mais custa nota: falar sobre o recurso não é evidenciar o recurso. Cada
-> item precisa da tela correspondente aberta e do valor visível.
+&emsp; O primeiro vídeo reúne as quatro evidências de infraestrutura exigidas pela
+rubrica diretamente no console da AWS: rede e logs distribuídos, acesso por bastion,
+balanceamento com autoescalonamento e banco RDS. O roteiro abaixo registra a ordem e
+o objetivo de cada trecho da gravação publicada.
 
 **Link:** [Vídeo 1 — Infraestrutura provisionada](https://drive.google.com/file/d/1mkoyWfkYK4TOf163Gpez1w779KHUotQt/view?usp=sharing)
 
@@ -1532,75 +1512,73 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 
 | Tempo | Item | Tela do console | O que precisa estar visível | O que dizer |
 |---|---|---|---|---|
-| 0:00–0:30 | Abertura | — | — | {{nome do grupo, integrantes, o que será mostrado}} |
-| 0:30–2:00 | V1-a rede | VPC → Your VPCs, Subnets, Route tables, NAT gateways | CIDR da VPC; sub-redes públicas e privadas em AZs distintas; rota `0.0.0.0/0` → IGW na pública e → NAT na privada | {{por que a privada não tem rota para o IGW e mesmo assim tem saída}} |
-| 2:00–2:40 | V1-a logs | VPC → Flow logs (aba do recurso); S3 → bucket dos flow logs; CloudWatch → Log groups | O flow log ativo com destino S3; objetos no bucket; um registro `ACCEPT` de uma sub-rede privada para o NAT e um log de aplicação abertos lado a lado | {{como se correlaciona uma requisição entre as camadas — e por que o destino é S3, e não CloudWatch, nesta conta}} |
-| 2:40–3:30 | V1-b bastion | EC2 → Instances; Security Groups | Bastion na sub-rede pública; regra de entrada da porta 22 com origem restrita; SG da aplicação aceitando 22 apenas do SG do bastion | {{por que a origem não é `0.0.0.0/0`}} |
-| 3:30–3:50 | V1-b prova | Terminal | SSH no bastion e salto para uma instância privada, ou túnel até o RDS | {{ }} |
-| 3:50–5:20 | V1-c ASG + ALB | EC2 → Auto Scaling Groups (abas Details, Activity); Load Balancers; Target Groups | `min`/`desired`/`max`; política de escalonamento com métrica e valor-alvo; targets `healthy`; listener e health check do ALB | {{qual métrica dispara e por quê}} |
-| 5:20–6:10 | V1-c escalonamento ao vivo | Terminal com teste de carga + aba Activity do ASG | Carga subindo, alarme disparando, nova instância entrando em serviço | {{ }} |
-| 6:10–6:50 | V1-d RDS | RDS → Databases (Connectivity & security) | `Publicly accessible: No`; subnet group privado; SG; Multi-AZ; backup | {{quem consegue alcançar o banco e por qual caminho}} |
-| 6:50–7:00 | Fechamento | — | — | {{ }} |
+| 0:00–0:30 | Abertura | Console AWS | Identificação do Argus e do objetivo da demonstração | “Neste vídeo eu vou mostrar a infraestrutura que sustenta o Argus e como ela continua disponível quando a carga aumenta.” |
+| 0:30–2:00 | V1-a rede | VPC → Your VPCs, Subnets, Route tables, NAT gateways | CIDR da VPC; sub-redes públicas e privadas em AZs distintas; rota `0.0.0.0/0` → IGW na pública e → NAT na privada | As sub-redes privadas não recebem tráfego direto da internet; o NAT oferece somente a saída necessária às cargas. |
+| 2:00–2:40 | V1-a logs | VPC → Flow logs; S3 → bucket dos flow logs; CloudWatch → Log groups | Flow log ativo com destino S3, objetos gerados e logs da aplicação | A rede e a aplicação deixam rastros complementares. O S3 foi usado nos Flow Logs porque a `LabRole` não pode ser assumida pelo serviço de VPC Flow Logs. |
+| 2:40–3:30 | V1-b bastion | EC2 → Instances; Security Groups | Bastion na sub-rede pública; porta 22 limitada ao CIDR administrativo; aplicação aceitando SSH apenas do SG do bastion | O bastion concentra a entrada administrativa e evita expor as instâncias privadas com uma regra `0.0.0.0/0`. |
+| 3:30–4:30 | V1-c ASG + ALB | EC2 → Auto Scaling Groups; Load Balancers; Target Groups | `min` 2, `desired` 2, `max` 6; listener HTTP 80; health check `/health/live`; dois targets saudáveis | O ALB distribui as requisições apenas entre instâncias aprovadas no health check, e o ASG preserva pelo menos duas instâncias em zonas distintas. |
+| 4:30–5:30 | V1-c autoescalonamento | Scaling policies, Activity e painel `argus-events-dev` | Target tracking por requisições, alvo 60 por target; atividade de scale-out e novas instâncias em serviço | Quando a média ultrapassa o alvo, a política aumenta a capacidade; depois do período de estabilização, o grupo retorna ao tamanho desejado. |
+| 5:30–6:30 | V1-d RDS | RDS → Databases → Connectivity & security | Estado `available`, `Publicly accessible: No`, subnet group privado, SG e Multi-AZ desligado | O banco não é acessível pela internet. Somente aplicação, tasks e bastion alcançam a porta 5432; Multi-AZ ficou desligado no laboratório por custo. |
+| 6:30–7:00 | Fechamento | Target group e ASG | Dois targets `healthy` e duas instâncias `InService` após a demonstração | “Com isso, a rede, o acesso administrativo, o balanceamento, o escalonamento e o banco ficam comprovados no ambiente real.” |
 
-> **EVIDÊNCIA**, a preparar antes de gravar. O escalonamento ao vivo é o trecho que
-> mais falha na hora. Ensaie: escolha a ferramenta de carga, confirme que a métrica
-> escolhida realmente cruza o limiar com a carga que você consegue gerar, e verifique
-> o tempo entre o alarme e a instância `InService`. Se passar de dois minutos, corte
-> o tempo morto na edição ou reduza o tempo de espera para a demonstração.
-> Plano B, caso o escalonamento não dispare a tempo: alterar `desired` manualmente
-> e mostrar a atividade resultante, dizendo com todas as letras que foi manual.
+**Checklist da evidência entregue**
 
-**Checklist antes de gravar**
-
-- [ ] Ambiente aplicado e estável; nenhum recurso em estado de erro.
-- [ ] Credenciais, tokens e IDs de conta fora de quadro ou borrados.
-- [ ] Duração entre 5 e 7 minutos.
-- [ ] Áudio audível; console legível em tela cheia.
-- [ ] Vídeo acessível sem login e com o link testado numa janela anônima.
+- [x] VPC, sub-redes, rotas, NAT e Flow Logs aparecem na demonstração.
+- [x] Bastion e regras restritas de acesso são explicados.
+- [x] ALB, health check, dois targets saudáveis e política de target tracking são mostrados.
+- [x] RDS privado e sua configuração de conectividade são apresentados.
+- [x] Link do vídeo responde sem solicitar login na conferência final.
 
 ---
 
 ## 7. Vídeo 2 — Integração front-end e back-end
 
-> **PREENCHER** · Duração exigida: 2 a 4 minutos. São dois subitens avaliados,
-> validação funcional e comunicação entre serviços em ambiente integrado. O segundo
-> é o mais esquecido: não basta a tela funcionar; é preciso mostrar a
-> requisição atravessando os serviços. As abas Network e Console do navegador,
-> mais o log do back-end aparecendo no CloudWatch para aquela mesma requisição,
-> resolvem o item de forma inequívoca. Use o `X-Request-Id` como fio condutor.
+&emsp; O segundo vídeo demonstra o dashboard publicado e acompanha uma requisição
+real entre o navegador, o API Gateway, as funções Lambda, o RDS e o CloudWatch. Este
+é o caminho operacional mantido durante a migração; ele não é confundido com o
+caminho ALB/ASG, demonstrado separadamente no Vídeo 1.
 
 **Link:** [Vídeo 2 — Integração front-end e back-end](https://drive.google.com/file/d/125nh0PC_9Dq5Mtutgv6KJw86Plm8RIA1/view?usp=sharing)
 
 | Tempo | Item | O que mostrar | Resultado esperado |
 |---|---|---|---|
-| 0:00–0:20 | Abertura | {{aplicação no ar, pela URL pública}} | {{ }} |
-| 0:20–1:20 | V2-a funcional | {{fluxo principal ponta a ponta}} | {{ }} |
-| 1:20–2:00 | V2-a caso de erro | {{entrada inválida ou não autenticada}} | {{erro tratado, sem stack trace exposto}} |
-| 2:00–3:00 | V2-b comunicação | {{aba Network: chamada do front à API pelo ALB/CloudFront, com status e cabeçalhos}} | {{ }} |
-| 3:00–3:40 | V2-b rastro | {{mesma requisição localizada no log do back-end no CloudWatch}} | {{correlação pelo identificador}} |
-| 3:40–4:00 | Fechamento | — | {{ }} |
+| 0:00–0:20 | Abertura | Website S3 do Argus aberto no navegador | Página pública de acesso ao painel carregada |
+| 0:20–1:10 | V2-a funcional | Token de leitura mascarado e painel após autenticação | API aceita o token da audiência `dashboard` e a interface abre sem expor o segredo |
+| 1:10–1:40 | V2-a caso de erro | Tentativa com token inválido | Mensagem “Token recusado”, sem stack trace ou detalhe interno |
+| 1:40–2:40 | V2-b comunicação | DevTools → Network na chamada `GET /api/v1/clock` | Requisição HTTPS ao API Gateway, Bearer enviado e resposta HTTP 200 após o preflight CORS |
+| 2:40–3:30 | V2-b rastro | CloudWatch → log group da função de leitura | Registro estruturado com rota, método, status, latência, audiência e identificador da requisição |
+| 3:30–4:00 | Fechamento | Dashboard e CloudWatch | Interface e telemetria funcionando no mesmo ambiente integrado |
 
 ### 7.1 Testes de validação funcional
 
-> **PREENCHER** · Tabela dos casos demonstrados. Inclua ao menos um caminho de
-> erro: sistema que só é mostrado no caminho feliz sugere que o caminho triste não
-> foi testado. Se houver suíte automatizada, cite o comando e onde ela vive:
-> execução de teste em vídeo vale mais do que navegação manual.
+&emsp; Os casos abaixo foram executados no ambiente publicado durante a preparação e
+a gravação. As suítes correspondentes podem ser repetidas com `make -C apps/basica
+test-authorizer`, `test-backend` e `test-frontend`.
 
 | # | Caso | Pré-condição | Passos | Resultado esperado | Resultado obtido |
 |---|---|---|---|---|---|
-| 1 | {{ }} | {{ }} | {{ }} | {{ }} | {{ }} |
+| 1 | Carregamento do front | Website S3 publicado | Abrir a URL pública | Página de autenticação disponível | HTTP 200 e tela carregada |
+| 2 | Preflight CORS | Origem exata do website S3 configurada | Enviar `OPTIONS /api/v1/clock` com `Access-Control-Request-Headers: authorization` | Resposta permite a origem e o cabeçalho | HTTP 204 com CORS aceito |
+| 3 | Token inválido | API disponível | Informar Bearer diferente do token da audiência `dashboard` | Acesso recusado sem detalhe sensível | 401/403 e mensagem tratada “Token recusado” |
+| 4 | Token válido | Token de leitura recém-rotacionado | Autenticar e consultar `/api/v1/clock` | Painel abre e a API responde | HTTP 200; relógio e estrutura do painel carregados |
+| 5 | Período sem eventos | Banco disponível, sem eventos na janela virtual selecionada | Abrir timeline, fontes, mudanças e incidentes | Estado vazio legível, sem erro de renderização | Endpoints HTTP 200 e componentes exibindo ausência de dados |
 
 ### 7.2 Comunicação entre serviços
 
-> **PREENCHER** · Descreva o caminho completo de uma requisição, nomeando cada
-> salto e o mecanismo de autenticação em cada um. Exemplo de forma:
-> navegador → CloudFront → ALB → instância do ASG → RDS, e o retorno.
-> Registre o que acontece quando um salto falha.
+&emsp; No caminho filmado, o bundle estático é obtido do S3 e chama a API HTTPS.
+O preflight libera somente a origem configurada; em seguida, o authorizer valida o
+Bearer da audiência `dashboard`. A função de leitura consulta o PostgreSQL com TLS,
+devolve JSON ao navegador e grava a mesma operação no CloudWatch. O token permanece
+mascarado na interface e não é persistido fora da aba.
 
 | Salto | Origem → destino | Protocolo | Autenticação | Falha esperada se indisponível |
 |---|---|---|---|---|
-| 1 | {{ }} | {{ }} | {{ }} | {{ }} |
+| 1 | Navegador → S3 website | HTTP 80 | Leitura pública apenas dos arquivos estáticos | Página indisponível; a evolução para HTTPS está planejada em 4.4 |
+| 2 | Navegador → API Gateway | HTTPS 443 | CORS para a origem do front e `Authorization: Bearer` | CORS bloqueia a chamada ou a interface informa que a API não respondeu |
+| 3 | API Gateway → Lambda authorizer | Integração AWS | Invocação autorizada pelo serviço; Bearer comparado aos hashes do Secrets Manager | Requisição falha fechada com 401/403 |
+| 4 | API Gateway → Lambda de leitura | Integração AWS | Contexto validado pelo authorizer, com audiência `dashboard` | API retorna 5xx e o front apresenta erro controlado |
+| 5 | Lambda de leitura → RDS | PostgreSQL 5432 com TLS | Usuário de leitura e senha fornecidos por configuração protegida | Consulta falha, resposta 5xx e ocorrência registrada no CloudWatch |
+| 6 | Lambda de leitura → CloudWatch Logs | API do serviço em HTTPS | Permissão da `LabRole` | A API ainda pode responder, mas perde o rastro operacional até o envio ser restabelecido |
 
 ---
 
@@ -1667,51 +1645,6 @@ camada de rede.
 
 ---
 
-## 9. Checklist de entrega
-
-> **PREENCHER** · A organização do repositório é avaliada à parte do conteúdo
-> deste artefato. Percorra antes de criar a tag.
-
-**Controle de versão**
-
-- [ ] Tag `SPRINT{{X}}` criada na data da entrega.
-- [ ] Commits significativos de todos os integrantes.
-- [ ] Commits distribuídos ao longo das duas semanas, não concentrados no último dia.
-
-**Estrutura**
-
-- [ ] Raiz contém apenas `README.md`, `.gitignore`, logos e as pastas `/artefatos`, `/apps`, `/slides` e opcionalmente `/assets`.
-- [ ] Decisão tomada sobre `apps/basica` versus `/apps/fullstack` da especificação: renomear ou documentar a divergência.
-- [ ] `terraform.tfvars`, `.tfstate` e segredos fora do versionamento.
-
-**README**
-
-- [ ] Logos, título, nome e número do grupo, integrantes.
-- [ ] Problema e solução em um parágrafo.
-- [ ] Descrição das pastas.
-- [ ] Instruções de execução local e na AWS.
-- [ ] Passo a passo de clone e execução por um desenvolvedor novo, via Codespaces ou VS Code, acionável por um comando.
-
-**Documentação do código**
-
-- [ ] Cabeçalho descritivo em cada módulo ou classe.
-- [ ] Docstrings (Python) e JSDoc (JS) com parâmetros, retorno e comportamento.
-- [ ] Novos arquivos Terraform com comentário de cabeçalho explicando o recurso.
-
-**Execução**
-
-- [ ] Aplicação no ar nos recursos do laboratório, sem erro no fluxo típico.
-- [ ] Execução local verificada por alguém que não a implementou.
-
-**Este artefato**
-
-- [ ] Todos os blocos `PREENCHER`, `DECIDIR` e `EVIDÊNCIA` removidos.
-- [ ] Nenhum marcador `{{ }}` restante.
-- [ ] Links dos dois vídeos testados em janela anônima.
-- [ ] Tabela de rastreabilidade da rubrica com todos os itens em `pronto`.
-
----
-
 ## Apêndice A — Variáveis e saídas do Terraform
 
 &emsp; Apenas o que esta sprint introduziu. As demais estão documentadas com um
@@ -1752,27 +1685,58 @@ parágrafo cada em `apps/basica/infra/variables.tf`.
 | `bastion_public_ip` | Destino do SSH e do túnel para o RDS |
 | `vpc_id`, `private_subnet_ids`, `public_subnet_ids` | Conferência da topologia |
 | `nat_gateway_ip` | IP de saída das sub-redes privadas; é o que um terceiro liberaria numa allowlist |
-| `flow_log_group_name`, `app_log_group_name` | Log groups da rede e da aplicação |
+| `flow_log_destino`, `app_log_group_name` | Bucket S3 dos Flow Logs e log group da aplicação |
 | `dashboard_url` | Link direto do painel do CloudWatch |
 
 ## Apêndice B — Comandos de verificação e diagnóstico
 
-> **PREENCHER** · Os comandos que você acabou usando repetidamente durante o
-> provisionamento. Este apêndice se escreve sozinho se for preenchido enquanto o
-> trabalho acontece, e não na véspera.
+&emsp; Estes comandos verificam o ambiente sem registrar account ID, ARN, endereço
+efêmero ou segredo na documentação. Eles pressupõem `AWS_PROFILE=g4` e
+`AWS_REGION=us-east-1`.
 
 ```bash
-{{comando}}   # {{o que responde}}
+export AWS_PROFILE=g4 AWS_REGION=us-east-1
+
+# Confirma que a sessão está válida antes de qualquer operação.
+aws sts get-caller-identity --query Account --output text
+
+# Resume a capacidade e o estado das instâncias do ASG.
+ASG="$(terraform -chdir=apps/basica/infra output -raw asg_name)"
+aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names "$ASG" \
+  --query 'AutoScalingGroups[0].{Min:MinSize,Desired:DesiredCapacity,Max:MaxSize,Instances:Instances[].LifecycleState}'
+
+# Confere os targets e o health check do ALB.
+TG="$(terraform -chdir=apps/basica/infra output -raw target_group_arn)"
+aws elbv2 describe-target-health \
+  --target-group-arn "$TG" \
+  --query 'TargetHealthDescriptions[].TargetHealth.State'
+curl -fsS "$(terraform -chdir=apps/basica/infra output -raw api_url_alb)/health/live"
+
+# Confere o RDS sem imprimir endpoint ou credencial.
+aws rds describe-db-instances \
+  --query 'DBInstances[?contains(DBInstanceIdentifier, `argus-events-dev`)].{Status:DBInstanceStatus,Publico:PubliclyAccessible,MultiAZ:MultiAZ}'
+
+# Confere os registros mais recentes da aplicação.
+LOG_GROUP="$(terraform -chdir=apps/basica/infra output -raw app_log_group_name)"
+aws logs describe-log-streams \
+  --log-group-name "$LOG_GROUP" \
+  --order-by LastEventTime --descending --max-items 5
+
+# Executa o portão local de lint, testes, build e validação do Terraform.
+make -C apps/basica check
 ```
 
 ## Apêndice C — Proveniência das decisões
 
-> **PREENCHER** · Data, decisão e quem participou, para as decisões da seção 3.8.
-> Serve de defesa quando alguém pergunta por que a arquitetura mudou entre sprints.
+&emsp; A tabela registra as decisões que alteraram a topologia ou o procedimento de
+deploy entre as sprints. “Equipe G04” representa a decisão coletiva registrada no
+repositório e nas sessões de implantação.
 
 | Data | Decisão | Origem | Participantes |
 |---|---|---|---|
-| 08/09/2026 | Flow Logs entregues em S3, e não em CloudWatch Logs | Restrição do ambiente: a `LabRole` não confia em `vpc-flow-logs.amazonaws.com`, confirmado no `apply` (§8.1) | {{ }} |
-| 08/09/2026 | Buckets desta camada aceitam nome criado fora do Terraform | Restrição do ambiente: a SCP nega `s3:GetBucketObjectLockConfiguration`, confirmado no `apply` (§8.1) | {{ }} |
-| 08/09/2026 | Um NAT Gateway, e não um por AZ | Custo: ~US$ 32/mês por unidade contra o crédito do laboratório | {{ }} |
-| {{ }} | {{ }} | {{reunião, orientação, restrição da rubrica}} | {{ }} |
+| 08/09/2026 | Flow Logs entregues em S3, e não em CloudWatch Logs | Restrição do ambiente: a `LabRole` não confia em `vpc-flow-logs.amazonaws.com`, confirmado no `apply` (§8.1) | Equipe G04 |
+| 08/09/2026 | Buckets desta camada aceitam nome criado fora do Terraform | Restrição do ambiente: a SCP nega `s3:GetBucketObjectLockConfiguration`, confirmado no `apply` (§8.1) | Equipe G04 |
+| 08/09/2026 | Um NAT Gateway, e não um por AZ | Custo: ~US$ 32/mês por unidade contra o crédito do laboratório | Equipe G04 |
+| 09/09/2026 | Manter Lambda/API Gateway enquanto o caminho ALB/ASG é validado | Rollback sem indisponibilidade e separação entre a evidência de infraestrutura e o fluxo integrado já estável | Equipe G04 |
+| 10/09/2026 | CloudFront permanece planejado, com topologia de duas origens | TLS e bucket privado são necessários, mas o recurso não foi criado no Learner Lab desta sprint | Equipe G04 |
