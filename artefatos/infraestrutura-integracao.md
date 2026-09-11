@@ -1569,7 +1569,7 @@ mesma imagem, o que a aba *Activity* do ASG sozinha não faz.
 > mais o log do back-end aparecendo no CloudWatch para aquela mesma requisição,
 > resolvem o item de forma inequívoca. Use o `X-Request-Id` como fio condutor.
 
-**Link:** {{URL}}
+**Link:** [Vídeo 2 — Integração front-end e back-end](https://drive.google.com/file/d/125nh0PC_9Dq5Mtutgv6KJw86Plm8RIA1/view?usp=sharing)
 
 | Tempo | Item | O que mostrar | Resultado esperado |
 |---|---|---|---|
