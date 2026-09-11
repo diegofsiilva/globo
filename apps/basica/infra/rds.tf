@@ -169,8 +169,13 @@ resource "aws_db_instance" "main" {
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
-  publicly_accessible    = var.db_publicly_accessible
-  multi_az               = var.db_multi_az
+  # Fixado em false por exigencia da rubrica (3): o banco nunca eh exposto
+  # publicamente. O acesso administrativo usa a task `migration` dentro da VPC
+  # (make migrate-aws). A variavel var.db_publicly_accessible permanece apenas
+  # para compatibilidade com workspaces legados e eh ignorada; qualquer valor
+  # diferente de false gera erro em `terraform validate` via variavel validada.
+  publicly_accessible = false
+  multi_az            = var.db_multi_az
 
   parameter_group_name       = aws_db_parameter_group.main.name
   backup_retention_period    = var.db_backup_retention_days
@@ -196,4 +201,39 @@ resource "aws_db_instance" "main" {
   tags = {
     Name = local.name
   }
+}
+
+# --------------------------------------------------------------------------- #
+# Acesso a partir da camada de aplicacao nova
+# --------------------------------------------------------------------------- #
+
+# As instancias do Auto Scaling Group entram pelo seu proprio security group, e
+# nao pelo das tasks. Separar importa: se um dia a API de leitura precisar de
+# permissao diferente da dos workers de ingestao, ha onde expressar isso sem
+# afrouxar a regra para os dois.
+resource "aws_security_group_rule" "rds_from_app" {
+  count = local.criar_app ? 1 : 0
+
+  type                     = "ingress"
+  description              = "PostgreSQL vindo das instancias EC2 da API de leitura"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.app[0].id
+}
+
+# O bastion e o unico caminho humano ate o banco depois que ele deixa de ser
+# publico. Substitui, para inspecao interativa, o que hoje se faz disparando a
+# task ECS `migration` -- que continua existindo para as migrations.
+resource "aws_security_group_rule" "rds_from_bastion" {
+  count = local.criar_bastion ? 1 : 0
+
+  type                     = "ingress"
+  description              = "PostgreSQL vindo do bastion, para tunel e inspecao"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_security_group.bastion[0].id
 }

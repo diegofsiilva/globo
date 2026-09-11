@@ -1,0 +1,97 @@
+{
+  "ambiente": {
+    "data": "2026-09-09",
+    "provedor": "AWS Academy Learner Lab",
+    "regiao": "us-east-1",
+    "perfil_aws": "argus-pessoal",
+    "eventos_por_lote": 150000,
+    "vus_de_injecao": 50,
+    "limite_por_fragmento_bytes": 40000
+  },
+  "criterios": {
+    "drenagem_maxima_segundos": 450,
+    "vazao_minima_eventos_s": 166.67,
+    "erros_de_aceite": 0,
+    "dlq_final": 0,
+    "integridade": "eventos aceitos = itens gravados"
+  },
+  "resultados": [
+    {
+      "cenario": "1 lote",
+      "test_id": "rnf01-lote-1x-final-20260909T204204Z",
+      "eventos": 150000,
+      "fragmentos_http": 2250,
+      "injecao_segundos": 10.078,
+      "vazao_aceite_eventos_s": 14883.86,
+      "latencia_fragmento_p95_ms": 207.0,
+      "erros_aceite": 0,
+      "pico_fila_fragmentos": 1763,
+      "drenagem_segundos": 120,
+      "vazao_drenagem_eventos_s": 1249.19,
+      "itens_gravados_cloudwatch": 150000,
+      "dlq_final": 0,
+      "resultado": "aprovado"
+    },
+    {
+      "cenario": "2 lotes represados",
+      "test_id": "rnf01-acumulo-2x-final-20260909T204544Z",
+      "eventos": 300000,
+      "fragmentos_http": 4500,
+      "injecao_segundos": 27.689,
+      "vazao_aceite_eventos_s": 10834.77,
+      "latencia_fragmento_p95_ms": 667.6,
+      "erros_aceite": 0,
+      "pico_fila_fragmentos": 4500,
+      "drenagem_segundos": 191,
+      "vazao_drenagem_eventos_s": 1570.68,
+      "itens_gravados_cloudwatch": 300000,
+      "dlq_final": 0,
+      "resultado": "aprovado"
+    },
+    {
+      "cenario": "3 lotes represados",
+      "test_id": "rnf01-acumulo-3x-final-20260909T205044Z",
+      "eventos": 450000,
+      "fragmentos_http": 6746,
+      "injecao_segundos": 27.987,
+      "vazao_aceite_eventos_s": 16079.11,
+      "latencia_fragmento_p95_ms": 198.9,
+      "erros_aceite": 0,
+      "pico_fila_fragmentos": 6746,
+      "drenagem_segundos": 259,
+      "vazao_drenagem_eventos_s": 1737.45,
+      "itens_gravados_cloudwatch": 450000,
+      "dlq_final": 0,
+      "resultado": "aprovado"
+    },
+    {
+      "cenario": "4 lotes represados",
+      "test_id": "rnf01-acumulo-4x-final-20260909T205658Z",
+      "eventos": 600000,
+      "fragmentos_http": 8952,
+      "injecao_segundos": 38.026,
+      "vazao_aceite_eventos_s": 15778.88,
+      "latencia_fragmento_p95_ms": 201.2,
+      "erros_aceite": 0,
+      "pico_fila_fragmentos": 8952,
+      "drenagem_segundos": 346,
+      "vazao_drenagem_eventos_s": 1734.10,
+      "itens_gravados_cloudwatch": 600000,
+      "dlq_final": 0,
+      "resultado": "aprovado"
+    }
+  ],
+  "frescor_ponta_a_ponta": {
+    "estado": "nao_comprovado_no_ambiente_remoto",
+    "motivo": "A implantacao ativa nao continha a migration 029, que inclui bronze.event no avanco do watermark bronze-silver.",
+    "correcao": "apps/basica/db/migrations/029_watermark_inclui_eventos.sql",
+    "validacao_local": "66 testes de processamento aprovados, incluindo regressao de evento sem change_log posterior",
+    "proximo_passo": "Aplicar a migration em janela autorizada e repetir a consulta de frescor por test_id."
+  },
+  "observacoes": [
+    "Itens gravados foram reconciliados pela metrica ItemsWritten do event-worker no CloudWatch.",
+    "A profundidade SQS representa fragmentos HTTP, nao eventos individuais.",
+    "O primeiro teste com fragmentos de 240000 bytes recebeu HTTP 414; o limite operacional foi reduzido para 40000 bytes.",
+    "No cenario de quatro lotes, o primeiro ponto zerado no CloudWatch ocorreu no minuto 21:04 UTC e foi confirmado novamente depois."
+  ]
+}

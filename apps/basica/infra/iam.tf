@@ -89,7 +89,7 @@ data "aws_iam_policy_document" "task" {
     # servico do fluxo tem permissao de escrever ali. O dump cedido pelo
     # parceiro nao pode ser sobrescrito por um bug nosso.
     actions   = ["s3:GetObject", "s3:ListBucket"]
-    resources = [aws_s3_bucket.origem.arn, "${aws_s3_bucket.origem.arn}/*"]
+    resources = ["arn:aws:s3:::${local.origem_bucket_name}", "arn:aws:s3:::${local.origem_bucket_name}/*"]
   }
 
   # Nao ha permissao de RDS nenhuma aqui, e isso esta certo: a autenticacao no

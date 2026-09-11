@@ -1,0 +1,11 @@
+# Provisiona o Prometheus como datasource do Grafana (metricas de k6 dos
+# testes de carga RNF01/02/03, enviadas por Remote Write).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    editable: false

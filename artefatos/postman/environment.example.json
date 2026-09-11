@@ -1,20 +1,24 @@
 {
   "name": "Argus — exemplo (preencha e NAO versione)",
   "_comment": [
-    "Copie para environment.json e preencha os dois valores. O environment.json",
-    "esta no .gitignore.",
+    "Copie para environment.json e preencha os valores. O environment.json",
+    "esta no .gitignore e os tokens sao do tipo secret (mascarados na UI).",
     "",
-    "Nenhuma URL real de API pode ser commitada. Enquanto as duas APIs nao",
-    "tiverem autenticacao (ver apps/basica/infra/README.md), a URL e na pratica",
-    "a unica barreira entre os eventos e qualquer pessoa na internet.",
+    "Nenhuma URL real de API, ID de conta ou token pode ser commitado.",
+    "As tres APIs exigem Authorization: Bearer (RNF09).",
     "",
-    "Pegue os valores do Terraform:",
+    "Pegue os valores do Terraform e do Secrets Manager:",
     "  cd apps/basica/infra",
-    "  terraform output -raw read_api_url    -> read_url",
-    "  terraform output -raw ingest_url      -> ingest_url",
+    "  terraform output -raw read_api_url    -> read_url (API Gateway de leitura)",
+    "  terraform output -raw ingest_url      -> ingest_url (API Gateway de ingestao)",
+    "  terraform output -raw changes_url     -> changes_url (CDC)",
+    "  make -C apps/basica auth-show-ingest -> ingest_token",
+    "  make -C apps/basica auth-rotate      -> read_token (impresso uma vez)",
     "",
-    "Ou, se o .env da raiz ja estiver preenchido:",
-    "  make postman-env"
+    "Ou, se o .env ja estiver preenchido:",
+    "  make -C apps/basica postman-env",
+    "Execucao recomendada (via API Gateway com token):",
+    "  npx newman run artefatos/postman/argus.postman_collection.json -e artefatos/postman/environment.json --delay-request 150"
   ],
   "values": [
     {
@@ -27,6 +31,24 @@
       "key": "ingest_url",
       "value": "https://SEU-ID-DE-INGESTAO.execute-api.us-east-1.amazonaws.com/v1/events",
       "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "changes_url",
+      "value": "https://SEU-ID-DE-MUDANCAS.execute-api.us-east-1.amazonaws.com/v1/changes",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "read_token",
+      "value": "COLE_AQUI_O_TOKEN_DASHBOARD_64_HEX",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "ingest_token",
+      "value": "COLE_AQUI_O_TOKEN_INGEST_64_HEX",
+      "type": "secret",
       "enabled": true
     }
   ],

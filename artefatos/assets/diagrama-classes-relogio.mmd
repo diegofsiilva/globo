@@ -1,0 +1,80 @@
+%% Argus — Diagrama de classes: contexto do Relógio Virtual (simulator)
+%% Fonte: apps/basica/simulator/src/argus_simulator/
+classDiagram
+    direction LR
+
+    class SimuladorMain["__main__.main()"] {
+        <<entrypoint>>
+        +main() int
+    }
+
+    class Clock {
+        #Database _db
+        +reset(datetime t0, float speed) void
+        +now() datetime
+        +abrir_run(int seed, datetime t0, datetime t1, float speed) int
+        +registrar_falhas(int run_id, list~Falha~ falhas) void
+        +fechar_run(int run_id, str status, datetime momento) void
+        +fontes() list~str~
+    }
+
+    class Janela {
+        #Database _db
+        #int _limite
+        +ler(str tabela, datetime de, datetime ate) list~dict~
+    }
+
+    class Emitter {
+        #str _url
+        #int _tentativas
+        #Client _client
+        +emitir(str tabela, list linhas, list pk, datetime captured_at, int run_id) int
+        #_post(dict corpo) bool
+        +close() void
+    }
+
+    class Falha {
+        <<dataclass frozen>>
+        +str kind
+        +dict target
+        +datetime ts_start
+        +datetime ts_end
+        +dict params
+        +alcanca(datetime ts, str source, str entity, str metric) bool
+        +aplicar(float valor) float|None
+    }
+
+    class Faults["faults (módulo)"] {
+        <<module>>
+        +TIPOS : tuple
+        +sortear(int seed, datetime t0, datetime t1, list fontes, int quantas)$ list~Falha~
+        +_params(str kind, Random rng)$ dict
+    }
+
+    class Database {
+        <<comum>>
+        +fetch_all(sql, params) list
+        +fetch_one(sql, params) dict
+        +sim_now() datetime
+    }
+
+    class APIMudancas["POST /v1/changes"] {
+        <<boundary: API Gateway>>
+    }
+
+    SimuladorMain ..> Clock : cria
+    SimuladorMain ..> Janela : cria
+    SimuladorMain ..> Emitter : cria
+    SimuladorMain ..> Faults : sortear()
+
+    Clock --> Database
+    Janela --> Database
+    Faults ..> Falha : constrói
+    SimuladorMain o-- "0..*" Falha : falhas do run
+    SimuladorMain ..> Falha : alcanca() / aplicar() por ponto
+    Emitter ..> APIMudancas : HTTP POST (Bearer)
+    Clock ..> Falha : registrar_falhas() -> sim.fault
+
+    note for SimuladorMain "Ancora o relógio, sorteia as falhas do run e,<br/>a cada tick, lê a janela e a emite como change events."
+    note for Emitter "Emite pela REDE, não por INSERT direto:<br/>cada tick exercita API Gateway -> SQS -> merge worker."
+    note for Clock "sim.now() vive no banco. Todo serviço lê o mesmo<br/>presente virtual; available_at &lt;= sim.now() barra vazamento de futuro."

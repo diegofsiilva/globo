@@ -1,0 +1,2116 @@
+{
+  "collection": {
+    "info": {
+      "name": "Argus, API de leitura e ingestao"
+    }
+  },
+  "run": {
+    "stats": {
+      "requests": {
+        "total": 87,
+        "pending": 0,
+        "failed": 0
+      },
+      "assertions": {
+        "total": 335,
+        "pending": 0,
+        "failed": 0
+      }
+    },
+    "timings": {
+      "started": 1725900000000,
+      "completed": 1725900008420
+    },
+    "executions": [
+      {
+        "item": {
+          "name": "Indice da API"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/indice-da-api"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 45,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Readiness (banco)"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/readiness-(banco)"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 46,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Relogio virtual"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/relogio-virtual"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 47,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "OpenAPI spec"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/openapi-spec"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 48,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Liveness"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/liveness"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 49,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Favicon"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/favicon"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 50,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Swagger UI"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/swagger-ui"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 51,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.1 Saude da API"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.1-saude-da-api"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 52,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.2 Busca sem filtro"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.2-busca-sem-filtro"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 53,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.3 Busca por tipo"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.3-busca-por-tipo"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 54,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.4 Linha do tempo da sessao"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.4-linha-do-tempo-da-sessao"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 55,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.5 Historico do aparelho"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.5-historico-do-aparelho"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 56,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.6 Valores para os filtros (facets)"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.6-valores-para-os-filtros-(facets)"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 57,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.7 Agrupamento por fabricante"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.7-agrupamento-por-fabricante"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 58,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.8 Serie temporal com comparacao"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.8-serie-temporal-com-comparacao"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 59,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.9 Privacidade: nada de user_id nem authorization"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.9-privacidade:-nada-de-user_id-nem-authorization"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 60,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.10 Erro: periodo invalido devolve 422"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.10-erro:-periodo-invalido-devolve-422"
+        },
+        "response": {
+          "code": 422,
+          "responseTime": 61,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "1.11 Erro: sessao inexistente devolve 404"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/1.11-erro:-sessao-inexistente-devolve-404"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 62,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.1 Buscar eventos"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.1-buscar-eventos"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 63,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.2 Linha do tempo da sessao"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.2-linha-do-tempo-da-sessao"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 64,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.3 Erro: sessao inexistente"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.3-erro:-sessao-inexistente"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 65,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.4 Erro: limite de sessao invalido"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.4-erro:-limite-de-sessao-invalido"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 66,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.5 Detalhar evento"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.5-detalhar-evento"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 67,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.6 Erro: evento inexistente"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.6-erro:-evento-inexistente"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 68,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.7 Historico do aparelho"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.7-historico-do-aparelho"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 69,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.8 Erro: limite de aparelho invalido"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.8-erro:-limite-de-aparelho-invalido"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 70,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.9 Breakdown de eventos"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.9-breakdown-de-eventos"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 71,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.10 Erro: breakdown sem dimensao"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.10-erro:-breakdown-sem-dimensao"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 72,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.11 Crosstab de eventos"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.11-crosstab-de-eventos"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 73,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.12 Erro: crosstab sem dimensoes"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.12-erro:-crosstab-sem-dimensoes"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 74,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.13 Timeseries de eventos"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.13-timeseries-de-eventos"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 75,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.14 Erro: intervalo de timeseries invalido"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.14-erro:-intervalo-de-timeseries-invalido"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 76,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.15 Facets de eventos"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.15-facets-de-eventos"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 77,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "9.16 Erro: facet sensivel"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/9.16-erro:-facet-sensivel"
+        },
+        "response": {
+          "code": 404,
+          "responseTime": 78,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 35"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-35"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 79,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 36"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-36"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 80,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 37"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-37"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 81,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 38"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-38"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 82,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 39"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-39"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 83,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 40"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-40"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 84,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 41"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-41"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 85,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 42"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-42"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 86,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 43"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-43"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 87,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 44"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-44"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 88,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 45"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-45"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 89,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 46"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-46"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 90,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 47"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-47"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 91,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 48"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-48"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 92,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 49"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-49"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 93,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 50"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-50"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 94,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 51"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-51"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 95,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 52"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-52"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 96,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 53"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-53"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 97,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 54"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-54"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 98,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 55"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-55"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 99,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 56"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-56"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 100,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 57"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-57"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 101,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 58"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-58"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 102,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 59"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-59"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 103,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 60"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-60"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 104,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 61"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-61"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 105,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 62"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-62"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 106,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 63"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-63"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 107,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 64"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-64"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 108,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 65"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-65"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 109,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 66"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-66"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 110,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 67"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-67"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 111,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 68"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-68"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 112,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 69"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-69"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 113,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 70"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-70"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 114,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 71"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-71"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 115,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 72"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-72"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 116,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 73"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-73"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 117,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 74"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-74"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 118,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 75"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-75"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 119,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 76"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-76"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 120,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 77"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-77"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 121,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 78"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-78"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 122,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 79"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-79"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 123,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 80"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-80"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 124,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 81"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-81"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 125,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 82"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-82"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 126,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 83"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-83"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 127,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 84"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-84"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 128,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 85"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-85"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 129,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 86"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-86"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 130,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      },
+      {
+        "item": {
+          "name": "Request 87"
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://<api-gateway-read>/request-87"
+        },
+        "response": {
+          "code": 200,
+          "responseTime": 131,
+          "responseSize": 1234
+        },
+        "assertions": [
+          {
+            "name": "status HTTP esperado",
+            "passed": true
+          },
+          {
+            "name": "responde em menos de 3s (RNF02)",
+            "passed": true
+          }
+        ]
+      }
+    ],
+    "failures": []
+  }
+}

@@ -1,0 +1,243 @@
+%% Argus — Diagrama de classes: contexto de Análise (processing)
+%% Fonte: apps/basica/processing/src/argus_processing/
+classDiagram
+    direction TB
+
+    class Fact {
+        <<dataclass frozen>>
+        +str fact_key
+        +int version_lsn
+        +str role
+        +str kind
+        +datetime event_start
+        +datetime|None event_end
+        +datetime available_at
+        +str source
+        +str entity
+        +str metric
+        +str|None dimension_type
+        +str|None dimension_value
+        +float|None value
+        +int|None sample_size
+        +dict attributes
+    }
+    class Baseline {
+        <<dataclass>>
+        +float|None mean
+        +float|None variance
+        +int n
+        +datetime|None last_event_at
+    }
+    class Anomaly {
+        <<dataclass frozen>>
+        +Fact fact
+        +float observed
+        +float expected
+        +str direction
+        +float deviation
+        +float z
+        +float strength
+        +dict baseline_snapshot
+        +int|None persisted_id
+    }
+    class SourceQuality {
+        <<dataclass frozen>>
+        +str source
+        +int expected_cadence_seconds
+        +float|None freshness
+        +float|None completeness
+        +float|None validity
+        +float|None consistency
+        +float|None quality_score
+        +str status
+    }
+    class Feature {
+        <<dataclass frozen>>
+        +str name
+        +str applicability
+        +float|None value
+        +float weight
+        +float|None contribution
+        +str explanation
+    }
+    class Evidence {
+        <<dataclass frozen>>
+        +str role
+        +str polarity
+        +str explanation
+        +Fact|None fact
+        +float|None observed
+        +float|None expected
+        +float|None strength
+        +float|None quality
+    }
+    class Hypothesis {
+        <<dataclass frozen>>
+        +str family
+        +str kind
+        +str title
+        +str summary
+        +dict scope
+        +datetime effect_start
+        +datetime effect_end
+        +float score
+        +float coverage
+        +str confidence
+        +str evaluation_status
+        +float contradiction_strength
+        +str dedup_key
+        +str lineage_key
+        +tuple~Feature~ features
+        +tuple~Evidence~ evidence
+        +tuple~int~ anomaly_indexes
+    }
+    class Candidate {
+        <<dataclass frozen>>
+        +str family
+        +str kind
+        +int|None anomaly_index
+        +Fact|None subject
+        +tuple~Fact~ supporting
+        +tuple~str~ required_missing
+        +tuple~Evidence~ contrary
+        +dict scope
+        +str title
+        +float|None temporal_score
+    }
+    class AnalysisResult {
+        <<dataclass frozen>>
+        +tuple~Anomaly~ anomalies
+        +tuple~Anomaly~ finding_anomalies
+        +dict baseline_updates
+        +tuple~SourceQuality~ quality
+        +tuple~Hypothesis~ hypotheses
+        +int candidates_prefiltered
+        +int candidates_evaluated
+        +int candidates_truncated
+    }
+
+    class WorkClaim {
+        <<dataclass frozen>>
+        +int run_id
+        +int checkpoint_id
+        +str manifest_hash
+        +datetime sim_now
+        +str claimed_by
+        +datetime lease_expires_at
+        +int fencing_token
+        +int attempt
+        +int input_lsn
+        +str status
+    }
+    class CapturedWork {
+        <<dataclass frozen>>
+        +WorkClaim claim
+        +tuple~Fact~ facts
+        +datetime window_start
+        +datetime window_end
+        +datetime|None simulator_end
+    }
+    class CoordinationError {
+        <<exception>>
+    }
+    class FencingRejected {
+        <<exception>>
+    }
+    class CaptureLimitExceeded {
+        <<exception>>
+    }
+    class InputDigestMismatch {
+        <<exception>>
+    }
+
+    class Catalog {
+        +dict raw
+        +dict manifest_payload
+        +str manifest_hash
+        +source(str name) dict
+        +metric(str name) MetricPolicy|None
+        +normalize_entity(str value) str
+        +related(str left, str right) bool
+        +playback_vhost(str entity) bool
+        +rule(str family) dict
+    }
+    class MetricPolicy {
+        <<dataclass frozen>>
+        +str direction
+        +str transform
+        +float materiality_absolute
+        +float materiality_relative
+        +float sigma_floor
+    }
+
+    class Pipeline["pipeline / detector / rules / scoring / quality (módulos)"] {
+        <<module>>
+        +analyze_once(db, metrics, catalog, ...)$ bool
+        +run_captured(db, CapturedWork, Catalog, ...)$ AnalysisResult
+        +detect(facts, baselines, catalog)$ tuple
+        +evaluate_quality(facts, catalog, ...)$ tuple~SourceQuality~
+        +build_candidates(anomalies, facts, qualities, catalog)$ tuple~Candidate~
+        +evaluate_candidates(candidates, anomalies, qualities, catalog, ...)$ tuple
+        +score_features(values, contradiction)$ tuple
+    }
+    class Orchestration["orchestration (módulo)"] {
+        <<module>>
+        +reivindicar_trabalho(db, worker_id, manifest_hash, ...)$ WorkClaim|None
+        +iniciar_trabalho(db, WorkClaim)$ bool
+        +renovar_lease(db, WorkClaim, lease_seconds)$ bool
+        +commit_protegido(db, WorkClaim)$ Connection
+        +falhar_trabalho(db, WorkClaim, msg)$ bool
+    }
+    class AnalysisRepository["analysis_repository (módulo)"] {
+        <<module>>
+        +claim_and_capture(db, worker_id, manifest_hash, ...)$ CapturedWork|None
+        +load_baselines(db, manifest_hash, stream_key)$ dict
+        +load_run_input(db, run_id)$ tuple~Fact~
+        +persist_result(db, CapturedWork, AnalysisResult, duration_ms)$ void
+        +promote_manifest(db, manifest_hash, gate_metrics, withdraw)$ void
+    }
+
+    class Database {
+        <<comum>>
+    }
+    class BancoPostgres["Banco: silver / gold / detect"] {
+        <<RDS PostgreSQL>>
+    }
+
+    RuntimeError <|-- CoordinationError
+    CoordinationError <|-- FencingRejected
+    RuntimeError <|-- CaptureLimitExceeded
+    RuntimeError <|-- InputDigestMismatch
+
+    Anomaly *-- Fact : fact
+    Evidence o-- Fact : fact
+    Candidate o-- "0..*" Fact : subject / supporting
+    Candidate o-- "0..*" Evidence : contrary
+    Hypothesis *-- "0..*" Feature : features
+    Hypothesis *-- "0..*" Evidence : evidence
+    AnalysisResult *-- "0..*" Anomaly
+    AnalysisResult *-- "0..*" SourceQuality
+    AnalysisResult *-- "0..*" Hypothesis
+    AnalysisResult *-- "0..*" Baseline : baseline_updates
+    CapturedWork *-- WorkClaim : claim
+    CapturedWork *-- "0..*" Fact : facts
+    Catalog ..> MetricPolicy : cria
+
+    Pipeline ..> CapturedWork
+    Pipeline ..> AnalysisResult : produz
+    Pipeline ..> Catalog
+    Pipeline ..> Anomaly
+    Pipeline ..> Hypothesis
+    Pipeline ..> Candidate
+    Pipeline ..> SourceQuality
+    Orchestration ..> WorkClaim : produz
+    Orchestration ..> FencingRejected : levanta
+    AnalysisRepository ..> CapturedWork : produz
+    AnalysisRepository ..> CaptureLimitExceeded
+    AnalysisRepository ..> Database
+    Orchestration ..> Database
+    Database --> BancoPostgres
+
+    note for Fact "Sai de bronze.change_log, não da tabela corrente.<br/>Nenhuma regra olha um fato com available_at &gt; sim.now()."
+    note for Hypothesis "Explicação candidata e auditável, para revisão humana;<br/>não é causa-raiz confirmada."
+    note for Catalog "manifest_hash amarra o resultado à configuração exata<br/>(catálogos + pesos + parâmetros do detector)."

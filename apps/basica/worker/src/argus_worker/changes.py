@@ -1,7 +1,7 @@
 """Schema do change event que chega em POST /v1/changes.
 
-Um change event descreve UMA mudanca em UMA linha de UMA das 33 tabelas do
-Argus:
+Um change event descreve UMA mudanca em UMA linha de UMA tabela de origem
+conhecida do Argus:
 
     {
       "source_table": "signal_bucket",
@@ -27,16 +27,19 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-# As 33 tabelas do dump. Lista fechada de proposito: e a fronteira entre "a
-# origem mandou uma tabela que ainda nao conhecemos" (que precisa de migration,
-# e vira DLQ com motivo legivel) e "a origem mandou uma coluna nova" (que o
-# `_extra` absorve sozinho). Confundir os dois casos faria o worker criar
-# tabela sozinho, que e exatamente o que nao se quer.
+# As tabelas de origem conhecidas. A lista fechada separa dois casos:
+# tabela nova exige migration e vai para a DLQ; coluna nova cai em `_extra`.
+# Confundir os dois faria o worker criar tabela sozinho, que e exatamente o
+# que nao se quer.
 TABELAS_CONHECIDAS = frozenset(
     {
+        "app_error",
+        "app_error_model",
+        "app_error_version",
         "apollo_run",
         "ca_point",
         "ca_run",
+        "cdn_vod_shadow",
         "cdn_entity_tier",
         "collector_run",
         "dashboard_artifact",
@@ -48,9 +51,11 @@ TABELAS_CONHECIDAS = frozenset(
         "incidents",
         "incidents_platform",
         "investigation_feedback",
+        "isp_pop_daily",
         "live_active_15min",
         "live_error_attr_hourly",
         "live_event",
+        "live_event_sde",
         "live_qoe_hourly",
         "nr_run",
         "operation_metrics",
@@ -87,7 +92,7 @@ class ChangeEvent(BaseModel):
     @field_validator("source_table")
     @classmethod
     def _tabela_conhecida(cls, value: str) -> str:
-        """Recusa tabela fora das 33 do dump.
+        """Recusa tabela fora da lista de fontes conhecidas.
 
         Falhar aqui e melhor que falhar no INSERT: a mensagem vai para a DLQ com
         o nome da tabela no motivo, e quem investigar le "tabela desconhecida"

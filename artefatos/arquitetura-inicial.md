@@ -18,7 +18,20 @@ relatório principal.
 | (c) Justificativa da arquitetura e das tecnologias | Seção 4 (tabela de decisões em 4.9) |
 | (d) Plano detalhado de implantação na AWS | Seção 5 |
 
-### O que mudou nesta revisão
+### Escopo deste artefato
+
+&emsp; Este documento foi entregue na **Sprint 2** e descreve a arquitetura daquela
+entrega. A Sprint 3 acrescentou uma camada de infraestrutura que não existia aqui:
+VPC gerenciada, sub-redes privadas, NAT Gateway, bastion host, Auto Scaling Group e
+Application Load Balancer. Para não deixar o artefato descrevendo um ambiente que já
+não é o atual, as seções afetadas foram atualizadas, e **cada acréscimo da Sprint 3
+está marcado como tal**. O que não tiver marca é da entrega original.
+
+&emsp; O artefato da Sprint 3, com o diagrama de implantação em nuvem, o plano de deploy
+com CloudFront e as evidências de aplicação, é
+[`infraestrutura-integracao.md`](infraestrutura-integracao.md).
+
+### O que mudou na revisão da Sprint 2
 
 &emsp; Esta versão descreve o ambiente **efetivamente implantado**, e não a intenção de
 projeto. As diferenças em relação à revisão anterior:
@@ -27,11 +40,33 @@ projeto. As diferenças em relação à revisão anterior:
 |---|---|---|
 | Autenticação das APIs | Ausente; a URL era a única barreira | Lambda authorizer com Bearer, duas audiências, hashes no Secrets Manager |
 | Transporte do dashboard | CDN com HTTPS e bucket privado | Website S3 em HTTP, compatível com as permissões do Learner Lab |
-| Migrations | 001–023 | 001–026 |
+| Migrations | 001–023 | 001–027 |
 | Acesso ao RDS | Público, restrito ao CIDR do desenvolvedor | Privado; administração pela task `migration` dentro da VPC |
 | Tag das imagens | `latest` | SHA do commit; `latest` só como apelido no ECR |
 | Bucket de origem | Descrito como contendo o dump | Apenas Parquet e manifesto; o dump não foi publicado |
 | Observabilidade | Logs em texto | Log JSON por requisição, correlacionado por `X-Request-Id` |
+
+### Acrescentado na Sprint 3 — camada de rede
+
+&emsp; Nada abaixo fazia parte da entrega da Sprint 2. Na Sprint 2 o stack **consumia** a
+VPC padrão da conta, e não havia sub-rede privada, NAT Gateway nem observabilidade de
+rede. A Sprint 3 declarou a rede como recurso, em `infra/vpc.tf`.
+
+| Item | Sprint 2 | Sprint 3 |
+|---|---|---|
+| Rede | VPC padrão da conta, consumida via `data "aws_vpc" "default"` | **VPC gerenciada**, `10.0.0.0/16`, declarada em `infra/vpc.tf` |
+| Sub-redes | As públicas que a conta já trazia | Duas públicas e duas privadas, em duas AZs |
+| Endereço das tasks | IP público em sub-rede pública | Sem IP público, em sub-rede privada |
+| Saída para a internet | Direta, pelo Internet Gateway da VPC padrão | **NAT Gateway**, com tabela de rota privada |
+| Observabilidade de rede | Inexistente | **VPC Flow Logs**, `traffic_type = ALL`, entregues em S3 |
+| Tráfego para o S3 | Pela internet | Gateway endpoint, sem sair da AWS |
+| Sub-redes do RDS | Subnet group sobre as sub-redes padrão | Subnet group sobre as sub-redes privadas |
+| Acesso administrativo | Somente a task avulsa `migration` | Acrescido o **bastion host** em sub-rede pública |
+| Caminho de leitura | Lambda atrás do API Gateway | **Auto Scaling Group de EC2 atrás de um ALB** |
+
+&emsp; As seções 2, 4.7, 4.9 e 5.2 deste artefato foram atualizadas para refletir essa
+camada. O desenho anterior continua acessível por variável: `create_network = false` com
+`assign_public_ip = true` devolve o stack ao comportamento da Sprint 2.
 
 ---
 
@@ -81,8 +116,8 @@ de comunicação efetivamente usado.
 
 </div>
 
-&emsp; **Arquivo editável.** O SVG é escrito à mão e versionado como fonte em
-`assets/arquitetura-implantacao-v3.svg` — não há binário intermediário de ferramenta.
+&emsp; Arquivo editável. O SVG é escrito à mão e versionado como fonte em
+`assets/arquitetura-implantacao-v3.svg`; não há binário intermediário de ferramenta.
 Editar o SVG e regerar o PNG:
 
 ```bash
@@ -93,17 +128,29 @@ rsvg-convert -w 3300 -b white \
 
 &emsp; Os estereótipos usam a notação de nó tridimensional com `«artifact»` para os
 componentes de software implantados em cada nó. O traço tracejado laranja marca o que é
-**planejado e não provisionado** — hoje, apenas o EventBridge Scheduler.
+planejado e não provisionado, que hoje é apenas o EventBridge Scheduler.
 
-&emsp; No AWS Academy Learner Lab, a configuração de referência utiliza a VPC e as
-sub-redes públicas da conta, com IP público nas tasks para evitar o custo de um NAT
-Gateway. Isso não abre portas de entrada nos containers: o security group das tasks
-não possui regra de ingresso. **O RDS é privado** (`db_publicly_accessible = false`)
-e aceita conexões na porta 5432 apenas desse security group; não há regra para CIDR
-externo. O acesso administrativo ao banco — migrations e inspeção — passa pela task
-avulsa `migration`, que roda dentro da própria VPC. A configuração recomendada para
-produção acrescenta sub-redes privadas e VPC endpoints ou NAT conforme a política da
-organização.
+&emsp; **[Sprint 3] A rede passou a ser gerenciada pelo projeto.** Na entrega da Sprint 2,
+que é a descrita no diagrama acima, o stack consumia a VPC padrão da conta, com IP
+público nas tasks para evitar o custo de um NAT Gateway, e não havia sub-rede privada
+nem NAT. A Sprint 3 acrescentou `infra/vpc.tf`, que declara uma VPC própria de
+`10.0.0.0/16`, com duas sub-redes públicas, duas privadas, Internet Gateway, NAT
+Gateway, gateway endpoint de S3 e VPC Flow Logs. As tasks, a API de leitura e o RDS
+passaram a viver nas sub-redes privadas, sem endereço público, alcançando os serviços
+da AWS pelo NAT. O
+detalhamento, as justificativas e as evidências de aplicação estão em
+[`infraestrutura-integracao.md`](infraestrutura-integracao.md).
+
+&emsp; O ganho é de defesa em profundidade: antes, o único controle que impedia alguém
+de alcançar as tasks era o security group sem regra de entrada; agora some também a
+rota. **O RDS continua privado** (`db_publicly_accessible = false`) e aceita conexões na
+porta 5432 apenas dos security groups autorizados; não há regra para CIDR externo. O
+acesso administrativo ao banco, para migrations e inspeção, segue pela task avulsa
+`migration`, que roda dentro da própria VPC, agora com o bastion host como caminho
+adicional para inspeção interativa.
+
+&emsp; O desenho anterior continua acessível por variável: `create_network = false` com
+`assign_public_ip = true` devolve o stack à VPC padrão da conta.
 
 &emsp; Até a adequação do RNF09 o laboratório usava `db_publicly_accessible = true`
 com o IP do desenvolvedor em `db_allowed_cidr`. A exposição do banco dependia, na
@@ -132,15 +179,15 @@ apenas em rede confiável.
 
 ### 3.2 Armazenamento de origem e carga inicial
 
-&emsp; O **bucket S3 `origem`** (`s3_origem.tf`) armazena os **35 arquivos Parquet e o
-manifesto** usados na carga inicial — cerca de 199 MiB. O bucket é versionado e
+&emsp; O bucket S3 `origem` (`s3_origem.tf`) armazena os 35 arquivos Parquet e o
+manifesto usados na carga inicial, cerca de 199 MiB. O bucket é versionado e
 funciona como fonte imutável e recuperável do processo de bootstrap.
 
-&emsp; **O dump bruto de 4 GB não está no bucket.** Ele permanece apenas na máquina de
+&emsp; O dump bruto de 4 GB não está no bucket. Ele permanece apenas na máquina de
 quem executou a conversão; o alvo `make origem-sync` sabe subi-lo, mas isso não foi
 feito no ambiente publicado. A carga inicial não precisa dele: quem o `loader` lê é o
 Parquet derivado. Registrar isso importa porque o dump é dado cedido pelo parceiro e
-não redistribuível — a sua ausência no bucket é uma característica do ambiente, não
+não redistribuível: a sua ausência no bucket é uma característica do ambiente, e não
 uma pendência.
 
 &emsp; A task Fargate **`loader`** (`ecs_loader.tf`) é executada sob demanda. Ela lê os
@@ -178,9 +225,9 @@ avulsas:
 &emsp; `merge_worker`, `event_worker`, `simulator`, `processing`, `loader`,
 `migration` e a Lambda de leitura usam o security group das tasks. Esse grupo não
 aceita conexões de entrada e possui saída HTTPS para serviços AWS e saída TCP 5432
-para o security group do RDS. **A Lambda do authorizer é a única exceção: ela não
-entra na VPC**, porque o seu único destino é o Secrets Manager, e uma função numa
-sub-rede sem NAT expiraria em toda chamada — o resultado seria 403 em tudo.
+para o security group do RDS. A Lambda do authorizer é a única exceção: ela não entra
+na VPC, porque o seu único destino é o Secrets Manager, e uma função numa sub-rede sem
+NAT expiraria em toda chamada, o que devolveria 403 em tudo.
 
 &emsp; As task definitions referenciam a imagem pelo **SHA do commit**, e não por
 `latest`. Com `latest`, a task definition não muda quando a imagem muda: o Terraform vê
@@ -208,8 +255,8 @@ apelido, mas nenhum recurso do Terraform aponta para ele.
 &emsp; As migrations `001` a `026` constroem esse contrato. As três últimas foram
 acrescentadas depois da medição de desempenho contra o volume real: `024` alinha
 `available_at` dos eventos de deploy à linha do tempo simulada, `025` indexa
-(fonte, métrica, tempo) e `026` indexa o baseline horário — as duas consultas que
-sustentavam `/series/facets` e `/signals` acima do teto de 5 s do RNF02.
+(fonte, métrica, tempo) e `026` indexa o baseline horário, que eram as duas consultas
+mantendo `/series/facets` e `/signals` acima do teto de 5 s do RNF02.
 
 &emsp; Migration aplicada é imutável: `tools/migrate.py` guarda o checksum de cada
 arquivo e aborta quando ele muda. Alteração de schema é sempre um arquivo novo.
@@ -226,8 +273,8 @@ container:
 (*claims*), concessões temporárias (*leases*), sinais de vida (*heartbeats*), retomada
 (*takeover*) e tokens de exclusão (*fencing*) impedem duas réplicas de publicar o
 mesmo checkpoint e impedem um worker com concessão expirada de confirmar resultados.
-As conexões Python com o banco usam **PostgreSQL/TCP 5432, SQL por meio de `psycopg`
-e `psycopg_pool`** — não JDBC.
+As conexões Python com o banco usam PostgreSQL sobre TCP 5432, com SQL por meio de
+`psycopg` e `psycopg_pool`, e não JDBC.
 
 ### 3.6 Consulta e apresentação
 
@@ -249,7 +296,7 @@ borda. `index.html` é o documento inicial e `404.html` é o documento de erro.
 &emsp; O deploy (`make frontend-deploy`) sincroniza `frontend/out/` diretamente com o
 bucket usando `aws s3 sync --delete` e imprime a URL HTTP do website. Não existe cache
 de CDN para invalidar. O artefato publicado inclui `build-info.json` com commit, data
-UTC e versão — sem endpoint nem identificador de conta.
+UTC e versão, sem endpoint nem identificador de conta.
 
 ### 3.7 Operação, segurança e observabilidade
 
@@ -264,9 +311,10 @@ aleatórios de 256 bits, um por audiência:
 | `dashboard` | dashboard, Swagger, Postman de leitura | API de leitura |
 | `ingest` | simulador, replay de eventos, Postman de escrita | API de ingestão |
 
-&emsp; O **Secrets Manager** guarda apenas o **SHA-256** de cada token. O valor em claro
+&emsp; O Secrets Manager guarda apenas o SHA-256 de cada token. O valor em claro
 existe em dois lugares: no terminal de quem executou `make auth-rotate`, que o imprime
-uma única vez, e — só o de ingestão — num segundo segredo, que a task do simulador lê
+uma única vez, e, só no caso do token de ingestão, num segundo segredo que a task do
+simulador lê
 pelo bloco `secrets` da task definition. Usar `environment` ali exporia o token em
 qualquer `aws ecs describe-task-definition`, que é uma chamada de leitura: o token
 vazaria para quem tem permissão de olhar a infraestrutura, sem nenhuma permissão sobre
@@ -275,8 +323,8 @@ os dados. Nem o `terraform.tfstate` nem o repositório chegam a ver o valor.
 &emsp; SHA-256 simples basta porque o segredo tem 256 bits de entropia real; um KDF
 lento protege senha escolhida por humano, e não existe dicionário para forçar um valor
 destes. A comparação usa `hmac.compare_digest`, em tempo constante, e o laço sobre as
-audiências não interrompe no acerto — sair mais cedo revelaria a posição da audiência
-que casou.
+audiências não interrompe no acerto, porque sair mais cedo revelaria a posição da
+audiência que casou.
 
 &emsp; Os códigos de resposta separam dois casos que uma leitura de log precisa
 distinguir: **401** quando o cabeçalho `Authorization` falta, respondido pelo próprio
@@ -284,17 +332,17 @@ API Gateway sem invocar a função, e **403** quando o token está presente e n�
 O primeiro é cliente desconfigurado; o segundo é tentativa com credencial inválida. Um
 alarme sobre o volume de 4xx cobre a segunda situação.
 
-&emsp; São **três** as rotas públicas, todas declaradas explicitamente sem
-authorizer — no API Gateway a rota específica vence o proxy:
+&emsp; São três as rotas públicas, todas declaradas explicitamente sem authorizer,
+já que no API Gateway a rota específica vence o proxy:
 
 | Rota | Por que é pública |
 |---|---|
 | `GET /health/live` | Sonda de vida. Responde `{"status": "ok"}` fixo, sem tocar no banco, e precisa continuar respondendo mesmo com o Secrets Manager indisponível |
-| `GET /docs` | O Swagger UI é aberto por **navegação**, e navegação não carrega cabeçalho `Authorization`. Protegida, a rota devolveria 401 antes de a página renderizar, e não haveria onde clicar em "Authorize" |
+| `GET /docs` | O Swagger UI é aberto por navegação, e navegação não carrega cabeçalho `Authorization`. Protegida, a rota devolveria 401 antes de a página renderizar, e não haveria onde clicar em "Authorize" |
 | `GET /openapi.json` | O próprio Swagger a busca ao carregar, antes de qualquer interação do usuário e portanto antes de haver token |
 
-&emsp; As duas rotas de documentação expõem a **forma** da API — nomes de rota,
-parâmetros e descrições —, nunca dado do parceiro. Toda rota que devolve dado continua
+&emsp; As duas rotas de documentação expõem a forma da API, ou seja, nomes de rota,
+parâmetros e descrições, nunca dado do parceiro. Toda rota que devolve dado continua
 exigindo o Bearer, e o botão "Authorize" do Swagger é o que o fornece: quem descobrir a
 URL lê o contrato e não consegue executar nada contra ele. Protegê-las não tornaria o
 sistema mais seguro; tornaria o Swagger inutilizável, e a verificação passaria a
@@ -303,13 +351,13 @@ depender de `curl`.
 &emsp; `/health/ready` **não** é pública: ela consulta o banco, e o resultado já revela
 se há dado do parceiro carregado.
 
-&emsp; **Limitação assumida e documentada:** o token identifica um **serviço, não uma
-pessoa**. Não há como saber qual integrante fez uma consulta, e a resposta a um
-vazamento é rotacionar os dois tokens, não revogar um usuário. Identidade individual
-exigiria Cognito — um pool de usuários, um fluxo de login e um cadastro para manter —,
-que está fora do escopo deste MVP. A escolha por authorizer, e não por API key, segue a
+&emsp; Limitação assumida e documentada: o token identifica um serviço, e não uma
+pessoa. Não há como saber qual integrante fez uma consulta, e a resposta a um vazamento
+é rotacionar os dois tokens, não revogar um usuário. Identidade individual exigiria o
+Cognito, com um pool de usuários, um fluxo de login e um cadastro para manter, o que
+está fora do escopo deste MVP. A escolha por authorizer, e não por API key, segue a
 recomendação da própria AWS, que registra a chave de API como mecanismo de medição e
-limitação de consumo, e **não** de autorização.[^apikeys]
+limitação de consumo, e não de autorização.[^apikeys]
 
 [^apikeys]: AWS. *Use API keys with usage plans for REST APIs*. Disponível em:
 https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-usage-plans.html
@@ -325,28 +373,28 @@ container existir, e conceder à task role faria a task falhar em
 `ResourceInitializationError`, sem nenhum log da aplicação indicando o motivo.
 
 &emsp; O **CloudWatch** recebe logs e métricas de API Gateway, Lambda, ECS, SQS e RDS.
-A API de leitura emite **uma linha de log JSON por requisição**, com `request_id`,
-rota, método, status, latência e a **audiência autorizada**. Duas regras valem para
-todo campo novo: nenhum token entra no log, nem truncado nem em hash; e a query string
-entra apenas como a lista de **nomes** dos parâmetros, porque `session_id`, `device_id`
-e `user_id` viajam por ali — o RNF10 vale também para o CloudWatch, e redigir na
-resposta enquanto se vaza no log não seria redigir.
+A API de leitura emite uma linha de log JSON por requisição, com `request_id`, rota,
+método, status, latência e a audiência autorizada. Duas regras valem para todo campo
+novo: nenhum token entra no log, nem truncado nem em hash; e a query string entra
+apenas como a lista de nomes dos parâmetros, porque `session_id`, `device_id` e
+`user_id` viajam por ali. O RNF10 vale também para o CloudWatch, e redigir na resposta
+enquanto se vaza no log não seria redigir.
 
 &emsp; O cabeçalho `X-Request-Id` é propagado de ponta a ponta: o cliente pode enviá-lo,
 o API Gateway o registra no access log, a API o devolve no cabeçalho e no corpo de erro
 (RFC 7807), e o dashboard o exibe no código de referência que o operador cita ao
-relatar uma falha. É o que torna o RNF11 verificável — separar uma falha de consulta de
-uma de ingestão ou de processamento sem depender de correlação por horário, que num
-sistema com relógio virtual sequer bate.
+relatar uma falha. É o que torna o RNF11 verificável, porque separa uma falha de
+consulta de uma de ingestão ou de processamento sem depender de correlação por horário,
+que num sistema com relógio virtual sequer bate.
 
 &emsp; Os alarmes cobrem DLQs, idade das filas, serviços abaixo do número desejado de
 tasks, erros das APIs, volume de 4xx, CPU, armazenamento e conexões do RDS, atraso do
-relógio virtual, fontes silenciosas e falhas ou backlog do motor de análise. O **SNS**
+relógio virtual, fontes silenciosas e falhas ou backlog do motor de análise. O SNS
 distribui os alarmes quando há uma assinatura confirmada.
 
-&emsp; O alarme de atraso do relógio virtual **só existe com o simulador ligado**. Com
+&emsp; O alarme de atraso do relógio virtual só existe com o simulador ligado. Com
 `simulator_desired_count = 0` ninguém publica `LagSimSeconds`, e o tratamento por
-ausência (`breaching`) o deixava em ALARM permanente — um alarme vermelho descrevendo
+ausência (`breaching`) o deixava em ALARM permanente, num alarme vermelho descrevendo
 uma situação deliberada. Alarme que fica aceso o tempo todo deixa de ser lido, e perde
 também a capacidade de avisar quando o pipeline parar de verdade.
 
@@ -436,14 +484,34 @@ atividades cuja coordenação já é transacional.
 
 ### 4.7 Adaptações de rede ao Learner Lab
 
-&emsp; `assign_public_ip = true` evita o custo de um NAT Gateway, mas o security group
-das tasks continua sem regras de entrada. É uma concessão do laboratório e não a
-postura recomendada para produção, que usaria sub-redes privadas com NAT ou VPC
-endpoints.
+&emsp; [Sprint 3] A postura padrão passou a ser a recomendada: `create_network = true`
+e `assign_public_ip = false`, com as tasks em sub-rede privada saindo pelo NAT Gateway.
+Na Sprint 2 o padrão era o oposto, com `assign_public_ip = true` sobre a VPC padrão da
+conta e sem NAT, o que evitava o custo mas deixava o security group sem regra de
+entrada como único controle de ingresso. O custo do NAT, de cerca de US$ 32/mês
+cobrados por hora existindo, é a razão pela qual o desenho anterior existia, e a razão
+pela qual a
+variável de volta foi mantida: em sessões de laboratório em que a rede não está sendo
+demonstrada, `create_network = false` com `assign_public_ip = true` economiza esse valor
+sem alterar código. A combinação inversa é recusada no `plan`, porque põe a task numa
+sub-rede sem rota para o Internet Gateway.
+
+&emsp; Duas restrições do laboratório foram confirmadas na aplicação e condicionam o
+desenho. A `LabRole` não confia em `vpc-flow-logs.amazonaws.com`, o que inviabiliza
+entregar os Flow Logs ao CloudWatch Logs com `create_iam_roles = false`; daí o destino
+padrão ser um bucket S3, que usa política de bucket em vez de papel IAM. E a SCP da
+organização nega `s3:GetBucketObjectLockConfiguration`, chamada que o provider AWS faz
+ao reler qualquer `aws_s3_bucket` recém-criado; as variáveis `flow_logs_bucket_name` e
+`alb_logs_bucket_name` contornam isso aceitando buckets criados fora do Terraform. As
+duas estão detalhadas em [`infraestrutura-integracao.md`](infraestrutura-integracao.md).
+
+&emsp; Um NAT único, e não um por zona, é decisão de custo consciente: com um só, a
+queda daquela AZ derruba a saída das duas sub-redes privadas.
 
 &emsp; `db_publicly_accessible` permanece `false`, inclusive no laboratório. A
-alternativa — banco público restrito ao CIDR de quem estivesse trabalhando — foi
-descartada porque fazia a exposição do dado do parceiro depender de uma linha de
+alternativa, que era um banco público restrito à faixa de endereços de quem estivesse
+trabalhando, foi descartada porque fazia a exposição do dado do parceiro depender de
+uma linha de
 `tfvars` e da rede de alguém. A task `migration`, que roda dentro da VPC, dá o mesmo
 acesso administrativo sem essa dependência, ao custo de uma chamada `run-task` em vez
 de um `psql` direto.
@@ -485,6 +553,8 @@ e não a postura recomendada para produção.
 | 8 | Tag de imagem por SHA do commit | `latest` | Capacidade de manutenção: o `plan` mostra o que muda | Build de árvore suja é recusado por `make push` | — | Apontar o SHA anterior |
 | 9 | Amostragem uniforme em `/timeline` | Truncar o excedente | Desempenho sem perder cobertura da janela | Perda de resolução, sinalizada por `truncated` | — | Elevar `LIMITE_POR_RAIA` |
 | 10 | Índices `025` e `026` | Cache na aplicação | Desempenho (RNF02) sem risco de servir dado velho | Custo de escrita nos índices, desprezível neste volume | Armazenamento | Migration nova que remove o índice |
+| 11 | **[Sprint 3]** VPC gerenciada com sub-rede privada e NAT | Continuar na VPC padrão com IP público nas tasks | Segurança: defesa em profundidade no ingresso — sem rota, além de sem regra | NAT em AZ única é ponto de falha; declarado, não escondido | ~US$ 32/mês | `create_network = false` com `assign_public_ip = true` |
+| 12 | **[Sprint 3]** Flow Logs em S3 | CloudWatch Logs | Observabilidade de rede compatível com a `LabRole`, que não confia no serviço de flow logs | Consulta exige baixar arquivo, sem Logs Insights | Centavos no volume do laboratório | `flow_logs_destination = "cloudwatch"` numa conta sem a restrição |
 
 ---
 
@@ -511,6 +581,7 @@ verificação pode duplicar recursos e retirar seu gerenciamento do Terraform.
 
 | Recurso AWS | Finalidade | Arquivo Terraform principal |
 |---|---|---|
+| VPC, sub-redes, IGW, NAT, rotas, endpoint S3, Flow Logs **[Sprint 3]** | Rede gerenciada e sua observabilidade | `vpc.tf`, `vpc_logs.tf` |
 | API Gateway HTTP API | Ingestão e leitura | `apigateway*.tf`, `api_read.tf` |
 | Lambda `authorizer` | Verificação do token Bearer nas duas APIs | `auth.tf` |
 | Secrets Manager | SHA-256 dos tokens e token de ingestão em claro | `auth.tf`, `rds.tf` |
@@ -551,8 +622,8 @@ make -C apps/basica check
 ```
 
 &emsp; Os dois zips precisam existir antes do `terraform plan`: o Terraform calcula o
-hash de cada arquivo para saber se a função mudou. Ambos são **reprodutíveis** — o
-build fixa o `mtime` dos arquivos antes de compactar, sem o que todo `plan` proporia
+hash de cada arquivo para saber se a função mudou. Ambos são reprodutíveis: o build
+fixa o `mtime` dos arquivos antes de compactar, sem o que todo `plan` proporia
 atualizar as funções mesmo sem mudança de código, e o ruído esconderia a alteração
 real no meio do plano.
 
@@ -573,7 +644,7 @@ terraform apply -var="worker_desired_count=0" \
 
 &emsp; Cria security groups, RDS, buckets, endpoint de website S3, filas, APIs,
 authorizer, segredos, cluster ECS, repositórios ECR, Lambdas, alarmes e task
-definitions — sem iniciar containers cujas imagens ainda não existem.
+definitions, sem iniciar containers cujas imagens ainda não existem.
 
 #### Passo 3 — gerar e publicar os tokens
 
@@ -586,10 +657,10 @@ make -C apps/basica auth-rotate
 imprime os valores em claro **uma única vez**. Guarde-os agora: o de leitura não tem
 como ser recuperado; o de ingestão pode ser relido com `make auth-show-ingest`.
 
-&emsp; Este passo vem **antes** de subir os serviços: o simulador falha ao iniciar sem
+&emsp; Este passo vem antes de subir os serviços: o simulador falha ao iniciar sem
 `CHANGES_TOKEN`, e falhar cedo é melhor que subir, avançar o relógio virtual e só
-descobrir o problema quando todo lote voltar 401 — deixando o relógio à frente do dado
-efetivamente ingerido.
+descobrir o problema quando todo lote voltar 401, o que deixaria o relógio à frente do
+dado efetivamente ingerido.
 
 #### Passo 4 — construir e publicar as imagens no ECR
 
@@ -597,11 +668,11 @@ efetivamente ingerido.
 make -C apps/basica push
 ```
 
-&emsp; Publica `worker`, `simulator`, `processing` e `loader`, cada uma com **duas
-tags**: o SHA do commit, que é o que a task definition referencia, e `latest`, apenas
-como apelido. O alvo recusa publicar a partir de uma árvore com alteração não
-commitada — uma imagem assim não corresponde a commit nenhum, e o rollback deixaria de
-ter para onde voltar.
+&emsp; Publica `worker`, `simulator`, `processing` e `loader`, cada uma com duas tags:
+o SHA do commit, que é o que a task definition referencia, e `latest`, apenas como
+apelido. O alvo recusa publicar a partir de uma árvore com alteração não commitada,
+porque uma imagem assim não corresponde a commit nenhum e o rollback deixaria de ter
+para onde voltar.
 
 #### Passo 5 — aplicar as migrations e criar o usuário de leitura
 
@@ -611,7 +682,7 @@ make -C apps/basica migrate-aws          # aplica as pendentes, até a 026
 ```
 
 &emsp; As duas rodam pela task `migration`, dentro da VPC. O RDS é privado e não há
-rota da máquina de quem trabalha até a porta 5432 — nem deve haver. Acompanhe com
+rota da máquina de quem trabalha até a porta 5432, nem deve haver. Acompanhe com
 `make logs SERVICO=processing`.
 
 &emsp; O usuário de leitura ainda precisa de uma conexão de escrita; ele é criado uma
@@ -624,7 +695,7 @@ DB_READER_PASSWORD='<a mesma de read_api_db_password>' make -C apps/basica db-re
 ```
 
 &emsp; As migrations só podem ser aplicadas depois que o RDS e a imagem `processing`
-existem — daí a ordem entre os passos 4 e 5.
+existem; daí a ordem entre os passos 4 e 5.
 
 #### Passo 6 — carga inicial
 
@@ -648,7 +719,7 @@ make -C apps/basica digests
 
 &emsp; O `apply` ativa workers e processamento conforme o `terraform.tfvars`, com
 `processing_desired_count = 1`. `make digests` confere que cada serviço está executando
-a tag do commit atual — é a verificação que faltava quando as task definitions
+a tag do commit atual, que é a verificação que faltava quando as task definitions
 apontavam para `latest`.
 
 #### Passo 8 — publicar o dashboard
@@ -659,9 +730,9 @@ make -C apps/basica frontend-install
 make -C apps/basica frontend-deploy
 ```
 
-&emsp; A URL da API entra no bundle em tempo de build; o token, **não** — ele é colado
-pelo operador na tela de acesso e vive apenas em `sessionStorage`. O alvo sincroniza o
-bucket e imprime a URL **HTTP** do website S3. Esta publicação deve ser usada somente
+&emsp; A URL da API entra no bundle em tempo de build; o token, não. Ele é colado pelo
+operador na tela de acesso e vive apenas em `sessionStorage`. O alvo sincroniza o
+bucket e imprime a URL HTTP do website S3. Esta publicação deve ser usada somente
 em rede confiável devido à ausência de TLS na página que recebe o token.
 
 #### Passo 9 — smoke
@@ -685,10 +756,9 @@ make -C apps/basica dlq
 cd apps/basica/infra && terraform plan     # precisa terminar sem mudanças
 ```
 
-&emsp; `postman-evidencia` executa a coleção completa e versiona um resumo
-**sanitizado** — commit, ambiente, contagens, duração e falhas. O JSON completo do
-Newman **não** é versionado: ele carrega os cabeçalhos de cada requisição, inclusive o
-`Authorization`.
+&emsp; `postman-evidencia` executa a coleção completa e versiona um resumo sanitizado,
+com commit, ambiente, contagens, duração e falhas. O JSON completo do Newman não é
+versionado: ele carrega os cabeçalhos de cada requisição, inclusive o `Authorization`.
 
 ### 5.4 Verificação pós-implantação
 
@@ -756,7 +826,7 @@ Terraform, ECR, migrations, carga inicial, serviços e frontend.
 imagens marcadas pelo SHA do commit e log estruturado correlacionado por
 `X-Request-Id` compõem a configuração atual. A hospedagem HTTPS do dashboard volta a
 ser uma evolução necessária, ao lado de identidade individual por Cognito, sub-redes
-privadas, auto scaling e EventBridge Scheduler — nenhuma delas deve ser apresentada
+privadas, auto scaling e EventBridge Scheduler. Nenhuma delas deve ser apresentada
 como implementada.
 
 ---

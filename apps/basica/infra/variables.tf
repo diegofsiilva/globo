@@ -81,15 +81,42 @@ variable "subnet_ids" {
 
 variable "assign_public_ip" {
   description = <<-EOT
-    IP publico na task. `true` evita o NAT Gateway (~US$ 32/mes + trafego), que
-    seria o item mais caro do fluxo inteiro. A task nao aceita conexao de fora:
-    o security group nao tem regra de entrada, so de saida.
+    IP publico na task Fargate. O padrao e `false`, e ele anda junto com
+    `create_network = true`: a task fica na sub-rede PRIVADA e alcanca ECR, SQS
+    e Secrets Manager pelo NAT Gateway.
 
-    Em producao com dado sensivel, prefira `false` + subnet privada + VPC
-    endpoints (ver infra/README.md).
+    As duas chaves nao sao independentes -- as quatro combinacoes nao valem:
+
+      create_network | assign_public_ip | resultado
+      ---------------|------------------|---------------------------------------
+      true           | false            | correto: privada + NAT
+      true           | true             | QUEBRA: a task ganha IP publico numa
+                                          sub-rede sem rota para o Internet
+                                          Gateway. O endereco nao serve para
+                                          nada, o pull do ECR falha e o service
+                                          entra em crash loop
+      false          | true             | comportamento anterior a esta sprint:
+                                          VPC default, task com IP publico
+      false          | false            | QUEBRA: sem NAT e sem IP publico a
+                                          task nao tem rota nenhuma de saida
+
+    O unico controle que impedia alguem de alcancar a task no desenho antigo era
+    o security group sem regra de entrada. Com sub-rede privada some tambem a
+    rota: dois controles independentes em vez de um.
   EOT
   type        = bool
-  default     = true
+  default     = false
+
+  # A combinacao invalida vira erro de plan, e nao crash loop no ECS.
+  #
+  # Sem esta regra o sintoma chega horas depois e no lugar errado: o service
+  # nao estabiliza, o evento do ECS fala em "unable to pull image", e nada
+  # aponta para a variavel de rede que causou. Terraform >= 1.9 permite validar
+  # olhando outra variavel; e o que torna a checagem possivel aqui.
+  validation {
+    condition     = !(var.create_network && var.assign_public_ip)
+    error_message = "assign_public_ip = true com create_network = true poe a task numa sub-rede privada, que nao tem rota para o Internet Gateway: o IP publico nao serve para nada e o pull do ECR falha. Use false (a task sai pelo NAT) ou desligue create_network."
+  }
 }
 
 # --------------------------------------------------------------------------- #
@@ -172,26 +199,26 @@ variable "db_password" {
 
 variable "db_publicly_accessible" {
   description = <<-EOT
-    Endereco publico na instancia.
+    Legado — mantido apenas para compatibilidade com tfvars antigos.
 
-    `false` e a postura de producao, o padrao aqui, e o que o ambiente de
-    entrega usa.
-
-    Ate a adequacao do RNF09 o laboratorio ligava `true` para rodar `make
-    migrate` da propria maquina. Isso deixava a decisao de exposicao do banco
-    depender de uma linha de tfvars e do IP de quem estava trabalhando: mudar de
-    rede quebrava o acesso, e esquecer de reverter deixava o banco alcancavel de
-    fora. O caminho agora e a task `migration`, que roda dentro da VPC e nao
-    precisa de nenhuma regra de entrada externa:
+    A instancia RDS eh fixada em `publicly_accessible = false` diretamente em
+    `rds.tf` por exigencia da rubrica (3). Esta variavel eh IGNORADA pelo
+    recurso; mantem-se aqui para nao quebrar `terraform plan` de workspaces
+    que ainda a definem. Para acesso administrativo use a task `migration`:
 
       cd infra && terraform output -raw migration_status_command | bash
       cd infra && terraform output -raw migration_run_command | bash
 
-    Ligar isto NAO abre o banco sozinho: quem abre e db_allowed_cidr, e sem ele
-    o security group nao tem regra de entrada externa nenhuma.
+    Qualquer valor diferente de `false` eh rejeitado para evitar reexposicao
+    acidental do banco.
   EOT
   type        = bool
   default     = false
+
+  validation {
+    condition     = var.db_publicly_accessible == false
+    error_message = "db_publicly_accessible deve ser false — o RDS eh privado por exigencia da rubrica. Use a task migration dentro da VPC para administracao."
+  }
 }
 
 variable "db_allowed_cidr" {
@@ -800,4 +827,404 @@ variable "read_api_db_password" {
   type        = string
   default     = ""
   sensitive   = true
+}
+
+# --------------------------------------------------------------------------- #
+# Rede dedicada (VPC, sub-redes, NAT)
+# --------------------------------------------------------------------------- #
+
+variable "create_network" {
+  description = <<-EOT
+    Cria a VPC dedicada, as sub-redes publica e privada em duas AZs, o Internet
+    Gateway, o NAT Gateway e as tabelas de rota -- mais tudo que depende delas:
+    bastion, ALB e Auto Scaling Group.
+
+    `false` mantem o comportamento anterior a esta sprint: todo o stack roda na
+    VPC default da conta, com IP publico nas tasks. Existe para que a migracao
+    possa ser planejada e validada antes de ser aplicada, e para que uma conta
+    onde o papel do laboratorio recuse criar VPC ainda consiga subir o resto.
+
+    CUIDADO ao trocar de `true` para `false` num ambiente ja aplicado: o RDS nao
+    muda de VPC, e mover o subnet group forca a SUBSTITUICAO da instancia --
+    o que apaga o banco. Numa conta nova isso nao e problema, porque o banco ja
+    nasce na VPC nova (ver secao 4.1 do artefato).
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "vpc_cidr" {
+  description = <<-EOT
+    Bloco da VPC dedicada. /16 da folga para crescer sem renumerar: as quatro
+    sub-redes de hoje ocupam quatro /24, e sobram 252.
+  EOT
+  type        = string
+  default     = "10.0.0.0/16"
+
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "vpc_cidr precisa ser um bloco CIDR valido, por exemplo 10.0.0.0/16."
+  }
+}
+
+variable "public_subnet_cidrs" {
+  description = <<-EOT
+    Sub-redes publicas, uma por zona de disponibilidade. Executam o ALB, o NAT
+    Gateway e o bastion -- os unicos recursos com motivo para ter endereco
+    roteavel.
+
+    Vazio (o padrao) DERIVA as faixas de `vpc_cidr` com `cidrsubnet`: um /24 por
+    AZ a partir do inicio da VPC. Derivar em vez de fixar e o que impede a falha
+    silenciosa de trocar `vpc_cidr` e esquecer esta lista -- as sub-redes
+    nasceriam fora da VPC e o apply quebraria com "InvalidSubnet.Range", um erro
+    que nao aponta para a variavel que o causou.
+
+    Preencher a mao so faz sentido para casar com uma faixa que ja exista fora
+    do Terraform. Nesse caso precisam ser pelo menos duas: o Application Load
+    Balancer exige sub-redes em no minimo duas AZs distintas.
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = length(var.public_subnet_cidrs) == 0 || length(var.public_subnet_cidrs) >= 2
+    error_message = "Deixe vazio para derivar de vpc_cidr, ou informe no minimo duas (exigencia do ALB)."
+  }
+}
+
+variable "private_subnet_cidrs" {
+  description = <<-EOT
+    Sub-redes privadas, uma por zona de disponibilidade. Executam as instancias
+    do Auto Scaling Group, as tasks Fargate e o subnet group do RDS. Sem rota
+    para o Internet Gateway: a saida e pelo NAT.
+
+    Vazio (o padrao) deriva de `vpc_cidr`, com um salto de 10 no indice em
+    relacao as publicas: `10.0.10.0/24` e `10.0.11.0/24` num `10.0.0.0/16`. O
+    salto e legibilidade pura -- olhando um IP num flow log, o terceiro octeto
+    ja diz de que lado da rede ele veio.
+
+    Duas no minimo, porque o subnet group do RDS exige duas AZs e porque o ASG
+    precisa poder substituir instancia na zona que sobrou.
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) == 0 || length(var.private_subnet_cidrs) >= 2
+    error_message = "Deixe vazio para derivar de vpc_cidr, ou informe no minimo duas (RDS e ASG)."
+  }
+}
+
+variable "azs" {
+  description = <<-EOT
+    Zonas de disponibilidade da rede. Vazio (o padrao) usa as duas primeiras que
+    a conta oferecer.
+
+    O nome da zona nao e portavel entre contas: o "us-east-1a" de uma conta pode
+    ser o hardware que a outra enxerga como "us-east-1c", e nem toda conta do
+    Learner Lab recebe a mesma lista. Por isso o padrao consulta em vez de fixar.
+    Fixar aqui so importa quando o laboratorio restringe alguma zona -- caso em
+    que o sintoma, sem esta variavel, apareceria como "capacidade insuficiente"
+    no meio do apply.
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = length(var.azs) == 0 || length(var.azs) >= 2
+    error_message = "azs precisa estar vazio ou conter ao menos duas zonas (ALB e subnet group do RDS)."
+  }
+}
+
+# --------------------------------------------------------------------------- #
+# Bastion
+# --------------------------------------------------------------------------- #
+
+variable "bastion_allowed_cidr" {
+  description = <<-EOT
+    Unico CIDR autorizado na porta 22 do bastion. Preencha com o IP da sua rede
+    em /32.
+
+    A validacao recusa 0.0.0.0/0 de proposito: um bastion aberto para a internet
+    inteira nao reduz exposicao nenhuma -- apenas acrescenta um salto ao caminho
+    do atacante. O custo da restricao e real e esta assumido: quem trocar de rede
+    perde o acesso ate atualizar esta variavel e reaplicar.
+  EOT
+  type        = string
+  default     = "0.0.0.0/32"
+
+  validation {
+    condition     = var.bastion_allowed_cidr != "0.0.0.0/0"
+    error_message = "0.0.0.0/0 expoe a porta 22 para a internet inteira. Use o seu IP em /32."
+  }
+}
+
+variable "bastion_key_name" {
+  description = <<-EOT
+    Nome de um key pair EC2 que ja exista na conta. Vazio (padrao) NAO cria o
+    bastion -- sem chave a instancia seria inalcancavel, e pagar por ela seria
+    desperdicio.
+
+    A chave privada nunca entra no repositorio. Crie o par no console ou com
+    `aws ec2 create-key-pair --profile g4` e guarde o .pem fora da arvore.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "bastion_instance_type" {
+  description = <<-EOT
+    Tipo do bastion. O menor possivel de proposito: ele so encaminha SSH e abre
+    um psql eventual, entao qualquer coisa maior seria custo sem uso -- e uma
+    maquina ociosa maior e superficie maior.
+
+    Familia `t4g` (Graviton, arm64) para casar com a AMI arm64 do bastion e do
+    ASG. Ver a nota sobre arquitetura em `app_instance_type`.
+  EOT
+  type        = string
+  default     = "t4g.micro"
+}
+
+# --------------------------------------------------------------------------- #
+# Camada de aplicacao: ALB e Auto Scaling Group
+# --------------------------------------------------------------------------- #
+
+variable "app_port" {
+  description = <<-EOT
+    Porta em que o gunicorn escuta na instancia, e para a qual o target group
+    encaminha. 5000 e a porta que backend/Dockerfile expoe -- mudar aqui sem
+    mudar la faz o health check reprovar todas as instancias.
+  EOT
+  type        = number
+  default     = 5000
+}
+
+variable "app_instance_type" {
+  description = <<-EOT
+    Tipo das instancias do Auto Scaling Group.
+
+    `small` e nao `micro`: o container roda gunicorn com 2 workers x 4 threads
+    mais o agente CloudWatch, e 1 GiB de memoria fica no limite durante o
+    `docker pull`. Nao e instancia grande de proposito -- a resposta a carga
+    aqui e horizontal, e nao vertical; e para isso que existe o grupo.
+
+    ARQUITETURA: familia `t4g`, que e Graviton (arm64). Isto NAO e escolha de
+    custo, e requisito de compatibilidade: `make push` constroi todas as imagens
+    com `--platform linux/arm64`, e uma instancia x86_64 nao executaria a imagem
+    -- o `docker run` do user_data falharia com "exec format error", e o sintoma
+    chegaria como instancia reprovando no health check, longe da causa.
+
+    Trocar por uma familia x86 (`t3`, `t2`) exige trocar junto a AMI em
+    bastion.tf e o `--platform` do Makefile.
+  EOT
+  type        = string
+  default     = "t4g.small"
+}
+
+variable "asg_min_size" {
+  description = <<-EOT
+    Minimo de instancias. Dois, e nao um: com uma instancia so, perde-la e
+    indisponibilidade total ate a substituta subir -- vaos de varios minutos,
+    contando boot e pull da imagem. Com duas em AZs distintas, a perda de uma
+    instancia ou de uma zona inteira degrada a capacidade sem derrubar o servico.
+  EOT
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.asg_min_size >= 2
+    error_message = "Minimo de 2 para que a perda de uma instancia nao derrube o servico."
+  }
+}
+
+variable "asg_max_size" {
+  description = <<-EOT
+    Teto de instancias. Existe para limitar o estrago de uma rajada anomala ou
+    de um laco de requisicao: sem teto, a politica escalaria ate esgotar o
+    credito do laboratorio. Seis cobre com folga a carga do rnf02.
+  EOT
+  type        = number
+  default     = 6
+}
+
+variable "asg_desired_capacity" {
+  description = <<-EOT
+    Tamanho inicial do grupo. Igual ao minimo: a politica de escalonamento
+    assume dali para cima, e comecar acima do minimo so anteciparia custo.
+  EOT
+  type        = number
+  default     = 2
+}
+
+variable "asg_target_requests_per_target" {
+  description = <<-EOT
+    Valor-alvo da politica de target tracking, em requisicoes por instancia por
+    minuto. O grupo cresce quando a media passa disso e encolhe quando fica
+    abaixo por tempo suficiente.
+
+    60 vem da carga do plano de teste: `tests/carga/rnf02_tempo_resposta.js`
+    sustenta ~600 consultas/min com 10 usuarios virtuais. Contra duas
+    instancias, sao 300 por alvo -- cinco vezes o alvo, o que faz a politica
+    disparar de forma observavel durante a gravacao, e nao no limite.
+
+    Baixo demais oscila o grupo (sobe e desce a cada variacao); alto demais so
+    escala quando a latencia ja subiu, e ai o escalonamento chega tarde.
+  EOT
+  type        = number
+  default     = 60
+}
+
+variable "asg_health_check_grace_period" {
+  description = <<-EOT
+    Segundos entre a instancia iniciar e o health check do ELB comecar a valer.
+    Serve tambem como `instance_warmup` do refresh e da politica.
+
+    300 s cobre boot do Amazon Linux + `dnf install` de docker e agente +
+    `docker pull` da imagem + subida do gunicorn. Curto demais e o pior modo de
+    falha desta configuracao: a instancia e morta antes de terminar de subir, a
+    substituta faz o mesmo, e o grupo entra em ciclo de reciclagem que parece
+    falha da aplicacao.
+  EOT
+  type        = number
+  default     = 300
+}
+
+variable "instance_profile_name" {
+  description = <<-EOT
+    Instance profile das instancias do ASG e do bastion. Precisa permitir pull
+    no ECR, leitura do segredo de tokens e escrita no CloudWatch Logs.
+
+    No AWS Academy Learner Lab o valor e `LabInstanceProfile`, que ja existe na
+    conta e vem anexado a LabRole -- pelo mesmo motivo de `existing_role_arn`:
+    o papel `voclabs` recusa `iam:CreateRole`.
+  EOT
+  type        = string
+  default     = "LabInstanceProfile"
+}
+
+variable "backend_image_tag" {
+  description = <<-EOT
+    Tag da imagem do backend que as instancias puxam do ECR. Vazio usa
+    `worker_image_tag`, mantendo backend e workers na mesma tag de commit.
+
+    Fixar uma tag por SHA e o que da sentido ao rollback: apontar o launch
+    template para a versao anterior so devolve a versao anterior do codigo se a
+    tag daquela versao ainda existir no ECR. `latest` quebraria isso.
+  EOT
+  type        = string
+  default     = ""
+}
+
+# A Lambda de leitura e o HTTP API que a expoe (api_read.tf, auth.tf) NAO foram
+# tornados condicionais.
+#
+# A intencao era uma flag `enable_lambda_read_api` para desligar o caminho antigo
+# depois da migracao. Na pratica ela exigiria `count` em dez recursos espalhados
+# por api_read.tf, auth.tf e outputs.tf, com a reescrita de indice que vem junto
+# -- muita cirurgia em codigo que funciona, para uma flag cujo padrao (`true`)
+# nao mudaria nada hoje.
+#
+# Os dois caminhos coexistem de proposito durante a migracao: derrubar a Lambda
+# no mesmo apply que sobe o ASG deixaria o dashboard sem API caso o grupo nao
+# suba. O desligamento e um passo manual e posterior, descrito na secao 4 do
+# artefato de infraestrutura.
+
+# --------------------------------------------------------------------------- #
+# Observabilidade da rede e do caminho sincrono
+# --------------------------------------------------------------------------- #
+
+variable "flow_logs_destination" {
+  description = <<-EOT
+    Onde os VPC Flow Logs sao entregues: `s3` ou `cloudwatch`.
+
+    `s3` e o padrao por uma restricao verificada na conta do AWS Academy: o
+    destino CloudWatch Logs exige um papel IAM que confie em
+    `vpc-flow-logs.amazonaws.com`, e a politica de confianca da `LabRole` lista
+    53 servicos sem incluir esse. Com `create_iam_roles = false`, obrigatorio no
+    laboratorio, o caminho do CloudWatch nao entrega nada -- e a falha e
+    silenciosa: o recurso e criado e simplesmente nunca escreve.
+
+    O destino S3 usa politica de bucket em vez de papel, some com a dependencia
+    da LabRole e ainda custa menos por GB. A evidencia de console e a mesma.
+
+    `cloudwatch` e melhor numa conta normal: o Logs Insights consulta os
+    registros com linguagem de consulta, sem baixar arquivo.
+  EOT
+  type        = string
+  default     = "s3"
+
+  validation {
+    condition     = contains(["s3", "cloudwatch"], var.flow_logs_destination)
+    error_message = "flow_logs_destination precisa ser \"s3\" ou \"cloudwatch\"."
+  }
+}
+
+variable "flow_logs_bucket_name" {
+  description = <<-EOT
+    Bucket S3 ja existente para receber os flow logs. Vazio (o padrao) faz o
+    Terraform criar o bucket.
+
+    Existe por uma restricao verificada do AWS Academy: a SCP da organizacao
+    NEGA `s3:GetBucketObjectLockConfiguration`, e o provider AWS chama exatamente
+    essa API ao reler qualquer `aws_s3_bucket` recem-criado. O bucket nasce, o
+    apply falha na releitura, e o recurso fica no estado envenenando todo plan
+    seguinte. Criar o bucket fora do Terraform e informar o nome aqui contorna
+    isso sem abrir mao de controle: politica, bloqueio publico, criptografia e
+    ciclo de vida continuam gerenciados neste stack, porque essas chamadas a SCP
+    permite.
+
+        aws s3api create-bucket --bucket <nome> --region us-east-1
+
+    Numa conta sem essa restricao, deixe vazio.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "alb_access_logs_enabled" {
+  description = <<-EOT
+    Grava os access logs do ALB num bucket S3. O ALB nao entrega esse log no
+    CloudWatch Logs -- so em S3 -- entao o bucket existe porque o servico exige
+    bucket, nao por escolha de destino.
+
+    E o que responde "qual foi o codigo de resposta e quanto tempo o backend
+    levou", por requisicao, sem depender de a aplicacao ter conseguido logar.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "alb_access_logs_retention_days" {
+  description = <<-EOT
+    Dias ate o access log expirar. Access log cresce por requisicao e ninguem
+    volta nele depois de um mes; sem expiracao o bucket vira custo permanente
+    por dado que ja nao se consulta.
+  EOT
+  type        = number
+  default     = 30
+}
+
+variable "alb_logs_bucket_name" {
+  description = <<-EOT
+    Bucket S3 ja existente para os access logs do ALB. Vazio (o padrao) faz o
+    Terraform criar o bucket.
+
+    Mesma valvula de escape de `flow_logs_bucket_name`, e pela mesma razao: a
+    SCP do AWS Academy nega a leitura de configuracao de object lock, entao todo
+    `aws_s3_bucket` criado por este stack quebra o plan seguinte naquela conta.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "alarm_latencia_p95_segundos" {
+  description = <<-EOT
+    Limiar do alarme de tempo de resposta, medido em p95 no target group.
+
+    5 s e o alvo do RNF02, que especifica p99 < 5 s. Alarmar o p95 no mesmo
+    valor da margem: quando o p95 cruza, o p99 ja esta pior, e o aviso chega
+    antes de o requisito ser violado.
+  EOT
+  type        = number
+  default     = 5
 }

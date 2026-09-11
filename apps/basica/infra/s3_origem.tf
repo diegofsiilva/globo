@@ -8,17 +8,15 @@
 # Versionamento ligado porque este bucket guarda a UNICA copia do dado cedido
 # pelo parceiro que nao esta num laptop. Um `aws s3 sync --delete` distraido em
 # bucket sem versao apaga 4 GB que a Globo nao vai ceder de novo.
-
-resource "aws_s3_bucket" "origem" {
-  bucket = "${local.name}-origem-${data.aws_caller_identity.current.account_id}"
-
-  tags = {
-    Name = "${local.name}-origem"
-  }
-}
+#
+# O bucket em si nasce FORA do Terraform (aws s3api create-bucket), pelo
+# mesmo motivo de flow_logs/alb_logs (ver locals.tf): a SCP do Academy nega a
+# releitura que o recurso `aws_s3_bucket` faz logo depois de criar ou
+# importar, e nesta versao do provider isso derruba o Terraform com panic em
+# vez de so falhar. `local.origem_bucket_name` mantem o nome deterministico.
 
 resource "aws_s3_bucket_versioning" "origem" {
-  bucket = aws_s3_bucket.origem.id
+  bucket = local.origem_bucket_name
 
   versioning_configuration {
     status = "Enabled"
@@ -28,7 +26,7 @@ resource "aws_s3_bucket_versioning" "origem" {
 # Ao contrario do bucket do dashboard, este e privado de verdade: e dado do
 # parceiro, nao HTML publico.
 resource "aws_s3_bucket_public_access_block" "origem" {
-  bucket = aws_s3_bucket.origem.id
+  bucket = local.origem_bucket_name
 
   block_public_acls       = true
   block_public_policy     = true
@@ -37,7 +35,7 @@ resource "aws_s3_bucket_public_access_block" "origem" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "origem" {
-  bucket = aws_s3_bucket.origem.id
+  bucket = local.origem_bucket_name
 
   rule {
     apply_server_side_encryption_by_default {
@@ -49,7 +47,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "origem" {
 # Versao antiga do dump ocupa 4 GB cada. Sem expiracao, tres re-uploads viram
 # 12 GB de storage que ninguem vai consultar.
 resource "aws_s3_bucket_lifecycle_configuration" "origem" {
-  bucket = aws_s3_bucket.origem.id
+  bucket = local.origem_bucket_name
 
   rule {
     id     = "expira-versao-antiga"

@@ -1,0 +1,17 @@
+# Datasource CloudWatch para o Grafana local dos testes de resiliencia
+# (RNF04/05/11). Le apenas o perfil selecionado pelo operador, copiado como g4
+# para um arquivo temporario e montado read-only no container -- nao ha
+# access key nem secret aqui, so a referencia ao arquivo/perfil.
+apiVersion: 1
+
+datasources:
+  - name: CloudWatch
+    uid: cloudwatch-g4
+    type: cloudwatch
+    access: proxy
+    isDefault: true
+    editable: true
+    jsonData:
+      authType: credentials
+      profile: g4
+      defaultRegion: us-east-1
