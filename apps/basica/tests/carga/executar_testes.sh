@@ -4,6 +4,7 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$DIR"
 ENV_FILE="$DIR/../../.env"
 RESULTADOS="$DIR/resultados"
 COM_GRAFANA=0
