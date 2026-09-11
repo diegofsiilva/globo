@@ -58,3 +58,6 @@ apps/basica/backend/src/telemetry_backend.egg-info/
 
 .claude
 .codex
+
+# Binarios locais de Terraform/AWS CLI
+.tools/

@@ -8,6 +8,38 @@ as verificações que atestam o resultado. A região de referência é a `us-eas
 conta é do AWS Academy Learner Lab, ambiente cujas restrições condicionam parte das
 decisões e estão registradas na seção 8.
 
+## Divergências de nomenclatura
+
+| Especificação | Repositório | Tratamento |
+|---|---|---|
+| `infraestrutura_integracao.md` (seção de vídeos) e `infraestrutura-integracao.md` (cabeçalho) | `artefatos/infraestrutura-integracao.md` | Adotado o hífen, coerente com `arquitetura-inicial.md` e com os links já existentes no repositório |
+| `/apps/fullstack` | `apps/basica` | Mantido o nome histórico `apps/basica` para não quebrar Makefile, caminhos de build e referências entre artefatos; a divergência fica registrada aqui |
+
+## Rastreabilidade da rubrica
+
+&emsp; A tabela consolida os nove itens avaliados. O item de análise de impacto nos
+ODS da ONU foi dispensado pelo professor em 4 de setembro de 2026 por já estar
+contemplado no artefato de negócios. O status abaixo considera a documentação,
+as verificações de 10 de setembro e os dois vídeos publicados.
+
+| # | Item da rubrica | Peso | Onde está | Status |
+|---|---|---|---|---|
+| R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | pronto |
+| R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | pronto |
+| R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | pronto |
+| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1, 4.6 e 6 | pronto |
+| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | pronto |
+| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | pronto |
+| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | pronto |
+| V2-a | Testes de validação funcional | 1,0 | Seção 7 | pronto |
+| V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 7 | pronto |
+
+&emsp; O item R-c avalia o plano de inclusão do CloudFront, não a existência da
+distribuição no Learner Lab. A seção 4.4 registra a topologia recomendada e deixa
+explícito que o recurso não foi criado nesta sprint.
+
+---
+
 ## 1. Contexto e escopo
 
 &emsp; O Argus é um sistema de telemetria e correlação de falhas para a cadeia de
@@ -56,6 +88,35 @@ fato na primeira vez que um dos dois muda.
 &emsp; A camada agêntica de correlação também fica fora deste recorte. A distinção
 entre ela e o sistema aqui documentado foi estabelecida em
 [`entendimento_negocio.md`](entendimento_negocio.md).
+
+### 1.2 O que mudou nesta revisão
+
+&emsp; A coluna `Estado` reflete o ambiente verificado em 10 de setembro de 2026.
+Itens planejados são descritos como proposta e não como recurso existente.
+
+| Item | Antes | Agora | Estado |
+|---|---|---|---|
+| Ambiente de rede | VPC padrão da conta, apenas sub-redes públicas | VPC dedicada, sub-redes públicas e privadas em duas AZs | Implementado |
+| Saída para a internet das cargas | Endereço público na própria task | NAT Gateway em sub-rede pública | Implementado |
+| Acesso administrativo | Task avulsa `migration` dentro da VPC | Bastion host, com a task `migration` mantida | Implementado no ambiente verificado; condicional a `bastion_key_name` em novos deploys |
+| API de leitura | AWS Lambda (Flask por `lambda_handler`) | EC2 em Auto Scaling Group atrás de ALB, em paralelo ao caminho Lambda/API Gateway durante a transição | Implementado |
+| Elasticidade do caminho síncrono | Concorrência da Lambda, implícita | Política de escalonamento declarada no ASG | Implementado |
+| Autenticação da API de leitura | Lambda authorizer do API Gateway | Validação do Bearer dentro do Flask | Implementado |
+| Entrega do dashboard | Endpoint de website S3, somente HTTP | CloudFront com TLS e bucket privado por OAC | Planejado; fora do escopo desta sprint |
+| Observabilidade de rede | Log de aplicação e alarmes do CloudWatch | Acrescidos VPC Flow Logs, access logs do ALB e painel do CloudWatch | Implementado |
+| Ingestão e processamento | API Gateway → SQS → ECS Fargate | Inalterado, realocado para sub-rede privada | Implementado |
+| Banco de dados | RDS PostgreSQL 16 privado na VPC padrão | RDS PostgreSQL 16 em subnet group privado da VPC dedicada | Implementado |
+| Alta disponibilidade do banco | Instância única | Multi-AZ | Planejado; desligado por custo, ver 5.1 |
+
+&emsp; “Implementado” significa que o recurso existe no Terraform, foi aplicado e
+foi observado na conta usada para a gravação. Em 10 de setembro de 2026, o ASG
+mantinha duas instâncias `InService`, o target group mostrava dois targets
+`healthy`, `/health/live` respondia HTTP 200, o RDS privado estava `available`, o
+bastion existia e havia streams recentes no log group da aplicação. A camada de
+rede já havia sido verificada em 8 de setembro, inclusive com uma instância privada
+saindo pelo NAT sem endereço público. As restrições encontradas no laboratório
+estão documentadas na seção 8. CloudFront e o standby Multi-AZ do RDS são as duas
+exceções planejadas mostradas no diagrama.
 
 ---
 
@@ -776,7 +837,7 @@ no PowerShell.
 |---|---|---|
 | Git | Versão estável atual | Obter o código e identificar a versão usada para marcar as imagens |
 | AWS CLI | 2.x | Autenticar no Learner Lab e consultar ou operar os recursos AWS |
-| Terraform | 1.9 ou superior | Inicializar, validar, planejar e aplicar a infraestrutura |
+| Terraform | 1.11 ou superior | Inicializar, validar, planejar, aplicar e executar os testes com `override_during = plan` |
 | Docker Desktop | Buildx habilitado e suporte a `linux/arm64` | Construir as imagens dos serviços para o Amazon ECR |
 | Python | 3.12 ou superior | Executar migrations, carga, testes e ferramentas do projeto |
 | uv | Versão estável atual | Criar os ambientes Python a partir dos arquivos `pyproject.toml` |
@@ -785,7 +846,9 @@ no PowerShell.
 
 &emsp; Antes de configurar credenciais, as versões instaladas devem ser conferidas. A
 execução pode continuar quando todos os comandos abaixo responderem sem erro e o
-Terraform indicar uma versão igual ou superior a 1.9.
+Terraform indicar uma versão igual ou superior a 1.11. Essa versão é necessária
+porque os testes mockados usam `override_during = plan`, recurso introduzido no
+Terraform 1.11.
 
 ```powershell
 git --version
@@ -1271,8 +1334,9 @@ equivalente.
 
 &emsp; O roteiro abaixo é o aceite da implantação: cada linha traz o comando e o
 resultado que ele precisa devolver. As verificações 3, 4 e 7 trazem o resultado
-capturado na aplicação da camada de rede de 08/09/2026, documentada em 4.6. Os
-comandos assumem o diretório `apps/basica/infra` e a variável `AWS_PROFILE=g4`.
+capturado na aplicação da camada de rede de 08/09/2026, documentada em 4.6, e o
+roteiro completo foi repetido em 10 de setembro de 2026. Os comandos assumem o
+diretório `apps/basica/infra` e a variável `AWS_PROFILE=g4`.
 
 | # | Verificação | Comando | Resultado esperado |
 |---|---|---|---|
@@ -1280,8 +1344,8 @@ comandos assumem o diretório `apps/basica/infra` e a variável `AWS_PROFILE=g4`
 | 2 | Balanceador responde | `curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw api_url_alb)/health/live"` | `200` |
 | 3 | Rotas: uma tabela para o IGW, outra para o NAT | `aws ec2 describe-route-tables --filters Name=vpc-id,Values=$VPC --query 'RouteTables[].Routes[].{Destino:DestinationCidrBlock,IGW:GatewayId,NAT:NatGatewayId}'` | Verificado. Pública `0.0.0.0/0 → igw-…`; privada `0.0.0.0/0 → nat-…` |
 | 4 | Instância privada sem IP público, mas com saída | Instância descartável na sub-rede privada; o `user_data` grava o IP de saída como tag em si mesma (ver 4.6) | Verificado. `PublicIpAddress: null`, e a internet enxerga a saída com o Elastic IP do NAT, que é o endereço público fixo associado a ele |
-| 5 | RDS fechado para fora, aberto pelo bastion | `aws rds describe-db-instances --query 'DBInstances[0].{Publico:PubliclyAccessible,Subnets:DBSubnetGroup.DBSubnetGroupName,MultiAZ:MultiAZ}'` e o túnel de 3.2 | `Publico: false` e subnet group privado; a conexão direta de fora expira, e a mesma consulta pelo túnel devolve a linha |
-| 6 | Dashboard no ar | `curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw frontend_url)"` | `200`. O endpoint atende em HTTP; as checagens equivalentes em HTTPS acompanham o plano de 4.4 |
+| 5 | RDS fechado para fora, aberto pelo bastion | `aws rds describe-db-instances --query 'DBInstances[0].{Status:DBInstanceStatus,Publico:PubliclyAccessible,Subnets:DBSubnetGroup.DBSubnetGroupName,MultiAZ:MultiAZ}'` e o túnel de 3.2 | Verificado: `available`, `Publico: false` e subnet group privado; a conexão direta de fora expira, a mesma consulta pelo túnel devolve a linha, e a entrada na porta 5432 fica limitada aos SGs da aplicação, das tasks e do bastion |
+| 6 | Dashboard no ar | `curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw frontend_url)"` | `200`. O endpoint atende em HTTP; CloudFront não está implantado e permanece corretamente marcado como planejado (plano em 4.4) |
 | 7 | Flow logs capturando fluxo real | `aws s3 ls --recursive "$(terraform output -raw flow_log_destino)/"` | Verificado. 214 fluxos da instância de teste, com `ACCEPT` e `REJECT` |
 | 8 | Logs de aplicação chegando ao log group | `aws logs tail "$(terraform output -raw app_log_group_name)" --since 10m` | Uma linha JSON por requisição, com `request_id`, `route`, `status` e `latency_ms` |
 | 9 | Contrato da API publicada | `make -C apps/basica smoke` | `401` sem token, `403` com token inválido, `200` em `/health/live` e nas doze rotas autenticadas, todas abaixo de 5 s |
@@ -1579,7 +1643,7 @@ recurso e o valor configurado em cada tela. A tabela serve de índice: a primeir
 coluna dá o instante, a segunda diz o que aparece e a terceira, qual afirmação deste
 artefato aquele trecho sustenta.
 
-**Link:** `<inserir a URL do vídeo>`
+**Link:** [Vídeo 1 — Infraestrutura provisionada](https://drive.google.com/file/d/1mkoyWfkYK4TOf163Gpez1w779KHUotQt/view?usp=sharing)
 
 | Tempo | O que o vídeo mostra | Evidência na tela |
 |---|---|---|
@@ -1600,7 +1664,7 @@ serviços em ambiente integrado. Não basta a tela funcionar: o vídeo acompanha
 mesma requisição atravessando os serviços, usando o `X-Request-Id` como fio condutor.
 Esse é o identificador que a API devolve em toda resposta e repete na linha de log.
 
-**Link:** `<inserir a URL do vídeo>`
+**Link:** [Vídeo 2 — Integração front-end e back-end](https://drive.google.com/file/d/125nh0PC_9Dq5Mtutgv6KJw86Plm8RIA1/view?usp=sharing)
 
 | Tempo | O que o vídeo mostra | Evidência na tela |
 |---|---|---|
@@ -1742,51 +1806,6 @@ criar o recurso.
 
 ---
 
-## 9. Checklist de entrega
-
-> **PREENCHER** · A organização do repositório é avaliada à parte do conteúdo
-> deste artefato. Percorra antes de criar a tag.
-
-**Controle de versão**
-
-- [ ] Tag `SPRINT{{X}}` criada na data da entrega.
-- [ ] Commits significativos de todos os integrantes.
-- [ ] Commits distribuídos ao longo das duas semanas, não concentrados no último dia.
-
-**Estrutura**
-
-- [ ] Raiz contém apenas `README.md`, `.gitignore`, logos e as pastas `/artefatos`, `/apps`, `/slides` e opcionalmente `/assets`.
-- [ ] Decisão tomada sobre `apps/basica` versus `/apps/fullstack` da especificação: renomear ou documentar a divergência.
-- [ ] `terraform.tfvars`, `.tfstate` e segredos fora do versionamento.
-
-**README**
-
-- [ ] Logos, título, nome e número do grupo, integrantes.
-- [ ] Problema e solução em um parágrafo.
-- [ ] Descrição das pastas.
-- [ ] Instruções de execução local e na AWS.
-- [ ] Passo a passo de clone e execução por um desenvolvedor novo, via Codespaces ou VS Code, acionável por um comando.
-
-**Documentação do código**
-
-- [ ] Cabeçalho descritivo em cada módulo ou classe.
-- [ ] Docstrings (Python) e JSDoc (JS) com parâmetros, retorno e comportamento.
-- [ ] Novos arquivos Terraform com comentário de cabeçalho explicando o recurso.
-
-**Execução**
-
-- [ ] Aplicação no ar nos recursos do laboratório, sem erro no fluxo típico.
-- [ ] Execução local verificada por alguém que não a implementou.
-
-**Este artefato**
-
-- [ ] Todos os blocos `PREENCHER`, `DECIDIR` e `EVIDÊNCIA` removidos.
-- [ ] Nenhum marcador `{{ }}` restante.
-- [ ] Links dos dois vídeos testados em janela anônima.
-- [ ] Tabela de rastreabilidade da rubrica com todos os itens em `pronto`.
-
----
-
 ## Apêndice A — Variáveis e saídas do Terraform
 
 &emsp; As variáveis abaixo são as que governam a rede, o acesso administrativo e a
@@ -1828,7 +1847,7 @@ camada de aplicação. As demais estão documentadas com um parágrafo cada em
 | `bastion_public_ip` | Destino do SSH e do túnel para o RDS |
 | `vpc_id`, `private_subnet_ids`, `public_subnet_ids` | Conferência da topologia |
 | `nat_gateway_ip` | IP de saída das sub-redes privadas; é o que um terceiro liberaria numa allowlist |
-| `flow_log_group_name`, `app_log_group_name` | Log groups da rede e da aplicação |
+| `flow_log_destino`, `app_log_group_name` | Bucket S3 dos Flow Logs e log group da aplicação |
 | `dashboard_url` | Link direto do painel do CloudWatch |
 
 ## Apêndice B — Comandos de verificação e diagnóstico

@@ -1,11 +1,18 @@
 {
   "info": {
     "name": "Argus, API de leitura e ingestão",
-    "description": "Coleção unificada atualizada em 27/08/2026. As pastas 0, 1 e 4 a 13 cobrem todas as 33 rotas declaradas em apps/basica/backend, inclusive hipóteses, com caminho feliz e erros 4xx quando a rota recebe entrada validável. A API de leitura não implementa autenticação; por isso 401/403 não são aplicáveis. As pastas 2 e 3 preservam os testes legados de ingestão e estão fora do escopo do artefato backend.md.",
+    "description": "Coleção unificada atualizada em 09/09/2026. As pastas 0, 1 e 4 a 13 cobrem todas as 33 rotas declaradas em apps/basica/backend, inclusive hipóteses, com caminho feliz e erros 4xx quando a rota recebe entrada validável. Autenticação via Lambda Authorizer (Bearer {{read_token}}, audiência dashboard) — as rotas protegidas exigem Authorization e são executadas via API Gateway (ver evidência em artefatos/postman/evidencias/). Pastas públicas (/health/live, /docs, /openapi.json) mantêm No Auth. As pastas 2 e 3 preservam os testes legados de ingestão e estão fora do escopo do artefato backend.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
-    "type": "noauth"
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{read_token}}",
+        "type": "string"
+      }
+    ]
   },
   "variable": [
     {
@@ -278,6 +285,9 @@
               "path": [
                 "openapi.json"
               ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           }
         }
@@ -1517,7 +1527,17 @@
             "url": "{{read_url}}/api/v1/sessions/sessao-inexistente-postman",
             "description": "RF16. Espera 404 no formato Problem Details."
           },
-          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('sessão inexistente devolve 404', () => pm.response.to.have.status(404));"]}}]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sessão inexistente devolve 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "9.4 Erro: limite de sessão inválido",
@@ -1631,71 +1651,139 @@
       "item": [
         {
           "name": "10.1 Listar série Gold",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series?window_hours=24&limit=100","description":"RF12. Espera 200 com items e count."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series?window_hours=24&limit=100",
+            "description": "RF12. Espera 200 com items e count."
+          }
         },
         {
           "name": "10.2 Erro: limite da série inválido",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series?limit=0","description":"RF12. Espera 422 para limite fora da faixa."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series?limit=0",
+            "description": "RF12. Espera 422 para limite fora da faixa."
+          }
         },
         {
           "name": "10.3 Facets da série",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/facets?field=source&field=entity&field=metric","description":"RF10. Espera 200 com facets da série Gold."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series/facets?field=source&field=entity&field=metric",
+            "description": "RF10. Espera 200 com facets da série Gold."
+          }
         },
         {
           "name": "10.4 Erro: dimensão de facet inválida",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/facets?field=device_os","description":"RF10. Espera 422 para dimensão que não pertence ao grain da série."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series/facets?field=device_os",
+            "description": "RF10. Espera 422 para dimensão que não pertence ao grain da série."
+          }
         },
         {
           "name": "10.5 Breakdown da série",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/breakdown?dimension=source&limit=100","description":"RF11/RF12. Espera 200 com groups."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series/breakdown?dimension=source&limit=100",
+            "description": "RF11/RF12. Espera 200 com groups."
+          }
         },
         {
           "name": "10.6 Erro: breakdown da série sem dimensão",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/breakdown","description":"RF11/RF12. Espera 422 porque dimension é obrigatório."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series/breakdown",
+            "description": "RF11/RF12. Espera 422 porque dimension é obrigatório."
+          }
         },
         {
           "name": "10.7 Timeseries da série",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/timeseries?interval=60","description":"RF12/RF14. Espera 200 com buckets agregados."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series/timeseries?interval=60",
+            "description": "RF12/RF14. Espera 200 com buckets agregados."
+          }
         },
         {
           "name": "10.8 Erro: intervalo da série inválido",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/timeseries?interval=0","description":"RF12/RF14. Espera 422 para intervalo fora da faixa."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series/timeseries?interval=0",
+            "description": "RF12/RF14. Espera 422 para intervalo fora da faixa."
+          }
         },
         {
           "name": "10.9 Crosstab da série",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/crosstab?dimension_x=entity&dimension_y=metric&limit=400","description":"RF11/RF16. Espera 200 com células da série Gold."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series/crosstab?dimension_x=entity&dimension_y=metric&limit=400",
+            "description": "RF11/RF16. Espera 200 com células da série Gold."
+          }
         },
         {
           "name": "10.10 Erro: crosstab da série sem dimensões",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/series/crosstab?dimension_x=entity","description":"RF11/RF16. Espera 422 porque faltou dimension_y."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/series/crosstab?dimension_x=entity",
+            "description": "RF11/RF16. Espera 422 porque faltou dimension_y."
+          }
         },
         {
           "name": "10.11 Listar fontes",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/sources","description":"Suporte. Espera 200 com fontes disponíveis."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/sources",
+            "description": "Suporte. Espera 200 com fontes disponíveis."
+          }
         },
         {
           "name": "10.12 Listar incidentes",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/incidents?limit=100","description":"RF13/RF16. Espera 200 com janelas de incidente não derivadas."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/incidents?limit=100",
+            "description": "RF13/RF16. Espera 200 com janelas de incidente não derivadas."
+          }
         },
         {
           "name": "10.13 Erro: limite de incidentes inválido",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/incidents?limit=0","description":"RF13/RF16. Espera 422 para limite fora da faixa."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/incidents?limit=0",
+            "description": "RF13/RF16. Espera 422 para limite fora da faixa."
+          }
         },
         {
           "name": "10.14 Listar eventos ao vivo",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/live-events?limit=50","description":"RF14/RF16. Espera 200 com calendário de transmissões."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/live-events?limit=50",
+            "description": "RF14/RF16. Espera 200 com calendário de transmissões."
+          }
         },
         {
           "name": "10.15 Erro: limite de eventos ao vivo inválido",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/live-events?limit=0","description":"RF14/RF16. Espera 422 para limite fora da faixa."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/live-events?limit=0",
+            "description": "RF14/RF16. Espera 422 para limite fora da faixa."
+          }
         },
         {
           "name": "10.16 Listar anomalias",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/anomalies?limit=200","description":"RF13/RF15. Espera 200 com items e count, ainda que vazios."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/anomalies?limit=200",
+            "description": "RF13/RF15. Espera 200 com items e count, ainda que vazios."
+          }
         },
         {
           "name": "10.17 Erro: limite de anomalias inválido",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/anomalies?limit=0","description":"RF13/RF15. Espera 422 para limite fora da faixa."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/anomalies?limit=0",
+            "description": "RF13/RF15. Espera 422 para limite fora da faixa."
+          }
         }
       ]
     },
@@ -1705,43 +1793,83 @@
       "item": [
         {
           "name": "11.1 Listar sinais",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/signals","description":"RF15. Espera 200 com lista de desvios ativos."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/signals",
+            "description": "RF15. Espera 200 com lista de desvios ativos."
+          }
         },
         {
           "name": "11.2 Erro: janela de sinais inválida",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/signals?from=ontem","description":"RF15. Espera 422 para data fora do ISO 8601."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/signals?from=ontem",
+            "description": "RF15. Espera 422 para data fora do ISO 8601."
+          }
         },
         {
           "name": "11.3 Listar mudanças",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/changes","description":"RF16. Espera 200 com eventos de deploy disponíveis."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/changes",
+            "description": "RF16. Espera 200 com eventos de deploy disponíveis."
+          }
         },
         {
           "name": "11.4 Erro: data de mudanças inválida",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/changes?from=ontem","description":"RF16. Espera 422 para data fora do ISO 8601."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/changes?from=ontem",
+            "description": "RF16. Espera 422 para data fora do ISO 8601."
+          }
         },
         {
           "name": "11.5 Obter janela estável",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/references/stable-window?duration_minutes=60","description":"RF14. Espera 200 e indicador found."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/references/stable-window?duration_minutes=60",
+            "description": "RF14. Espera 200 e indicador found."
+          }
         },
         {
           "name": "11.6 Erro: duração de janela estável inválida",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/references/stable-window?duration_minutes=0","description":"RF14. Espera 422 para duração fora da faixa."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/references/stable-window?duration_minutes=0",
+            "description": "RF14. Espera 422 para duração fora da faixa."
+          }
         },
         {
           "name": "11.7 Obter último pico ao vivo",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/references/last-live-peak","description":"RF14. Espera 200 e indicador found."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/references/last-live-peak",
+            "description": "RF14. Espera 200 e indicador found."
+          }
         },
         {
           "name": "11.8 Erro: data de pico ao vivo inválida",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/references/last-live-peak?before=ontem","description":"RF14. Espera 422 para data fora do ISO 8601."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/references/last-live-peak?before=ontem",
+            "description": "RF14. Espera 422 para data fora do ISO 8601."
+          }
         },
         {
           "name": "11.9 Obter timeline operacional",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/timeline","description":"RF16. Espera 200 com janela e seis raias."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/timeline",
+            "description": "RF16. Espera 200 com janela e seis raias."
+          }
         },
         {
           "name": "11.10 Erro: data da timeline inválida",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/timeline?from=ontem","description":"RF16. Espera 422 para data fora do ISO 8601."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/timeline?from=ontem",
+            "description": "RF16. Espera 422 para data fora do ISO 8601."
+          }
         }
       ]
     },
@@ -1751,35 +1879,67 @@
       "item": [
         {
           "name": "12.1 Listar execuções de hipóteses",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypothesis-runs?limit=50","description":"RF17. Espera 200, lista de runs publicados e guarda run_id."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/hypothesis-runs?limit=50",
+            "description": "RF17. Espera 200, lista de runs publicados e guarda run_id."
+          }
         },
         {
           "name": "12.2 Erro: limite de runs inválido",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypothesis-runs?limit=0","description":"RF17. Espera 422 para limite fora da faixa."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/hypothesis-runs?limit=0",
+            "description": "RF17. Espera 422 para limite fora da faixa."
+          }
         },
         {
           "name": "12.3 Listar hipóteses",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypotheses?limit=50","description":"RF17. Espera 200, lista de hipóteses publicadas e guarda hypothesis_id."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/hypotheses?limit=50",
+            "description": "RF17. Espera 200, lista de hipóteses publicadas e guarda hypothesis_id."
+          }
         },
         {
           "name": "12.4 Erro: família de hipótese inválida",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypotheses?family=familia_inexistente","description":"RF17. Espera 422 para enum fora da lista permitida."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/hypotheses?family=familia_inexistente",
+            "description": "RF17. Espera 422 para enum fora da lista permitida."
+          }
         },
         {
           "name": "12.5 Detalhar hipótese",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}","description":"RF17. Espera 200 com features, evidências e qualidade das fontes."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}",
+            "description": "RF17. Espera 200 com features, evidências e qualidade das fontes."
+          }
         },
         {
           "name": "12.6 Erro: hipótese inexistente",
-          "request": {"method":"GET","url":"{{read_url}}/api/v1/hypotheses/2147483647","description":"RF17. Espera 404 no formato Problem Details."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/api/v1/hypotheses/2147483647",
+            "description": "RF17. Espera 404 no formato Problem Details."
+          }
         },
         {
           "name": "12.7 Criar feedback",
           "request": {
             "method": "POST",
-            "header": [{"key":"Content-Type","value":"application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}/feedback",
-            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"confirmed\",\n  \"note\": \"validado pela collection Postman\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verdict\": \"confirmed\",\n  \"note\": \"validado pela collection Postman\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"
+            },
             "description": "RF17. Espera 201 na primeira submissão e reviewer_verified=false. Usa dados sintéticos, sem identidade real."
           }
         },
@@ -1787,9 +1947,17 @@
           "name": "12.8 Reenvio idempotente do feedback",
           "request": {
             "method": "POST",
-            "header": [{"key":"Content-Type","value":"application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}/feedback",
-            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"confirmed\",\n  \"note\": \"validado pela collection Postman\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verdict\": \"confirmed\",\n  \"note\": \"validado pela collection Postman\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"
+            },
             "description": "RF17. Espera 200 e created=false para o replay byte a byte idêntico."
           }
         },
@@ -1797,9 +1965,17 @@
           "name": "12.9 Erro: verdict de feedback inválido",
           "request": {
             "method": "POST",
-            "header": [{"key":"Content-Type","value":"application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}/feedback",
-            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"talvez\",\n  \"idempotency_key\": \"{{$guid}}\"\n}"},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verdict\": \"talvez\",\n  \"idempotency_key\": \"{{$guid}}\"\n}"
+            },
             "description": "RF17. Espera 422 para verdict fora do enum."
           }
         },
@@ -1807,9 +1983,17 @@
           "name": "12.10 Erro: conflito de idempotência",
           "request": {
             "method": "POST",
-            "header": [{"key":"Content-Type","value":"application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{read_url}}/api/v1/hypotheses/{{hypothesis_id}}/feedback",
-            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"rejected\",\n  \"note\": \"payload diferente com a mesma chave\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verdict\": \"rejected\",\n  \"note\": \"payload diferente com a mesma chave\",\n  \"reviewer_ref\": \"postman-local\",\n  \"idempotency_key\": \"{{feedback_key}}\"\n}"
+            },
             "description": "RF17. Espera 409 ao reutilizar a chave com conteúdo diferente."
           }
         },
@@ -1817,9 +2001,17 @@
           "name": "12.11 Erro: feedback para hipótese inexistente",
           "request": {
             "method": "POST",
-            "header": [{"key":"Content-Type","value":"application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{read_url}}/api/v1/hypotheses/2147483647/feedback",
-            "body": {"mode":"raw","raw":"{\n  \"verdict\": \"confirmed\",\n  \"idempotency_key\": \"{{$guid}}\"\n}"},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verdict\": \"confirmed\",\n  \"idempotency_key\": \"{{$guid}}\"\n}"
+            },
             "description": "RF17. Espera 404 para hipótese não publicada."
           }
         }
@@ -1831,16 +2023,47 @@
       "item": [
         {
           "name": "Liveness",
-          "request": {"method":"GET","url":"{{read_url}}/health/live","description":"Operação. Espera 200 sem consultar o banco."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/health/live",
+            "description": "Operação. Espera 200 sem consultar o banco.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
         },
         {
           "name": "Favicon",
-          "request": {"method":"GET","url":"{{read_url}}/favicon.ico","description":"Operação. Espera 204 sem corpo."}
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/favicon.ico",
+            "description": "Operação. Espera 204 sem corpo."
+          }
         },
         {
           "name": "Swagger UI",
-          "request": {"method":"GET","url":"{{read_url}}/docs","description":"Operação. Espera 200 e HTML do Swagger UI."},
-          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('serve HTML do Swagger UI', () => {","  pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');","  pm.expect(pm.response.text()).to.include('SwaggerUIBundle');","});"]}}]
+          "request": {
+            "method": "GET",
+            "url": "{{read_url}}/docs",
+            "description": "Operação. Espera 200 e HTML do Swagger UI.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('serve HTML do Swagger UI', () => {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');",
+                  "  pm.expect(pm.response.text()).to.include('SwaggerUIBundle');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     }

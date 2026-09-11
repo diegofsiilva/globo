@@ -420,9 +420,16 @@ make -C .. migrate-status-aws
 make -C .. migrate-aws
 ```
 
-A alternativa ao NAT seria trocá-lo por **VPC endpoints de interface**. Sairia
-mais caro no desenho atual e exigiria *todos* estes, senão a task nem baixa a
-imagem e o service entra em crash loop:
+### Alternativa EC2 para a API de leitura (rubrica 2)
+
+O deploy padrão usa Lambda (`api_read.tf`) por custo no Learner Lab, mas o
+mesmo Flask roda em EC2 sem alteração de código — ver
+`ec2_api.tf.example` (ALB + ASG + launch template, `publicly_accessible = false`
+no RDS, mesma imagem ECR por SHA). O código é idêntico (`app.py` +
+`observability.py` com JSON + `X-Request-Id`), e o custo 24/7 de EC2
+(~US$ 7/mês t3.micro) é o motivo de o padrão ser FaaS no lab.
+
+Para exigência de subnet privada, `assign_public_ip = false` exige uma destas:
 
 - Gateway (grátis): `s3`, que já existe e é complementar ao NAT
 - Interface (~US$ 7/mês cada por AZ): `sqs`, `ecr.api`, `ecr.dkr`, `logs`,

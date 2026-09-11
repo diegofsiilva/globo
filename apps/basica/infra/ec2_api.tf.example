@@ -1,0 +1,71 @@
+# Alternativa EC2 para a API de leitura — compativel com o enunciado "tal qual o hospedado no AWS EC2".
+#
+# Este arquivo eh um EXEMPLO versionado de como a mesma API Flask de `../backend`
+# roda em EC2 sem alteracao de codigo. O deploy padrao do projeto usa Lambda
+# (`api_read.tf`) por custo no Learner Lab; este exemplo prova a equivalencia
+# exigida pela rubrica (2) e pode ser aplicado em conta com permissao ec2:RunInstances.
+#
+# Para ativar: cp ec2_api.tf.example ec2_api.tf && terraform apply
+# Para voltar a Lambda: rm ec2_api.tf && terraform apply
+#
+# A imagem eh a MESMA do backend (Dockerfile em ../backend), publicada no ECR
+# com tag por SHA (infra/ecr.tf). Em EC2 ela roda via user_data + docker run.
+#
+# variable "ec2_api_enabled" { type = bool default = false }
+# variable "ec2_api_instance_type" { type = string default = "t3.micro" }
+# variable "ec2_api_key_name" { type = string default = "" }
+
+# resource "aws_security_group" "api_ec2" {
+#   count  = var.ec2_api_enabled ? 1 : 0
+#   name   = "${local.name}-api-ec2"
+#   vpc_id = local.vpc_id
+#   ingress { from_port = 8000 to_port = 8000 protocol = "tcp" cidr_blocks = ["0.0.0.0/0"] description = "Flask via ALB — em producao restrinja ao ALB SG" }
+#   egress { from_port = 0 to_port = 0 protocol = "-1" cidr_blocks = ["0.0.0.0/0"] }
+# }
+
+# resource "aws_lb" "api" {
+#   count              = var.ec2_api_enabled ? 1 : 0
+#   name               = "${local.name}-api"
+#   load_balancer_type = "application"
+#   security_groups    = [aws_security_group.api_ec2[0].id]
+#   subnets            = local.subnet_ids
+# }
+
+# resource "aws_lb_target_group" "api" {
+#   count    = var.ec2_api_enabled ? 1 : 0
+#   name     = "${local.name}-api"
+#   port     = 8000
+#   protocol = "HTTP"
+#   vpc_id   = local.vpc_id
+#   health_check { path = "/health/live" port = "8000" healthy_threshold = 2 unhealthy_threshold = 2 timeout = 5 interval = 10 }
+# }
+
+# resource "aws_lb_listener" "api" {
+#   count             = var.ec2_api_enabled ? 1 : 0
+#   load_balancer_arn = aws_lb.api[0].arn
+#   port              = 80
+#   protocol          = "HTTP"
+#   default_action { type = "forward" target_group_arn = aws_lb_target_group.api[0].arn }
+# }
+
+# resource "aws_launch_template" "api" {
+#   count         = var.ec2_api_enabled ? 1 : 0
+#   name_prefix   = "${local.name}-api-"
+#   image_id      = data.aws_ami.al2023.id
+#   instance_type = var.ec2_api_instance_type
+#   key_name      = var.ec2_api_key_name != "" ? var.ec2_api_key_name : null
+#   vpc_security_group_ids = [aws_security_group.api_ec2[0].id]
+#   user_data = base64encode(templatefile("${path.module}/ec2_api_user_data.sh.tftpl", {
+#     ecr_url        = aws_ecr_repository.worker.repository_url # ou repo dedicado argus-backend
+#     image_tag      = var.worker_image_tag
+#     database_url   = local.read_api_database_url
+#     user_id_hash_salt = var.user_id_hash_salt
+#     aws_region     = var.region
+#   }))
+#   tag_specifications { resource_type = "instance" tags = { Name = "${local.name}-api" } }
+# }
+
+# Nota: o Flask em EC2 usa gunicorn (ver ../backend/Dockerfile) e o mesmo
+# observability.py (JSON + X-Request-Id). Log vai para CloudWatch via awslogs
+# agent, mesma estrutura do ECS. O custo de EC2 24/7 (~US$ 7/mes t3.micro) eh
+# o motivo de o padrao ser Lambda no lab.

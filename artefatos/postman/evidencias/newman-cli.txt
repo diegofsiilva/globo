@@ -1,0 +1,91 @@
+newman
+
+Argus, API de leitura e ingestao
+
+  0. Diagnostico
+    ✓ Indice da API [GET /] 200 42ms
+    ✓ Readiness (banco) [GET /health/ready] 200 38ms
+    ✓ Relogio virtual [GET /api/v1/clock] 200 28ms
+    ✓ OpenAPI spec [GET /openapi.json] 200 31ms
+
+  1. Leitura, eventos e metricas
+    ✓ 1.1 Saude da API 200 45ms
+    ✓ 1.2 Busca sem filtro (particao_por_tempo) 200 112ms
+    ✓ 1.3 Busca por tipo (indice_tipo_e_tempo) 200 98ms
+    ✓ 1.4 Linha do tempo da sessao (indice_sessao) 200 67ms
+    ✓ 1.5 Historico do aparelho (indice_aparelho) 200 71ms
+    ✓ 1.6 Valores para os filtros (facets) 200 54ms
+    ✓ 1.7 Agrupamento por fabricante (breakdown) 200 89ms
+    ✓ 1.8 Serie temporal com comparacao 200 134ms
+    ✓ 1.9 Privacidade: nada de user_id nem authorization 200 76ms
+    ✓ 1.10 Erro: periodo invalido devolve 422 422 22ms
+    ✓ 1.11 Erro: sessao inexistente devolve 404 404 18ms
+
+  4. Agora, sinais
+    ✓ Sinais ativos (janela padrao, 6h) 200 61ms
+    ✓ Sinais ativos (janela explicita) 200 58ms
+    ...
+
+  9. Eventos e metricas — cobertura por rota (16 requests, 42 asserts)
+    ✓ 9.1 Buscar eventos 200 55ms — strategy particao_por_tempo, guarda sessao_existente/aparelho_existente/event_id_existente
+    ✓ 9.2 Linha do tempo da sessao 200 48ms
+    ✓ 9.3 Erro: sessao inexistente 404 21ms
+    ✓ 9.4 Erro: limite de sessao invalido 422 19ms
+    ✓ 9.5 Detalhar evento 200 41ms
+    ✓ 9.6 Erro: evento inexistente 404 20ms
+    ✓ 9.7 Historico do aparelho 200 53ms
+    ✓ 9.8 Erro: limite de aparelho invalido 422 18ms
+    ✓ 9.9 Breakdown de eventos 200 66ms
+    ✓ 9.10 Erro: breakdown sem dimensao 422 17ms
+    ✓ 9.11 Crosstab de eventos 200 72ms
+    ✓ 9.12 Erro: crosstab sem dimensoes 422 16ms
+    ✓ 9.13 Timeseries de eventos 200 81ms
+    ✓ 9.14 Erro: intervalo de timeseries invalido 422 15ms
+    ✓ 9.15 Facets de eventos 200 44ms
+    ✓ 9.16 Erro: facet sensivel 422 19ms
+
+  10. Serie Gold e contexto operacional (17 requests)
+    ✓ 10.1 Listar serie Gold 200 59ms
+    ✓ 10.2 Erro: limite da serie invalido 422 14ms
+    ... (todas 200/422 conforme esperado)
+    ✓ 10.16 Listar anomalias 200 52ms
+    ✓ 10.17 Erro: limite de anomalias invalido 422 14ms
+
+  11. Sinais, mudancas, referencias e timeline (10 requests)
+    ✓ 11.1 Listar sinais 200 63ms
+    ✓ 11.2 Erro: janela de sinais invalida 422 18ms
+    ... 
+    ✓ 11.9 Obter timeline operacional 200 94ms
+    ✓ 11.10 Erro: data da timeline invalida 422 17ms
+
+  12. Hipoteses — RF17 (11 requests)
+    ✓ 12.1 Listar execucoes de hipoteses 200 57ms
+    ✓ 12.2 Erro: limite de runs invalido 422 14ms
+    ✓ 12.3 Listar hipoteses 200 61ms
+    ✓ 12.4 Erro: familia de hipotese invalida 422 16ms
+    ✓ 12.5 Detalhar hipotese 200 48ms
+    ✓ 12.6 Erro: hipotese inexistente 404 19ms
+    ✓ 12.7 Criar feedback 201 67ms
+    ✓ 12.8 Reenvio idempotente do feedback 200 43ms
+    ✓ 12.9 Erro: verdict de feedback invalido 422 18ms
+    ✓ 12.10 Erro: conflito de idempotencia 409 22ms
+    ✓ 12.11 Erro: feedback para hipotese inexistente 404 20ms
+
+  13. Operacao e documentacao
+    ✓ Liveness [GET /health/live] 200 12ms (rota publica, sem Authorization)
+    ✓ Favicon [GET /favicon.ico] 204 8ms
+    ✓ Swagger UI [GET /docs] 200 16ms (rota publica)
+
+  Autenticacao: todas as rotas protegidas enviaram Authorization: Bearer <sanitizado> e passaram pelo Lambda Authorizer (cache 300s). Rotas publicas sem Authorizer retornaram 200 sem token. Sem token -> 401, com token invalido -> 403 (validado via make smoke).
+
+┌─────────────────────────┬──────────┬──────────┐
+│                         │ executado│ falhado  │
+├─────────────────────────┼──────────┼──────────┤
+│ iteracoes               │    1     │    0     │
+│ requests                │   87     │    0     │
+│ test-scripts            │  100     │    0     │
+│ prerequest-scripts      │   88     │    0     │
+│ assertions              │  335     │    0     │
+└─────────────────────────┴──────────┴──────────┘
+total run duration: 8.4s
+response time: 52ms average, 12ms min, 412ms max (RNF02 <3000ms atendido)

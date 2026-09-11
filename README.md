@@ -114,7 +114,7 @@ provisionado na conta do Learner Lab.
 | `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
 | `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem, MVP, infraestrutura e integração |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
-| `/artefatos/postman` | Coleção Postman de teste das duas APIs |
+| `/artefatos/postman` | Coleção Postman de teste das duas APIs + evidências `evidencias/newman-*.json` |
 | `/assets` | Logos usados neste README |
 | `/apps/basica/Makefile` | Comandos do projeto; `make -C apps/basica` lista os alvos |
 | `/apps/basica/.env.example` | Chaves de configuração; os valores ficam em `/apps/basica/.env`, fora do repositório |
