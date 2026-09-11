@@ -1,22 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="3760" height="2454" viewBox="0 0 3760 2454" role="img" aria-labelledby="title desc">
-  <title id="title">Diagrama de implantação do Argus v4</title>
-  <desc id="desc">VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade, NAT Gateway, bastion host, Auto Scaling Group de EC2 atrás de Application Load Balancer, RDS privado e CloudFront planejado.</desc>
+  <title id="title">Diagrama de implantação do Argus</title>
+  <desc id="desc">VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade, NAT Gateway, bastion host, Auto Scaling Group de EC2 atrás de Application Load Balancer e RDS privado.</desc>
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L12,5 L0,10 z" fill="#40556b"/></marker>
-    <marker id="arrow-plan" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L12,5 L0,10 z" fill="#c77816"/></marker>
     <style>
       .page-title { font: 700 44px Arial, sans-serif; fill: #17202b; text-anchor: middle; }
       .page-subtitle { font: italic 22px Arial, sans-serif; fill: #617a98; text-anchor: middle; }
       .node-face { fill: #eaf0f6; stroke: #40556b; stroke-width: 3; }
       .node-top { fill: #dce6ef; stroke: #40556b; stroke-width: 3; }
       .node-side { fill: #c8d4df; stroke: #40556b; stroke-width: 3; }
-      .new-face { fill: #f1ebf9; stroke: #6b4f92; stroke-width: 3; }
-      .new-top { fill: #e5dcf2; stroke: #6b4f92; stroke-width: 3; }
-      .new-side { fill: #d2c4e6; stroke: #6b4f92; stroke-width: 3; }
       .vpc-note { font: italic 19px Arial, sans-serif; fill: #6b4f92; }
-      .planned-face { fill: #fff0d8; stroke: #c77816; stroke-width: 3; stroke-dasharray: 10 7; }
-      .planned-top { fill: #ffe1b7; stroke: #c77816; stroke-width: 3; stroke-dasharray: 10 7; }
-      .planned-side { fill: #f4c985; stroke: #c77816; stroke-width: 3; stroke-dasharray: 10 7; }
       .artifact { fill: #ffffff; stroke: #7189a5; stroke-width: 2.2; rx: 5; }
       .stereo { font: italic 16px Arial, sans-serif; fill: #526a84; text-anchor: middle; }
       .node-title { font: 700 24px Arial, sans-serif; fill: #17202b; text-anchor: middle; }
@@ -25,12 +18,10 @@
       .artifact-text { font: 16px Arial, sans-serif; fill: #27384a; text-anchor: middle; }
       .artifact-small { font: 14px Arial, sans-serif; fill: #27384a; text-anchor: middle; }
       .flow { fill: none; stroke: #40556b; stroke-width: 3; marker-end: url(#arrow); }
-      .flow-plan { fill: none; stroke: #c77816; stroke-width: 3; stroke-dasharray: 10 7; marker-end: url(#arrow-plan); }
       .flow-dependency { fill: none; stroke: #617a98; stroke-width: 2.5; stroke-dasharray: 7 5; marker-end: url(#arrow); }
       .flow-log { fill: none; stroke: #617a98; stroke-width: 2; stroke-dasharray: 8 6; marker-end: url(#arrow); }
       .flow-label-bg { fill: #ffffff; opacity: .95; rx: 4; }
       .flow-label { font: 17px Arial, sans-serif; fill: #40556b; text-anchor: middle; }
-      .flow-label-plan { font: 17px Arial, sans-serif; fill: #a65f0c; text-anchor: middle; }
       .band { fill: #fbfdff; stroke: #7189a5; stroke-width: 2.5; stroke-dasharray: 8 6; }
       .band-title { font: italic 20px Arial, sans-serif; fill: #617a98; }
       .vpc { fill: #f7f9fc; stroke: #40556b; stroke-width: 3.5; }
@@ -54,11 +45,11 @@
   </defs>
 
   <rect width="3760" height="2454" fill="#ffffff"/>
-  <text x="1880.0" y="55" class="page-title">Diagrama de implantação do Argus v4</text>
-  <text x="1880.0" y="92" class="page-subtitle">VPC dedicada · duas AZs · Auto Scaling Group de EC2 atrás de ALB · RDS privado · CloudFront planejado · AWS us-east-1</text>
+  <text x="1880.0" y="55" class="page-title">Diagrama de implantação do Argus</text>
+  <text x="1880.0" y="92" class="page-subtitle">VPC dedicada · duas AZs · Auto Scaling Group de EC2 atrás de ALB · RDS privado · AWS us-east-1</text>
   <rect x="606" y="96" width="2530" height="1846" class="vpc"/>
   <text x="632" y="140" class="vpc-title">VPC dedicada — 10.0.0.0/16</text>
-  <text x="632" y="170" class="vpc-note">toda a camada de rede — VPC, zonas de disponibilidade e sub-redes — é nova nesta revisão</text>
+  <text x="632" y="170" class="vpc-note">sub-redes públicas e privadas em duas zonas de disponibilidade · saída pelo NAT Gateway</text>
   <rect x="638" y="408" width="2466" height="839" class="az"/>
   <text x="662" y="448" class="az-title">Zona de disponibilidade us-east-1a</text>
   <rect x="638" y="1292" width="2466" height="618" class="az"/>
@@ -81,24 +72,21 @@
   <path d="M910.0 1444 V1269.5 H1290 V939" class="flow"/>
   <path d="M1720 737.0 H1652" class="flow"/>
   <path d="M1930.0 1444 V1303.5 H1560 V939" class="flow"/>
-  <path d="M1400 939 V1444" class="flow-plan"/>
   <path d="M2290 1035.0 H2190 V930 H2162" class="flow"/>
   <path d="M2290 1579.0 H2162" class="flow"/>
   <path d="M2192 681.0 H2290" class="flow"/>
   <path d="M2465.0 560 V432" class="flow"/>
   <path d="M2670 695.0 H2236 V844 H2162" class="flow"/>
   <path d="M2845.0 830 V977 H1420 V939" class="flow"/>
-  <path d="M3206 659.5 H3164 V915.0 H3042" class="flow-plan"/>
-  <path d="M3441.0 849 V919" class="flow-plan"/>
   <path d="M3206 1640.0 H3188 V765.0 H3042" class="flow"/>
+  <path d="M3400 402 H3100 V1035 H3042" class="flow"/>
+  <path d="M3480 352 H3730 V1054 H3676" class="flow"/>
   <path d="M1617 2253.0 H1655" class="flow"/>
   <path d="M2637 2253.0 H2675" class="flow"/>
   <path d="M1325.0 1942 V2132" class="flow"/>
   <path d="M1810 1858 V1980 H305 V2110" class="flow-dependency"/>
   <path d="M2050 1858 V2008 H2915 V2110" class="flow-dependency"/>
   <path d="M3042 1090 H3100 V1988 H3435 V2110" class="flow-log"/>
-  <path d="M3400 402 H3100 V1035 H3042" class="flow"/>
-  <path d="M3480 352 H3730 V1054 H3676" class="flow"/>
   <g>
     <polygon points="60,240 82,218 552,218 530,240" class="node-top"/>
     <polygon points="530,240 552,218 552,460 530,482" class="node-side"/>
@@ -183,9 +171,9 @@
     <text x="1420.0" y="884" class="artifact-small">do Fargate e do bastion</text>
   </g>
   <g>
-    <polygon points="1720,560 1742,538 2162,538 2140,560" class="new-top"/>
-    <polygon points="2140,560 2162,538 2162,952 2140,974" class="new-side"/>
-    <rect x="1720" y="560" width="420" height="414" class="new-face"/>
+    <polygon points="1720,560 1742,538 2162,538 2140,560" class="node-top"/>
+    <polygon points="2140,560 2162,538 2162,952 2140,974" class="node-side"/>
+    <rect x="1720" y="560" width="420" height="414" class="node-face"/>
     <text x="1930.0" y="602" class="stereo">«execution environment»</text>
     <text x="1930.0" y="640" class="node-title">Amazon EC2</text>
     <text x="1930.0" y="672" class="node-subtitle">ASG · t4g.small (Graviton, arm64)</text>
@@ -201,9 +189,9 @@
     <text x="1930.0" y="940" class="artifact-small">valida Bearer · audiência dashboard</text>
   </g>
   <g>
-    <polygon points="2290,560 2312,538 2662,538 2640,560" class="new-top"/>
-    <polygon points="2640,560 2662,538 2662,780 2640,802" class="new-side"/>
-    <rect x="2290" y="560" width="350" height="242" class="new-face"/>
+    <polygon points="2290,560 2312,538 2662,538 2640,560" class="node-top"/>
+    <polygon points="2640,560 2662,538 2662,780 2640,802" class="node-side"/>
+    <rect x="2290" y="560" width="350" height="242" class="node-face"/>
     <text x="2465.0" y="602" class="stereo">«managed service»</text>
     <text x="2465.0" y="640" class="node-title">NAT Gateway</text>
     <rect x="2315" y="675" width="300" height="95" class="artifact"/>
@@ -212,9 +200,9 @@
     <text x="2465.0" y="747" class="artifact-small">sub-redes privadas</text>
   </g>
   <g>
-    <polygon points="2670,560 2692,538 3042,538 3020,560" class="new-top"/>
-    <polygon points="3020,560 3042,538 3042,808 3020,830" class="new-side"/>
-    <rect x="2670" y="560" width="350" height="270" class="new-face"/>
+    <polygon points="2670,560 2692,538 3042,538 3020,560" class="node-top"/>
+    <polygon points="3020,560 3042,538 3042,808 3020,830" class="node-side"/>
+    <rect x="2670" y="560" width="350" height="270" class="node-face"/>
     <text x="2845.0" y="602" class="stereo">«execution environment»</text>
     <text x="2845.0" y="640" class="node-title">Bastion Host</text>
     <text x="2845.0" y="672" class="node-subtitle">EC2 t4g.micro</text>
@@ -224,9 +212,9 @@
     <text x="2845.0" y="775" class="artifact-small">salto ao ASG · túnel ao RDS</text>
   </g>
   <g>
-    <polygon points="2290,900 2312,878 3042,878 3020,900" class="new-top"/>
-    <polygon points="3020,900 3042,878 3042,1148 3020,1170" class="new-side"/>
-    <rect x="2290" y="900" width="730" height="270" class="new-face"/>
+    <polygon points="2290,900 2312,878 3042,878 3020,900" class="node-top"/>
+    <polygon points="3020,900 3042,878 3042,1148 3020,1170" class="node-side"/>
+    <rect x="2290" y="900" width="730" height="270" class="node-face"/>
     <text x="2655.0" y="942" class="stereo">«load balancer»</text>
     <text x="2655.0" y="980" class="node-title">Application Load Balancer</text>
     <text x="2655.0" y="1012" class="node-subtitle">nó da AZ us-east-1a</text>
@@ -248,21 +236,9 @@
     <text x="910.0" y="1659" class="artifact-small">migration · aplicada dentro da VPC</text>
   </g>
   <g>
-    <polygon points="1210,1444 1232,1422 1652,1422 1630,1444" class="planned-top"/>
-    <polygon points="1630,1444 1652,1422 1652,1692 1630,1714" class="planned-side"/>
-    <rect x="1210" y="1444" width="420" height="270" class="planned-face"/>
-    <text x="1420.0" y="1486" class="stereo">«database»</text>
-    <text x="1420.0" y="1524" class="node-title">Amazon RDS standby</text>
-    <text x="1420.0" y="1556" class="node-subtitle">Multi-AZ</text>
-    <rect x="1235" y="1587" width="370" height="95" class="artifact"/>
-    <text x="1420.0" y="1607" class="artifact-stereo">«artifact»</text>
-    <text x="1420.0" y="1634" class="artifact-text">réplica síncrona</text>
-    <text x="1420.0" y="1659" class="artifact-small">failover automático do endpoint</text>
-  </g>
-  <g>
-    <polygon points="1720,1444 1742,1422 2162,1422 2140,1444" class="new-top"/>
-    <polygon points="2140,1444 2162,1422 2162,1836 2140,1858" class="new-side"/>
-    <rect x="1720" y="1444" width="420" height="414" class="new-face"/>
+    <polygon points="1720,1444 1742,1422 2162,1422 2140,1444" class="node-top"/>
+    <polygon points="2140,1444 2162,1422 2162,1836 2140,1858" class="node-side"/>
+    <rect x="1720" y="1444" width="420" height="414" class="node-face"/>
     <text x="1930.0" y="1486" class="stereo">«execution environment»</text>
     <text x="1930.0" y="1524" class="node-title">Amazon EC2</text>
     <text x="1930.0" y="1556" class="node-subtitle">ASG · t4g.small (Graviton, arm64)</text>
@@ -278,9 +254,9 @@
     <text x="1930.0" y="1824" class="artifact-small">valida Bearer · audiência dashboard</text>
   </g>
   <g>
-    <polygon points="2290,1444 2312,1422 3042,1422 3020,1444" class="new-top"/>
-    <polygon points="3020,1444 3042,1422 3042,1692 3020,1714" class="new-side"/>
-    <rect x="2290" y="1444" width="730" height="270" class="new-face"/>
+    <polygon points="2290,1444 2312,1422 3042,1422 3020,1444" class="node-top"/>
+    <polygon points="3020,1444 3042,1422 3042,1692 3020,1714" class="node-side"/>
+    <rect x="2290" y="1444" width="730" height="270" class="node-face"/>
     <text x="2655.0" y="1486" class="stereo">«load balancer»</text>
     <text x="2655.0" y="1524" class="node-title">Application Load Balancer</text>
     <text x="2655.0" y="1556" class="node-subtitle">nó da AZ us-east-1b</text>
@@ -290,31 +266,15 @@
     <text x="2655.0" y="1659" class="artifact-small">health check /health/live · 2 de 2 · 30 s</text>
   </g>
   <g>
-    <polygon points="2290,190 2312,168 2732,168 2710,190" class="new-top"/>
-    <polygon points="2710,190 2732,168 2732,410 2710,432" class="new-side"/>
-    <rect x="2290" y="190" width="420" height="242" class="new-face"/>
+    <polygon points="2290,190 2312,168 2732,168 2710,190" class="node-top"/>
+    <polygon points="2710,190 2732,168 2732,410 2710,432" class="node-side"/>
+    <rect x="2290" y="190" width="420" height="242" class="node-face"/>
     <text x="2500.0" y="232" class="stereo">«internet gateway»</text>
     <text x="2500.0" y="270" class="node-title">Internet Gateway</text>
     <rect x="2315" y="305" width="370" height="95" class="artifact"/>
     <text x="2500.0" y="325" class="artifact-stereo">«artifact»</text>
     <text x="2500.0" y="352" class="artifact-text">rota 0.0.0.0/0 das</text>
     <text x="2500.0" y="377" class="artifact-small">sub-redes públicas</text>
-  </g>
-  <g>
-    <polygon points="3206,470 3228,448 3698,448 3676,470" class="planned-top"/>
-    <polygon points="3676,470 3698,448 3698,827 3676,849" class="planned-side"/>
-    <rect x="3206" y="470" width="470" height="379" class="planned-face"/>
-    <text x="3441.0" y="512" class="stereo">«cdn»</text>
-    <text x="3441.0" y="550" class="node-title">Amazon CloudFront</text>
-    <text x="3441.0" y="582" class="node-subtitle">TLS · certificado ACM us-east-1</text>
-    <rect x="3231" y="613" width="420" height="95" class="artifact"/>
-    <text x="3441.0" y="633" class="artifact-stereo">«artifact»</text>
-    <text x="3441.0" y="660" class="artifact-text">origem 1 · S3 «frontend» por OAC</text>
-    <text x="3441.0" y="685" class="artifact-small">origem 2 · ALB em /api/*</text>
-    <rect x="3231" y="722" width="420" height="95" class="artifact"/>
-    <text x="3441.0" y="742" class="artifact-stereo">«artifact»</text>
-    <text x="3441.0" y="769" class="artifact-text">Authorization encaminhado</text>
-    <text x="3441.0" y="794" class="artifact-small">cache desabilitado em /api/*</text>
   </g>
   <g>
     <polygon points="3206,919 3228,897 3698,897 3676,919" class="node-top"/>
@@ -326,12 +286,12 @@
     <rect x="3231" y="1062" width="420" height="95" class="artifact"/>
     <text x="3441.0" y="1082" class="artifact-stereo">«artifact»</text>
     <text x="3441.0" y="1109" class="artifact-text">dashboard Next.js · export estático</text>
-    <text x="3441.0" y="1134" class="artifact-small">website HTTP atual · OAC planejado</text>
+    <text x="3441.0" y="1134" class="artifact-small">endpoint de website · leitura pública</text>
   </g>
   <g>
-    <polygon points="3206,1519 3228,1497 3698,1497 3676,1519" class="new-top"/>
-    <polygon points="3676,1519 3698,1497 3698,1739 3676,1761" class="new-side"/>
-    <rect x="3206" y="1519" width="470" height="242" class="new-face"/>
+    <polygon points="3206,1519 3228,1497 3698,1497 3676,1519" class="node-top"/>
+    <polygon points="3676,1519 3698,1497 3698,1739 3676,1761" class="node-side"/>
+    <rect x="3206" y="1519" width="470" height="242" class="node-face"/>
     <text x="3441.0" y="1561" class="stereo">«device»</text>
     <text x="3441.0" y="1599" class="node-title">Estação do administrador</text>
     <rect x="3231" y="1634" width="420" height="95" class="artifact"/>
@@ -406,9 +366,9 @@
     <text x="2915.0" y="2319" class="artifact-small">senha do RDS</text>
   </g>
   <g>
-    <polygon points="3205,2132 3227,2110 3657,2110 3635,2132" class="new-top"/>
-    <polygon points="3635,2132 3657,2110 3657,2352 3635,2374" class="new-side"/>
-    <rect x="3205" y="2132" width="430" height="242" class="new-face"/>
+    <polygon points="3205,2132 3227,2110 3657,2110 3635,2132" class="node-top"/>
+    <polygon points="3635,2132 3657,2110 3657,2352 3635,2374" class="node-side"/>
+    <rect x="3205" y="2132" width="430" height="242" class="node-face"/>
     <text x="3420.0" y="2174" class="stereo">«object storage»</text>
     <text x="3420.0" y="2212" class="node-title">Amazon S3</text>
     <text x="3420.0" y="2240" class="node-subtitle">bucket «alb-logs»</text>
@@ -435,8 +395,6 @@
   <text x="1686.0" y="723.0" class="flow-label">5432</text>
   <rect x="1681.2" y="1269.5" width="237.6" height="32" class="flow-label-bg"/>
   <text x="1800" y="1289.5" class="flow-label">SELECT views v_* · 5432</text>
-  <rect x="1299.6" y="1255.5" width="200.79999999999998" height="32" class="flow-label-bg"/>
-  <text x="1400" y="1275.5" class="flow-label">replicação síncrona</text>
   <rect x="2171.6" y="975.0" width="108.8" height="32" class="flow-label-bg"/>
   <text x="2226.0" y="995.0" class="flow-label">HTTP 5000</text>
   <rect x="2171.6" y="1519.0" width="108.8" height="32" class="flow-label-bg"/>
@@ -449,10 +407,12 @@
   <text x="2234" y="810" class="flow-label">SSH 22</text>
   <rect x="1941.0" y="943" width="118.0" height="32" class="flow-label-bg"/>
   <text x="2000" y="963" class="flow-label">túnel 5432</text>
-  <rect x="3025.6" y="863.0" width="154.79999999999998" height="32" class="flow-label-bg"/>
-  <text x="3103.0" y="883.0" class="flow-label-plan">HTTPS · /api/*</text>
-  <rect x="3531.2" y="870.0" width="99.6" height="32" class="flow-label-bg"/>
-  <text x="3581.0" y="890.0" class="flow-label-plan">OAC · /*</text>
+  <rect x="3048" y="998" width="152" height="32" class="flow-label-bg"/>
+  <text x="3124" y="1018" class="flow-label">HTTP 80 · Bearer</text>
+  <g transform="translate(3712 760) rotate(-90)">
+    <rect x="-105" y="-22" width="210" height="32" class="flow-label-bg"/>
+    <text x="0" y="0" class="flow-label">HTTP 80 · website S3</text>
+  </g>
   <rect x="3115.2" y="1147.5" width="145.6" height="58" class="flow-label-bg"/>
   <text x="3188" y="1167.5" class="flow-label">SSH 22</text>
   <text x="3188" y="1193.5" class="flow-label">CIDR restrito</text>
@@ -468,14 +428,6 @@
   <text x="2565" y="2010" class="flow-label">boot · hash do token</text>
   <rect x="3180" y="1970" width="142" height="32" class="flow-label-bg"/>
   <text x="3251" y="1990" class="flow-label">access logs</text>
-  <rect x="3048" y="998" width="152" height="32" class="flow-label-bg"/>
-  <text x="3124" y="1018" class="flow-label">HTTP 80 · Bearer</text>
-  <g transform="translate(3712 760) rotate(-90)">
-    <rect x="-105" y="-22" width="210" height="32" class="flow-label-bg"/>
-    <text x="0" y="0" class="flow-label">HTTP 80 · website S3</text>
-  </g>
-  <rect x="3534.6" y="432" width="108.8" height="32" class="flow-label-bg"/>
-  <text x="3589.0" y="452" class="flow-label-plan">HTTPS 443</text>
   <rect x="1702" y="520" width="478" height="1356" class="group"/>
   <rect x="1722" y="503" width="380" height="32" class="flow-label-bg"/>
   <text x="1732" y="528" class="group-title">Auto Scaling Group · mín 2 · máx 6</text>
@@ -484,12 +436,5 @@
   <text x="2302" y="868" class="group-title">Balanceador único, duas AZs</text>
   <circle cx="3441.0" cy="202" r="26" class="actor"/><path d="M3441.0 228 V298 M3397.0 254 H3485.0 M3441.0 298 L3403.0 352 M3441.0 298 L3479.0 352" class="actor"/>
   <text x="3441.0" y="390" class="actor-label">Navegador do usuário</text>
-  <path d="M3441.0 402 V470" class="flow-plan"/>
-  <rect x="1510" y="195" width="670" height="175" class="note"/>
-  <text x="1845.0" y="232" class="note-title">Estado em 10/09/2026</text>
-  <text x="1845.0" y="268" class="note-text">rede, bastion, ALB, Auto Scaling Group</text>
-  <text x="1845.0" y="294" class="note-text">e RDS aplicados e verificados na AWS.</text>
-  <text x="1845.0" y="320" class="note-text">O traço laranja marca o que ainda</text>
-  <text x="1845.0" y="346" class="note-text">não existe: CloudFront e RDS standby.</text>
-  <g transform="translate(3240,28)"><rect x="-22" y="-28" width="500" height="184" fill="#ffffff" opacity="0.96" stroke="#c8d4df" stroke-width="2" rx="6"/><text x="0" y="0" class="legend-title">Legenda</text><rect x="0" y="14" width="70" height="22" class="node-face"/><text x="86" y="31" class="legend-text">já existia na v3</text><rect x="0" y="46" width="70" height="22" class="new-face"/><text x="86" y="63" class="legend-text">acrescentado nesta revisão</text><rect x="0" y="78" width="70" height="22" class="planned-face"/><text x="86" y="95" class="legend-text">planejado, não implementado</text><rect x="0" y="110" width="70" height="22" fill="none" stroke="#40556b" stroke-width="2.5" stroke-dasharray="14 9"/><text x="86" y="127" class="legend-text">agrupamento lógico, não recurso de rede</text></g>
+  <g transform="translate(3240,28)"><rect x="-22" y="-28" width="500" height="88" fill="#ffffff" opacity="0.96" stroke="#c8d4df" stroke-width="2" rx="6"/><text x="0" y="0" class="legend-title">Legenda</text><rect x="0" y="14" width="70" height="22" class="node-face"/><text x="86" y="31" class="legend-text">nó de implantação</text><rect x="0" y="46" width="70" height="22" fill="none" stroke="#40556b" stroke-width="2.5" stroke-dasharray="14 9"/><text x="86" y="63" class="legend-text">agrupamento lógico, não recurso de rede</text></g>
 </svg>
