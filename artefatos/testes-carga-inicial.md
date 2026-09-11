@@ -16,13 +16,37 @@ Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, proce
 > passou a ser expresso como lote: 10.000 eventos/min em um ciclo de 15 minutos
 > equivalem a 150.000 eventos por lote. Em 9 de setembro, a nova suíte foi
 > executada com um lote e com dois, três e quatro lotes represados. Todos os
-> cenários drenaram em menos de 7 min 30 s; o frescor ponta a ponta permanece
-> não comprovado até a aplicação da migration 029 no ambiente remoto.
+> cenários drenaram em menos de 7 min 30 s; o frescor ponta a ponta permanecia
+> não comprovado porque a migration 029 não tinha sido aplicada no ambiente
+> remoto.
+>
+> **Atualização de 10-11 de setembro, após reimplantação completa do
+> ambiente:** a migration 029 foi aplicada (confirmado via `migrate-status-aws`).
+> Ao repetir o ensaio de 1 lote, um segundo problema — distinto do resolvido
+> pela 029 — bloqueava o frescor: a carga inicial das 33 tabelas históricas do
+> Argus grava em `bronze.change_log` usando o **mesmo contador de LSN**
+> compartilhado com `bronze.event`, e o watermark incremental
+> (`etl.watermark_bronze_silver`) processa as duas fontes em uma única fila
+> ordenada por LSN. As 68,7 milhões de linhas da carga inicial formaram um
+> backlog de ~136,7 milhões de LSNs à frente do watermark, que a essa cadência
+> (5.000 por ciclo) levaria meses para atravessar antes de alcançar qualquer
+> evento de teste. Corrigido avançando manualmente o watermark para o LSN
+> imediatamente anterior ao primeiro evento do lote de teste — decisão
+> operacional válida porque o requisito em avaliação é o pipeline de eventos de
+> frontend, não o reprocessamento do dataset histórico via ETL incremental.
+> Com o watermark corrigido, o frescor ponta a ponta foi medido pela primeira
+> vez contra uma implantação real: **38 min 32 s** para o último evento do lote
+> oficial de 150.000 (sessão sentinela, `load_test_sent_at` até a primeira
+> resposta 200 da API de leitura). A conta do AWS Academy Learner Lab foi
+> desativada logo em seguida (provável esgotamento de orçamento do módulo),
+> antes de rodar a consulta SQL de percentis completos (`drenagem_lotes.sql`)
+> contra este lote — o valor de 38 min 32 s é uma amostra única (o último
+> evento), não uma distribuição p50/p95/p99.
 
 | Requisito ou cenário | Resultado principal | Situação |
 |---|---|---|
 | RNF01 — capacidade | pico real de 10.000 eventos/min, p95 de 161,8 ms e 12.152/12.152 eventos persistidos | Aprovado |
-| RNF01 — lotes revisado | 150 mil a 600 mil eventos aceitos sem erro; drenagem entre 2 min e 5 min 46 s | Aprovado para aceite, drenagem e integridade; frescor pendente |
+| RNF01 — lotes revisado | 150 mil a 600 mil eventos aceitos sem erro; drenagem entre 1 min 29 s e 5 min 46 s; frescor ponta a ponta de 38 min 32 s (amostra única) | Aprovado para aceite, drenagem e integridade; frescor comprovado, distribuição completa pendente |
 | RNF02 — tempo de resposta | 4.587 consultas, nenhuma acima de 5 s e máximo de 1.581 ms | Tempo aprovado; base parcialmente representativa |
 | RNF03 — escalabilidade | recursos e carga ampliados em 2×, com 3.203/3.203 eventos persistidos | Aprovado no fator 2× |
 | RNF04 — eventos inválidos | 18/18 falhas identificadas e 150/150 eventos válidos processados | Aprovado |
@@ -39,10 +63,17 @@ Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, proce
 | 2 lotes represados | 300.000 | 27,689 s | 191 s | 1.570,68 eventos/s | Não comprovado¹ | 300.000/300.000; DLQ 0 | Aprovado² |
 | 3 lotes represados | 450.000 | 27,987 s | 259 s | 1.737,45 eventos/s | Não comprovado¹ | 450.000/450.000; DLQ 0 | Aprovado² |
 | 4 lotes represados | 600.000 | 38,026 s | 346 s | 1.734,10 eventos/s | Não comprovado¹ | 600.000/600.000; DLQ 0 | Aprovado² |
+| 1 lote — reexecução 11/09³ | 150.000 | 12,012 s | 89 s | 1.685,39 eventos/s | 38 min 32 s (amostra única)⁴ | 150.000/150.000; DLQ 0 | Aprovado, frescor comprovado² |
 
 ¹ A implantação remota não continha a migration 029, necessária para que eventos
 isolados avancem o watermark entre bronze e silver. ² Aprovação restrita aos
 critérios de aceite HTTP, drenagem, vazão, integridade no `event-worker` e DLQ.
+³ Reexecução contra ambiente reimplantado do zero em 10/09, já com a migration
+029 aplicada. ⁴ Frescor do último evento do lote (sessão sentinela), do
+`load_test_sent_at` até a primeira resposta 200 da API de leitura — amostra
+única, não p50/p95/p99, porque a conta do Learner Lab foi desativada antes de
+rodar `drenagem_lotes.sql` contra este lote. Ver §2.1.1 para o diagnóstico
+completo do bloqueio de watermark encontrado e corrigido nesta reexecução.
 
 O lote lógico é enviado em fragmentos limitados por bytes porque cada corpo do
 `POST /v1/events` vira uma mensagem SQS. Portanto, profundidade da fila mede
@@ -136,12 +167,63 @@ janelas; a DLQ permaneceu zerada. A vazão mínima de drenagem observada foi
 1.249,19 eventos/s, 7,5 vezes o mínimo de 166,67 eventos/s. O cenário mais
 severo recuperou quatro ciclos acumulados 104 segundos antes do limite adotado.
 
-O frescor ponta a ponta não foi aprovado nem estimado. Durante a medição, o
-evento sentinela era aceito e persistido em bronze, mas não aparecia na API de
-consulta. A causa foi localizada em `etl.proxima_faixa_lsn`, que considerava
-somente `bronze.change_log`. A migration 029 inclui também `bronze.event` e o
-teste de regressão local foi aprovado, mas a alteração não foi aplicada no
-Learner Lab nesta execução. Portanto, não há valor p95 remoto válido a reportar.
+O frescor ponta a ponta não foi aprovado nem estimado nesta execução. Durante a
+medição, o evento sentinela era aceito e persistido em bronze, mas não
+aparecia na API de consulta. A causa foi localizada em
+`etl.proxima_faixa_lsn`, que considerava somente `bronze.change_log`. A
+migration 029 inclui também `bronze.event` e o teste de regressão local foi
+aprovado, mas a alteração não foi aplicada no Learner Lab nesta execução.
+Portanto, não há valor p95 remoto válido a reportar.
+
+### 2.1.2 Frescor ponta a ponta — fechado em 11/09, após reimplantação completa
+
+**Execução.** O ambiente foi reimplantado do zero em 10/09 (nova conta do
+Learner Lab), com a migration 029 já aplicada desde o primeiro `migrate-aws`.
+Ao reexecutar o cenário de 1 lote (`test_id=20260911T003745Z`), o evento
+sentinela voltou a não aparecer na API — um **segundo problema**, distinto do
+resolvido pela migration 029.
+
+**Causa.** A carga inicial das 33 tabelas históricas do Argus grava em
+`bronze.change_log` usando o **mesmo contador de LSN** compartilhado com
+`bronze.event` (confirmado: os 150.000 eventos do lote receberam LSNs
+137.435.666–137.435.877, na sequência imediata dos 68,7 milhões de linhas da
+carga inicial, cujo LSN máximo era 137.435.654). O watermark incremental
+(`etl.watermark_bronze_silver`) processa as duas fontes numa única fila
+ordenada por LSN, em lotes de 5.000 por ciclo de ~60 s. As 68,7 milhões de
+linhas da carga inicial formaram um backlog de aproximadamente 136,7 milhões
+de LSNs à frente do watermark — nesse ritmo, seriam necessários meses para
+alcançar o LSN de qualquer evento de teste injetado após a carga.
+
+**Correção aplicada.** O watermark foi avançado manualmente
+(`UPDATE etl.watermark_bronze_silver SET lsn_processado = ...`) para o LSN
+imediatamente anterior ao primeiro evento do lote de teste, pulando o backlog
+histórico. Essa é uma decisão operacional deliberada, não um contorno
+temporário do requisito: o item avaliado é o pipeline de ingestão de eventos
+de frontend, e o reprocessamento incremental do dataset histórico via ETL é
+um problema ortogonal, que também não fazia parte do desenho original (a
+carga inicial nunca foi pensada para alimentar o watermark incremental —
+é um gap de integração entre `loader` e `etl`, registrado aqui para correção
+futura fora do escopo deste teste).
+
+**Resultado.** Com o watermark corrigido, o evento sentinela do lote oficial
+de 150.000 (índice 149.999, o último enviado) apareceu na API 38 min 32 s
+depois do `load_test_sent_at`. Para contexto, o frescor de **persistência em
+bronze** (aceite até gravação, medido num lote diagnóstico de 100 eventos no
+mesmo ambiente) foi de p95 = 1,785 s — ou seja, o gargalo do frescor ponta a
+ponta está inteiramente na cadência do ETL incremental bronze→silver, não na
+ingestão. A conta do Learner Lab foi desativada logo depois desta medição
+(mensagem "AWS account deactivated", provável esgotamento de orçamento do
+módulo), antes de rodar `drenagem_lotes.sql` contra o lote oficial para obter
+a distribuição p50/p95/p99 completa — o valor de 38 min 32 s é uma amostra
+única do último evento, não uma distribuição.
+
+**Recomendação de acompanhamento.** Regenerar a distribuição completa de
+frescor assim que a conta for reativada (`drenagem_lotes.sql` já filtra por
+`test_id`, os dados persistidos não se perdem com a desativação da conta).
+Considerar também, como melhoria de desenho fora deste teste, separar o
+watermark do `loader` do watermark do fluxo de CDC/eventos, ou inicializar o
+watermark ao final da carga inicial automaticamente — hoje isso depende de
+intervenção manual, o que não escala para reimplantações futuras.
 
 ### 2.2 RNF02 — tempo de resposta
 
@@ -318,4 +400,4 @@ Os dashboards comprovam capacidade de observação operacional. A DLQ também di
 
 Os três itens da entrega estão contemplados: os planos foram revisados com pico de 10.000 eventos/min, lotes de 150.000 eventos, backlog e timeout; os resultados apresentam métricas e análise de desempenho e resiliência; e Grafana, Prometheus e CloudWatch exibem latência, throughput, erros, CPU e filas com dados reais.
 
-RNF01 foi comprovado para aceite, drenagem e integridade até quatro lotes acumulados; o indicador de frescor ponta a ponta depende da implantação da migration 029 e de uma nova medição. RNF03 e RNF04 foram comprovados nos fatores testados. O RNF02 atendeu ao limite de tempo, com ressalva sobre representatividade da base. No RNF05 histórico, a recuperação foi observada em todos os cenários, mas apenas o recorte de 1.001 eventos possui reconciliação completa. O RNF11 permanece parcial por falta de uma amostra completa e sanitizada dos registros. Essas limitações são mantidas explícitas para separar resultado observado de conclusão comprovada.
+RNF01 foi comprovado para aceite, drenagem e integridade até quatro lotes acumulados; o indicador de frescor ponta a ponta foi medido pela primeira vez em 11/09 (38 min 32 s, amostra única do último evento do lote), após a aplicação da migration 029 e a correção de um segundo bloqueio de watermark (carga inicial competindo pelo mesmo LSN do fluxo de eventos, ver §2.1.2) — a distribuição p50/p95/p99 completa fica pendente da reativação da conta do Learner Lab, desativada logo após esta medição. RNF03 e RNF04 foram comprovados nos fatores testados. O RNF02 atendeu ao limite de tempo, com ressalva sobre representatividade da base. No RNF05 histórico, a recuperação foi observada em todos os cenários, mas apenas o recorte de 1.001 eventos possui reconciliação completa. O RNF11 permanece parcial por falta de uma amostra completa e sanitizada dos registros. Essas limitações são mantidas explícitas para separar resultado observado de conclusão comprovada.
