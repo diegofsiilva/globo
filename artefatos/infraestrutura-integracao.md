@@ -8,38 +8,6 @@ as verificações que atestam o resultado. A região de referência é a `us-eas
 conta é do AWS Academy Learner Lab, ambiente cujas restrições condicionam parte das
 decisões e estão registradas na seção 8.
 
-## Divergências de nomenclatura
-
-| Especificação | Repositório | Tratamento |
-|---|---|---|
-| `infraestrutura_integracao.md` (seção de vídeos) e `infraestrutura-integracao.md` (cabeçalho) | `artefatos/infraestrutura-integracao.md` | Adotado o hífen, coerente com `arquitetura-inicial.md` e com os links já existentes no repositório |
-| `/apps/fullstack` | `apps/basica` | Mantido o nome histórico `apps/basica` para não quebrar Makefile, caminhos de build e referências entre artefatos; a divergência fica registrada aqui |
-
-## Rastreabilidade da rubrica
-
-&emsp; A tabela consolida os nove itens avaliados. O item de análise de impacto nos
-ODS da ONU foi dispensado pelo professor em 4 de setembro de 2026 por já estar
-contemplado no artefato de negócios. O status abaixo considera a documentação,
-as verificações de 10 de setembro e os dois vídeos publicados.
-
-| # | Item da rubrica | Peso | Onde está | Status |
-|---|---|---|---|---|
-| R-a | Diagrama de implantação com ênfase em nuvem | 1,0 | Seção 2 | pronto |
-| R-b | Descrição dos componentes e justificativa | 1,0 | Seção 3 | pronto |
-| R-c | Plano de deploy na AWS, incluindo CloudFront | 1,0 | Seção 4 | pronto |
-| V1-a | VPC, sub-redes pública e privada, NAT, logs distribuídos | 1,0 | Seções 3.1, 4.6 e 6 | pronto |
-| V1-b | Bastion Host com regras seguras de acesso | 1,0 | Seções 3.2 e 6 | pronto |
-| V1-c | ASG de EC2 com política de escalonamento + ALB | 1,0 | Seções 3.3, 5 e 6 | pronto |
-| V1-d | Banco de dados em RDS | 1,0 | Seções 3.4 e 6 | pronto |
-| V2-a | Testes de validação funcional | 1,0 | Seção 7 | pronto |
-| V2-b | Comunicação entre serviços em ambiente integrado | 1,0 | Seção 7 | pronto |
-
-&emsp; O item R-c avalia o plano de inclusão do CloudFront, não a existência da
-distribuição no Learner Lab. A seção 4.4 registra a topologia recomendada e deixa
-explícito que o recurso não foi criado nesta sprint.
-
----
-
 ## 1. Contexto e escopo
 
 &emsp; O Argus é um sistema de telemetria e correlação de falhas para a cadeia de
@@ -73,52 +41,6 @@ acesso administrativo passa por um bastion host. O dashboard é um site estátic
 servido a partir de um bucket do Amazon S3, e chama o balanceador diretamente. Toda
 a persistência fica num Amazon RDS PostgreSQL em sub-rede privada.
 
-### 1.1 Fora de escopo
-
-&emsp; Este artefato não redescreve o que está documentado em outro artefato.
-Modelo de dados, migrations, ETL, checkpoints e coordenação do processamento estão
-em [`arquitetura-inicial.md`](arquitetura-inicial.md) e em seus apêndices; os
-endpoints da API de leitura e a autenticação por token, em
-[`backend.md`](backend.md); as telas do dashboard e as decisões de interface, em
-[`frontend.md`](frontend.md); a origem e a correlação dos dados cedidos pelo
-parceiro, em [`correlacao_dados.md`](correlacao_dados.md). A referência cruzada
-substitui a cópia, porque um mesmo fato mantido em dois lugares deixa de ser o mesmo
-fato na primeira vez que um dos dois muda.
-
-&emsp; A camada agêntica de correlação também fica fora deste recorte. A distinção
-entre ela e o sistema aqui documentado foi estabelecida em
-[`entendimento_negocio.md`](entendimento_negocio.md).
-
-### 1.2 O que mudou nesta revisão
-
-&emsp; A coluna `Estado` reflete o ambiente verificado em 10 de setembro de 2026.
-Itens planejados são descritos como proposta e não como recurso existente.
-
-| Item | Antes | Agora | Estado |
-|---|---|---|---|
-| Ambiente de rede | VPC padrão da conta, apenas sub-redes públicas | VPC dedicada, sub-redes públicas e privadas em duas AZs | Implementado |
-| Saída para a internet das cargas | Endereço público na própria task | NAT Gateway em sub-rede pública | Implementado |
-| Acesso administrativo | Task avulsa `migration` dentro da VPC | Bastion host, com a task `migration` mantida | Implementado no ambiente verificado; condicional a `bastion_key_name` em novos deploys |
-| API de leitura | AWS Lambda (Flask por `lambda_handler`) | EC2 em Auto Scaling Group atrás de ALB, em paralelo ao caminho Lambda/API Gateway durante a transição | Implementado |
-| Elasticidade do caminho síncrono | Concorrência da Lambda, implícita | Política de escalonamento declarada no ASG | Implementado |
-| Autenticação da API de leitura | Lambda authorizer do API Gateway | Validação do Bearer dentro do Flask | Implementado |
-| Entrega do dashboard | Endpoint de website S3, somente HTTP | CloudFront com TLS e bucket privado por OAC | Planejado; fora do escopo desta sprint |
-| Observabilidade de rede | Log de aplicação e alarmes do CloudWatch | Acrescidos VPC Flow Logs, access logs do ALB e painel do CloudWatch | Implementado |
-| Ingestão e processamento | API Gateway → SQS → ECS Fargate | Inalterado, realocado para sub-rede privada | Implementado |
-| Banco de dados | RDS PostgreSQL 16 privado na VPC padrão | RDS PostgreSQL 16 em subnet group privado da VPC dedicada | Implementado |
-| Alta disponibilidade do banco | Instância única | Multi-AZ | Planejado; desligado por custo, ver 5.1 |
-
-&emsp; “Implementado” significa que o recurso existe no Terraform, foi aplicado e
-foi observado na conta usada para a gravação. Em 10 de setembro de 2026, o ASG
-mantinha duas instâncias `InService`, o target group mostrava dois targets
-`healthy`, `/health/live` respondia HTTP 200, o RDS privado estava `available`, o
-bastion existia e havia streams recentes no log group da aplicação. A camada de
-rede já havia sido verificada em 8 de setembro, inclusive com uma instância privada
-saindo pelo NAT sem endereço público. As restrições encontradas no laboratório
-estão documentadas na seção 8. CloudFront e o standby Multi-AZ do RDS são as duas
-exceções planejadas mostradas no diagrama.
-
----
 
 ## 2. Diagrama de implantação do sistema
 
@@ -179,7 +101,6 @@ instâncias e não à entrada do usuário.
 | Rótulo da seta | Protocolo e porta efetivamente usados |
 | Faixa inferior | Serviços transversais ao Auto Scaling Group, ao Fargate e ao RDS |
 
----
 
 ## 3. Componentes e justificativa da arquitetura
 
@@ -814,7 +735,6 @@ caminho de volta é uma aposta, não uma escolha.
 | 11 | Imagem do ECR puxada pelo `user_data` | Pacote no S3, ou clone do código no boot | Reprodutibilidade: é o que dá sentido ao rollback por versão de template | Imagem ausente aborta o boot; coberto pela verificação de saúde | — | Trocar o `user_data` do template |
 | 12 | Instâncias Graviton (`t4g`, arm64) | Família x86 (`t3`) | Compatibilidade com as imagens arm64 dos containers | Trocar de família sem trocar a AMI causa *exec format error* | ~10% mais barato | Trocar tipo, AMI e plataforma de build juntos |
 
----
 
 ## 4. Plano de deploy na AWS
 
@@ -1427,11 +1347,6 @@ instância de teste, e todos os que saem dela passam pela interface do NAT Gatew
 da cláusula: a máquina privada não tem caminho para a internet que não seja o NAT, e o
 log prova que ela usou esse caminho.
 
-&emsp; Um detalhe operacional para a gravação: a entrega no S3 tem latência própria de
-cerca de cinco minutos, independente do `max_aggregation_interval` de 60 segundos. O
-primeiro arquivo não aparece imediatamente depois de gerar tráfego.
-
----
 
 ## 5. Alta disponibilidade, escalonamento e rollback
 
@@ -1634,7 +1549,6 @@ síncrono de cima para baixo:
 &emsp; O terceiro quadro é o que torna o escalonamento legível: ele mostra causa e
 efeito na mesma imagem, o que a aba *Activity* do grupo, sozinha, não faz.
 
----
 
 ## 6. Vídeo 1 — Infraestrutura provisionada
 
@@ -1741,13 +1655,8 @@ no grupo de segurança. Uma que aparece no access log com 502 e não no log da
 aplicação morreu antes do gunicorn. Uma que aparece nas três fontes é rastreável do
 navegador até a consulta SQL pelo mesmo número.
 
----
 
 ## 8. Riscos e limitações conhecidas
-
-&emsp; Risco listado sem mitigação é lista de desculpas, e por isso a coluna de
-mitigação é obrigatória. As duas primeiras linhas não são previsões: foram
-confirmadas na aplicação de 8 de setembro de 2026 e estão detalhadas em 8.1.
 
 | Risco | Impacto | Probabilidade | Mitigação | Responsável |
 |---|---|---|---|---|
@@ -1803,8 +1712,6 @@ estado e, sem releitura, o provider não faz a chamada negada. O contorno estrut
 o mesmo padrão de `flow_logs_bucket_name`, estendido aos demais buckets: o nome vem de
 fora e o Terraform gerencia policy, bloqueio público, criptografia e ciclo de vida sem
 criar o recurso.
-
----
 
 ## Apêndice A — Variáveis e saídas do Terraform
 
