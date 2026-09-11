@@ -124,6 +124,35 @@ def test_bronze_silver_respeita_batch_size_e_drena_em_varias_chamadas(db, inseri
     assert total["n"] == 5
 
 
+def test_bronze_silver_avanca_com_evento_sem_change_posterior(db):
+    with db.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO bronze.event (
+              event_id, ts, event_name, session_id, device_id, payload,
+              _lsn, _captured_at
+            ) VALUES (
+              'evento-sem-change', timestamptz '2026-07-12 11:59:00+00',
+              'screen_view', 'sessao-sem-change', 'device-sem-change', '{}',
+              nextval('bronze.change_log_lsn_seq'), now()
+            )
+            """
+        )
+
+    resultado = etl.executar_bronze_silver(db, batch_size=100)
+
+    assert resultado["status"] == "sucesso"
+    assert resultado["linhas"] == 1
+    evento = db.fetch_one(
+        "SELECT event_id, session_id FROM silver.session_event"
+        " WHERE event_id = 'evento-sem-change'"
+    )
+    assert evento == {
+        "event_id": "evento-sem-change",
+        "session_id": "sessao-sem-change",
+    }
+
+
 def test_silver_gold_processa_janela_e_reabre_a_margem(db, inserir_change):
     with db.connection() as conn:
         inserir_change(

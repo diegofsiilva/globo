@@ -1,4 +1,4 @@
-# Testes de performance — RNF01, RNF02 e RNF03
+# Testes de performance — lotes, RNF01, RNF02 e RNF03
 
 Suíte k6 para medir a aplicação Argus publicada, enviar as métricas por
 Prometheus Remote Write e visualizá-las no Grafana. Os scripts exigem endpoints
@@ -12,6 +12,82 @@ e tokens explícitos: uma execução sem alvo real falha no `setup()`.
 | RNF02 | 11 rotas × 5, 10 usuários concorrentes, filtros semânticos e 600 consultas/min | 100% HTTP 200, nenhuma resposta acima de 5 s, p99 < 5 s |
 | RNF03 | mesmo contrato antes/depois de alterar tasks ECS de 1× para 2× | capacidade 2×, sucesso, p95/p99, zero descarte e persistência |
 | Resiliência | consumidor parado e timeout de cliente em 1 ms | backlog cresce/drena; timeout é detectado e a consulta seguinte recupera |
+
+## RNF01 revisado: lote de 150 mil eventos
+
+O requisito de 10.000 eventos/min em ciclos de 15 minutos equivale a um lote
+logico de 150.000 eventos. O endpoint aceita arrays, mas cada corpo HTTP vira
+uma mensagem SQS; por isso `rnf01_lote_drenagem.js` fragmenta o lote pelo
+tamanho serializado. Embora o SQS aceite ate 256 KiB, a integracao direta do
+API Gateway devolveu HTTP 414 com corpos de aproximadamente 240 KiB. O teto
+operacional validado ficou em 40.000 bytes, com margem para o encoding feito
+pela integracao.
+
+A injecao usa cinquenta VUs por padrao para representar produtores concorrentes e
+formar backlog antes que o consumidor termine o lote. O valor pode ser reduzido
+no preflight com `K6_VUS_INJECAO`, mas deve permanecer registrado e igual entre
+as rodadas oficiais comparadas.
+
+O k6 mede aceite, latencia e vazao HTTP. Ele nao declara drenagem: resposta 2xx
+prova apenas que o fragmento entrou na fila. Depois da injecao, a evidencia
+precisa combinar fila principal, mensagens em voo, DLQ, persistencia e
+disponibilidade do evento sentinela na API de leitura.
+
+O `timestamp` dos eventos usa `sim_now`, obtido de `/api/v1/clock`, porque as
+views de leitura respeitam o relogio virtual do Argus. O instante real de envio
+fica separado em `load_test_sent_at`; e esse campo que mede frescor, evitando
+confundir tempo simulado do dado com atraso real do pipeline.
+
+```bash
+# Um lote: 150.000 eventos.
+make -C apps/basica teste-lote-drenagem COM_GRAFANA=1
+
+# Acumulo: execute com event-worker parado e escolha 2, 3 ou 4 lotes.
+make -C apps/basica teste-lotes-acumulados LOTES=2 COM_GRAFANA=1
+```
+
+Cada rodada escreve no resumo o `test_id`, os horarios da injecao e a
+`sentinela_session_id`. Para o cenario acumulado, pare apenas o `event-worker`,
+confirme que ele chegou a zero, injete a carga, registre a fila e restaure a
+mesma quantidade de tasks que existia antes do teste. Nao use `make pause`,
+pois ele tambem interrompe processamento e outros servicos.
+
+Antes de uma rodada completa, valide endpoint, token e contrato com uma carga
+diagnostica pequena. `K6_EVENTOS_POR_LOTE` existe apenas para esse preflight; a
+evidencia oficial sempre usa o padrao de 150.000 eventos:
+
+```bash
+K6_EVENTOS_POR_LOTE=100 make -C apps/basica teste-lote-drenagem
+```
+
+Durante a drenagem, registre a cada cinco segundos:
+
+```bash
+aws sqs get-queue-attributes --profile g4 --region us-east-1 \
+  --queue-url "$(terraform -chdir=apps/basica/infra output -raw queue_url)" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
+```
+
+A profundidade SQS conta fragmentos, nao eventos. A contagem exata e o frescor
+em `bronze.event` saem de `tools/loadtest/drenagem_lotes.sql`. O evento final
+de cada execucao usa a sessao sentinela e deve ser consultado ate aparecer:
+
+```bash
+curl -fsS -H "Authorization: Bearer $ARGUS_READ_TOKEN" \
+  "$ARGUS_API_URL/api/v1/sessions/<sentinela_session_id>"
+```
+
+Definicoes usadas no relatorio:
+
+- tempo de injecao: primeiro envio ate o aceite do ultimo fragmento;
+- tempo de drenagem: aceite do ultimo fragmento ate persistencia completa;
+- vazao de drenagem: eventos persistidos divididos pelo tempo de drenagem;
+- frescor ponta a ponta: geracao ate primeira disponibilidade na API;
+- capacidade minima sustentavel: mais de 166,67 eventos/s.
+
+Como criterio operacional proposto, ate 7min30s e aprovado, entre 7min30s e
+15 minutos exige atencao, e 15 minutos ou mais reprova. A margem deve ser
+confirmada com o responsavel pelo requisito antes da execucao real.
 
 O SQS Standard não tem uma capacidade fixa que possa ficar literalmente
 “cheia”. O cenário tecnicamente equivalente interrompe o consumidor, confirma
@@ -44,19 +120,19 @@ aws sts get-caller-identity --profile g4
 cd apps/basica
 
 # Sobe Prometheus :9090 e Grafana :3001 e executa um requisito.
-./tests/carga/executar_testes.sh rnf01 --com-grafana
-./tests/carga/executar_testes.sh rnf02 --com-grafana
+make teste-performance CENARIO=rnf01 COM_GRAFANA=1
+make teste-performance CENARIO=rnf02 COM_GRAFANA=1
 
 # RNF03 exige uma alteração real entre as duas chamadas.
 RNF03_RECURSOS='1 task por worker; 256 CPU; 512 MiB' \
-  ./tests/carga/executar_testes.sh rnf03-baseline --com-grafana
+  make teste-performance CENARIO=rnf03-baseline COM_GRAFANA=1
 
 # Aplique worker_desired_count=2 e espere services-stable antes desta fase.
 RNF03_RECURSOS='2 tasks por worker; 256 CPU; 512 MiB por task' \
-  ./tests/carga/executar_testes.sh rnf03-escalado --com-grafana
+  make teste-performance CENARIO=rnf03-escalado COM_GRAFANA=1
 
 # Timeout de cliente + recuperação.
-./tests/carga/executar_testes.sh falha-timeout --com-grafana
+make teste-performance CENARIO=falha-timeout COM_GRAFANA=1
 ```
 
 Para o backlog, coloque `event-worker` e `merge-worker` em zero antes da carga,
@@ -64,7 +140,7 @@ registre `ApproximateNumberOfMessages`, restaure os workers e espere a fila
 zerar. O teste k6 é:
 
 ```bash
-./tests/carga/executar_testes.sh falha-backlog --com-grafana
+make teste-performance CENARIO=falha-backlog COM_GRAFANA=1
 ```
 
 Os JSONs e logs brutos ficam em `tests/carga/resultados/` e são ignorados pelo
@@ -73,14 +149,20 @@ dashboard.
 
 ## Prometheus e Grafana locais
 
+O Grafana desta suíte é o mesmo usado pelos testes de resiliência (RNF04/05/11):
+uma única stack local, com CloudWatch e Prometheus já provisionados como
+datasource.
+
 ```bash
 make -C apps/basica observabilidade-up
 make -C apps/basica observabilidade-check
 ```
 
 - Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3001` (`admin` / `admin` no ambiente local)
-- Dashboard: **Argus — Testes de Carga (RNF01/02/03)**
+- Grafana: `http://localhost:3001` (`admin` / `admin`, ou acesso anônimo de
+  leitura), acessível só pela própria máquina (bind em `127.0.0.1`)
+- Dashboards disponíveis: **Argus — Testes de Carga (RNF01/02/03)** e
+  **RNF04/05/11 - Resiliencia Argus**
 
 O Prometheus inicia com `--web.enable-remote-write-receiver`. O executor define
 `K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write` e envia p50,
@@ -107,38 +189,19 @@ sum(rate(k6_http_reqs_total{testid=~"$testid",expected_response="false"}[1m]))
 
 ## CPU real da AWS no mesmo Grafana
 
-O plugin CloudWatch já vem embutido no Grafana. Para o Learner Lab, prefira um
-arquivo de credenciais temporárias montado somente para leitura, com o perfil
-`g4` e os três campos da sessão (`aws_access_key_id`,
-`aws_secret_access_key`, `aws_session_token`). Nunca versionar esse arquivo.
+O datasource CloudWatch já vem provisionado (perfil `g4`, sem chave estática
+no YAML) junto com o `make observabilidade-up`. Quando o perfil existe, o
+Makefile extrai só o bloco `[g4]` de `~/.aws/credentials` para um arquivo
+temporário, monta esse arquivo read-only no container e nunca versiona nada
+disso. Sem o perfil, a stack ainda sobe para os testes k6; apenas as consultas
+CloudWatch ficam sem autenticação. Crie um painel com
+`Namespace = AWS/ECS`, `Metric = CPUUtilization`, dimensões `ClusterName` e
+`ServiceName`, estatísticas `Average` e `Maximum`, período `1m`; para o banco,
+`AWS/RDS → CPUUtilization → DBInstanceIdentifier`.
 
-1. Monte o arquivo no container como
-   `/usr/share/grafana/.aws/credentials:ro` e reinicie o Grafana.
-2. Em **Connections → Add new connection → CloudWatch**, use:
-   `Authentication Provider = Credentials file`, `Profile = g4`,
-   `Default Region = us-east-1`.
-3. Clique em **Save & test**.
-4. Crie um painel com `Namespace = AWS/ECS`,
-   `Metric = CPUUtilization`, dimensões `ClusterName` e `ServiceName`,
-   estatísticas `Average` e `Maximum`, período `1m`.
-5. Para o banco, use `AWS/RDS → CPUUtilization → DBInstanceIdentifier`.
-
-Provisionamento equivalente, sem qualquer segredo no YAML:
-
-```yaml
-apiVersion: 1
-datasources:
-  - name: CloudWatch
-    type: cloudwatch
-    jsonData:
-      authType: credentials
-      defaultRegion: us-east-1
-      profile: g4
-```
-
-Quando a sessão do Learner Lab expirar, atualize o arquivo montado, reinicie o
-container e repita **Save & test**. Em uma conta permanente, use IAM Role/
-`AWS SDK Default` em vez de chaves estáticas.
+Quando a sessão do Learner Lab expirar, rode `make -C apps/basica
+observabilidade-up` de novo para recriar o container com a credencial
+renovada.
 
 ## Evidência e interpretação
 
@@ -149,5 +212,6 @@ Aceitação HTTP não é persistência. Depois de RNF01/RNF03, registre:
 3. diferença de `count(*)` em `bronze.event` igual ao total emitido;
 4. CPU no CloudWatch no mesmo intervalo UTC.
 
-O relatório executado em 2026-09-02 está em
-[`artefatos/testes-performance.md`](../../../../artefatos/testes-performance.md).
+O relatório unificado da execução está em
+[`artefatos/testes-carga-inicial.md`](../../../../artefatos/testes-carga-inicial.md),
+incluindo carga, resiliência e observabilidade de RNF01–RNF05 e RNF11.

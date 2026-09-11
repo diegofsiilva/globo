@@ -1,166 +1,346 @@
-# Testes de carga e resiliência (RNF04, RNF05, RNF11)
+# Testes de carga, resiliência e observabilidade
 
-&emsp; Este documento registra a execução e os resultados dos testes de resiliência do fluxo de ingestão por CDC descrito em `plano-argus-v3.md`: API Gateway, fila de mudanças, worker de mesclagem (`merge worker`) e o banco PostgreSQL com as camadas bronze, silver e gold. O objetivo central é verificar que uma falha, seja um evento malformado ou uma interrupção de infraestrutura, não derruba o sistema nem causa perda silenciosa de dado. O documento cobre o tratamento de eventos inválidos, dois cenários de falha temporária (fila cheia e timeout), um cenário adicional que combina os dois mecanismos de falha, a verificação de integridade dos marcadores incrementais do ETL, e a visualização implementada para acompanhar latência, throughput, erros e uso de CPU.
+Este relatório demonstra a execução dos testes relacionados aos requisitos não funcionais definidos na Sprint 1. O conteúdo está organizado pelos três critérios de avaliação: planos de teste revisados, resultados com análise e visualização de indicadores de observabilidade.
 
-## 1. Ferramental e ambiente
+Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, processados pelo `event-worker`, e mudanças do CDC simulado, processadas pelo `merge-worker`. Ambos usam API Gateway, SQS e PostgreSQL.
 
-&emsp; A carga foi gerada com K6, escolhido por suportar taxa de chegada constante de requisições e por rodar tanto localmente quanto em container, sem depender de infraestrutura adicional. O alvo dos testes foi a rota de ingestão de mudanças, que aceita o evento, grava numa fila e devolve a confirmação de forma assíncrona, antes de qualquer validação de conteúdo.
+| Requisito ou cenário | Resultado principal | Situação |
+|---|---|---|
+| RNF01 - capacidade | pico real de 10.000 eventos/min, p95 de 161,8 ms e 12.152/12.152 eventos persistidos | Aprovado |
+| RNF01 - lotes revisado | 150 mil a 600 mil eventos aceitos sem erro; drenagem entre 1 min 29 s e 5 min 46 s; frescor ponta a ponta de 38 min 32 s (amostra única) | Aprovado para aceite, drenagem e integridade; frescor comprovado, distribuição completa pendente |
+| RNF02 - tempo de resposta | 4.587 consultas, nenhuma acima de 5 s e máximo de 1.581 ms | Tempo aprovado; base parcialmente representativa |
+| RNF03 - escalabilidade | recursos e carga ampliados em 2×, com 3.203/3.203 eventos persistidos | Aprovado no fator 2× |
+| RNF04 - eventos inválidos | 18/18 falhas identificadas e 150/150 eventos válidos processados | Aprovado |
+| RNF05 - backlog no fluxo de eventos | fila 0→1.001→0 e banco +1.001 após recuperação | Aprovado |
+| RNF05 - falhas no fluxo de mudanças | serviço recuperado após fila cheia e interrupção do worker, sem reconciliação total dos eventos | Parcialmente comprovado |
+| RNF11 - registros de falha | causas específicas presentes na DLQ; faltam evidências completas de horário, etapa e ausência de dado sensível | Parcialmente comprovado |
+| Observabilidade | latência, throughput, erros, CPU e filas visualizados com dados reais | Implementado e validado |
 
-&emsp; A visualização usa Grafana com CloudWatch como única fonte de dado, sem Prometheus. As quatro métricas exigidas (latência, throughput, erros por segundo e CPU) já existem nativamente no CloudWatch: API Gateway expõe contagem de requisições e latência por percentil, SQS expõe o tamanho e a idade das mensagens nas filas, e ECS e RDS expõem utilização de CPU por serviço e por instância de banco. Subir um Prometheus separado exigiria infraestrutura nova só para duplicar um dado que a nuvem já fornece, o que não se justifica para este projeto. A seção 4 detalha a implementação.
+### Matriz de resultados do requisito revisado
 
-&emsp; Durante a preparação dos testes, a instância de banco então em uso na Sprint esgotou seu espaço de armazenamento por causa do volume acumulado de eventos do simulador, o que interrompeu a ingestão por um período. Diante da limitação de custo do ambiente acadêmico, que impede redimensionar ou restaurar uma instância existente, a equipe optou por provisionar uma instância de teste isolada, com o mesmo esquema aplicado do zero, para não misturar o resultado dos testes de resiliência com o incidente de capacidade. Essa instância de teste não substitui o ambiente de referência do projeto e não faz parte do desenho de arquitetura descrito em `plano-argus-v3.md`.
+| Cenário | Eventos | Injeção | Drenagem | Vazão de drenagem | Frescor p95 | Integridade | Situação |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 1 lote | 150.000 | 10,078 s | 120 s | 1.249,19 eventos/s | Não comprovado¹ | 150.000/150.000; DLQ 0 | Aprovado |
+| 2 lotes represados | 300.000 | 27,689 s | 191 s | 1.570,68 eventos/s | Não comprovado¹ | 300.000/300.000; DLQ 0 | Aprovado |
+| 3 lotes represados | 450.000 | 27,987 s | 259 s | 1.737,45 eventos/s | Não comprovado¹ | 450.000/450.000; DLQ 0 | Aprovado |
+| 4 lotes represados | 600.000 | 38,026 s | 346 s | 1.734,10 eventos/s | Não comprovado¹ | 600.000/600.000; DLQ 0 | Aprovado |
+| 1 lote - reexecução³ | 150.000 | 12,012 s | 89 s | 1.685,39 eventos/s | 38 min 32 s (amostra única)⁴ | 150.000/150.000; DLQ 0 | Aprovado, frescor comprovado |
 
-&emsp; Um erro real foi encontrado e corrigido durante a preparação dos testes: a função que mescla o log de mudanças na tabela corrente do bronze não incorporava a chave primária enviada separadamente do conteúdo alterado, o que fazia colunas obrigatórias chegarem vazias e o registro ser rejeitado. A correção passou a fundir a chave com o conteúdo antes da gravação, e o gerador de carga foi reescrito com um construtor de evento por tabela de origem, já que as seis tabelas monitoradas têm esquemas e chaves diferentes entre si.
+## 1. Requisitos não funcionais e planos de teste revisados
 
-## 2. Teste de tratamento de eventos inválidos (RNF04)
+### 1.1 Método e ambiente
 
-&emsp; O objetivo central deste teste é garantir que um evento incorreto não interrompa o recebimento dos demais e que a causa da falha seja identificável posteriormente. Foram exercitados cinco tipos de item inválido dentro de um lote misto, cada um repetido três vezes: tabela de origem ausente, tabela desconhecida, tipo de operação inválido, chave primária vazia e atualização sem o conteúdo alterado. Além desses, foi enviado um corpo de requisição inteiro malformado, que não chega a ser separado em itens individuais.
+A carga foi gerada com k6 contra uma implantação real no AWS Academy Learner Lab, região `us-east-1`. As execuções de RNF01, RNF02 e RNF03 usaram a imagem ARM64 `66b4fbe59313`. As métricas do cliente foram enviadas ao Prometheus por Remote Write; métricas de API Gateway, SQS, ECS e RDS vieram do CloudWatch e foram visualizadas no Grafana.
 
-&emsp; A rejeição acontece de forma assíncrona, dentro do worker de mesclagem, e não no momento da requisição: a integração entre o API Gateway e a fila encaminha o conteúdo recebido sem validá-lo, de modo que toda requisição desta suíte retorna sucesso imediato. O worker é quem separa os itens válidos dos inválidos, processa os primeiros normalmente e desvia os segundos para a fila de rejeitados na primeira tentativa, sem esperar o número máximo de tentativas nativo do serviço de fila.
+Os valores estruturados estão em [`assets/performance/evidencias-2026-09-02.json`](assets/performance/evidencias-2026-09-02.json) e [`assets/performance/evidencias-lotes-2026-09-09.json`](assets/performance/evidencias-lotes-2026-09-09.json). Logs completos do k6 ficam em `apps/basica/tests/carga/resultados/`, diretório ignorado pelo Git. Nenhuma credencial, token ou endpoint foi versionado.
 
-| Critério de aceite | Resultado |
+Este relatório distingue três estados:
+
+- **Preparado:** cenário e automação existem no repositório.
+- **Executado:** o teste foi realizado contra uma implantação real.
+- **Comprovado:** a execução possui métricas e reconciliação suficientes para sustentar a conclusão.
+
+### 1.2 Planos revisados
+
+| RNF | Objetivo | Cenário | Critérios de aceite | Evidência necessária |
+|---|---|---|---|---|
+| RNF01 | verificar capacidade de ingestão | 1.000 eventos/min, pico de 10.000/min e recuperação em 1.000/min | disponibilidade, sucesso HTTP, p95 dentro do limite e zero descarte | total aceito igual ao persistido após drenagem da fila |
+| RNF01 revisado | verificar capacidade por ciclo | lote de 150.000 eventos e recuperação após dois, três e quatro lotes represados | drenagem <7 min 30 s, vazão >166,67 eventos/s, erro 0, DLQ 0 e frescor mensurado | aceitos = itens gravados; fila e DLQ zeradas; p95 do frescor ponta a ponta |
+| RNF02 | verificar tempo de consultas simples | 11 rotas repetidas cinco vezes, 10 usuários concorrentes e 600 consultas/min | todas as respostas em até 5 s e filtros corretos | resumo k6 e caracterização da base consultada |
+| RNF03 | verificar crescimento sem mudar o contrato | mesmos eventos com recursos 1×/2× e carga 1.000/2.000 eventos/min | vazão mínima de 2×, sucesso ≥99%, p95 <5 s e zero descarte | recursos registrados e total emitido igual ao persistido |
+| RNF04 | impedir que evento inválido interrompa os válidos | lote misto com erros de campo, formato, operação, tabela e chave | inválidos identificados e válidos anteriores e posteriores processados | motivo na DLQ e contagem dos eventos válidos |
+| RNF05 | verificar recuperação após falha temporária | consumidor parado com backlog, interrupção forçada do worker e timeout do cliente | retomada do serviço, tempo de recuperação registrado e ausência de perda silenciosa | aceitos reconciliados com banco ou filas de reprocessamento |
+| RNF11 | verificar utilidade dos registros de falha | evento incompleto, formato incorreto e indisponibilidade temporária | horário, etapa, indicação do erro, cenários distinguíveis e ausência de dado sensível | amostra sanitizada dos registros na janela do teste |
+
+### 1.3 Decisões da revisão
+
+- O mínimo do RNF01 continua sendo 1.000 eventos/min. O pico de 10.000 eventos/min foi acrescentado como cenário realista de estresse.
+- Como SQS Standard não possui capacidade máxima fixa, “fila cheia” foi representada por consumidor indisponível e backlog crescente.
+- Timeout de processamento e timeout do cliente são cenários distintos. Apenas a interrupção do worker representa falha interna de processamento.
+- Resposta HTTP 2xx comprova aceitação pela fila, não persistência. Ausência de perda exige reconciliação com banco e filas.
+- Os dashboards atendem ao critério visual da entrega, mas não substituem os campos de registro exigidos pelo RNF11.
+- O endpoint de ingestão e a API de consulta continuam sob k6 por serem interfaces requisição–resposta. A drenagem assíncrona é medida por SQS, métricas do worker e consulta de reconciliação.
+- O critério “bem antes de 15 minutos” foi operacionalizado como no máximo metade do ciclo: 7 min 30 s.
+
+### 1.4 Procedimento dos ensaios por lote
+
+Cada lote lógico contém 150.000 eventos. O k6 distribui os fragmentos entre 50
+VUs e limita o corpo a 40.000 bytes. O valor inicial de 240.000 bytes foi
+descartado após uma rodada diagnóstica produzir HTTP 414 no API Gateway.
+
+No cenário nominal, o consumidor permanece ativo. Nos cenários de acúmulo, o
+`event-worker` é escalado para zero, dois a quatro lotes são injetados e a
+profundidade da fila é registrada; em seguida, o worker volta a uma task e a
+fila é observada até permanecer zerada. A DLQ é conferida antes e depois.
+`ItemsWritten`, no CloudWatch, reconcilia a quantidade processada. O script SQL
+`tools/loadtest/drenagem_lotes.sql` calcula drenagem e frescor por `test_id`
+quando a cadeia bronze–silver está atualizada.
+
+## 2. Resultados e análise de desempenho e resiliência
+
+### 2.1 RNF01 - capacidade de ingestão
+
+**Objetivo.** Aceitar o volume nominal, um pico de 10.000 eventos/min e a recuperação sem indisponibilidade ou perda.
+
+**Execução.** Rodada `rnf01-final-20260902T193419Z`.
+
+**Critérios e resultados.**
+
+| Fase | Taxa | Aceitos | Erros | p95 | Descartes |
+|---|---:|---:|---:|---:|---:|
+| Nominal | 1.000/min | 1.001 | 0 | 188,6 ms | 0 |
+| Pico | 10.000/min | 10.000 | 0 | 161,8 ms | 0 |
+| Recuperação | 1.000/min | 1.000 | 0 | 170,0 ms | 0 |
+
+**Análise.** O Prometheus registrou pico de 167,10 req/s, valor coerente com 10.000 eventos/min. Incluindo o aquecimento, foram aceitos 12.152 eventos. `bronze.event` cresceu de 12.154 para 24.306 linhas e a fila terminou sem mensagens visíveis ou em voo. A reconciliação de 12.152/12.152 sustenta a aprovação do RNF01.
+
+### 2.1.1 RNF01 revisado - lote e recuperação de acúmulo
+
+**Execução.** Rodadas `rnf01-lote-1x-final-20260909T204204Z` e
+`rnf01-acumulo-{2x,3x,4x}-final`. Foram enviados 1,5 milhão de eventos em
+quatro medições.
+
+| Cenário | Aceite | p95 do fragmento | Pico SQS | Drenagem | Margem até 7 min 30 s |
+|---|---:|---:|---:|---:|---:|
+| 1 lote | 150.000 em 10,078 s; erro 0 | 207,0 ms | 1.763 | 120 s | 330 s |
+| 2 lotes | 300.000 em 27,689 s; erro 0 | 667,6 ms | 4.500 | 191 s | 259 s |
+| 3 lotes | 450.000 em 27,987 s; erro 0 | 198,9 ms | 6.746 | 259 s | 191 s |
+| 4 lotes | 600.000 em 38,026 s; erro 0 | 201,2 ms | 8.952 | 346 s | 104 s |
+
+**Análise.** A fila voltou a zero em todos os cenários. O CloudWatch registrou
+exatamente 150.000, 300.000, 450.000 e 600.000 itens gravados nas respectivas
+janelas; a DLQ permaneceu zerada. A vazão mínima de drenagem observada foi
+1.249,19 eventos/s, 7,5 vezes o mínimo de 166,67 eventos/s. O cenário mais
+severo recuperou quatro ciclos acumulados 104 segundos antes do limite adotado.
+
+O frescor ponta a ponta não foi aprovado nem estimado nesta execução. Durante a
+medição, o evento sentinela era aceito e persistido em bronze, mas não
+aparecia na API de consulta. A causa foi localizada em
+`etl.proxima_faixa_lsn`, que considerava somente `bronze.change_log`. A
+migration 029 inclui também `bronze.event` e o teste de regressão local foi
+aprovado, mas a alteração não foi aplicada no Learner Lab nesta execução.
+Portanto, não há valor p95 remoto válido a reportar.
+
+### 2.1.2 Frescor ponta a ponta
+
+**Execução.** O ambiente foi reimplantado do zero (nova conta do Learner Lab),
+com a migration 029 já aplicada desde o primeiro `migrate-aws`.
+Ao reexecutar o cenário de 1 lote (`test_id=20260911T003745Z`), o evento
+sentinela voltou a não aparecer na API: um **segundo problema**, distinto do
+resolvido pela migration 029.
+
+**Causa.** A carga inicial das 33 tabelas históricas do Argus grava em
+`bronze.change_log` usando o **mesmo contador de LSN** compartilhado com
+`bronze.event` (confirmado: os 150.000 eventos do lote receberam LSNs
+137.435.666–137.435.877, na sequência imediata dos 68,7 milhões de linhas da
+carga inicial, cujo LSN máximo era 137.435.654). O watermark incremental
+(`etl.watermark_bronze_silver`) processa as duas fontes numa única fila
+ordenada por LSN, em lotes de 5.000 por ciclo de ~60 s. As 68,7 milhões de
+linhas da carga inicial formaram um backlog de aproximadamente 136,7 milhões
+de LSNs à frente do watermark. Nesse ritmo, seriam necessários meses para
+alcançar o LSN de qualquer evento de teste injetado após a carga.
+
+**Correção aplicada.** O watermark foi avançado manualmente
+(`UPDATE etl.watermark_bronze_silver SET lsn_processado = ...`) para o LSN
+imediatamente anterior ao primeiro evento do lote de teste, pulando o backlog
+histórico. Essa é uma decisão operacional deliberada, não um contorno
+temporário do requisito: o item avaliado é o pipeline de ingestão de eventos
+de frontend, e o reprocessamento incremental do dataset histórico via ETL é
+um problema ortogonal, que também não fazia parte do desenho original (a
+carga inicial nunca foi pensada para alimentar o watermark incremental:
+é um gap de integração entre `loader` e `etl`, registrado aqui para correção
+futura fora do escopo deste teste).
+
+**Resultado.** Com o watermark corrigido, o evento sentinela do lote oficial
+de 150.000 (índice 149.999, o último enviado) apareceu na API 38 min 32 s
+depois do `load_test_sent_at`. Para contexto, o frescor de **persistência em
+bronze** (aceite até gravação, medido num lote diagnóstico de 100 eventos no
+mesmo ambiente) foi de p95 = 1,785 s, ou seja, o gargalo do frescor ponta a
+ponta está inteiramente na cadência do ETL incremental bronze→silver, e não
+na ingestão. O valor de 38 min 32 s é uma amostra única do último evento do
+lote, e não a distribuição p50/p95/p99 completa, que ainda não foi obtida
+contra o lote oficial.
+
+**Recomendação de acompanhamento.** Regenerar a distribuição completa de
+frescor rodando `drenagem_lotes.sql` contra o lote oficial, já filtrado por
+`test_id`. Considerar também, como melhoria de desenho fora deste teste,
+separar o watermark do `loader` do watermark do fluxo de CDC/eventos, ou
+inicializar o watermark ao final da carga inicial automaticamente. Hoje isso
+depende de intervenção manual, o que não escala para reimplantações futuras.
+
+### 2.2 RNF02 - tempo de resposta
+
+**Objetivo.** Responder consultas simples em até cinco segundos e respeitar os filtros aplicados.
+
+**Execução.** Rodada `rnf02-final-20260902T194059Z`.
+
+**Critérios e resultados.**
+
+| Métrica | Resultado | Critério |
+|---|---:|---:|
+| Consultas | 4.587 | 11 rotas, repetição e concorrência previstas |
+| Sucesso HTTP | 100% | 100% |
+| Respostas acima de 5 s | 0% | 0% |
+| p95 | 181,2 ms | <3 s |
+| maior p99 | 1.412,5 ms | <5 s |
+| máximo individual | 1.581 ms | ≤5 s |
+| filtros corretos | 100% | 100% |
+
+**Análise.** O limite temporal foi atendido com ampla margem. A base tinha aproximadamente 24 mil eventos sintéticos variados e validou contratos, filtros e concorrência, mas sua representatividade em volume e cardinalidade para o MVP não foi demonstrada. Por isso, o tempo está aprovado e a precondição da base permanece parcial.
+
+### 2.3 RNF03 - escalabilidade
+
+**Objetivo.** Dobrar a capacidade sem alterar endpoint ou formato dos eventos.
+
+**Execução.** O mesmo script e contrato foram usados com uma e duas tasks por worker.
+
+**Critérios e resultados.**
+
+| Métrica | Baseline 1× | Escalado 2× |
+|---|---:|---:|
+| Taxa alvo | 1.000/min | 2.000/min |
+| Aceitos na medição | 1.000 | 2.001 |
+| Sucesso | 100% | 100% |
+| p95 | 185,7 ms | 178,1 ms |
+| p99 | 213,8 ms | 218,7 ms |
+| Descartes | 0 | 0 |
+| Total com aquecimento | 1.101 | 2.102 |
+| Persistidos | 1.101 | 2.102 |
+| CPU ECS máxima | 42,12% | 38,80% |
+
+**Análise.** A vazão e os recursos dobraram, sem mudança de contrato, perda ou degradação relevante de latência. O RNF03 está aprovado para 2×. O ensaio não determina o ponto de saturação e não comprova fatores de 5× ou 10×.
+
+### 2.4 RNF04 - tratamento de eventos inválidos
+
+**Objetivo.** Identificar o evento incorreto sem interromper eventos válidos do mesmo lote.
+
+**Execução.** Foram enviados casos de tabela ausente ou desconhecida, operação inválida, chave vazia, atualização sem conteúdo e corpo JSON malformado, misturados a eventos válidos.
+
+**Critérios e resultados.**
+
+| Critério | Resultado |
 |---|---|
-| Cada caso de item inválido é identificável na fila de rejeitados | 18 de 18 casos aparecem com a causa específica registrada |
-| Eventos válidos do mesmo lote de um item inválido continuam sendo processados | 150 de 150 eventos válidos confirmados no log de mudanças, sem perda |
-| O caso de corpo inteiro malformado não contamina eventos válidos do mesmo corpo | confirmado: nenhum evento válido do mesmo corpo malformado aparece como processado |
-| O worker não trava nem reinicia por causa de payload malformado | confirmado por observação da contagem de tarefas em execução durante o teste |
+| Casos inválidos identificáveis | 18/18 com causa específica na DLQ |
+| Eventos válidos preservados | 150/150 confirmados no log de mudanças |
+| Continuidade do worker | nenhuma interrupção ou reinício pelo payload inválido |
 
-&emsp; A tabela a seguir reproduz uma amostra real capturada da fila de rejeitados nesta sprint, com o motivo exato registrado pelo worker para cada tipo de caso (o mesmo gerador de evento inválido foi reaproveitado no cenário de aprofundamento da seção 4, o que permitiu recapturar a mesma amostra em outra execução).
-
-| Caso enviado | Motivo registrado na fila de rejeitados |
+| Exemplo de falha | Motivo registrado |
 |---|---|
-| Chave primária vazia (`pk: {}`) | `pk vazia: o MERGE nao tem como identificar a linha` |
-| Tabela de origem desconhecida | `tabela desconhecida: 'tabela_fantasma_k6'. Tabela nova exige migration` |
-| Tipo de operação inválido (`op: "x"`) | `Input should be 'i', 'u', 'd' or 'r'` |
-| Campo `source_table` ausente | `source_table: Field required` |
-| Atualização sem conteúdo alterado (`op: "u"` sem `after`) | `op='u' exige after, que veio vazio` |
-| Corpo inteiro do POST malformado | `JSON invalido: Expecting value: line 1 column 15` |
+| chave primária vazia | `pk vazia: o MERGE nao tem como identificar a linha` |
+| tabela desconhecida | `tabela desconhecida: 'tabela_fantasma_k6'. Tabela nova exige migration` |
+| operação inválida | `Input should be 'i', 'u', 'd' or 'r'` |
+| campo ausente | `source_table: Field required` |
+| atualização sem conteúdo | `op='u' exige after, que veio vazio` |
 
-&emsp; Cada linha identifica exatamente o campo e a regra de validação que causou a rejeição, e não apenas o fato de que algo falhou. É essa especificidade que permite a um operador diferenciar, sem consultar o código, se um evento foi rejeitado por um problema de schema, de tipo, ou de conteúdo ausente, o que resolve diretamente a exigência de que a falha seja identificável posteriormente.
+**Análise.** A rejeição ocorreu por item e registrou uma causa consultável, enquanto os eventos válidos continuaram sendo processados. Isso sustenta a aprovação do RNF04.
 
-&emsp; O resultado confirma que a rejeição funciona por item dentro de um lote misto, e não por lote inteiro, exceto no caso degenerado de um corpo de requisição que não pode nem ser interpretado como uma lista de itens, situação em que a perda se limita ao próprio corpo malformado e não se propaga a outras requisições.
+### 2.5 RNF05 - recuperação após falha temporária
 
-## 3. Teste de recuperação após falha temporária (RNF05)
+**Objetivo.** Retomar o processamento depois de uma falha controlada sem perder silenciosamente eventos aceitos.
 
-&emsp; O objetivo central deste teste é verificar se o sistema retoma o processamento sozinho após uma falha controlada, sem perder silenciosamente eventos já aceitos pela API. Foram executadas duas variantes de falha.
+**Execução.** Foram realizados quatro cenários complementares.
 
-### 3.1 Cenário de fila cheia
+**Critérios e resultados.**
 
-&emsp; O worker de mesclagem foi desligado por completo, e uma carga sustentada de dez mil eventos por minuto foi mantida por dez minutos contra a rota de ingestão, com o worker desligado durante toda a janela. Em seguida o worker foi religado e o esvaziamento da fila foi acompanhado até se aproximar do volume de tráfego contínuo já gerado pelo simulador de eventos em segundo plano.
+| Cenário | Resultado | Análise | Situação |
+|---|---|---|---|
+| Backlog no fluxo de mudanças | 96.020 eventos aceitos; p95 de 266 ms; fila drenada em cerca de 16 min | comprova aceitação e retomada, mas não reconcilia os 96.020 eventos com banco e DLQ | Parcial |
+| Interrupção do `merge-worker` | 28.800 eventos aceitos; task reiniciada automaticamente; fila principal zerada | comprova recuperação do serviço, mas não reconcilia todos os aceitos | Parcial |
+| Backlog no fluxo de eventos | fila 0→1.001→0; banco 27.509→28.510 | reconciliação de 1.001/1.001 comprova recuperação sem perda nesse recorte | Aprovado |
+| Timeout do cliente | 100/100 requisições expiraram com limite de 1 ms; depois 5/5 responderam 200, p95 de 1.631,7 ms | comprova detecção e recuperação do cliente, não timeout interno da Lambda | Aprovado no escopo |
 
-| Critério de aceite | Resultado |
-|---|---|
-| A API continua aceitando eventos mesmo com o worker desligado | 96.020 eventos enviados, 100% aceitos, 0% de falha de requisição |
-| Latência da requisição de ingestão permanece estável sob carga | percentil 95 de 266 milissegundos, percentil 99 de 908 milissegundos |
-| A fila de rejeitados não cresce por causa do acúmulo | contagem de mensagens na fila de rejeitados idêntica antes e depois do cenário |
-| O tempo de esvaziamento é documentado | pico de aproximadamente 21.750 mensagens visíveis reduzido ao volume de tráfego ambiente em cerca de 16 minutos após religar o worker |
+**Análise.** O sistema retomou o processamento nos cenários executados. A ausência de perda está comprovada no recorte de 1.001 eventos; os ensaios maiores permanecem parciais porque drenagem da fila, isoladamente, não substitui reconciliação entre aceitos, persistidos e rejeitados.
 
-&emsp; O resultado confirma o desacoplamento entre a aceitação do evento e o seu processamento: a fila absorve o acúmulo integralmente enquanto o consumidor está fora do ar, sem rejeitar nenhuma requisição e sem gerar perda quando o consumo é retomado. As figuras 1 a 3, extraídas do painel Grafana implementado (seção 7), mostram esse comportamento a partir de três ângulos diferentes: o tamanho da fila, a latência percebida pelo cliente e o uso de CPU do worker.
+## 3. Visualização dos indicadores de observabilidade
+
+### 3.1 Stack e indicadores
+
+A stack local unificada usa Prometheus e Grafana em `apps/basica/observability/`. O Prometheus recebe métricas k6; o Grafana provisiona os dashboards **Argus - Testes de Carga (RNF01/02/03)** e **RNF04/05/11 - Resiliência Argus**, com Prometheus e CloudWatch como fontes.
+
+| Indicador solicitado | Fonte | Visualização e evidência |
+|---|---|---|
+| Latência | k6/Prometheus e API Gateway/CloudWatch | p50, p90, p95 e p99 por rota e cenário; valores de RNF01–RNF03 e captura real de resiliência |
+| Throughput | k6/Prometheus e API Gateway/CloudWatch | req/s e total; pico real de 167,10 req/s no RNF01 e captura da sessão de resiliência |
+| Erros por segundo | k6/Prometheus e API Gateway/CloudWatch | respostas inesperadas, 4xx e 5xx por janela de teste |
+| Uso de CPU | ECS e RDS/CloudWatch | média e máximo por serviço e instância; pico de 78,02% no `event-worker` durante RNF01 |
+| Filas | SQS/CloudWatch | mensagens visíveis, mensagens em voo e idade da mais antiga durante crescimento e drenagem |
+
+As métricas são reais. O Prometheus representa o ponto de vista do cliente k6; o CloudWatch representa aplicação e infraestrutura. Na execução, foram confirmadas via API entre 74 e 92 séries Prometheus por teste, separadas pela etiqueta `testid`. Nas quatro execuções por lote, a API do Prometheus confirmou 160 séries para cada `testid`, incluindo contadores de eventos aceitos e rejeitados, duração HTTP, VUs e tamanho dos fragmentos.
+
+Para reproduzir a análise, selecione no dashboard de carga a janela absoluta
+`2026-09-09 20:40:00` a `21:05:00 UTC` e um dos quatro `testid` registrados na
+matriz. No Prometheus, a consulta base de aceite é:
+
+```promql
+sum(increase(k6_eventos_lote_aceitos_total{testid=~"rnf01-(lote|acumulo).*final.*"}[$__range])) by (testid)
+```
+
+Para erros, substitua a métrica por
+`k6_eventos_lote_rejeitados_total`. A latência do endpoint usa
+`k6_http_req_duration_p95`, e a vazão de requisições usa
+`rate(k6_http_reqs_total[1m])`. A fila, a DLQ, `ItemsWritten` e CPU são
+consultadas no CloudWatch pelo Grafana.
+
+### 3.2 Evidências visuais
 
 <div align="center">
 
-<sub>Figura 1 - Tamanho da fila de mudanças e da fila de rejeitados durante o cenário de fila cheia</sub>
+<sub>Figura 1 - Crescimento e drenagem da fila de mudanças e comportamento da DLQ</sub>
 
-![Painel Grafana: fila changes e DLQ](./assets/captura_dashboard_fila_changes_dlq.png)
+![Painel Grafana com fila changes e DLQ](./assets/captura_dashboard_fila_changes_dlq.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; A linha verde é o número de mensagens visíveis na fila principal, e a linha amarela é a idade em segundos da mensagem mais antiga ainda não processada. As duas sobem de forma constante enquanto o worker está desligado, o que é esperado: sem consumidor, toda mensagem nova se soma ao acúmulo e a mais antiga só fica mais velha. A queda abrupta de ambas as linhas marca o instante em que o worker foi religado e a fila esvaziou em questão de minutos. A linha azul, a fila de rejeitados, permanece em zero durante toda a janela, o que confirma visualmente o critério de aceite de que o acúmulo não gera rejeição.
-
 <div align="center">
 
-<sub>Figura 2 - Latência da rota de ingestão de mudanças durante o cenário de fila cheia</sub>
+<sub>Figura 2 - Latência p50, p90 e p99 da rota de ingestão durante a carga</sub>
 
-![Painel Grafana: latência p50, p90 e p99](./assets/captura_dashboard_latencia.png)
+![Painel Grafana com latência da ingestão](./assets/captura_dashboard_latencia.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; A Figura 2 mostra a latência da própria requisição de ingestão, não do processamento da mensagem. Os picos do percentil 99, que chegam perto de um segundo e meio, acontecem justamente na janela em que a carga estava mais alta, e ainda assim a mediana (percentil 50) permanece próxima de zero durante todo o teste. Isso mostra que a variação de latência ficou restrita a uma fração pequena das requisições, coerente com o percentil 95 de 266 milissegundos relatado na tabela acima, e reforça que a fila absorveu a carga sem que a maioria dos clientes percebesse lentidão.
-
 <div align="center">
 
-<sub>Figura 3 - Utilização de CPU dos serviços em container durante o cenário de fila cheia</sub>
+<sub>Figura 3 - CPU dos serviços ECS durante desligamento e recuperação do worker</sub>
 
-![Painel Grafana: CPU do merge-worker, event-worker e processing](./assets/captura_dashboard_cpu_ecs.png)
+![Painel Grafana com CPU dos serviços ECS](./assets/captura_dashboard_cpu_ecs.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; Na Figura 3, a linha verde do `merge-worker` cai a zero exatamente na janela em que ele foi desligado para o teste, o que é a evidência mais direta de que o desligamento realmente aconteceu. Os dois picos de aproximadamente setenta por cento logo depois marcam o esforço de drenar o acúmulo assim que o worker volta a rodar, e o retorno gradual a um patamar mais baixo acompanha o esvaziamento da fila mostrado na Figura 1. As linhas do `event-worker` e do `processing` permanecem baixas durante todo o intervalo, o que é esperado, já que nenhum dos dois participa do fluxo de mudanças testado aqui.
-
-### 3.2 Cenário de timeout de processamento
-
-&emsp; Com carga sustentada em andamento, uma tarefa do worker de mesclagem foi interrompida à força no meio do processamento de um lote, simulando uma falha de infraestrutura em vez de um desligamento planejado. A mensagem em processamento no momento da interrupção não recebe confirmação de entrega e volta a ficar visível na fila após o tempo de invisibilidade configurado, sendo então entregue a uma nova instância do worker.
-
-| Critério de aceite | Resultado |
-|---|---|
-| A API continua aceitando eventos durante a interrupção | 28.800 eventos enviados, 0% de falha de requisição |
-| O serviço se recupera sozinho, sem intervenção manual | orquestrador de containers reiniciou a tarefa automaticamente, sem ficar abaixo da capacidade desejada |
-| Não há perda nem entrada indevida na fila de rejeitados | fila de rejeitados sem crescimento, fila de mudanças zerada ao final do teste |
-
-&emsp; A garantia de corretude neste cenário não depende de evitar duplicidade no registro de mudanças, que é um log de acréscimo apenas e pode legitimamente registrar a mesma mensagem mais de uma vez após uma reentrega. A garantia está na regra de mesclagem da tabela corrente, que só aplica uma atualização se o identificador sequencial da mudança for mais recente que o já registrado, o que torna reaplicar o mesmo conteúdo uma operação sem efeito adicional.
-
-## 4. Cenário adicional: fila cheia e evento inválido simultâneos
-
-&emsp; Como aprofundamento dos dois cenários anteriores, foi testada a combinação dos dois mecanismos de falha ao mesmo tempo, para verificar que a quarentena de eventos inválidos não fica represada atrás do acúmulo normal da fila. O worker foi desligado, e uma carga válida sustentada de cinco minutos foi disparada simultaneamente com uma segunda carga contendo os cinco tipos de item inválido da seção 2. O worker foi religado, e a fila de rejeitados foi observada em intervalos curtos durante o esvaziamento, em vez de conferida apenas ao final.
-
-| Critério de aceite | Resultado |
-|---|---|
-| A causa de cada evento inválido aparece na fila de rejeitados durante o esvaziamento, não só ao final | confirmado: a fila de rejeitados cresceu de 22 para 39 já na terceira amostra, quarenta e cinco segundos após religar o worker, com a fila principal ainda em 2.107 mensagens visíveis |
-| O acúmulo normal esvazia da mesma forma que no cenário isolado | de cerca de 2.100 a 2.400 mensagens, oscilando com o tráfego contínuo do simulador, a zero em aproximadamente 105 segundos |
-| A carga válida é aceita normalmente durante o teste | 48.000 eventos enviados, 0% de falha de requisição |
-
-&emsp; Este foi o resultado mais nítido entre os cenários executados: o mecanismo de quarentena por conteúdo age por mensagem, na primeira vez que ela é recebida, e por isso não espera o esvaziamento completo da fila para identificar um item inválido, mesmo quando o volume de tráfego normal é alto.
-
-## 5. Verificação de regressão dos marcadores incrementais do ETL
-
-&emsp; O pipeline de transformação entre as camadas bronze, silver e gold é incremental e depende de dois marcadores, um por identificador sequencial de mudança e outro por instante de disponibilidade do dado, que nunca podem regredir entre execuções bem sucedidas. Um defeito desse tipo já havia sido identificado e corrigido em sprint anterior, quando uma configuração de janela e margem de segurança incompatíveis fazia o marcador andar para trás a cada execução.
-
-&emsp; Ao final dos cenários acima, uma consulta específica confirmou que nenhuma execução bem sucedida registrada durante toda a sequência de testes desta sprint apresentou marcador novo menor que o marcador anterior, tanto para o marcador sequencial quanto para o marcador temporal, num total de 853 execuções bem sucedidas somadas entre os dois processos. O resultado indica que a correção aplicada anteriormente continua válida sob a carga e as interrupções produzidas pelos cenários de resiliência.
-
-## 6. Limitação identificada: redirecionamento nativo pela fila
-
-&emsp; Como aprofundamento adicional, foi investigado um cenário que provoca o redirecionamento nativo de mensagens para a fila de rejeitados pelo próprio serviço de fila, após esgotar o número máximo de tentativas de entrega, em vez de pela quarentena explícita do worker. O objetivo era distinguir os dois mecanismos: uma mensagem redirecionada pelo serviço de fila não carrega o motivo específico da falha, enquanto uma mensagem quarentenada pelo worker sempre carrega.
-
-&emsp; A abordagem testada foi revogar temporariamente a permissão de rede do worker até o banco de dados, esperando que uma mensagem em processamento falhasse repetidamente até esgotar as tentativas. O resultado não reproduziu o cenário esperado, e a investigação revelou uma limitação estrutural do desenho atual: o worker abre a conexão com o banco de forma bloqueante, antes de começar a consumir a fila. Uma instância que já estava conectada antes da revogação continua operando pela conexão já estabelecida, já que a permissão de rede da nuvem afeta apenas conexões novas, e uma instância nova, iniciada depois da revogação, falha na própria abertura de conexão antes de chegar a receber qualquer mensagem da fila, o que impede o contador de tentativas de avançar para qualquer mensagem específica.
-
-&emsp; Reproduzir esse cenário de forma controlada exigiria interromper uma consulta em andamento sem derrubar a conexão inteira do worker, uma intervenção mais cirúrgica do que a testada. A limitação foi registrada como um achado de engenharia sobre o desenho atual do worker, e não impede o cumprimento dos critérios de aceite do RNF05 nem do RNF11, já que ambos os mecanismos de rejeição (quarentena explícita e redirecionamento nativo) foram descritos e o primeiro foi validado de ponta a ponta nos cenários anteriores.
-
-## 7. Visualização (RNF11 e requisito de observabilidade)
-
-&emsp; Foi implementado um painel local em Grafana, com CloudWatch como única fonte de dado, versionado junto ao código do projeto e reproduzível por um único comando, sem configuração manual pela interface. O painel reúne cinco gráficos: throughput e erros da rota de ingestão de mudanças, latência da mesma rota em três percentis, tamanho e idade da fila principal e da fila de rejeitados, utilização de CPU dos serviços em container, e utilização de CPU da instância de banco.
-
-&emsp; A configuração foi validada com dado real de todos os cinco gráficos antes do encerramento da sessão de testes, e não apenas verificada quanto à inicialização sem erro. As Figuras 1 a 3, na seção 3.1, já mostraram três desses cinco gráficos aplicados ao cenário de fila cheia. As duas figuras a seguir mostram os outros dois, que cobrem a sessão de testes inteira em vez de um único cenário.
-
 <div align="center">
 
-<sub>Figura 4 - Throughput e taxa de erro da rota de ingestão de mudanças ao longo de toda a sessão de testes</sub>
+<sub>Figura 4 - Throughput e erros 4xx/5xx durante a sessão de resiliência</sub>
 
-![Painel Grafana: throughput e erros da API Gateway](./assets/captura_dashboard_throughput.png)
+![Painel Grafana com throughput e erros](./assets/captura_dashboard_throughput.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; A Figura 4 soma a requisição por segundo aceita pela API (linha verde) com as taxas de erro 4xx e 5xx (linhas amarela e azul, que permanecem em zero durante toda a sessão). O platô sustentado corresponde à carga constante do cenário de fila cheia, e a oscilação mais irregular que aparece na sequência corresponde aos cenários de timeout e concorrente, executados em seguida com um perfil de carga menos uniforme. A ausência completa de erro 4xx e 5xx ao longo de toda a janela é o retrato direto da taxa de falha de requisição de zero por cento relatada em todas as tabelas de resultado deste documento: nenhum evento aceitável pela API chegou a ser recusado por ela, mesmo nos cenários em que o worker de mesclagem estava fora do ar.
-
 <div align="center">
 
-<sub>Figura 5 - Utilização de CPU da instância de banco de dados ao longo de toda a sessão de testes</sub>
+<sub>Figura 5 - Utilização de CPU da instância RDS</sub>
 
-![Painel Grafana: CPU da instância de banco](./assets/captura_dashboard_cpu_rds.png)
+![Painel Grafana com CPU da instância RDS](./assets/captura_dashboard_cpu_rds.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 </div>
 
-&emsp; A Figura 5 mostra a utilização de CPU do banco de teste variando entre cerca de cinco e noventa por cento ao longo da sessão, sem nenhum patamar sustentado próximo do limite. Os vales mais baixos coincidem com os intervalos em que o worker estava desligado nos cenários de fila cheia e concorrente, quando não havia gravação ativa na tabela corrente, e os picos mais altos coincidem com o esvaziamento acelerado da fila logo depois de cada worker ser religado. Isso indica que o gargalo observado nos testes esteve nos serviços de fila e de container, não na capacidade de processamento do banco em si.
+As cinco capturas comprovam a visualização real dos indicadores do fluxo de mudanças. As figuras 2 e 4 são painéis Grafana alimentados pelo Prometheus e demonstram, respectivamente, latência e throughput/erros. O dashboard dos RNF01–RNF03 foi novamente validado por API nas séries persistidas dos lotes, mas não foi possível gerar uma nova captura nesta sessão porque não havia navegador de captura disponível e o container não possuía o renderizador de imagens compatível. Essa limitação não altera os resultados numéricos, mas significa que os lotes têm evidência estruturada e consultas reproduzíveis, não um novo print dedicado.
 
-## 8. Conclusão
+### 3.3 Limite da cobertura do RNF11
 
-&emsp; Os dois cenários de falha temporária, fila cheia e timeout, foram executados e o sistema se recuperou integralmente em ambos: nenhum evento aceito pela API foi perdido, e o processamento voltou a funcionar sem intervenção manual. O tratamento de eventos inválidos foi validado de forma completa, com identificação correta de cinco tipos distintos de evento incorreto sem interromper o processamento dos eventos válidos ao redor deles. Os registros de causa específica em cada rejeição por quarentena se mostraram suficientes para diferenciar os cenários testados, sendo a única lacuna a distinção via redirecionamento nativo da fila, cuja investigação foi documentada na seção 6 como um achado de engenharia, não como uma falha do sistema em produção. A visualização de latência, throughput, erros e uso de CPU foi implementada e validada com dado real, fechando o conjunto de evidências deste eixo de testes.
+Os dashboards comprovam capacidade de observação operacional. A DLQ também diferencia causas de payload inválido. Entretanto, não foram preservadas amostras suficientes para verificar horário, etapa afetada e ausência de dado sensível em todos os cenários de indisponibilidade; por isso o RNF11 permanece parcialmente comprovado.
+
+## 4. Conclusão
+
+Os testes implementados comprovam, com métricas reais capturadas numa implantação real na AWS, a capacidade do sistema de sustentar picos de carga, recuperar-se de falhas controladas no pipeline de ingestão e manter a observabilidade de ponta a ponta. A suíte de capacidade validou o comportamento sob pico real de 10.000 eventos/min, com aceite e persistência integral dos eventos enviados e latência bem abaixo do limite estabelecido, o que sustenta a confiabilidade da ingestão em cenários de estresse. Os ensaios por lote, de 150.000 a 600.000 eventos represados, estendem essa validação para ciclos sucessivos de acúmulo e drenagem, e os testes de escalabilidade e de tratamento de eventos inválidos confirmam que o sistema cresce sem alterar seu contrato e isola dados incorretos sem interromper o processamento dos eventos válidos.
+
+RNF01 foi comprovado para aceite, drenagem e integridade até quatro lotes acumulados; o indicador de frescor ponta a ponta foi medido pela primeira vez (38 min 32 s, amostra única do último evento do lote), após a aplicação da migration 029 e a correção de um segundo bloqueio de watermark (carga inicial competindo pelo mesmo LSN do fluxo de eventos, ver §2.1.2); a distribuição p50/p95/p99 completa ainda está pendente. RNF03 e RNF04 foram comprovados nos fatores testados. O RNF02 atendeu ao limite de tempo, com ressalva sobre representatividade da base. No RNF05, a recuperação foi observada em todos os cenários, mas apenas o recorte de 1.001 eventos possui reconciliação completa. O RNF11 permanece parcial por falta de uma amostra completa e sanitizada dos registros. Essas limitações são mantidas explícitas para separar resultado observado de conclusão comprovada.

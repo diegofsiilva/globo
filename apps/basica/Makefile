@@ -27,7 +27,9 @@ INFRA      := infra
 TOOLS      := tools
 FRONTEND   := frontend
 POSTMAN    := ../../artefatos/postman
-OBSERVABILITY := observability/grafana
+OBSERVABILITY := observability
+TESTES_CARGA := tests/carga
+OBSERVABILITY_COMPOSE := docker compose -p carga -f $(OBSERVABILITY)/docker-compose.yml
 
 # O motor de hipóteses ainda não possui endpoint no MVP. O modo mock é
 # explícito nos fluxos suportados e pode ser trocado por `api` quando existir.
@@ -225,7 +227,17 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade ## Roda as suites que tem teste
+
+.PHONY: test-observabilidade
+test-observabilidade: ## Valida scripts, Compose e dashboards sem acessar AWS nem subir containers
+	bash -n $(TESTES_CARGA)/executar_testes.sh
+	@command -v docker >/dev/null 2>&1 \
+		&& $(OBSERVABILITY_COMPOSE) config --quiet \
+		|| echo "  compose pulado: Docker ausente."
+	@for painel in $(OBSERVABILITY)/grafana/dashboards/*.json; do \
+		python3 -m json.tool "$$painel" >/dev/null || exit 1; \
+	done
 
 .PHONY: test-authorizer
 test-authorizer: ## Testes do Lambda authorizer (Bearer, audiencias, rotacao)
@@ -817,16 +829,49 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 	cd $(TOOLS) && $(UV) python replay_events.py --url "$(ARGUS_INGEST_URL)" --src "$(EVENTS_SRC)"
 
 .PHONY: observabilidade-up
-observabilidade-up: ## Sobe Prometheus e Grafana para os testes k6
-	docker compose -f tests/carga/docker-compose.observabilidade.yml up -d
+observabilidade-up: ## Sobe Prometheus e Grafana locais (dashboards de resiliencia RNF04/05/11 e de carga RNF01/02/03)
+	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
+	@# So o perfil selecionado vai pro container -- nunca o arquivo inteiro, que pode ter
+	@# outros perfis (ex. default) sem relacao com este dashboard. `mktemp` (nao
+	@# um nome fixo) evita reaproveitar permissao de um arquivo antigo. Sem o
+	@# perfil, Prometheus e o dashboard k6 continuam disponiveis; apenas as
+	@# consultas CloudWatch ficam sem autenticacao.
+	@set -eu; \
+	perfil="$${AWS_PROFILE:-g4}"; \
+	creds_tmp=$$(mktemp); \
+	trap 'rm -f "$$creds_tmp"' EXIT; \
+	if [ -f "$(HOME)/.aws/credentials" ]; then \
+		awk -v perfil="$$perfil" '\
+		  $$0 == "[" perfil "]" {f=1; print "[g4]"; next} \
+		  /^\[/ {f=0} f' "$(HOME)/.aws/credentials" > "$$creds_tmp"; \
+	fi; \
+	if [ -s "$$creds_tmp" ]; then \
+		echo "CloudWatch: credencial temporaria do perfil $$perfil habilitada."; \
+	else \
+		echo "Aviso: perfil $$perfil ausente; seguindo somente com Prometheus/k6."; \
+	fi; \
+	AWS_CREDS_FILE="$$creds_tmp" $(OBSERVABILITY_COMPOSE) up -d
 	@echo "Prometheus: http://localhost:9090"
-	@echo "Grafana:    http://localhost:3001"
+	@echo "Grafana:    http://localhost:3001 (dashboards 'RNF04/05/11 - Resiliencia Argus' e 'Argus — Testes de Carga (RNF01/02/03)'), acessivel so pela propria maquina."
+
+.PHONY: observabilidade-down
+observabilidade-down: ## Derruba Prometheus e Grafana locais (preserva os volumes; 'down -v' manual apaga o historico)
+	$(OBSERVABILITY_COMPOSE) down
 
 .PHONY: observabilidade-check
-observabilidade-check: ## Valida Prometheus, Grafana, datasource e consulta entre eles
+observabilidade-check: ## Valida Prometheus, Grafana e os dois datasources (Prometheus e CloudWatch)
 	@set -euo pipefail; \
-	curl -fsS http://localhost:9090/-/ready >/dev/null; \
-	curl -fsS http://localhost:3001/api/health >/dev/null; \
+	aguardar() { \
+		nome="$$1"; url="$$2"; \
+		for _ in $$(seq 1 30); do \
+			curl -fsS "$$url" >/dev/null 2>&1 && return 0; \
+			sleep 1; \
+		done; \
+		echo "FALHA: $$nome nao ficou pronto em 30 segundos ($$url)."; \
+		return 1; \
+	}; \
+	aguardar Prometheus http://localhost:9090/-/ready; \
+	aguardar Grafana http://localhost:3001/api/health; \
 	auth="$${GRAFANA_USER:-admin}:$${GRAFANA_PASSWORD:-admin}"; \
 	uid=$$(curl -fsS -u "$$auth" \
 		http://localhost:3001/api/datasources/name/Prometheus | jq -r '.uid'); \
@@ -842,7 +887,30 @@ observabilidade-check: ## Valida Prometheus, Grafana, datasource e consulta entr
 		echo "FALHA: Grafana nao recebeu series do Prometheus."; \
 		exit 1; \
 	}; \
-	echo "OK: Prometheus e Grafana integrados (uid=prometheus, series=$$series)."
+	cw_uid=$$(curl -fsS -u "$$auth" \
+		http://localhost:3001/api/datasources/name/CloudWatch | jq -r '.uid'); \
+	[ "$$cw_uid" = "cloudwatch-g4" ] || { \
+		echo "FALHA: datasource CloudWatch usa uid=$$cw_uid; esperado cloudwatch-g4."; \
+		exit 1; \
+	}; \
+	echo "OK: Prometheus e CloudWatch integrados ao Grafana (series prometheus=$$series)."
+
+.PHONY: teste-performance
+teste-performance: ## Executa a suite k6 (CENARIO=todos; COM_GRAFANA=1 habilita metricas)
+	$(TESTES_CARGA)/executar_testes.sh "$${CENARIO:-todos}" \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-lote-drenagem
+teste-lote-drenagem: ## Injeta 1 lote logico de 150 mil eventos (nao mede sozinho a drenagem)
+	K6_QUANTIDADE_LOTES=1 $(TESTES_CARGA)/executar_testes.sh rnf01-lote \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-lotes-acumulados
+teste-lotes-acumulados: ## Injeta 2-4 lotes logicos (LOTES=2); use com o event-worker parado
+	@lotes=$${LOTES:-2}; \
+	case "$$lotes" in 2|3|4) ;; *) echo "LOTES deve ser 2, 3 ou 4"; exit 2;; esac; \
+	K6_QUANTIDADE_LOTES="$$lotes" $(TESTES_CARGA)/executar_testes.sh rnf01-acumulo \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
 
 # Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
 # ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.
@@ -1074,35 +1142,6 @@ logs: ## Acompanha os logs de um servico (SERVICO=worker|simulator|processing|lo
 logs-api: ## Acompanha os logs da API de leitura
 	@$(call require_env,AWS_PROFILE)
 	aws logs tail "/aws/lambda/$$(cd $(INFRA) && terraform output -raw ecs_cluster_name)-read-api" --follow
-
-.PHONY: grafana-up
-grafana-up: ## Sobe Grafana local (Docker) com datasource CloudWatch pronto (perfil g4)
-	@command -v docker >/dev/null || { echo "erro: docker nao encontrado no PATH."; exit 1; }
-	@test -f "$(HOME)/.aws/credentials" || { echo "erro: $(HOME)/.aws/credentials nao existe."; exit 1; }
-	@# So o perfil g4 vai pro container -- nunca o arquivo inteiro, que pode ter
-	@# outros perfis (ex. default) sem relacao com este dashboard.
-	@umask 077 && awk '/^\[g4\]/{f=1} /^\[/ && !/^\[g4\]/{f=0} f' "$(HOME)/.aws/credentials" > /tmp/argus-grafana-creds
-	@test -s /tmp/argus-grafana-creds || { echo "erro: perfil [g4] nao encontrado em $(HOME)/.aws/credentials"; rm -f /tmp/argus-grafana-creds; exit 1; }
-	docker rm -f argus-grafana >/dev/null 2>&1 || true
-	docker run -d --name argus-grafana \
-	  --user "$$(id -u):$$(id -g)" \
-	  -p 127.0.0.1:3000:3000 \
-	  -e GF_AUTH_ANONYMOUS_ENABLED=true \
-	  -e GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer \
-	  -e AWS_SHARED_CREDENTIALS_FILE=/aws/credentials \
-	  -e AWS_PROFILE=g4 \
-	  -v "/tmp/argus-grafana-creds:/aws/credentials:ro" \
-	  -v "$(PWD)/$(OBSERVABILITY)/provisioning:/etc/grafana/provisioning:ro" \
-	  -v "$(PWD)/$(OBSERVABILITY)/dashboards:/var/lib/grafana/dashboards:ro" \
-	  grafana/grafana:11.2.0
-	@rm -f /tmp/argus-grafana-creds
-	@echo "Grafana em http://localhost:3000 (dashboard 'RNF04/05/11 - Resiliencia Argus'), acessivel so pela propria maquina (bind em 127.0.0.1)."
-	@echo "Credenciais lidas de $(HOME)/.aws/credentials (perfil g4) -- expira junto com a sessao do Learner Lab, so recriar o container (make grafana-up) apos renovar."
-
-.PHONY: grafana-down
-grafana-down: ## Derruba o Grafana local
-	docker rm -f argus-grafana >/dev/null 2>&1 || true
-	@rm -f /tmp/argus-grafana-creds
 
 .PHONY: dlq
 dlq: ## Mostra o que esta nas filas de rejeitados

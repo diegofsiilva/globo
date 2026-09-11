@@ -105,7 +105,7 @@ output "log_groups" {
 
 output "origem_bucket" {
   description = "Bucket com o dump e o Parquet. Destino do `aws s3 sync` da carga inicial."
-  value       = aws_s3_bucket.origem.id
+  value       = local.origem_bucket_name
 }
 
 output "docker_push_commands" {
@@ -238,7 +238,7 @@ output "frontend_url" {
 
 output "frontend_bucket" {
   description = "Bucket do site. Destino do `aws s3 sync` em make frontend-deploy."
-  value       = aws_s3_bucket.frontend.id
+  value       = local.frontend_bucket_name
 }
 
 output "auth_tokens_secret" {

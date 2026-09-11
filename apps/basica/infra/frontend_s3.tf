@@ -12,13 +12,15 @@
 #
 # O nome do bucket precisa ser unico no mundo inteiro, dai o sufixo com o id da
 # conta -- sem ele, um `apply` numa conta nova colide com a nossa.
-
-resource "aws_s3_bucket" "frontend" {
-  bucket = "${local.name}-site-${data.aws_caller_identity.current.account_id}"
-}
+#
+# O bucket em si nasce FORA do Terraform (aws s3api create-bucket), pelo
+# mesmo motivo de flow_logs/alb_logs (ver locals.tf): a SCP do Academy nega a
+# releitura que o recurso `aws_s3_bucket` faz logo depois de criar ou
+# importar, e nesta versao do provider isso derruba o Terraform com panic em
+# vez de so falhar. `local.frontend_bucket_name` mantem o nome deterministico.
 
 resource "aws_s3_bucket_website_configuration" "frontend" {
-  bucket = aws_s3_bucket.frontend.id
+  bucket = local.frontend_bucket_name
 
   index_document {
     suffix = "index.html"
@@ -32,7 +34,7 @@ resource "aws_s3_bucket_website_configuration" "frontend" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
-  bucket = aws_s3_bucket.frontend.id
+  bucket = local.frontend_bucket_name
 
   rule {
     apply_server_side_encryption_by_default {
@@ -45,7 +47,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 # fala SigV4, entao nao existe "publico mas autenticado" aqui. Os quatro
 # bloqueios precisam sair para que a policy abaixo seja aceita.
 resource "aws_s3_bucket_public_access_block" "frontend" {
-  bucket = aws_s3_bucket.frontend.id
+  bucket = local.frontend_bucket_name
 
   block_public_acls       = false
   block_public_policy     = false
@@ -54,7 +56,7 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
 }
 
 resource "aws_s3_bucket_policy" "frontend" {
-  bucket = aws_s3_bucket.frontend.id
+  bucket = local.frontend_bucket_name
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -66,7 +68,7 @@ resource "aws_s3_bucket_policy" "frontend" {
         # escrita, de listagem do bucket ou de alteracao da propria policy.
         Principal = "*"
         Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.frontend.arn}/*"
+        Resource  = "arn:aws:s3:::${local.frontend_bucket_name}/*"
       }
     ]
   })
