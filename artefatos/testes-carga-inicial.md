@@ -24,13 +24,13 @@ Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, proce
 | 2 lotes represados | 300.000 | 27,689 s | 191 s | 1.570,68 eventos/s | Não comprovado¹ | 300.000/300.000; DLQ 0 | Aprovado |
 | 3 lotes represados | 450.000 | 27,987 s | 259 s | 1.737,45 eventos/s | Não comprovado¹ | 450.000/450.000; DLQ 0 | Aprovado |
 | 4 lotes represados | 600.000 | 38,026 s | 346 s | 1.734,10 eventos/s | Não comprovado¹ | 600.000/600.000; DLQ 0 | Aprovado |
-| 1 lote - reexecução 11/09³ | 150.000 | 12,012 s | 89 s | 1.685,39 eventos/s | 38 min 32 s (amostra única)⁴ | 150.000/150.000; DLQ 0 | Aprovado, frescor comprovado |
+| 1 lote - reexecução³ | 150.000 | 12,012 s | 89 s | 1.685,39 eventos/s | 38 min 32 s (amostra única)⁴ | 150.000/150.000; DLQ 0 | Aprovado, frescor comprovado |
 
 ## 1. Requisitos não funcionais e planos de teste revisados
 
 ### 1.1 Método e ambiente
 
-A carga foi gerada com k6 contra uma implantação real no AWS Academy Learner Lab, região `us-east-1`. As execuções de RNF01, RNF02 e RNF03 ocorreram em 2 de setembro de 2026 com a imagem ARM64 `66b4fbe59313`. As métricas do cliente foram enviadas ao Prometheus por Remote Write; métricas de API Gateway, SQS, ECS e RDS vieram do CloudWatch e foram visualizadas no Grafana.
+A carga foi gerada com k6 contra uma implantação real no AWS Academy Learner Lab, região `us-east-1`. As execuções de RNF01, RNF02 e RNF03 usaram a imagem ARM64 `66b4fbe59313`. As métricas do cliente foram enviadas ao Prometheus por Remote Write; métricas de API Gateway, SQS, ECS e RDS vieram do CloudWatch e foram visualizadas no Grafana.
 
 Os valores estruturados estão em [`assets/performance/evidencias-2026-09-02.json`](assets/performance/evidencias-2026-09-02.json) e [`assets/performance/evidencias-lotes-2026-09-09.json`](assets/performance/evidencias-lotes-2026-09-09.json). Logs completos do k6 ficam em `apps/basica/tests/carga/resultados/`, diretório ignorado pelo Git. Nenhuma credencial, token ou endpoint foi versionado.
 
@@ -76,13 +76,13 @@ fila é observada até permanecer zerada. A DLQ é conferida antes e depois.
 `tools/loadtest/drenagem_lotes.sql` calcula drenagem e frescor por `test_id`
 quando a cadeia bronze–silver está atualizada.
 
-## 2. Resultados e análise de desempenho e resiliência (peso 4,0)
+## 2. Resultados e análise de desempenho e resiliência
 
 ### 2.1 RNF01 - capacidade de ingestão
 
 **Objetivo.** Aceitar o volume nominal, um pico de 10.000 eventos/min e a recuperação sem indisponibilidade ou perda.
 
-**Execução.** Rodada `rnf01-final-20260902T193419Z`, entre 19:34:19 e 19:38:40 UTC.
+**Execução.** Rodada `rnf01-final-20260902T193419Z`.
 
 **Critérios e resultados.**
 
@@ -97,8 +97,8 @@ quando a cadeia bronze–silver está atualizada.
 ### 2.1.1 RNF01 revisado - lote e recuperação de acúmulo
 
 **Execução.** Rodadas `rnf01-lote-1x-final-20260909T204204Z` e
-`rnf01-acumulo-{2x,3x,4x}-final`, realizadas entre 20:42 e 21:04 UTC em 9 de
-setembro de 2026. Foram enviados 1,5 milhão de eventos em quatro medições.
+`rnf01-acumulo-{2x,3x,4x}-final`. Foram enviados 1,5 milhão de eventos em
+quatro medições.
 
 | Cenário | Aceite | p95 do fragmento | Pico SQS | Drenagem | Margem até 7 min 30 s |
 |---|---:|---:|---:|---:|---:|
@@ -123,8 +123,8 @@ Portanto, não há valor p95 remoto válido a reportar.
 
 ### 2.1.2 Frescor ponta a ponta
 
-**Execução.** O ambiente foi reimplantado do zero em 10/09 (nova conta do
-Learner Lab), com a migration 029 já aplicada desde o primeiro `migrate-aws`.
+**Execução.** O ambiente foi reimplantado do zero (nova conta do Learner Lab),
+com a migration 029 já aplicada desde o primeiro `migrate-aws`.
 Ao reexecutar o cenário de 1 lote (`test_id=20260911T003745Z`), o evento
 sentinela voltou a não aparecer na API: um **segundo problema**, distinto do
 resolvido pela migration 029.
@@ -172,7 +172,7 @@ depende de intervenção manual, o que não escala para reimplantações futuras
 
 **Objetivo.** Responder consultas simples em até cinco segundos e respeitar os filtros aplicados.
 
-**Execução.** Rodada `rnf02-final-20260902T194059Z`, entre 19:40:59 e 19:47:00 UTC.
+**Execução.** Rodada `rnf02-final-20260902T194059Z`.
 
 **Critérios e resultados.**
 
@@ -251,7 +251,7 @@ depende de intervenção manual, o que não escala para reimplantações futuras
 
 **Análise.** O sistema retomou o processamento nos cenários executados. A ausência de perda está comprovada no recorte de 1.001 eventos; os ensaios maiores permanecem parciais porque drenagem da fila, isoladamente, não substitui reconciliação entre aceitos, persistidos e rejeitados.
 
-## 3. Visualização dos indicadores de observabilidade (peso 3,0)
+## 3. Visualização dos indicadores de observabilidade
 
 ### 3.1 Stack e indicadores
 
@@ -265,7 +265,7 @@ A stack local unificada usa Prometheus e Grafana em `apps/basica/observability/`
 | Uso de CPU | ECS e RDS/CloudWatch | média e máximo por serviço e instância; pico de 78,02% no `event-worker` durante RNF01 |
 | Filas | SQS/CloudWatch | mensagens visíveis, mensagens em voo e idade da mais antiga durante crescimento e drenagem |
 
-As métricas são reais. O Prometheus representa o ponto de vista do cliente k6; o CloudWatch representa aplicação e infraestrutura. Na execução de 2 de setembro, foram confirmadas via API entre 74 e 92 séries Prometheus por teste, separadas pela etiqueta `testid`. Nas quatro execuções por lote de 9 de setembro, a API do Prometheus confirmou 160 séries para cada `testid`, incluindo contadores de eventos aceitos e rejeitados, duração HTTP, VUs e tamanho dos fragmentos.
+As métricas são reais. O Prometheus representa o ponto de vista do cliente k6; o CloudWatch representa aplicação e infraestrutura. Na execução, foram confirmadas via API entre 74 e 92 séries Prometheus por teste, separadas pela etiqueta `testid`. Nas quatro execuções por lote, a API do Prometheus confirmou 160 séries para cada `testid`, incluindo contadores de eventos aceitos e rejeitados, duração HTTP, VUs e tamanho dos fragmentos.
 
 Para reproduzir a análise, selecione no dashboard de carga a janela absoluta
 `2026-09-09 20:40:00` a `21:05:00 UTC` e um dos quatro `testid` registrados na
@@ -333,7 +333,7 @@ consultadas no CloudWatch pelo Grafana.
 
 </div>
 
-As cinco capturas comprovam a visualização real dos indicadores do fluxo de mudanças. As figuras 2 e 4 são painéis Grafana alimentados pelo Prometheus e demonstram, respectivamente, latência e throughput/erros. O dashboard dos RNF01–RNF03 foi novamente validado por API nas séries persistidas dos lotes, mas não foi possível gerar uma nova captura nesta sessão porque não havia navegador de captura disponível e o container não possuía o renderizador de imagens compatível. Essa limitação não altera os resultados numéricos, mas significa que os lotes de 9 de setembro têm evidência estruturada e consultas reproduzíveis, não um novo print dedicado.
+As cinco capturas comprovam a visualização real dos indicadores do fluxo de mudanças. As figuras 2 e 4 são painéis Grafana alimentados pelo Prometheus e demonstram, respectivamente, latência e throughput/erros. O dashboard dos RNF01–RNF03 foi novamente validado por API nas séries persistidas dos lotes, mas não foi possível gerar uma nova captura nesta sessão porque não havia navegador de captura disponível e o container não possuía o renderizador de imagens compatível. Essa limitação não altera os resultados numéricos, mas significa que os lotes têm evidência estruturada e consultas reproduzíveis, não um novo print dedicado.
 
 ### 3.3 Limite da cobertura do RNF11
 
@@ -343,4 +343,4 @@ Os dashboards comprovam capacidade de observação operacional. A DLQ também di
 
 Os testes implementados comprovam, com métricas reais capturadas numa implantação real na AWS, a capacidade do sistema de sustentar picos de carga, recuperar-se de falhas controladas no pipeline de ingestão e manter a observabilidade de ponta a ponta. A suíte de capacidade validou o comportamento sob pico real de 10.000 eventos/min, com aceite e persistência integral dos eventos enviados e latência bem abaixo do limite estabelecido, o que sustenta a confiabilidade da ingestão em cenários de estresse. Os ensaios por lote, de 150.000 a 600.000 eventos represados, estendem essa validação para ciclos sucessivos de acúmulo e drenagem, e os testes de escalabilidade e de tratamento de eventos inválidos confirmam que o sistema cresce sem alterar seu contrato e isola dados incorretos sem interromper o processamento dos eventos válidos.
 
-RNF01 foi comprovado para aceite, drenagem e integridade até quatro lotes acumulados; o indicador de frescor ponta a ponta foi medido pela primeira vez em 11/09 (38 min 32 s, amostra única do último evento do lote), após a aplicação da migration 029 e a correção de um segundo bloqueio de watermark (carga inicial competindo pelo mesmo LSN do fluxo de eventos, ver §2.1.2); a distribuição p50/p95/p99 completa ainda está pendente. RNF03 e RNF04 foram comprovados nos fatores testados. O RNF02 atendeu ao limite de tempo, com ressalva sobre representatividade da base. No RNF05, a recuperação foi observada em todos os cenários, mas apenas o recorte de 1.001 eventos possui reconciliação completa. O RNF11 permanece parcial por falta de uma amostra completa e sanitizada dos registros. Essas limitações são mantidas explícitas para separar resultado observado de conclusão comprovada.
+RNF01 foi comprovado para aceite, drenagem e integridade até quatro lotes acumulados; o indicador de frescor ponta a ponta foi medido pela primeira vez (38 min 32 s, amostra única do último evento do lote), após a aplicação da migration 029 e a correção de um segundo bloqueio de watermark (carga inicial competindo pelo mesmo LSN do fluxo de eventos, ver §2.1.2); a distribuição p50/p95/p99 completa ainda está pendente. RNF03 e RNF04 foram comprovados nos fatores testados. O RNF02 atendeu ao limite de tempo, com ressalva sobre representatividade da base. No RNF05, a recuperação foi observada em todos os cenários, mas apenas o recorte de 1.001 eventos possui reconciliação completa. O RNF11 permanece parcial por falta de uma amostra completa e sanitizada dos registros. Essas limitações são mantidas explícitas para separar resultado observado de conclusão comprovada.
