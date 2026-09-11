@@ -15,9 +15,12 @@
 # usuarios, um fluxo de login e um cadastro para manter -- fora do que este MVP
 # entrega. O authorizer com token compartilhado e a opcao intermediaria: barra o
 # acesso anonimo de verdade e cabe no escopo. A limitacao esta registrada no
-# README: **o token identifica um SERVICO, nao uma pessoa**; nao ha como saber
-# qual integrante fez uma consulta, e a resposta a um vazamento e rotacionar,
-# nao revogar um usuario.
+# README e na rubrica 3: **o token identifica um SERVICO, nao uma pessoa**;
+# nao ha login, perfil nem revogacao individual, e o token do dashboard eh
+# compartilhado no navegador. A resposta a um vazamento eh rotacionar
+# (`make auth-rotate`), nao revogar um usuario. A evolucao para identidade
+# individual esta versionada em `cognito.tf.example` (User Pool + JWT
+# Authorizer + GlobalSignOut por usuario).
 #
 # ## Onde ficam os tokens
 #
