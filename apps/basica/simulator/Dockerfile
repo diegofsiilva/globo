@@ -11,7 +11,7 @@
 # Build nativo para linux/arm64 (Graviton): o Fargate ARM custa ~20% menos que
 # x86 e a maquina do time e Apple Silicon, entao nao ha emulacao QEMU no meio.
 
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 AS builder
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -34,7 +34,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.12-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254 AS runtime
 
 # Usuario sem privilegio. O uid fixo permite casar com o do task definition.
 RUN groupadd --system --gid 10001 argus \
