@@ -80,7 +80,7 @@ async function chavesNaTela(page: import("@playwright/test").Page): Promise<stri
   return rotulos.map((texto) => texto.trim()).sort();
 }
 
-test.describe("TI-01 — dashboard, API de leitura e banco", () => {
+test.describe("TI-01: dashboard, API de leitura e banco", () => {
   test.beforeEach(async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     // Abre a sessão antes da página carregar: sem token o painel nem monta, o
