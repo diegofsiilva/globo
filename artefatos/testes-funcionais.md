@@ -88,11 +88,6 @@ que ele seja: o campo que a origem grava com um nome e o destino lê com outro, 
 filtro que a tela mostra ao operador mas nunca chega a enviar, o número que o banco
 agrega corretamente e a interface arredonda errado na hora de desenhar.
 
-&emsp; Esses defeitos não são hipotéticos. Um deles apareceu durante este trabalho, e
-o relato está no TI-05: um evento que atravessa a ingestão inteira em segundos e
-depois passa horas sem aparecer na tela. A investigação dele terminou numa correção
-de schema, registrada mais adiante.
-
 ### Panorama dos cinco testes
 
 &emsp; Foram planejados, implementados e executados cinco testes de integração,
@@ -125,8 +120,7 @@ executado, satisfez todos os critérios de aceite do caso.
 
 ### Componentes envolvidos e resultado esperado da interação
 
-&emsp; O critério desta entrega pede que se identifiquem os componentes envolvidos e
-o resultado esperado da interação entre eles. Convém deixar claro o que conta como
+&emsp; Convém deixar claro o que conta como
 resultado esperado aqui: é sempre uma afirmação sobre a travessia, sobre o que
 acontece no caminho entre duas peças, e nunca sobre o comportamento interno de
 nenhuma das pontas isoladamente. Isso último já é assunto dos testes unitários.
@@ -151,24 +145,24 @@ de um prazo que faça sentido para quem opera o sistema.
 &emsp; Alguns termos aparecem com frequência e não são óbvios para quem chega de fora
 do projeto.
 
-&emsp; Fila de descarte, ou DLQ, de dead-letter queue, é uma fila separada para onde
+&emsp; **Fila de descarte, ou DLQ, de dead-letter queue**, é uma fila separada para onde
 vai a mensagem que o consumidor não conseguiu processar. Ela existe para que um dado
 ruim saia de circulação de forma registrada, com o motivo da recusa anexado, em vez
 de ser reentregue indefinidamente ou descartado em silêncio.
 
-&emsp; Entrega ao menos uma vez, ou at-least-once, é a garantia que o SQS oferece: a
+&emsp; **Entrega ao menos uma vez, ou at-least-once**, é a garantia que o SQS oferece: a
 fila promete que a mensagem chega, mas não promete que chega uma única vez. Se a
 confirmação de processamento se perder no caminho, a mesma mensagem é entregue de
 novo. Cabe ao destino ser idempotente, ou seja, produzir o mesmo resultado
 processando duas vezes ou uma.
 
-&emsp; Marcador de progresso, ou watermark, é uma linha no banco que registra até onde
+&emsp; **Marcador de progresso, ou watermark**, é uma linha no banco que registra até onde
 uma etapa da ETL já processou. É o que torna o processamento incremental: cada
 execução lê apenas o que entrou depois do marcador e o avança ao terminar. Cada linha
 que entra na camada bronze recebe um número de ordem, o `lsn`, e é por ele que o
 marcador se orienta.
 
-&emsp; Bronze, silver e gold nomeiam os três estágios do armazenamento. A bronze
+&emsp; **Bronze, silver e gold** nomeiam os três estágios do armazenamento. A bronze
 guarda o dado bruto como ele chegou, a silver guarda o dado normalizado no esquema
 comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 
@@ -182,14 +176,6 @@ comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 | Ferramentas | pytest 8.4.2 no backend com Python 3.13; pytest 9.1.1 no worker com Python 3.12 e no processamento com Python 3.13; Playwright 1.62.1 com Chromium 151.0.7922.34 |
 | Dublês usados | Apenas o SQS, reproduzido em memória pelo `moto` versão 5 ou superior, no TI-03. Banco, API, navegador e site são reais em todos os testes |
 | Ambiente do TI-05 | Pilha publicada no AWS Academy Learner Lab, região `us-east-1`: API Gateway HTTP, Lambda authorizer, Lambda da API de leitura, SQS, ECS Fargate e RDS PostgreSQL. Nenhum componente dublado |
-
-&emsp; Rodar contra um PostgreSQL de verdade, em vez de um dublê, não é preferência de
-quem escreveu estes testes: é regra do projeto, registrada em
-[`apps/basica/AGENTS.md`](../apps/basica/AGENTS.md). A justificativa é que a parte
-difícil deste sistema mora no SQL, e um dublê que respondesse "ok" a tudo estaria
-testando apenas o dublê. A contrapartida é que, quando o banco não está no ar, as
-suítes que dependem dele são puladas, e não quebradas, de modo que o portão de
-qualidade continua útil numa máquina sem Docker.
 
 ### Onde está cada coisa no repositório
 
@@ -223,8 +209,6 @@ make -C apps/basica db-local
 &emsp; O comando sobe o contêiner `argus-pg` na porta 55432, e não na 5432, para não
 conflitar com um PostgreSQL já instalado na máquina; cria a base `argus_test`; e
 aplica as 30 migrations em ordem.
-
----
 
 ### TI-01: dashboard, API de leitura e PostgreSQL
 
@@ -275,7 +259,6 @@ make -C apps/basica test-frontend-e2e
 Playwright não estão disponíveis. Para instalar o navegador, o comando é
 `cd apps/basica/frontend && npx playwright install chromium`.
 
----
 
 ### TI-02: aplicação Flask e PostgreSQL
 
@@ -326,7 +309,6 @@ TEST_DATABASE_URL=postgresql://argus:argus@localhost:55432/argus_test \
 &emsp; O alvo `make -C apps/basica test-backend` executa esta suíte junto com as
 demais do backend.
 
----
 
 ### TI-03: worker de ingestão, fila SQS e PostgreSQL
 
@@ -371,7 +353,6 @@ TEST_DATABASE_URL=postgresql://argus:argus@localhost:55432/argus_test \
 &emsp; O alvo `make -C apps/basica test-worker` executa esta suíte junto com as demais
 do worker.
 
----
 
 ### TI-04: ETL incremental entre bronze, silver e gold
 
@@ -424,7 +405,6 @@ TEST_DATABASE_URL=postgresql://argus:argus@localhost:55432/argus_test \
 &emsp; O alvo `make -C apps/basica test-processing` executa esta suíte junto com as
 demais do processamento.
 
----
 
 ### TI-05: a pilha publicada na AWS
 
@@ -576,8 +556,7 @@ três dias depois.
 #### Segredo e evidência
 
 &emsp; Nenhum endpoint, identificador de conta ou token aparece neste artefato nem na
-evidência, conforme a regra registrada em
-[`apps/basica/AGENTS.md`](../apps/basica/AGENTS.md). O teste lê todos eles do
+evidência. O teste lê todos eles do
 ambiente, sua função `_falha_sem_vazar` impede que uma mensagem de falha os imprima,
 e a saída capturada passou por filtro de redação antes de ser versionada. O token de
 leitura não é recuperável da AWS, que guarda apenas o seu SHA-256; o de ingestão
@@ -599,8 +578,6 @@ cd apps/basica/backend
 set -a && . ../.env && set +a
 uv run pytest tests/integration/test_implantacao.py -v -rs
 ```
-
----
 
 ### Execução das suítes
 
