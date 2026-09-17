@@ -151,3 +151,170 @@ Running 12 tests using 1 worker
   ✓  12 [chromium] › tests/e2e/integracao-camadas.spec.ts:175:7 › TI-01 — dashboard, API de leitura e banco › [TI-01.3] sem token válido o navegador não chega a consultar o backend (591ms)
 
   12 passed (20.7s)
+
+================================================================================
+TI-05  Pilha implantada na AWS (API Gateway -> authorizer -> SQS -> worker
+       -> RDS -> ETL -> API de leitura)
+  cd apps/basica/backend
+  set -a && . ../.env && set +a
+  export ARGUS_READ_TOKEN=... ARGUS_INGEST_TOKEN=...   (valores fora do arquivo)
+  TI05_TIMEOUT_SECONDS=300 uv run pytest tests/integration/test_implantacao.py -v -rs
+================================================================================
+
+Executado contra a pilha real. Endpoints, tokens e URLs foram substituidos por
+<TOKEN-OMITIDO> e <URL-OMITIDA> na captura: a saida do pytest e versionada, e
+token nem endpoint entram em arquivo do repositorio.
+
+Servicos ECS no momento da execucao (aws ecs describe-services):
+
+  argus-...-simulator        desejado 0  rodando 0
+  argus-...-processing       desejado 1  rodando 1
+  argus-...-merge-worker     desejado 1  rodando 1
+  argus-...-event-worker     desejado 1  rodando 1
+
+============================= test session starts ==============================
+platform linux -- Python 3.13.12, pytest-8.4.2, pluggy-1.6.0
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/backend
+configfile: pyproject.toml
+plugins: cov-6.3.0
+collected 2 items
+
+tests/integration/test_implantacao.py .F                                 [100%]
+
+=================================== FAILURES ===================================
+_________ test_ti05_evento_postado_na_borda_aparece_na_api_de_leitura __________
+
+implantacao = {'ingest_token': '<TOKEN-OMITIDO>', 'ingest_url': '<URL-OMITIDA> 'read_url': '<URL-OMITIDA>
+sim_now = datetime.datetime(2026, 8, 2, 14, 19, 13, 654920, tzinfo=datetime.timezone.utc)
+
+    def test_ti05_evento_postado_na_borda_aparece_na_api_de_leitura(implantacao, sim_now):
+        """TI-05.2 -- o pipeline assincrono completo, na infraestrutura real.
+    
+        Entrada: um evento `error` unico (sessao `ti05-<uuid>`), carimbado um minuto
+        ATRAS do instante virtual para que fique imediatamente disponivel, enviado
+        por `POST /v1/events` com o token de ingestao.
+    
+        Resultado esperado: a borda aceita (2xx) e o evento aparece em
+        `GET /api/v1/events?session_id=...` dentro do prazo, com `event_name` e
+        `device_id` preservados. A espera e necessaria e faz parte do contrato: a
+        ingestao e assincrona de proposito -- a borda enfileira e responde, e quem
+        grava e o worker.
+        """
+        sessao = f"ti05-{uuid.uuid4()}"
+        evento = {
+            "timestamp": (sim_now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z"),
+            "event_name": "error",
+            "session_id": sessao,
+            "device_id": f"device-{sessao}",
+            "app_bucket": "S3",
+            "app_env": "production",
+            "app_version": "2026.3.0",
+            "device_os": "NetRange",
+            "error_name": "Teste de integracao TI-05",
+            "route_path": "vod",
+        }
+    
+        aceito, _ = _requisitar(
+            implantacao["ingest_url"], token=implantacao["ingest_token"], corpo=evento
+        )
+        assert 200 <= aceito < 300, _falha_sem_vazar(
+            f"a borda de ingestao recusou o evento com {aceito}"
+        )
+    
+        consulta = f"{implantacao['read_url']}/api/v1/events?session_id={sessao}&limit=10"
+        limite = time.monotonic() + ESPERA_MAXIMA_S
+        itens: list[dict] = []
+        tentativas = 0
+    
+        while time.monotonic() < limite:
+            tentativas += 1
+            status, corpo = _requisitar(consulta, token=implantacao["read_token"])
+            assert status == 200, _falha_sem_vazar(
+                f"GET /api/v1/events respondeu {status} na tentativa {tentativas}"
+            )
+            itens = corpo.get("items", [])
+            if itens:
+                break
+            time.sleep(INTERVALO_S)
+    
+>       assert itens, _falha_sem_vazar(
+            f"o evento nao apareceu na leitura em {ESPERA_MAXIMA_S}s"
+            f" ({tentativas} tentativas) -- fila, worker ou ETL podem estar parados"
+        )
+E       AssertionError: o evento nao apareceu na leitura em 300s (29 tentativas) -- fila, worker ou ETL podem estar parados
+E       assert []
+
+tests/integration/test_implantacao.py:253: AssertionError
+=================== 1 failed, 1 passed in 310.34s (0:05:10) ====================
+
+--------------------------------------------------------------------------------
+DIAGNOSTICO DO CASO REPROVADO (TI-05.2)
+Medicao de cada fronteira do pipeline, para localizar onde o dado parou.
+--------------------------------------------------------------------------------
+
+1. Cliente -> API Gateway -> authorizer .............. ATRAVESSOU
+   O proprio caso TI-05.1 passou: 401 sem token, 401 com token desconhecido,
+   401 com o token da audiencia errada, 200 com o token de leitura.
+
+2. API Gateway -> SQS ................................ ATRAVESSOU
+   O POST foi aceito com 2xx (assercao do teste, satisfeita).
+
+3. SQS -> event-worker ............................... ATRAVESSOU
+   $ aws sqs get-queue-attributes ... (as quatro filas)
+     argus-events        visiveis=0  em-voo=0
+     argus-events-dlq    visiveis=0  em-voo=0
+     argus-changes       visiveis=0  em-voo=0
+     argus-changes-dlq   visiveis=0  em-voo=0
+   Fila vazia e DLQ vazia: a mensagem foi consumida e nao foi recusada.
+
+   $ aws cloudwatch get-metric-statistics --metric-name MessagesReceived \
+       --dimensions Name=Service,Value=...-event-worker
+     2026-09-17T15:08:00-03:00   1.0
+
+4. event-worker -> bronze.event ...................... ATRAVESSOU
+   $ aws cloudwatch get-metric-statistics --metric-name ItemsWritten \
+       --dimensions Name=Service,Value=...-event-worker
+     2026-09-17T15:08:00-03:00   1.0
+   Uma mensagem recebida, um item gravado, no mesmo minuto do POST.
+
+5. bronze.event -> silver.session_event .............. PAROU AQUI
+   Log do servico processing, ultimos ciclos do ETL incremental:
+     16:15:56  etl bronze->silver  de_lsn 27904255  ate_lsn 27954255  linhas 50000
+     16:32:07  etl bronze->silver  de_lsn 27954255  ate_lsn 28004255  linhas 50000
+     16:48:26  etl bronze->silver  de_lsn 28004255  ate_lsn 28054255  linhas 50000
+     17:04:50  etl bronze->silver  de_lsn 28054255  ate_lsn 28104255  linhas 50000
+     17:20:45  etl bronze->silver  de_lsn 28104255  ate_lsn 28154255  linhas 50000
+     17:36:46  etl bronze->silver  de_lsn 28154255  ate_lsn 28204255  linhas 50000
+     17:52:51  etl bronze->silver  de_lsn 28204255  ate_lsn 28254255  linhas 50000
+     18:08:54  etl bronze->silver  de_lsn 28254255  ate_lsn 28304255  linhas 50000
+
+   Todos os ciclos fecham o lote maximo de 50.000 linhas: lote que satura e
+   lote que nao alcancou o fim da fila. Em 48 h foram 182 ciclos e o marcador
+   avancou 18.788.387 lsn, ainda saturando. O evento do teste recebeu um lsn
+   na ponta da sequencia; enquanto o marcador nao passar por ele, a linha nao
+   existe em silver.session_event.
+
+6. silver.session_event -> GET /api/v1/events ........ NAO ALCANCADO
+   $ curl ... "/api/v1/events?limit=50"
+     itens: 0 | query: {'queries': 1, 'returned': 0, 'scanned': 0,
+                        'strategy': 'particao_por_tempo'}
+   $ curl ... "/api/v1/events?from=2026-07-01T00:00:00Z&to=2026-08-03T00:00:00Z"
+     itens: 0 | query: {... 'scanned': 0 ...}
+   Janela ampla e explicita tambem devolve zero: silver.session_event esta
+   vazia na implantacao. O servico simulator esta com zero tarefas, entao nao
+   ha quem publique evento de sessao -- o do teste e o unico do sistema.
+
+   Relogio virtual no momento da execucao:
+   $ curl ... "/api/v1/clock"
+     {"sim_now":"2026-08-02T14:19:13.654920+00:00","speed":0.0,
+       "updated_at":"2026-09-14T20:03:26.966028+00:00"}
+
+CONCLUSAO: o evento esta gravado no banco. O caso reprovou porque o ETL nao o
+promoveu dentro do prazo de 300 s, e nao porque algum componente falhou ou
+perdeu o dado. O frescor ponta a ponta da implantacao e hoje de horas, nao de
+minutos, e o limite esta no ETL -- nao na fila. Nenhuma acao foi tomada sobre a
+infraestrutura: drenar o acumulo e decisao da equipe.
+
+O RDS nao e acessivel de fora (PubliclyAccessible: False), entao o topo da
+sequencia nao pode ser lido da maquina de desenvolvimento e a distancia exata
+que falta ao marcador nao foi medida.

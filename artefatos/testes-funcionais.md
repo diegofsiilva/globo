@@ -86,8 +86,11 @@ unitário alcança: o campo que a origem chama de um jeito e o destino lê de ou
 o filtro que a tela mostra mas nunca envia, o número que o banco agrega e a
 interface arredonda errado.
 
-&emsp; Foram planejados, implementados e executados **quatro testes de integração**,
-somando **onze casos**, cobrindo os quatro pares de camadas do Argus:
+&emsp; Foram planejados, implementados e executados **cinco testes de integração**,
+somando **treze casos**. Os quatro primeiros cobrem os pares de camadas que rodam
+na máquina; o quinto exercita a pilha **implantada na AWS**, e é o único com um
+caso reprovado — reprovação real, investigada até a causa raiz e registrada como
+achado sobre o sistema, não contornada.
 
 | ID | Camadas que o teste atravessa | Casos | Situação |
 |---|---|---:|---|
@@ -95,10 +98,21 @@ somando **onze casos**, cobrindo os quatro pares de camadas do Argus:
 | **TI-02** | Aplicação (rota Flask → caso de uso → adaptador) ↔ PostgreSQL | 3 | ✅ Aprovado |
 | **TI-03** | Módulos internos: worker de ingestão ↔ fila SQS ↔ PostgreSQL | 2 | ✅ Aprovado |
 | **TI-04** | Módulos internos: ETL bronze → silver → gold ↔ PostgreSQL | 3 | ✅ Aprovado |
+| **TI-05** | Pilha implantada: API Gateway → authorizer → SQS → worker → RDS → ETL → API de leitura | 2 | ⚠️ 1 aprovado, 1 reprovado |
 
-&emsp; **Resultado consolidado: 11 casos executados, 11 aprovados, 0 reprovados.**
-A execução completa está registrada em
+&emsp; **Resultado consolidado: 13 casos implementados e executados; 12 aprovados e
+1 reprovado.** O caso reprovado é o TI-05.2, e a causa raiz está identificada: o
+evento chegou ao banco, mas o ETL não o promoveu dentro do prazo do teste. A
+execução completa está registrada em
 [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt).
+
+&emsp; Este relatório usa os mesmos três estados de
+[`testes-carga-inicial.md`](testes-carga-inicial.md), para que uma afirmação forte
+e uma fraca não pareçam iguais:
+
+- **Preparado:** o cenário e a automação existem no repositório.
+- **Executado:** o teste foi rodado de fato, e a saída está na evidência.
+- **Aprovado:** a execução satisfez todos os critérios de aceite do caso.
 
 ### Componentes envolvidos e resultado esperado da interação
 
@@ -114,6 +128,8 @@ nenhuma das pontas.
 | TI-02 | Rota Flask (`interfaces`) → caso de uso (`application`) → adaptador `PostgresEventRepository` (`infrastructure`) | PostgreSQL (`silver.session_event`) | Chamada de método através da porta de repositório; SQL parametrizado | A linha gravada no banco reaparece na resposta HTTP campo a campo, e o identificador do usuário é substituído pelo *hash* na travessia |
 | TI-03 | Fila SQS `argus-events` | `EventConsumer` → `EventRepository` → PostgreSQL (`bronze.event`) | Mensagem JSON na fila; `INSERT ... ON CONFLICT` no banco | Mensagem válida vira linha; mensagem inválida vai para a fila de descarte sem travar a válida; reentrega da mesma mensagem não duplica a linha |
 | TI-04 | `bronze.change_log` → função SQL `bronze.merge_todas()` | Módulo `argus_processing.etl` → `silver.signal_bucket` → `gold.feature_bucket` | Chamadas de função SQL e marcadores de progresso (`etl.watermark_*`) | O mesmo valor atravessa as três camadas sem se deformar; cada marcador avança na medida exata do que foi processado; ciclo ocioso não reprocessa |
+| TI-05 | Cliente HTTP externo | API Gateway + Lambda authorizer (das duas APIs publicadas) | HTTPS com cabeçalho `Authorization: Bearer` | A borda recusa, com 401 ou 403, requisição sem token, com token desconhecido e com token da audiência errada; aceita apenas o token da própria audiência |
+| TI-05 | `POST /v1/events` (API Gateway) | Fila SQS `argus-events` → event-worker (ECS Fargate) → RDS PostgreSQL → ETL → `GET /api/v1/events` (Lambda) | Integração direta API Gateway→SQS, sem Lambda no caminho de escrita | Um evento único aceito na borda aparece na API de leitura dentro do prazo, com os campos preservados — a ingestão é assíncrona por projeto: a borda enfileira e responde, quem grava é o worker |
 
 ### Vocabulário usado nesta seção
 
@@ -143,6 +159,7 @@ nenhuma das pontas.
 | **Banco de dados** | PostgreSQL 16.14 em contêiner Docker (`argus-pg`), porta 55432, base `argus_test` |
 | **Ferramentas** | pytest 8.4.2 (backend, Python 3.13) · pytest 9.1.1 (worker, Python 3.12; processing, Python 3.13) · Playwright 1.62.1 com Chromium 151.0.7922.34 |
 | **Dublês usados** | Apenas o SQS, dublado em memória com `moto` ≥ 5.0 (TI-03). Banco, API, navegador e site são reais em todos os testes |
+| **Ambiente do TI-05** | Pilha implantada no AWS Academy Learner Lab, região `us-east-1`: API Gateway HTTP, Lambda *authorizer*, Lambda da API de leitura, SQS, ECS Fargate (`event-worker`, `merge-worker`, `processing`) e RDS PostgreSQL. Nenhum componente dublado |
 
 &emsp; A escolha de rodar contra um **PostgreSQL de verdade**, e não contra um dublê,
 é uma regra do projeto registrada em [`apps/basica/AGENTS.md`](../apps/basica/AGENTS.md):
@@ -165,7 +182,9 @@ sem Docker.
 | [`apps/basica/worker/tests/fixtures/*.json`](../apps/basica/worker/tests/fixtures/) | Dados de entrada do TI-03: os seis eventos reais exportados do BI |
 | [`apps/basica/processing/tests/integration/test_camadas_medalhao.py`](../apps/basica/processing/tests/integration/test_camadas_medalhao.py) | Código do TI-04 |
 | [`apps/basica/processing/tests/conftest.py`](../apps/basica/processing/tests/conftest.py) | Fixtures do TI-04: banco limpo, marcadores reiniciados, relógio virtual |
-| [`apps/basica/Makefile`](../apps/basica/Makefile) | Alvos `db-local`, `test-backend`, `test-worker`, `test-processing` e `test-frontend-e2e` |
+| [`apps/basica/backend/tests/integration/test_implantacao.py`](../apps/basica/backend/tests/integration/test_implantacao.py) | Código do TI-05 |
+| [`apps/basica/.env.example`](../apps/basica/.env.example) | Nomes das variáveis que o TI-05 lê do ambiente (as URLs e tokens reais ficam em `.env`, que é *gitignored*) |
+| [`apps/basica/Makefile`](../apps/basica/Makefile) | Alvos `db-local`, `env`, `auth-rotate`, `auth-show-ingest`, `test-backend`, `test-worker`, `test-processing` e `test-frontend-e2e` |
 | [`apps/basica/db/migrations/`](../apps/basica/db/migrations/) | As 29 migrations aplicadas antes de qualquer teste |
 | [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) | Saída bruta da execução dos quatro testes |
 
@@ -317,6 +336,110 @@ demais do processamento (69 testes no total).
 
 ---
 
+### TI-05 — Pilha implantada na AWS (borda, fila, worker, banco e leitura)
+
+&emsp; **Estado: executado, com um caso aprovado e um reprovado.** O caso do
+*authorizer* passou. O caso do pipeline completo **reprovou**, e a causa raiz foi
+investigada até a fronteira exata onde o dado parou: o evento **está gravado no
+banco**, mas não atravessou o ETL dentro do prazo, porque o marcador de progresso
+bronze→silver está drenando um acúmulo de trabalho. O diagnóstico completo está
+no fim desta seção.
+
+| Campo | Conteúdo |
+|---|---|
+| **Identificador** | TI-05 |
+| **Objetivo** | Verificar as quatro costuras que só existem na nuvem e que nenhum dos testes anteriores alcança: a integração direta API Gateway → SQS, o Lambda authorizer na borda, a separação de audiência entre os dois tokens, e o pipeline assíncrono completo até a API de leitura |
+| **Requisitos / caso de uso** | RF01 (ingestão por API única), RF06 (armazenar para consulta), RNF05 (não perder o que foi aceito), RNF09 (acesso apenas a autorizados), RNF10 (não expor dado pessoal). Caso de uso: um dispositivo publica um evento na API e o operador o encontra no painel |
+| **Componentes envolvidos** | `POST /v1/events` (API Gateway HTTP) → Lambda authorizer (token de ingestão) → integração direta SQS `argus-events` → event-worker (ECS Fargate) → RDS PostgreSQL (`bronze.event`) → ETL bronze→silver (ciclo de 60 s) → `silver.session_event` → `GET /api/v1/events` (Lambda Flask) → Lambda authorizer (token de leitura) |
+| **Pré-condições** | Pilha implantada e no ar; `ARGUS_INGEST_URL`, `ARGUS_API_URL`, `ARGUS_INGEST_TOKEN` e `ARGUS_READ_TOKEN` no ambiente; event-worker e ETL em execução. Faltando qualquer uma, o teste é **pulado**, não quebrado |
+| **Dados de entrada** | Um evento `error` único por execução, sessão `ti05-<uuid4>`, carimbado **um minuto atrás do instante virtual** lido em `GET /api/v1/clock`. O carimbo virtual é obrigatório: a API de leitura só mostra linha com `available_at <= sim.now()`, e no grão de sessão `available_at` é o próprio `ts`. Um evento com a hora da máquina ficaria invisível, e o teste falharia sem que nada estivesse errado |
+| **Procedimento de execução** | `cd apps/basica/backend && uv run pytest tests/integration/test_implantacao.py -v -rs`, com o `.env` carregado no ambiente |
+| **Situação** | ⚠️ **1 aprovado, 1 reprovado** — TI-05.1 aprovado; TI-05.2 reprovado por prazo, com causa raiz identificada |
+| **Evidência** | [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt), bloco TI-05: a saída do pytest e as medições de cada fronteira do pipeline |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| **TI-05.1** | Quatro requisições à mesma rota de leitura: sem token; com token de forma válida e valor desconhecido; com o token da **audiência errada** (o de ingestão, que não serve para ler); e com o token correto | As três primeiras recusadas com 401 ou 403 pelo *authorizer*, **antes** de alcançar a Lambda da aplicação; a quarta responde 200 com o corpo do relógio | Exatamente isso: as três recusadas, a quarta com 200 e o campo `sim_now` presente | ✅ Aprovado |
+| **TI-05.2** | O evento único enviado por `POST /v1/events` com o token de ingestão, seguido de consulta repetida a `GET /api/v1/events?session_id=...` até aparecer ou esgotar o prazo de 300 s | A borda aceita com 2xx e o evento aparece na leitura dentro do prazo, com `event_name` e `device_id` preservados e sem `user_id` na resposta | A borda **aceitou**, e o evento **foi gravado no banco** — mas não apareceu na leitura em 300 s (29 tentativas). Causa raiz abaixo: o ETL bronze→silver ainda não alcançou o `lsn` do evento | ❌ Reprovado |
+
+#### Diagnóstico do caso reprovado: onde o dado parou
+
+&emsp; A reprovação foi investigada instrumentando **cada fronteira** do pipeline, em
+vez de se supor uma causa. A tabela mostra o que foi medido em cada salto:
+
+| Fronteira | Como foi medido | Resultado |
+|---|---|---|
+| Cliente → API Gateway → *authorizer* | O próprio caso TI-05.1 | ✅ Atravessou |
+| API Gateway → SQS `argus-events` | Código HTTP da resposta ao `POST` | ✅ Aceito com 2xx |
+| SQS → `event-worker` | Métrica `MessagesReceived` do worker no CloudWatch, e profundidade das filas | ✅ 1 mensagem recebida; filas e **DLQ vazias** |
+| `event-worker` → `bronze.event` | Métrica `ItemsWritten` do worker | ✅ **1 item gravado** no mesmo minuto |
+| `bronze.event` → `silver.session_event` | Log do serviço `processing` e avanço do marcador | ❌ **Parou aqui** |
+| `silver.session_event` → `GET /api/v1/events` | Consulta direta à rota, com janela ampla e explícita | Não alcançado: 0 itens, `scanned: 0` |
+
+&emsp; **Causa raiz: o evento está gravado no banco, mas ainda não foi promovido de
+bronze para silver.** O ETL incremental processa por `lsn` — o número de ordem que
+cada linha recebe ao entrar — e avança o marcador até onde leu. Nos ciclos
+observados, ele fecha o lote máximo de **50.000 linhas a cada ~16 minutos**, o que
+significa que ainda há acúmulo à frente: um lote que satura é um lote que não
+alcançou o fim da fila. O marcador estava em `lsn 28.304.255`, avançando cerca de
+200 mil por hora. Em 48 horas ele andou 18,8 milhões e continuava saturando.
+
+&emsp; O evento do teste recebeu um `lsn` na ponta da sequência. Enquanto o marcador
+não passar por ele, a linha não existe em `silver.session_event` — e a API de
+leitura, que consulta essa tabela, não tem como devolvê-la. **O prazo de 300 s
+nunca seria suficiente**, e aumentá-lo para horas produziria um teste que ninguém
+roda. A falha é verdadeira e aponta para uma característica real da implantação.
+
+#### O que este resultado diz sobre o sistema
+
+&emsp; Dois achados que valem além do teste:
+
+1. **O frescor ponta a ponta da implantação é hoje de horas, não de minutos**, e o
+   limite está no ETL, não na fila. A ingestão faz sua parte em segundos: aceita,
+   enfileira, consome e grava. O relatório de carga registra uma amostra de
+   frescor de 38 min 32 s; a situação medida aqui é pior que aquela amostra.
+2. **`silver.session_event` está vazia na implantação.** A consulta com janela
+   ampla devolve `scanned: 0`. O serviço `simulator` está com zero tarefas, então
+   não há quem publique evento de sessão — o do teste é o único do sistema. As
+   telas continuam funcionando porque consomem as tabelas `gold`, alimentadas pela
+   carga histórica do parceiro.
+
+&emsp; Não foi possível medir **quanto** falta para o marcador alcançar o evento: o
+RDS não é acessível de fora (`PubliclyAccessible: False`), então o topo da
+sequência não pode ser lido da máquina de desenvolvimento.
+
+&emsp; Nenhuma ação foi tomada sobre a infraestrutura. Drenar o acúmulo, reduzir a
+cadência do ETL ou reiniciar serviços são operações sobre ambiente vivo, e ficam
+como decisão da equipe.
+
+#### Observação sobre segredo
+
+&emsp; Nenhum endpoint, identificador de conta ou token aparece neste artefato nem na
+evidência, conforme a regra do [`AGENTS.md`](../apps/basica/AGENTS.md). O teste lê
+todos eles do ambiente; a função `_falha_sem_vazar` impede que uma mensagem de
+falha os imprima, e a saída capturada passou por filtro de redação. O token de
+leitura não é recuperável da AWS — ela guarda apenas o SHA-256 —, e o de ingestão
+volta com `make auth-show-ingest`.
+
+&emsp; **Reprodução:**
+
+```bash
+# 1. renovar a sessão do Learner Lab e atualizar ~/.aws/credentials (profile g4)
+make -C apps/basica env               # reescreve as URLs a partir do Terraform
+make -C apps/basica auth-show-ingest  # recupera o token de ingestão
+
+# 2. exportar os dois tokens (o de leitura é o que se cola no painel)
+export ARGUS_INGEST_TOKEN=...
+export ARGUS_READ_TOKEN=...
+
+# 3. rodar
+cd apps/basica/backend
+set -a && . ../.env && set +a
+uv run pytest tests/integration/test_implantacao.py -v -rs
+```
+
+---
+
 ### Execução completa das suítes
 
 &emsp; Para confirmar que os testes novos não quebraram nada, todas as suítes do
@@ -327,13 +450,17 @@ repositório foram executadas na mesma sessão:
 | Worker de ingestão | `make -C apps/basica test-worker` | 77 aprovados em 24,95 s |
 | Simulador | `make -C apps/basica test-simulator` | 2 aprovados em 0,01 s |
 | Processamento (ETL) | `make -C apps/basica test-processing` | 69 aprovados em 98,94 s |
-| API de leitura (unitários + integração + demais) | `make -C apps/basica test-backend` | 227 aprovados em 365,78 s |
+| API de leitura (unitários + integração + demais) | `make -C apps/basica test-backend` | 227 aprovados e 2 pulados em 376,53 s |
 | Autorizador | `make -C apps/basica test-authorizer` | 18 aprovados em 0,65 s |
 | Frontend (contratos e componentes) | `make -C apps/basica test-frontend` | 24 aprovados em 3,92 s |
 | Frontend integrado (Playwright) | `make -C apps/basica test-frontend-e2e` | 12 aprovados em 20,7 s |
+| Pilha implantada (TI-05) | `uv run pytest tests/integration/test_implantacao.py` | 1 aprovado, 1 reprovado em 305,4 s |
 
-&emsp; **Total: 429 testes aprovados, nenhum reprovado.** Os 227 do backend incluem
-os 52 testes unitários da seção anterior e os 3 casos do TI-02.
+&emsp; **Total: 430 testes aprovados e 1 reprovado.** Os 227 do backend incluem os 52
+testes unitários da seção anterior e os 3 casos do TI-02. Os dois casos do TI-05
+aparecem como *pulados* nessa contagem porque `make test-backend` roda sem os tokens
+da pilha implantada — é o comportamento projetado, e por isso o TI-05 tem linha
+própria na tabela, com o resultado da execução feita com credencial.
 
 &emsp; Uma observação de ambiente, registrada por honestidade de relatório: o alvo
 `test-authorizer` interrompe a coleta com `NoRegionError` quando a variável
