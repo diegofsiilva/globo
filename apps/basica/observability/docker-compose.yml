@@ -12,7 +12,7 @@
 
 services:
   prometheus:
-    image: prom/prometheus:v2.53.0
+    image: prom/prometheus:v2.53.0@sha256:075b1ba2c4ebb04bc3a6ab86c06ec8d8099f8fda1c96ef6d104d9bb1def1d8bc
     container_name: argus-prometheus
     ports:
       - "127.0.0.1:9090:9090"
@@ -24,9 +24,14 @@ services:
       - "--web.enable-remote-write-receiver"
       - "--storage.tsdb.retention.time=7d"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider --quiet http://127.0.0.1:9090/-/ready || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
 
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:11.2.0@sha256:408afb9726de5122b00a2576763a8a57a3c86d5b0eff5305bc994ceb3eb96c3f
     container_name: argus-grafana
     ports:
       - "127.0.0.1:3001:3000"
@@ -49,8 +54,14 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider --quiet http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
 
 volumes:
   prometheus_data:
