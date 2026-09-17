@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { fetchBreakdown } from "@/app/(operations)/explorar/_lib/api";
+import { fetchEvents } from "@/lib/events/api";
 
 describe("contrato HTTP da tela Explorar", () => {
   afterEach(() => {
@@ -44,5 +45,23 @@ describe("contrato HTTP da tela Explorar", () => {
       total: 42,
       groups: [{ key: "LG webOS", count: 42, share: 1, average_duration_ms: null }],
     });
+  });
+
+  test("[TA-02] consulta eventos recentes sem restringir o tipo inserido", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        items: [],
+        next_cursor: null,
+        query: { strategy: "particao_por_tempo", scanned: 0, returned: 0, queries: 1 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchEvents({});
+
+    const endpoint = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(endpoint.pathname).toBe("/api/v1/events");
+    expect(endpoint.searchParams.get("limit")).toBe("100");
+    expect(endpoint.searchParams.has("event_name")).toBe(false);
   });
 });
