@@ -260,7 +260,6 @@ test-frontend-e2e: ## Teste integrado dashboard -> Flask -> PostgreSQL local
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="http://127.0.0.1:5100" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="api" \
-	  NEXT_PUBLIC_HYPOTHESES_API_URL="http://127.0.0.1:5100" \
 	  npm run build -- --webpack; \
 	npm run test:e2e
 
