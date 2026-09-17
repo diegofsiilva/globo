@@ -290,9 +290,28 @@ Medicao de cada fronteira do pipeline, para localizar onde o dado parou.
 
    Todos os ciclos fecham o lote maximo de 50.000 linhas: lote que satura e
    lote que nao alcancou o fim da fila. Em 48 h foram 182 ciclos e o marcador
-   avancou 18.788.387 lsn, ainda saturando. O evento do teste recebeu um lsn
-   na ponta da sequencia; enquanto o marcador nao passar por ele, a linha nao
-   existe em silver.session_event.
+   avancou 18.788.387 lsn, ainda saturando.
+
+   Dimensionamento do acumulo:
+     $ aws cloudwatch get-metric-statistics --metric-name RowsLoaded \
+         --dimensions Name=Service,Value=...-loader
+       2026-09-14   115.971.059      <- linhas que o loader gravou na bronze
+
+     ciclos consecutivos medidos:
+       17:36:46  ate_lsn 28.204.255  linhas 50.000
+       17:52:51  ate_lsn 28.254.255  linhas 50.000
+       18:08:54  ate_lsn 28.304.255  linhas 50.000
+       18:25:16  ate_lsn 28.354.255  linhas 50.000
+       18:41:27  ate_lsn 28.404.255  linhas 50.000
+
+     marcador ............ 28.404.255
+     carregado ........... 115.971.059
+     falta ............... ~87.500.000 linhas
+     vazao medida ........ 50.000 linhas / 16,2 min = ~185.000 linhas/hora
+     estimativa .......... ~470 horas (cerca de 20 dias) de execucao continua
+
+   O evento do teste recebeu um lsn na ponta da sequencia, atras de ~87 milhoes
+   de linhas. O prazo de 300 s errou por um fator de aproximadamente 5.700.
 
 6. silver.session_event -> GET /api/v1/events ........ NAO ALCANCADO
    $ curl ... "/api/v1/events?limit=50"
@@ -311,7 +330,10 @@ Medicao de cada fronteira do pipeline, para localizar onde o dado parou.
 
 CONCLUSAO: o evento esta gravado no banco. O caso reprovou porque o ETL nao o
 promoveu dentro do prazo de 300 s, e nao porque algum componente falhou ou
-perdeu o dado. O frescor ponta a ponta da implantacao e hoje de horas, nao de
+perdeu o dado. Existe o alvo `make etl` (gold.rebuild_tudo), recompute
+completo em uma chamada -- mas nenhum artefato do repositorio estabelece qual
+caminho e o previsto depois de uma carga em massa, entao isso fica como
+decisao operacional da equipe, e nao como recomendacao deste relatorio. O frescor ponta a ponta da implantacao e hoje de horas, nao de
 minutos, e o limite esta no ETL -- nao na fila. Nenhuma acao foi tomada sobre a
 infraestrutura: drenar o acumulo e decisao da equipe.
 

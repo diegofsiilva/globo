@@ -377,18 +377,46 @@ vez de se supor uma causa. A tabela mostra o que foi medido em cada salto:
 | `silver.session_event` → `GET /api/v1/events` | Consulta direta à rota, com janela ampla e explícita | Não alcançado: 0 itens, `scanned: 0` |
 
 &emsp; **Causa raiz: o evento está gravado no banco, mas ainda não foi promovido de
-bronze para silver.** O ETL incremental processa por `lsn` — o número de ordem que
-cada linha recebe ao entrar — e avança o marcador até onde leu. Nos ciclos
-observados, ele fecha o lote máximo de **50.000 linhas a cada ~16 minutos**, o que
-significa que ainda há acúmulo à frente: um lote que satura é um lote que não
-alcançou o fim da fila. O marcador estava em `lsn 28.304.255`, avançando cerca de
-200 mil por hora. Em 48 horas ele andou 18,8 milhões e continuava saturando.
+bronze para silver.** O ETL é incremental: cada linha que entra na bronze recebe um
+número de ordem, o `lsn`; o ETL guarda um marcador dizendo até que `lsn` já
+processou, e em cada ciclo lê um lote a partir dali e avança o marcador. É isso que
+impede reprocessar o que já foi feito — e é isso que coloca o evento numa fila.
 
-&emsp; O evento do teste recebeu um `lsn` na ponta da sequência. Enquanto o marcador
-não passar por ele, a linha não existe em `silver.session_event` — e a API de
-leitura, que consulta essa tabela, não tem como devolvê-la. **O prazo de 300 s
-nunca seria suficiente**, e aumentá-lo para horas produziria um teste que ninguém
-roda. A falha é verdadeira e aponta para uma característica real da implantação.
+&emsp; A distância entre o marcador e o evento foi medida:
+
+| Grandeza | Valor |
+|---|---:|
+| Linhas carregadas na bronze pelo `loader` em 14/09 (métrica `RowsLoaded`) | 115.971.059 |
+| Marcador do ETL no momento do diagnóstico | `lsn` 28.404.255 |
+| Linhas ainda por processar | ~87.500.000 |
+| Ritmo medido em cinco ciclos consecutivos | 50.000 linhas a cada ~16,2 min |
+| Vazão equivalente | ~185.000 linhas/hora |
+| **Estimativa para o marcador alcançar o evento** | **~470 h, cerca de 20 dias** de execução contínua |
+
+&emsp; O evento do teste recebeu um `lsn` na ponta da sequência — atrás de 87 milhões
+de linhas. Enquanto o marcador não passar por ele, a linha não existe em
+`silver.session_event`, e a API de leitura, que consulta essa tabela, não tem como
+devolvê-la. **O prazo de 300 s estava errado por um fator de cerca de 5.700**, e
+nenhum prazo razoável funcionaria; aumentá-lo produziria um teste que ninguém roda.
+Como o laboratório encerra as tarefas do ECS ao fim da sessão, o tempo de calendário
+seria ainda maior que a estimativa.
+
+&emsp; **A falha é verdadeira, e o que ela revela é um estado operacional, não um
+defeito de código.** Cada componente fez sua parte em segundos. O que existe é uma
+carga histórica de 116 milhões de linhas despejada na bronze de uma vez, sendo
+digerida por um worker incremental — que foi feito para o fluxo contínuo, não para
+absorver carga em massa.
+
+&emsp; Existe no repositório um caminho alternativo, o alvo `make etl`, que executa
+`gold.rebuild_tudo()`: um recompute completo e idempotente da silver e da gold a
+partir da bronze, em uma chamada, em vez de lotes de 50.000. Ele exige
+`DATABASE_URL` e, como o RDS não é acessível de fora, roda de dentro da VPC ou por
+túnel. Vale registrar o que a documentação **não** diz: nenhum artefato estabelece
+qual dos dois caminhos é o previsto depois de uma carga em massa. Pelo contrário, o
+[`plano-argus-v3.md`](plano-argus-v3.md) descreve o recompute completo como o que
+existia **até** a migration 015, que introduziu a ETL incremental por marcador. Qual
+usar depois de um `make load` é uma decisão operacional em aberto, e este relatório
+apenas a aponta.
 
 #### O que este resultado diz sobre o sistema
 
@@ -404,9 +432,12 @@ roda. A falha é verdadeira e aponta para uma característica real da implantaç
    telas continuam funcionando porque consomem as tabelas `gold`, alimentadas pela
    carga histórica do parceiro.
 
-&emsp; Não foi possível medir **quanto** falta para o marcador alcançar o evento: o
-RDS não é acessível de fora (`PubliclyAccessible: False`), então o topo da
-sequência não pode ser lido da máquina de desenvolvimento.
+&emsp; A estimativa acima usa a métrica `RowsLoaded` do serviço `loader` como
+substituto do topo da sequência, porque o RDS não é acessível de fora
+(`PubliclyAccessible: False`) e o valor exato da sequência não pode ser lido da
+máquina de desenvolvimento. A ordem de grandeza, porém, não depende dessa
+aproximação: o ETL fechou o lote máximo em todos os ciclos observados ao longo de
+48 horas, o que por si só demonstra acúmulo contínuo.
 
 &emsp; Nenhuma ação foi tomada sobre a infraestrutura. Drenar o acúmulo, reduzir a
 cadência do ETL ou reiniciar serviços são operações sobre ambiente vivo, e ficam
