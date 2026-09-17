@@ -3,13 +3,23 @@
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   ScreenFrame,
 } from "../../_components/screen-frame";
 import { useOperationsUi } from "../../_components/operations-ui-context";
 import { useSimClock, windowEndingAt } from "../../_lib/sim-clock";
 import { normalizeQueryFailure } from "@/lib/operational-state";
+import { fetchEvents, type ApiEvent } from "@/lib/events/api";
 import type { EventKind, GroupBy } from "../_lib/types";
 import { fetchBreakdown, fetchTimeseries } from "../_lib/api";
 import { useScopeFilters } from "../../_lib/scope-filters";
@@ -71,11 +81,20 @@ export function ExplorarScreen() {
   // Os "tipos de evento" da especificação (request, video_view, error...) não
   // existem neste dataset. O eixo equivalente na série agregada é a MÉTRICA
   // (sessions, error_rate_pct, p95_ms...), que é o que estes cards listam.
-  const eventsQuery = useQuery({
+  const metricsQuery = useQuery({
     queryKey: ["explorar", "metricas", dayWindow?.to, scope],
     queryFn: ({ signal }) => fetchBreakdown("metric", dayWindow!, scope, signal),
     enabled: Boolean(dayWindow),
     refetchInterval: 30_000,
+  });
+
+  // A série Gold explica o comportamento agregado, mas não lista o que acabou
+  // de entrar pela API de ingestão. Esta consulta à camada Silver mantém uma
+  // confirmação operacional explícita do fluxo ponta a ponta.
+  const rawEventsQuery = useQuery({
+    queryKey: ["explorar", "eventos-recentes"],
+    queryFn: ({ signal }) => fetchEvents({}, signal),
+    refetchInterval: 15_000,
   });
 
   const timeseriesQuery = useQuery({
@@ -114,7 +133,7 @@ export function ExplorarScreen() {
     refetchInterval: 30_000,
   });
 
-  const primaryQueries = [eventsQuery, timeseriesQuery, totalBreakdownQuery, errorBreakdownQuery];
+  const primaryQueries = [metricsQuery, timeseriesQuery, totalBreakdownQuery, errorBreakdownQuery];
   const isLoading = clock.isLoading || primaryQueries.some((query) => query.isLoading);
   const failedQuery = primaryQueries.find((query) => query.isError);
   const hasAnyData = primaryQueries.every((query) => query.data !== undefined);
@@ -125,14 +144,14 @@ export function ExplorarScreen() {
 
   const eventKinds: EventKind[] = useMemo(
     () =>
-      (eventsQuery.data?.groups ?? []).map((group) => ({
+      (metricsQuery.data?.groups ?? []).map((group) => ({
         id: group.key,
         label: group.key,
         name: EVENT_LABELS[group.key] ?? group.key,
         value: formatEvents(group.count),
         count: group.count,
       })),
-    [eventsQuery.data],
+    [metricsQuery.data],
   );
 
   const presetMinutes = periodPresets.find((item) => item.label === period)?.minutes;
@@ -303,6 +322,12 @@ export function ExplorarScreen() {
               </div>
             </section>
           )}
+
+          <RecentEvents
+            events={rawEventsQuery.data?.items ?? []}
+            loading={rawEventsQuery.isLoading}
+            error={rawEventsQuery.isError}
+          />
 
           <section className={styles.eventPicker} aria-labelledby="event-picker-title">
             <header className={styles.sectionHeading}>
@@ -511,4 +536,91 @@ export function ExplorarScreen() {
       </div>
     </ScreenFrame>
   );
+}
+
+/** Confirma os eventos mais recentes que atravessaram ingestão, fila e RDS. */
+function RecentEvents({
+  events,
+  loading,
+  error,
+}: {
+  events: ApiEvent[];
+  loading: boolean;
+  error: boolean;
+}) {
+  const recent = events.slice(0, 10);
+
+  return (
+    <section className="mb-8 border-y border-border py-5" aria-labelledby="recent-events-title">
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <span className={styles.contextLabel}>Fluxo de ingestão</span>
+          <h2 className="text-section font-semibold" id="recent-events-title">
+            Eventos recebidos recentemente
+          </h2>
+          <p className="mt-1 text-micro text-muted-foreground">
+            Registros confirmados na API de leitura após persistência no RDS.
+          </p>
+        </div>
+        <span className="font-mono text-micro text-muted-foreground">
+          atualização automática a cada 15 s
+        </span>
+      </header>
+
+      {loading && <p className="text-micro text-muted-foreground">Carregando eventos…</p>}
+      {error && <p className="text-micro text-destructive">Não foi possível consultar os eventos recentes.</p>}
+      {!loading && !error && recent.length === 0 && (
+        <p className="text-micro text-muted-foreground">Nenhum evento disponível na janela da API.</p>
+      )}
+      {recent.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Horário</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Sessão</TableHead>
+              <TableHead>Dispositivo</TableHead>
+              <TableHead>Aplicação</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {recent.map((event) => (
+              <TableRow key={event.event_id}>
+                <TableCell className="whitespace-nowrap font-mono text-xs">
+                  {formatEventTime(event.occurred_at)}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={event.event_name === "error" ? "destructive" : "outline"}>
+                    {event.event_name}
+                  </Badge>
+                </TableCell>
+                <TableCell className="max-w-52 truncate font-mono text-xs" title={event.session_id}>
+                  {event.session_id}
+                </TableCell>
+                <TableCell className="text-xs">
+                  {event.device_model ?? event.device_os ?? "—"}
+                </TableCell>
+                <TableCell className="text-xs">
+                  {event.app_version ?? event.app_target ?? "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </section>
+  );
+}
+
+/** Formata o instante do evento sem ocultar a data em registros antigos. */
+function formatEventTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
