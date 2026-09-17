@@ -9,15 +9,10 @@ import type { HypothesesSource } from "./types";
 /**
  * Cria um adapter HTTP do relatório de hipóteses.
  *
- * @param apiUrl Mantido na assinatura por compatibilidade com o seletor de
- *   fonte (`hypotheses-source.ts`), que decide entre mock e HTTP. A URL efetiva
- *   vem do cliente compartilhado, que é também quem acrescenta o token.
  * @returns Função que consulta `/api/v1/hypotheses` e devolve o relatório já
  *   no formato da tela.
  */
-export function createHttpHypothesesSource(apiUrl: string): HypothesesSource {
-  void apiUrl;
-
+export function createHttpHypothesesSource(): HypothesesSource {
   return async (filters = {}, signal) => {
     const params = new URLSearchParams();
 

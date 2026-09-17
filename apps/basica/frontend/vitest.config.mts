@@ -7,7 +7,6 @@ export default defineConfig({
   define: {
     "process.env.NEXT_PUBLIC_API_URL": JSON.stringify("http://api.test"),
     "process.env.NEXT_PUBLIC_HYPOTHESES_SOURCE": JSON.stringify("api"),
-    "process.env.NEXT_PUBLIC_HYPOTHESES_API_URL": JSON.stringify("http://api.test"),
   },
   test: {
     environment: "jsdom",

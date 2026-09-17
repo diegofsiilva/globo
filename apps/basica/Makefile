@@ -29,10 +29,9 @@ FRONTEND   := frontend
 POSTMAN    := ../../artefatos/postman
 OBSERVABILITY := observability/grafana
 
-# O motor de hipóteses ainda não possui endpoint no MVP. O modo mock é
-# explícito nos fluxos suportados e pode ser trocado por `api` quando existir.
-HYPOTHESES_SOURCE ?= mock
-HYPOTHESES_API_URL ?=
+# A API de hipóteses faz parte da API de leitura. O mock continua disponível
+# para desenvolvimento visual explícito, mas nunca é o padrão de um build.
+HYPOTHESES_SOURCE ?= api
 
 # Pasta com os CSVs de evento exportados do BI.
 EVENTS_SRC ?= $(HOME)/Downloads/Events
@@ -103,8 +102,7 @@ env: ## Cria o .env a partir dos outputs do Terraform
 	  echo "ARGUS_API_URL=$$(cd $(INFRA) && terraform output -raw read_api_url 2>/dev/null)"; \
 	  echo "ARGUS_INGEST_URL=$$(cd $(INFRA) && terraform output -raw ingest_url 2>/dev/null)"; \
 	  echo "ARGUS_CHANGES_URL=$$(cd $(INFRA) && terraform output -raw changes_url 2>/dev/null)"; \
-	  echo "HYPOTHESES_SOURCE=mock"; \
-	  echo "HYPOTHESES_API_URL="; \
+	  echo "HYPOTHESES_SOURCE=api"; \
 	  echo "AWS_PROFILE=$${AWS_PROFILE:-default}"; \
 	  echo "AWS_REGION=$${AWS_REGION:-us-east-1}"; \
 	  echo "ARGUS_READ_TOKEN="; \
@@ -631,13 +629,9 @@ frontend-build-info: ## Grava frontend/public/build-info.json com commit e data
 .PHONY: frontend-build
 frontend-build: frontend-build-info ## Gera o site estatico do dashboard
 	@$(call require_env,ARGUS_API_URL)
-	@if [ "$(HYPOTHESES_SOURCE)" = "api" ] && [ -z "$(HYPOTHESES_API_URL)" ]; then \
-	  echo "erro: HYPOTHESES_API_URL é obrigatória no modo api."; exit 1; \
-	fi
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
-	  NEXT_PUBLIC_HYPOTHESES_API_URL="$(HYPOTHESES_API_URL)" \
 	  npm run build
 
 .PHONY: frontend-deploy
@@ -651,13 +645,9 @@ frontend-deploy: frontend-build ## Publica o dashboard no website S3
 .PHONY: frontend-dev
 frontend-dev: ## Sobe o dashboard local contra a API publicada
 	@$(call require_env,ARGUS_API_URL)
-	@if [ "$(HYPOTHESES_SOURCE)" = "api" ] && [ -z "$(HYPOTHESES_API_URL)" ]; then \
-	  echo "erro: HYPOTHESES_API_URL é obrigatória no modo api."; exit 1; \
-	fi
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
-	  NEXT_PUBLIC_HYPOTHESES_API_URL="$(HYPOTHESES_API_URL)" \
 	  npm run dev
 
 # --------------------------------------------------------------------------- #
