@@ -1,0 +1,153 @@
+Evidencia de execucao dos testes de integracao -- projeto Argus (g04)
+Data da execucao: 2026-09-17 17:23:49 UTC
+Maquina: Linux 7.0.0-31-generic x86_64
+Banco de teste: postgresql://argus:argus@localhost:55432/argus_test (container argus-pg, PostgreSQL 16)
+
+================================================================================
+TI-02  API Flask <-> PostgreSQL
+  cd apps/basica/backend
+  TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
+================================================================================
+============================= test session starts ==============================
+platform linux -- Python 3.13.12, pytest-8.4.2, pluggy-1.6.0
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/backend
+configfile: pyproject.toml
+plugins: cov-6.3.0
+collected 3 items
+
+tests/integration/test_api_postgres.py ...                               [100%]
+
+============================== 3 passed in 4.64s ===============================
+
+================================================================================
+TI-03  Worker <-> SQS (moto) <-> PostgreSQL
+  cd apps/basica/worker
+  TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
+================================================================================
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/worker
+configfile: pyproject.toml
+plugins: cov-7.1.0
+collected 2 items
+
+tests/integration/test_fila_banco.py ..                                  [100%]
+
+============================== 2 passed in 2.57s ===============================
+
+================================================================================
+TI-04  ETL bronze -> silver -> gold <-> PostgreSQL
+  cd apps/basica/processing
+  TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
+================================================================================
+============================= test session starts ==============================
+platform linux -- Python 3.13.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/processing
+configfile: pyproject.toml
+collected 3 items
+
+tests/integration/test_camadas_medalhao.py ...                           [100%]
+
+============================== 3 passed in 7.63s ===============================
+
+================================================================================
+TI-01  Dashboard Next.js <-> API Flask <-> PostgreSQL (Playwright)
+  make -C apps/basica test-frontend-e2e
+  (linhas [WebServer] do log do Flask omitidas por volume)
+================================================================================
+cd tools && uv run --quiet python migrate.py aplicar
+  nada a fazer: o banco ja esta na ultima versao
+BEGIN
+NOTICE:  truncate cascades to table "detection_match"
+NOTICE:  truncate cascades to table "run"
+NOTICE:  truncate cascades to table "analysis_cursor"
+NOTICE:  truncate cascades to table "baseline_state"
+NOTICE:  truncate cascades to table "manifest_publication_event"
+NOTICE:  truncate cascades to table "anomaly"
+NOTICE:  truncate cascades to table "work_claim"
+NOTICE:  truncate cascades to table "run_input_fact"
+NOTICE:  truncate cascades to table "source_quality_run"
+NOTICE:  truncate cascades to table "finding_group"
+NOTICE:  truncate cascades to table "hypothesis"
+NOTICE:  truncate cascades to table "hypothesis_run_stats"
+NOTICE:  truncate cascades to table "source_quality"
+NOTICE:  truncate cascades to table "finding_group_member"
+NOTICE:  truncate cascades to table "hypothesis_finding"
+NOTICE:  truncate cascades to table "hypothesis_evidence"
+NOTICE:  truncate cascades to table "hypothesis_feature"
+NOTICE:  truncate cascades to table "hypothesis_feedback"
+NOTICE:  truncate cascades to table "finding_review"
+TRUNCATE TABLE
+       set_clock        
+------------------------
+ 2026-07-14 12:00:00+00
+(1 row)
+
+INSERT 0 6
+INSERT 0 15
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 3
+DO
+COMMIT
+
+> frontend@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.3.0 (webpack)
+- Environments: .env.local
+⚠ Warning: Next.js ignored package-lock.json in /home/inteli/Documentos/workspace/segundo ano because it is outside the current Git repository (/home/inteli/Documentos/workspace/segundo ano/g04).
+ To use this directory, set `outputFileTracingRoot` in your Next.js config.
+
+✓ Running next.config.ts took 34ms
+- Experiments (use with caution):
+  ⨯ useTypeScriptCli
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 3.2s
+  Running TypeScript ...
+  Finished TypeScript in 6.5s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/10) ...
+  Generating static pages using 11 workers (2/10) 
+  Generating static pages using 11 workers (4/10) 
+  Generating static pages using 11 workers (7/10) 
+✓ Generating static pages using 11 workers (10/10) in 1028ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /agora
+├ ○ /comparar
+├ ○ /explorar
+├ ○ /hipoteses
+├ ○ /recorte
+└ ○ /timeline
+
+
+○  (Static)  prerendered as static content
+
+
+> frontend@0.1.0 test:e2e
+> playwright test
+
+
+Running 12 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e/frontend-integrado.spec.ts:14:7 › acesso › [E2E-00] sem token o painel não carrega, e o token colado dá acesso (2.5s)
+  ✓   2 [chromium] › tests/e2e/frontend-integrado.spec.ts:45:5 › [E2E-01] a entrada redireciona e a navegação alcança as seis áreas (2.8s)
+  ✓   3 [chromium] › tests/e2e/frontend-integrado.spec.ts:64:5 › [E2E-02] Agora exibe o sinal calculado pelo Flask sobre o PostgreSQL (953ms)
+  ✓   4 [chromium] › tests/e2e/frontend-integrado.spec.ts:76:5 › [E2E-03] Explorar usa métricas, facetas e agrupamentos reais (2.4s)
+  ✓   5 [chromium] › tests/e2e/frontend-integrado.spec.ts:112:5 › [E2E-04] Comparar troca a referência e mostra mudanças do backend (1.3s)
+  ✓   6 [chromium] › tests/e2e/frontend-integrado.spec.ts:122:5 › [E2E-05] Hipóteses opera em modo API e expõe score e evidência (946ms)
+  ✓   7 [chromium] › tests/e2e/frontend-integrado.spec.ts:138:5 › [E2E-06] Timeline correlaciona as seis fontes reais (887ms)
+  ✓   8 [chromium] › tests/e2e/frontend-integrado.spec.ts:147:5 › [E2E-07] Recorte abre a timeline pública de uma sessão (1.7s)
+  ✓   9 [chromium] › tests/e2e/frontend-integrado.spec.ts:156:5 › [E2E-08] tema e navegação móvel preservam uma interação acessível (1.6s)
+  ✓  10 [chromium] › tests/e2e/integracao-camadas.spec.ts:93:7 › TI-01 — dashboard, API de leitura e banco › [TI-01.1] a tela desenha exatamente as linhas que o Flask leu do PostgreSQL (1.0s)
+  ✓  11 [chromium] › tests/e2e/integracao-camadas.spec.ts:137:7 › TI-01 — dashboard, API de leitura e banco › [TI-01.2] trocar agrupamento e filtro na tela muda a query string e o que volta do banco (1.6s)
+  ✓  12 [chromium] › tests/e2e/integracao-camadas.spec.ts:175:7 › TI-01 — dashboard, API de leitura e banco › [TI-01.3] sem token válido o navegador não chega a consultar o backend (591ms)
+
+  12 passed (20.7s)
