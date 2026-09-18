@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -203,8 +203,12 @@ function DiscardedList({ items }: { items: DiscardedHypothesis[] }) {
 /** Renderiza a decomposição do score, as evidências e as ações da hipótese. */
 function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
   const { hrefWithDemoState } = useOperationsUi();
-  const refinement = useMutation({
-    mutationFn: () => refineHypothesis(hypothesis.id),
+  const refinement = useQuery({
+    queryKey: ["hypothesis-refinement", hypothesis.id],
+    queryFn: () => refineHypothesis(hypothesis.id),
+    enabled: hypothesisRefinementEnabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: 1,
   });
   const refinementFailure = refinement.isError
     ? normalizeQueryFailure(refinement.error)
@@ -270,26 +274,17 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
             <>
               <p role="alert">{refinementFailure.cause}</p>
               <small>Referencia: {refinementFailure.reference}</small>
+              <Button type="button" variant="outline" size="sm" onClick={() => refinement.refetch()}>
+                Tentar novamente
+              </Button>
             </>
+          ) : refinement.isLoading ? (
+            <p>Refinando automaticamente com base apenas nesta hipótese...</p>
           ) : (
             <p>
-              O Ollama reorganiza apenas o texto e as evidências desta hipótese; o diagnóstico e o
-              score não mudam.
+              A explicação refinada ainda não está disponível.
             </p>
           )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={refinement.isPending}
-            onClick={() => refinement.mutate()}
-          >
-            {refinement.isPending
-              ? "Refinando..."
-              : refinement.data || refinementFailure
-                ? "Gerar novamente"
-                : "Refinar explicação"}
-          </Button>
         </section>
       )}
 
