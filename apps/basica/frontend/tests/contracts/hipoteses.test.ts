@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { createHttpHypothesesSource } from "@/app/(operations)/hipoteses/_lib/http-source";
+import { refineHypothesis } from "@/app/(operations)/hipoteses/_lib/refinement";
 
 describe("contrato HTTP da tela Hipóteses", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -87,6 +88,33 @@ describe("contrato HTTP da tela Hipóteses", () => {
       kind: "invalid-response",
       reference: "ARG-HYP-INVALID-SHAPE",
       retryable: false,
+    });
+  });
+
+  test("solicita refinamento da hipotese pelo cliente autenticado", async () => {
+    const payload = {
+      hypothesis_id: 17,
+      answerable: true,
+      answer: "A taxa de erro sustenta a hipotese.",
+      claims: [
+        { text: "A taxa de erro sustenta a hipotese.", source_ids: ["evidence.9"] },
+      ],
+      limitations: [],
+      sources: [{ id: "evidence.9", value: { explanation: "erro alto" } }],
+      model: "modelo-teste",
+      grounding: "hypothesis_only",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(Response.json(payload));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(refineHypothesis("17")).resolves.toEqual(payload);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(String(url)).pathname).toBe("/api/v1/hypotheses/17/refinement");
+    expect(options.method).toBe("POST");
+    expect(options.headers.Authorization).toBe(`Bearer ${"a".repeat(64)}`);
+    expect(JSON.parse(options.body)).toEqual({
+      question: "Explique esta hipótese e as evidências que a sustentam.",
     });
   });
 });
