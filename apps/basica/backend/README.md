@@ -214,9 +214,15 @@ rodar local com o dono, consultas que a produção recusaria vão passar.
 | `DEFAULT_WINDOW_HOURS` | `168` | janela quando não se informa período |
 | `MAX_ITEMS_SCANNED` | `20000` | teto de linhas lidas numa agregação |
 | `CORS_ORIGINS` | `*` | restringir antes de produção |
-| `OLLAMA_URL` | — | opcional; normalmente `http://127.0.0.1:11434` via túnel SSH |
-| `OLLAMA_MODEL` | `llama3.1:8b` | nome exato retornado por `ollama list` no servidor |
-| `OLLAMA_TIMEOUT_SECONDS` | `30` | timeout total da inferência |
+| `OLLAMA_URL` | — | habilita o refinamento; com SSH pode ser `http://ollama.internal:11434` |
+| `OLLAMA_MODEL` | — | opcional; vazio seleciona o primeiro modelo instalado |
+| `OLLAMA_TIMEOUT_SECONDS` | `90` | timeout total da inferência; o modelo remoto atual tem 30B |
+| `OLLAMA_SSH_HOST` | — | host SSH fornecido pelo parceiro |
+| `OLLAMA_SSH_PORT` | `22` | porta SSH |
+| `OLLAMA_SSH_USER` | — | usuário SSH |
+| `OLLAMA_SSH_PASSWORD` | — | senha somente no `.env` ignorado pelo Git |
+| `OLLAMA_REMOTE_HOST` | `127.0.0.1` | endereço do Ollama visto pelo servidor remoto |
+| `OLLAMA_REMOTE_PORT` | `11434` | porta do Ollama no servidor remoto |
 
 ### Ollama remoto por SSH
 
@@ -225,18 +231,27 @@ motor determinístico, o score ou as evidências. Cada afirmação devolvida pre
 citar ids presentes na hipótese. Formato inválido, citação inexistente ou falha
 de rede resulta em `503`, sem resposta parcialmente aterrada.
 
-Preencha `OLLAMA_SSH_HOST` e `OLLAMA_SSH_USER` no `.env`. Depois abra o túnel
-em outro terminal; o próprio SSH solicitará a senha recebida:
+Preencha no `.env` apenas os dados recebidos:
 
-```bash
-make ollama-tunnel
+```env
+OLLAMA_SSH_HOST=10.8.8.10
+OLLAMA_SSH_USER=<usuario>
+OLLAMA_SSH_PASSWORD=<senha>
+OLLAMA_URL=http://ollama.internal:11434
 ```
 
-O comando pressupõe que o Ollama escuta na porta padrão e somente no loopback do
-servidor. Com o túnel aberto, rode `make ollama-models`, copie o nome de um
-modelo retornado para `OLLAMA_MODEL` e reinicie o backend. A senha SSH é digitada
-no prompt ou administrada pelo agente SSH; ela nunca vai para `.env`, comando
-versionado ou documentação.
+Ao iniciar o backend, o adaptador prepara uma sessão SSH persistente. Quando a
+tela recebe uma hipótese, ela solicita o refinamento automaticamente e o backend
+executa o cliente HTTP no próprio servidor remoto; não há botão nem comando de
+túnel, e não é necessário habilitar port forwarding no SSH. Se
+`OLLAMA_MODEL` estiver vazio, o backend consulta `/api/tags` pelo mesmo canal e
+usa o primeiro modelo instalado. A senha existe somente no `.env` local, que é
+ignorado pelo Git.
+
+Se a conta foi criada com senha temporária, faça uma única conexão interativa
+com `ssh <usuario>@10.8.8.10`, defina a nova senha solicitada pelo servidor e
+atualize `OLLAMA_SSH_PASSWORD`. As inferências seguintes são inteiramente
+automáticas e não usam o terminal.
 
 Exemplo de chamada:
 

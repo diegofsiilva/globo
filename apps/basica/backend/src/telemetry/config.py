@@ -60,8 +60,15 @@ class Config:
     # Ollama e opcional e fica fora do motor deterministico. Em desenvolvimento,
     # OLLAMA_URL normalmente aponta para localhost, na ponta de um tunel SSH.
     OLLAMA_URL = os.getenv("OLLAMA_URL", "")
-    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
-    OLLAMA_TIMEOUT_SECONDS = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "30"))
+    # Vazio seleciona automaticamente o primeiro modelo devolvido por /api/tags.
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "")
+    OLLAMA_TIMEOUT_SECONDS = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "90"))
+    OLLAMA_SSH_HOST = os.getenv("OLLAMA_SSH_HOST", "")
+    OLLAMA_SSH_PORT = int(os.getenv("OLLAMA_SSH_PORT", "22"))
+    OLLAMA_SSH_USER = os.getenv("OLLAMA_SSH_USER", "")
+    OLLAMA_SSH_PASSWORD = os.getenv("OLLAMA_SSH_PASSWORD", "")
+    OLLAMA_REMOTE_HOST = os.getenv("OLLAMA_REMOTE_HOST", "127.0.0.1")
+    OLLAMA_REMOTE_PORT = int(os.getenv("OLLAMA_REMOTE_PORT", "11434"))
 
     # O unico POST desta API e feedback textual curto.
     MAX_CONTENT_LENGTH = 4096

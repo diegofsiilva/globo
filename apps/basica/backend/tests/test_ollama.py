@@ -6,7 +6,7 @@ import pytest
 
 from telemetry import create_app
 from telemetry.domain.exceptions import RefinementUnavailableError
-from telemetry.infrastructure.ollama import OllamaHypothesisRefiner
+from telemetry.infrastructure.ollama import OllamaHypothesisRefiner, SSHOllamaOpener
 
 
 class FakeResponse:
@@ -147,6 +147,61 @@ def test_refinador_responde_de_forma_fixa_quando_contexto_e_insuficiente(hypothe
 
     assert result["answerable"] is False
     assert "nao contem informacao suficiente" in result["answer"]
+
+
+def test_refinador_descobre_modelo_instalado_quando_env_esta_vazio(hypothesis):
+    calls = []
+    content = {
+        "answerable": True,
+        "claims": [{"text": "Erro alto.", "source_ids": ["evidence.7"]}],
+        "limitations": [],
+    }
+
+    def opener(request, **_kwargs):
+        calls.append(request.full_url)
+        if request.full_url.endswith("/api/tags"):
+            return FakeResponse({"models": [{"name": "modelo-remoto:latest"}]})
+        return FakeResponse(_ollama_envelope(content))
+
+    result = OllamaHypothesisRefiner("http://ollama.internal:11434", "", opener=opener).refine(
+        hypothesis, question=None
+    )
+
+    assert calls == [
+        "http://ollama.internal:11434/api/tags",
+        "http://ollama.internal:11434/api/chat",
+    ]
+    assert result["model"] == "modelo-remoto:latest"
+
+
+def test_transporte_ssh_exige_as_tres_credenciais():
+    with pytest.raises(ValueError, match="OLLAMA_SSH_PASSWORD"):
+        SSHOllamaOpener(host="10.8.8.10", port=22, username="grupo", password="")
+
+
+def test_aplicacao_monta_transporte_ssh_sem_abrir_tunel_externo(hypothesis):
+    repository = FakeRepository(hypothesis)
+    app = create_app(
+        {
+            "TESTING": True,
+            "OLLAMA_URL": "http://ollama.internal:11434",
+            "OLLAMA_MODEL": "",
+            "OLLAMA_SSH_HOST": "10.8.8.10",
+            "OLLAMA_SSH_PORT": 22,
+            "OLLAMA_SSH_USER": "grupo",
+            "OLLAMA_SSH_PASSWORD": "segredo-de-teste",
+            "OLLAMA_REMOTE_HOST": "127.0.0.1",
+            "OLLAMA_REMOTE_PORT": 11434,
+        },
+        repository=repository,
+        gold=repository,
+        hypotheses=repository,
+        signals=repository,
+    )
+
+    refiner = app.extensions["hypothesis_refiner"]
+    assert isinstance(refiner.opener, SSHOllamaOpener)
+    assert refiner.model == ""
 
 
 def test_rota_entrega_hipotese_publicada_ao_refinador(hypothesis):

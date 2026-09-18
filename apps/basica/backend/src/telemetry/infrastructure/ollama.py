@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import re
+import shlex
+import threading
 from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+import paramiko
 
 from telemetry.domain.exceptions import RefinementUnavailableError
 
@@ -73,8 +78,6 @@ class OllamaHypothesisRefiner:
         """
         if not base_url.startswith(("http://", "https://")):
             raise ValueError("OLLAMA_URL precisa usar http ou https")
-        if not model.strip():
-            raise ValueError("OLLAMA_MODEL nao pode ser vazio")
         if timeout_seconds <= 0:
             raise ValueError("OLLAMA_TIMEOUT_SECONDS precisa ser positivo")
         self.endpoint = f"{base_url.rstrip('/')}/api/chat"
@@ -96,8 +99,9 @@ class OllamaHypothesisRefiner:
             RefinementUnavailableError: Quando Ollama falha ou responde fora do contrato.
         """
         sources = _build_sources(hypothesis)
+        model = self._resolve_model()
         payload = {
-            "model": self.model,
+            "model": model,
             "stream": False,
             "format": RESPONSE_SCHEMA,
             "options": {"temperature": 0},
@@ -131,7 +135,154 @@ class OllamaHypothesisRefiner:
             generated = json.loads(envelope["message"]["content"])
         except (json.JSONDecodeError, KeyError, TypeError) as error:
             raise RefinementUnavailableError("Ollama devolveu uma resposta invalida") from error
-        return _validate_grounding(generated, sources, self.model, hypothesis["hypothesis_id"])
+        return _validate_grounding(generated, sources, model, hypothesis["hypothesis_id"])
+
+    def _resolve_model(self) -> str:
+        """Usa o modelo configurado ou descobre o primeiro instalado no Ollama."""
+        if self.model:
+            return self.model
+        request = Request(f"{self.endpoint.removesuffix('/api/chat')}/api/tags", method="GET")
+        try:
+            with self.opener(request, timeout=self.timeout_seconds) as response:
+                raw = response.read(MAX_RESPONSE_BYTES + 1)
+            payload = json.loads(raw)
+            models = payload["models"]
+            model = models[0].get("name") or models[0]["model"]
+        except (
+            HTTPError,
+            URLError,
+            TimeoutError,
+            OSError,
+            json.JSONDecodeError,
+            KeyError,
+            IndexError,
+            TypeError,
+        ) as error:
+            raise RefinementUnavailableError("nenhum modelo Ollama disponivel") from error
+        if not isinstance(model, str) or not model.strip():
+            raise RefinementUnavailableError("nenhum modelo Ollama disponivel")
+        self.model = model.strip()
+        return self.model
+
+
+class SSHOllamaOpener:
+    """Executa o cliente HTTP no host SSH sem exigir encaminhamento de porta."""
+
+    def __init__(
+        self,
+        *,
+        host: str,
+        port: int,
+        username: str,
+        password: str,
+        remote_host: str = "127.0.0.1",
+        remote_port: int = 11434,
+    ) -> None:
+        """Guarda as unicas credenciais fornecidas pelo parceiro.
+
+        Args:
+            host (str): Host SSH.
+            port (int): Porta SSH.
+            username (str): Usuario SSH.
+            password (str): Senha lida apenas do `.env` local.
+            remote_host (str): Host do Ollama visto de dentro do servidor.
+            remote_port (int): Porta do Ollama vista de dentro do servidor.
+
+        Raises:
+            ValueError: Quando uma credencial obrigatoria esta vazia.
+        """
+        if not host or not username or not password:
+            raise ValueError(
+                "OLLAMA_SSH_HOST, OLLAMA_SSH_USER e OLLAMA_SSH_PASSWORD sao obrigatorios"
+            )
+        if not re.fullmatch(r"[A-Za-z0-9.-]+", remote_host):
+            raise ValueError("OLLAMA_REMOTE_HOST invalido")
+        if not 1 <= remote_port <= 65535:
+            raise ValueError("OLLAMA_REMOTE_PORT invalida")
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.remote_host = remote_host
+        self.remote_port = remote_port
+        self._client: paramiko.SSHClient | None = None
+        self._lock = threading.Lock()
+
+    def __call__(self, request: Request, *, timeout: float) -> _SSHResponse:
+        """Executa uma `Request` com curl dentro do servidor SSH."""
+        try:
+            client = self._connected_client(timeout)
+            url = f"http://{self.remote_host}:{self.remote_port}{request.selector}"
+            command = (
+                "curl --fail --silent --show-error "
+                f"--max-time {max(1, int(timeout))} "
+                f"-X {shlex.quote(request.get_method())} "
+                "-H 'Content-Type: application/json' "
+                f"{('--data-binary @- ' if request.data is not None else '')}"
+                f"{shlex.quote(url)}"
+            )
+            stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
+            if request.data is not None:
+                stdin.channel.sendall(request.data)
+            stdin.channel.shutdown_write()
+            payload = stdout.read(MAX_RESPONSE_BYTES + 1)
+            if len(payload) > MAX_RESPONSE_BYTES:
+                stdout.channel.close()
+                raise OSError("resposta do Ollama excedeu o limite")
+            status = stdout.channel.recv_exit_status()
+            error_detail = stderr.read(4096).decode(errors="replace").strip()
+            if status != 0:
+                lowered = error_detail.lower()
+                if "password has expired" in lowered or "password change required" in lowered:
+                    raise RefinementUnavailableError(
+                        "senha SSH expirada; altere-a em um login interativo e atualize o .env"
+                    )
+                raise OSError(error_detail or f"curl remoto terminou com status {status}")
+            return _SSHResponse(payload)
+        except (paramiko.SSHException, OSError) as error:
+            raise OSError("falha na conexao SSH com o Ollama") from error
+
+    def _connected_client(self, timeout: float) -> paramiko.SSHClient:
+        """Cria uma sessao SSH uma vez e a reutiliza entre as inferencias."""
+        with self._lock:
+            current = self._client.get_transport() if self._client else None
+            if current and current.is_active():
+                return self._client
+            client = paramiko.SSHClient()
+            client.load_system_host_keys()
+            # O parceiro forneceu somente host/usuario/senha, sem fingerprint.
+            # WarningPolicy permite o primeiro acesso, mas emite aviso explicito.
+            client.set_missing_host_key_policy(paramiko.WarningPolicy())
+            client.connect(
+                hostname=self.host,
+                port=self.port,
+                username=self.username,
+                password=self.password,
+                timeout=timeout,
+                auth_timeout=timeout,
+                banner_timeout=timeout,
+                look_for_keys=False,
+                allow_agent=False,
+            )
+            self._client = client
+            return client
+
+
+class _SSHResponse:
+    """Resposta em memoria compativel com a pequena interface de `urlopen`."""
+
+    def __init__(self, payload: bytes) -> None:
+        self.payload = payload
+
+    def __enter__(self) -> _SSHResponse:
+        return self
+
+    def __exit__(self, *_args: Any) -> None:
+        return None
+
+    def read(self, amount: int) -> bytes:
+        """Le no maximo a quantidade solicitada pelo chamador."""
+        return self.payload[:amount]
 
 
 def _build_sources(hypothesis: dict[str, Any]) -> dict[str, dict[str, Any]]:

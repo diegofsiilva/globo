@@ -16,7 +16,7 @@ from telemetry.domain.exceptions import (
 )
 from telemetry.infrastructure.gold import GoldRepository
 from telemetry.infrastructure.hypotheses import HypothesisRepository
-from telemetry.infrastructure.ollama import OllamaHypothesisRefiner
+from telemetry.infrastructure.ollama import OllamaHypothesisRefiner, SSHOllamaOpener
 from telemetry.infrastructure.postgres import PostgresEventRepository, build_pool
 from telemetry.infrastructure.signals import SignalsRepository
 from telemetry.interfaces.auth import register_auth
@@ -96,10 +96,21 @@ def create_app(
     if hypothesis_refiner is not None:
         app.extensions["hypothesis_refiner"] = hypothesis_refiner
     elif app.config.get("OLLAMA_URL"):
+        opener = None
+        if app.config.get("OLLAMA_SSH_HOST"):
+            opener = SSHOllamaOpener(
+                host=app.config["OLLAMA_SSH_HOST"],
+                port=app.config["OLLAMA_SSH_PORT"],
+                username=app.config["OLLAMA_SSH_USER"],
+                password=app.config["OLLAMA_SSH_PASSWORD"],
+                remote_host=app.config["OLLAMA_REMOTE_HOST"],
+                remote_port=app.config["OLLAMA_REMOTE_PORT"],
+            )
         app.extensions["hypothesis_refiner"] = OllamaHypothesisRefiner(
             app.config["OLLAMA_URL"],
             app.config["OLLAMA_MODEL"],
             timeout_seconds=app.config["OLLAMA_TIMEOUT_SECONDS"],
+            **({"opener": opener} if opener is not None else {}),
         )
     app.register_blueprint(api)
     app.register_blueprint(hypotheses_api)

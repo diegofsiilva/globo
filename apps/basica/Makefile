@@ -36,14 +36,6 @@ OBSERVABILITY_COMPOSE := docker compose -p carga -f $(OBSERVABILITY)/docker-comp
 HYPOTHESES_SOURCE ?= mock
 HYPOTHESES_API_URL ?=
 
-# Acesso local ao Ollama remoto. A senha nao entra no Makefile nem no .env: o
-# cliente SSH nativo pede no terminal e mantem o segredo fora dos argumentos.
-OLLAMA_SSH_HOST ?=
-OLLAMA_SSH_PORT ?= 22
-OLLAMA_SSH_USER ?=
-OLLAMA_LOCAL_PORT ?= 11434
-OLLAMA_REMOTE_PORT ?= 11434
-
 # Pasta com os CSVs de evento exportados do BI.
 EVENTS_SRC ?= $(HOME)/Downloads/Events
 
@@ -106,21 +98,6 @@ help: ## Lista os alvos
 # --------------------------------------------------------------------------- #
 # Ambiente
 # --------------------------------------------------------------------------- #
-
-.PHONY: ollama-tunnel
-ollama-tunnel: ## Abre o tunel SSH para o Ollama e solicita a senha no terminal
-	@$(call require_env,OLLAMA_SSH_HOST)
-	@$(call require_env,OLLAMA_SSH_USER)
-	@echo "O tunel fica ativo enquanto este comando estiver aberto."
-	ssh -o ExitOnForwardFailure=yes -N \
-	  -L "$(OLLAMA_LOCAL_PORT):127.0.0.1:$(OLLAMA_REMOTE_PORT)" \
-	  -p "$(OLLAMA_SSH_PORT)" \
-	  "$(OLLAMA_SSH_USER)@$(OLLAMA_SSH_HOST)"
-
-.PHONY: ollama-models
-ollama-models: ## Lista os modelos Ollama disponiveis pelo tunel aberto
-	@$(call require_env,OLLAMA_URL)
-	curl --fail --silent --show-error "$(OLLAMA_URL)/api/tags"
 
 .PHONY: install
 install: ## Instala as dependencias de todos os apps Python
