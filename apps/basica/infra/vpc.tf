@@ -91,6 +91,18 @@ resource "aws_subnet" "public" {
   tags = {
     Name = "${local.name}-public-${count.index}"
     Tier = "public"
+
+    # Descoberta de sub-rede pelo controlador de load balancer do EKS: e por
+    # esta tag que ele sabe onde criar o ALB do Ingress. Sem ela o Ingress fica
+    # para sempre sem endereco, e a mensagem do controlador fala em "unable to
+    # discover subnets" -- longe daqui.
+    #
+    # Estatica, e nao condicionada a var.create_eks por `aws_ec2_tag`: o
+    # aws_subnet calcula o diff de tags contra ESTE bloco e remove o que nao
+    # estiver nele, entao um aws_ec2_tag no mesmo recurso produziria um apply
+    # que adiciona e o seguinte que remove, para sempre. A tag e inerte quando
+    # nao ha cluster.
+    "kubernetes.io/role/elb" = "1"
   }
 }
 
@@ -106,6 +118,11 @@ resource "aws_subnet" "private" {
   tags = {
     Name = "${local.name}-private-${count.index}"
     Tier = "private"
+
+    # Par da tag das publicas: marca onde um balanceador INTERNO nasceria. Os
+    # nos do Auto Mode tambem vivem aqui. Ver a nota em aws_subnet.public sobre
+    # por que ela e estatica.
+    "kubernetes.io/role/internal-elb" = "1"
   }
 }
 
