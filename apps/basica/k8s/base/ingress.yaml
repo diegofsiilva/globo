@@ -1,0 +1,53 @@
+# A entrada unica do sistema.
+#
+# Um balanceador serve o dashboard E a API, na MESMA origem:
+#
+#   /        -> argus-frontend (nginx com o export estatico)
+#   /api     -> argus-backend  (Flask; o blueprint ja vive em /api/v1)
+#   /health  -> argus-backend  (conveniencia de smoke test)
+#
+# Tres consequencias que valem o desenho:
+#
+#  1. O navegador nunca emite preflight, entao o CORS deixa de ser um parametro
+#     operacional. Ate a Sprint 3 o dashboard vinha do S3 e a API do ALB: duas
+#     origens, e uma lista de origens permitidas para manter em dia.
+#  2. `NEXT_PUBLIC_API_URL=/` faz o cliente montar caminho relativo, entao a
+#     imagem do frontend deixa de depender do endereco do ambiente. A MESMA tag
+#     roda no kind e no EKS -- o que importa aqui, onde o hostname do ALB muda
+#     a cada sessao do lab.
+#  3. Nao ha rewrite de caminho. O Flask ja registra o blueprint em /api/v1
+#     (backend/src/telemetry/interfaces/http.py), entao o prefixo chega intacto.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argus
+  labels:
+    app.kubernetes.io/part-of: argus
+spec:
+  rules:
+    - http:
+        paths:
+          # A ORDEM importa. O controlador emite as regras do listener nesta
+          # sequencia; com "/" na frente, ele casaria tudo e o backend jamais
+          # receberia requisicao.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: argus-backend
+                port:
+                  number: 5000
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: argus-backend
+                port:
+                  number: 5000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argus-frontend
+                port:
+                  number: 80

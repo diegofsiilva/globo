@@ -1,0 +1,21 @@
+# O HPA e quem manda no numero de replicas.
+#
+# Sem este patch, o `replicas: 1` do replicas-patch.yaml nao tem efeito: assim
+# que o HorizontalPodAutoscaler assume o Deployment, ele impoe o proprio
+# `minReplicas`, e o campo do Deployment vira decoracao. Foi o que aconteceu na
+# primeira subida -- dois pods de backend num no que nao aguentava.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: argus-backend
+spec:
+  minReplicas: 1
+  maxReplicas: 2
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: argus-frontend
+spec:
+  minReplicas: 1
+  maxReplicas: 2
