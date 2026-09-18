@@ -608,3 +608,344 @@ linha própria na tabela.
 `AWS_REGION` não está definida no terminal. Não é defeito do código nem efeito dos
 testes de integração, e com `AWS_REGION=us-east-1` no ambiente os 18 testes passam,
 como registrado na tabela. O valor sai do `.env` na operação normal do projeto.
+
+## Testes de carga
+
+### O que esta seção verifica
+
+&emsp; As duas seções anteriores perguntam se o sistema responde certo. Esta
+pergunta se ele continua respondendo certo, e em quanto tempo, quando muita gente
+usa o dashboard ao mesmo tempo. O alvo são as operações disponíveis pela interface:
+cada uma das seis telas operacionais, ao abrir, dispara um conjunto de consultas à
+API de leitura, e é exatamente esse conjunto, com os mesmos parâmetros que o
+frontend envia, que o teste reproduz. Não se testa a ingestão de eventos aqui, que
+já foi coberta pelos ensaios de RNF01 e RNF03 em
+[`testes-carga-inicial.md`](testes-carga-inicial.md); testa-se o caminho que o
+operador sente.
+
+&emsp; Foram executados três níveis progressivos de carga, com 5, 25 e 100 usuários
+simultâneos, contra a pilha publicada na AWS. Houve duas rodadas. A primeira, gerada
+da máquina de desenvolvimento, encontrou um defeito de configuração entre o
+balanceador e o servidor de aplicação, que produzia um erro a cada poucas dezenas de
+segundos em qualquer nível de carga. O defeito foi corrigido e implantado, e a segunda
+rodada, gerada de dentro da própria AWS, é a oficial: 25.501 requisições, nenhuma
+falha, e o percentil 95 abaixo de 1 s mesmo com 100 usuários.
+
+### Vocabulário usado nesta seção
+
+&emsp; **Usuário virtual, ou VU**, é a unidade de carga do k6: um laço que abre uma
+tela, espera um pouco e abre a próxima, como faria uma pessoa. Cem VUs são cem
+pessoas navegando ao mesmo tempo, não cem requisições por segundo.
+
+&emsp; **Tempo de pensar**, do inglês think time, é a pausa entre uma tela e a
+seguinte. Sem ela, cada VU seria um laço apertado contra a API e a medida deixaria de
+representar uso humano. Aqui são 2 s, e o valor está registrado porque muda o
+volume: quanto menor a pausa, mais requisições por usuário.
+
+&emsp; **p50, p95 e p99** são percentis do tempo de resposta. Um p95 de 802 ms
+significa que 95% das requisições foram respondidas em até 802 ms; o p99 olha para o
+1% mais lento. O percentil diz mais do que a média, porque a média esconde a cauda
+que o usuário percebe.
+
+&emsp; **ALB**, de Application Load Balancer, é o balanceador da AWS que recebe a
+requisição do dashboard e a distribui entre as instâncias EC2 que rodam a API. O
+**grupo de auto scaling**, ou ASG, é o conjunto dessas instâncias, com uma política
+de **target tracking**: uma meta de requisições por instância por minuto, acima da
+qual o grupo cresce e abaixo da qual encolhe.
+
+&emsp; **HTTP 502**, ou bad gateway, é a resposta que um intermediário dá quando não
+consegue uma resposta válida de quem está atrás dele. Quando quem emite o 502 é o
+próprio balanceador, e não a aplicação, o problema está na conversa entre os dois.
+
+&emsp; **Keep-alive** é a reutilização de uma conexão TCP para várias requisições
+seguidas. Balanceador e servidor precisam concordar sobre quanto tempo uma conexão
+ociosa fica aberta; se o servidor a fecha antes do balanceador, a próxima requisição
+que o balanceador tenta enviar por ela falha com 502.
+
+### Ferramenta e método
+
+| Item | Valor |
+|---|---|
+| Ferramenta | k6 0.54.0. Na rodada oficial, o binário Linux arm64 instalado numa EC2 descartável; na primeira rodada, a imagem `grafana/k6:0.54.0` em Docker na máquina de desenvolvimento |
+| Roteiro | [`apps/basica/tests/carga/carga_ui.js`](../apps/basica/tests/carga/carga_ui.js) |
+| Modelo de usuário | Cada iteração abre uma tela: dispara em paralelo, como o navegador, as rotas que aquela tela consome, espera todas, registra o tempo total da tela, e pausa 2 s. As seis telas se alternam em rodízio |
+| Janelas de tempo | Relativas ao relógio virtual `sim_now`, lido em `GET /api/v1/clock` no início do teste, como o frontend faz; janelas de 3 h para Timeline, Comparar e Hipóteses e de 24 h para Explorar, que são os períodos padrão das telas |
+| Gerador de carga | EC2 `t4g.small` na sub-rede pública da VPC do projeto, criada por [`gerador_ec2.sh`](../apps/basica/tests/carga/gerador_ec2.sh) só para a rodada e encerrada ao fim dela |
+| Data da rodada oficial | 18 de setembro de 2026, das 17:50 às 17:57 UTC |
+| Identificador | `carga-ui-ec2-20260918T174857Z` |
+
+&emsp; O gerador roda dentro da AWS por uma razão prática: carga sustentada saindo de
+um endereço residencial contra um endpoint da AWS tem a assinatura de um ataque de
+negação de serviço, e contas de laboratório já foram suspensas por isso. Saindo de
+uma instância da própria conta, o tráfego é interno à nuvem e a origem é
+identificável. O script cria a instância sem nenhuma porta de entrada, entrega a ela
+os roteiros por um bucket privado e o token por um parâmetro criptografado do
+Systems Manager, espera o resultado voltar ao bucket e apaga tudo o que criou,
+inclusive a instância. Um efeito colateral bem-vindo é que a medida deixa de conter
+a latência da internet entre a casa do operador e a AWS.
+
+&emsp; As rotas de cada tela foram levantadas no código do frontend, e não escolhidas
+à mão, para que o teste meça o que o dashboard realmente pede. A tabela abaixo é o
+que uma abertura de tela custa à API.
+
+| Tela | Rotas disparadas ao abrir | Requisições |
+|---|---|---|
+| Agora | `clock`, `series/facets` com os quatro campos de escopo, `signals` | 3 |
+| Timeline | `clock`, `timeline` na janela de 3 h | 2 |
+| Comparar | `clock`, `series/timeseries` da janela atual e da mesma janela uma semana antes, `changes` | 4 |
+| Explorar | `clock`, `series/facets`, `series/breakdown` por métrica, `series/timeseries` de 24 h em passos de 5 min, `series/breakdown` por dispositivo em sessões e em taxa de erro | 6 |
+| Recorte | `clock`, `series/facets`, `series/crosstab` entidade por hora com duas métricas, `events` filtrado por erro | 4 |
+| Hipóteses | `clock`, `hypotheses` na janela de 3 h | 2 |
+
+&emsp; Uma tela conta como completa apenas se todas as suas rotas responderem 200. É
+uma medida mais dura do que a taxa de erro por requisição, e é a que importa para o
+operador: uma consulta em quatro que falha é uma tela quebrada, não 25% de sucesso.
+
+### Ambiente
+
+&emsp; A URL de leitura que o dashboard consome, e que `make env` grava no `.env`, é
+a do ALB, e por isso o caminho testado é o do grupo de auto scaling, não o da Lambda
+descrita no TI-05. Os dois existem na pilha; o ALB é o preferido quando está no ar.
+
+| Componente | Configuração durante a rodada oficial |
+|---|---|
+| Balanceador | ALB com `idle_timeout` de 60 s e health check a cada 30 s |
+| Aplicação | 2 instâncias EC2 `t4g.small`, imagem `08a827b72de8`, cada uma com o Flask servido por gunicorn com 2 workers de 4 threads e `--keep-alive 75` |
+| Auto scaling | Mínimo 2, máximo 6, target tracking em 60 requisições por instância por minuto, aquecimento de 300 s |
+| Banco | RDS PostgreSQL 16, `db.t3.medium`, lido pelo usuário `argus_api` através das views `v_*` |
+| Gerador de carga | EC2 `t4g.small`, Amazon Linux 2023 arm64, na mesma VPC |
+
+### Níveis de carga e critérios de sucesso
+
+&emsp; Os três níveis rodam em sequência no mesmo processo, com 2 min cada e 30 s de
+pausa entre eles, para que a API volte ao repouso antes do degrau seguinte. O
+volume de requisições é consequência do número de usuários e do tempo de pensar, e
+não um parâmetro fixado; por isso ele aparece medido, e não planejado.
+
+| Nível | Usuários simultâneos | Duração | Telas abertas | Requisições | Vazão média |
+|---|---:|---:|---:|---:|---:|
+| 1 | 5 | 2 min | 295 | 1.040 | 8,7 req/s, 520 req/min |
+| 2 | 25 | 2 min | 1.479 | 5.208 | 43,4 req/s, 2.604 req/min |
+| 3 | 100 | 2 min | 5.536 | 19.253 | 160,4 req/s, 9.627 req/min |
+| Total | | 7 min 20 s | 7.310 | 25.501 | |
+
+&emsp; Os critérios de sucesso, declarados no roteiro como limiares que o k6 avalia
+sozinho e reprova a execução se não forem atendidos, foram estes, por nível:
+
+| Critério | Limite | Origem |
+|---|---|---|
+| Taxa de erro por requisição | Menor que 1% | Prática comum para leitura interna |
+| p95 do tempo de resposta por requisição | Menor que 3 s | RNF02, com margem |
+| p99 do tempo de resposta por requisição | Menor que 5 s | RNF02, o limite do requisito |
+| p95 do tempo para abrir a tela inteira | Menor que 5 s | RNF02 aplicado ao que o operador vê |
+| Telas completas | Mais de 99% | Toda rota da tela com 200 |
+
+### Resultados
+
+| Nível | Usuários | Erros | p50 | p95 | p99 | Máximo | Tela p95 | Telas completas | Situação |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 1 | 5 | 0 de 1.040 | 9 ms | 94 ms | 278 ms | 889 ms | 157 ms | 100% | Aprovado |
+| 2 | 25 | 0 de 5.208 | 9 ms | 96 ms | 309 ms | 548 ms | 148 ms | 100% | Aprovado |
+| 3 | 100 | 0 de 19.253 | 23 ms | 802 ms | 1.302 ms | 1.656 ms | 964 ms | 100% | Aprovado |
+
+&emsp; Por tela, o p95 do tempo de abertura em cada nível mostra onde a carga pesa:
+
+| Tela | Nível 1, 5 usuários | Nível 2, 25 usuários | Nível 3, 100 usuários |
+|---|---:|---:|---:|
+| Agora | 859 ms | 470 ms | 662 ms |
+| Timeline | 56 ms | 16 ms | 46 ms |
+| Comparar | 14 ms | 25 ms | 187 ms |
+| Explorar | 111 ms | 108 ms | 977 ms |
+| Recorte | 168 ms | 276 ms | 1.372 ms |
+| Hipóteses | 63 ms | 21 ms | 899 ms |
+
+&emsp; Do lado do servidor, o CloudWatch registrou na mesma janela: nenhuma resposta
+5xx, nem do balanceador nem das instâncias; nenhum erro de conexão com os alvos;
+duas respostas 4xx das instâncias às 17:55 UTC que o k6 não viu, já que registrou
+zero respostas fora de 200, e que portanto vieram de outro cliente; tempo de
+resposta dos alvos com p95 entre 56 e 888 ms; 14 conexões constantes no RDS; CPU do
+banco de 33% em repouso ao pico de 73% no nível 3; CPU média das instâncias EC2 de
+3% nos dois primeiros níveis e 8% no terceiro, com máximo de 12%.
+
+### Análise
+
+&emsp; **Até 25 usuários a carga é invisível.** O p50 é de 9 ms nos dois primeiros
+níveis e o p95 fica abaixo de 100 ms; a CPU das instâncias não sai de 3%. Para o
+tamanho de equipe que um dashboard interno atende, este é o regime de operação, e
+ele tem duas ordens de grandeza de folga.
+
+&emsp; **Com 100 usuários o banco passa a ser o gargalo.** O p95 sobe para 802 ms e
+as telas que mais agregam, Recorte, Explorar e Hipóteses, são as que mais sentem: um
+crosstab de mil células, breakdowns de 24 h e o relatório de hipóteses. A CPU do RDS
+vai a 73% enquanto a das instâncias EC2 fica em 8%, o que diz que o próximo recurso a
+esgotar é o banco, não a aplicação, e que mais instâncias no grupo não ajudariam
+neste ponto: ajudaria índice, cache ou uma classe maior de RDS. Os tempos continuam
+dentro do critério, com o p99 em 1,3 s contra um limite de 5 s.
+
+&emsp; **A tela Agora tem uma cauda que não vem da carga.** Seu p95 de 859 ms no
+nível 1 é maior que nos níveis 2 e 3. O nível 1 é o primeiro do teste e captura o
+aquecimento das duas instâncias, recém-substituídas pelo rollout, com o plano das
+consultas ainda por entrar em cache. O máximo do nível 1, 889 ms, é essa mesma
+primeira abertura. Um degrau de aquecimento antes do primeiro nível removeria o
+efeito.
+
+&emsp; **O auto scaling disparou, mas chegou depois do teste.** Com 9.627
+requisições por minuto sobre duas instâncias, a média passou de 4.800 por alvo, oitenta
+vezes a meta de 60. O alarme entrou em estado de alerta às 17:55:56 UTC, e a
+capacidade desejada foi de 2 para 6; as quatro instâncias novas ainda estavam em
+aquecimento quando o nível 3 terminou. Os 100 usuários foram atendidos pelas duas
+instâncias originais, o que reforça que a aplicação tinha folga. Para um degrau de
+2 min a elasticidade não tem tempo de agir; para um turno de operação, teria.
+
+#### A primeira rodada e o defeito que ela encontrou
+
+&emsp; A rodada de 17 de setembro, gerada da máquina de desenvolvimento contra a
+mesma pilha e com o mesmo roteiro, terminou com 24.614 requisições e 23 falhas,
+0,09%. Os tempos já cumpriam o critério, com p95 de 248, 365 e 528 ms nos três
+níveis, mas as falhas tinham uma distribuição estranha: 9 no nível 1, 9 no nível 2 e
+5 no nível 3. Uma falha causada por carga faria o inverso.
+
+&emsp; O CloudWatch explicou. O contador `HTTPCode_ELB_502_Count` do balanceador
+marcou exatamente 23 na janela, entre 1 e 5 por minuto do início ao fim, enquanto o
+contador de 5xx originados pelas instâncias ficou vazio: a aplicação nunca respondeu
+erro. O mecanismo estava na configuração: o gunicorn com threads fechava uma conexão
+ociosa depois de 2 s, o seu padrão de keep-alive, e o ALB mantinha a sua por 60 s.
+Quando o balanceador reutilizava uma conexão que o servidor acabara de fechar, a
+requisição morria em 502 antes de chegar ao Flask. A própria AWS documenta esse
+cenário e recomenda que o servidor mantenha a conexão por mais tempo que o
+balanceador.
+
+&emsp; A correção é uma linha no comando do gunicorn, `--keep-alive 75`, no
+[`Dockerfile`](../apps/basica/backend/Dockerfile) do backend. Ela foi publicada como a
+imagem `08a827b72de8` e implantada no grupo de auto scaling substituindo as
+instâncias, sempre com duas saudáveis no balanceador. A substituição foi manual,
+subindo a capacidade desejada para quatro e encerrando as duas antigas depois, e
+isso revela um ponto do `asg.tf` a corrigir: o grupo aponta o launch template para
+`$Latest`, e com esse valor o provider do Terraform não dispara o instance refresh
+quando uma versão nova é publicada, ao contrário do que o comentário do arquivo
+supõe; o refresh manual, por sua vez, é negado por política no Learner Lab. A rodada
+oficial é a prova de que a correção funcionou: mesma carga, zero 502.
+
+&emsp; Comparando as duas rodadas, os tempos da segunda são menores nos níveis 1 e 2,
+com p95 de 94 e 96 ms contra 248 e 365 ms, porque o gerador dentro da VPC não paga a
+latência da internet. No nível 3 a segunda é mais lenta, com p95 de 802 ms contra
+528 ms, e o banco estava mais ocupado desde antes do teste, com 33% de CPU em
+repouso contra 24% na véspera, provavelmente porque o processamento recém-reimplantado
+estava a recuperar o atraso da ETL. A comparação direta entre as rodadas é
+portanto indicativa, e não uma medida; a que vale é a rodada oficial.
+
+### Conclusão
+
+&emsp; A API de leitura atende, com margem, ao RNF02 nos três níveis testados: o
+tempo de resposta ficou abaixo de 1,7 s em todas as 25.501 requisições, contra um
+limite de 5 s; nenhuma requisição falhou; e o p95 para abrir uma tela inteira ficou em
+964 ms com 100 usuários simultâneos. A carga do nível 3, 9.627 requisições por
+minuto, é várias vezes maior que a expectativa de uso de um dashboard interno, e o
+sistema a absorveu com duas instâncias pequenas e CPU ociosa.
+
+&emsp; O único defeito encontrado foi de configuração, e foi corrigido e comprovado
+dentro do mesmo trabalho: o desencontro de keep-alive entre o gunicorn e o ALB, que
+custava de um a cinco 502 por minuto em qualquer nível de carga. O próximo ensaio deve
+incluir um degrau de aquecimento antes do primeiro nível e um nível 3 mais longo, de
+10 min, para que o auto scaling entre em serviço dentro da janela medida e a
+elasticidade possa ser observada, e não só disparada. Se a carga real um dia se
+aproximar de 100 usuários simultâneos, o recurso a dimensionar é o banco.
+
+### Onde está cada coisa e como reproduzir
+
+| Caminho | Papel |
+|---|---|
+| [`apps/basica/tests/carga/carga_ui.js`](../apps/basica/tests/carga/carga_ui.js) | Roteiro do k6: rotas por tela, três níveis, limiares e resumo por nível |
+| [`apps/basica/tests/carga/gerador_ec2.sh`](../apps/basica/tests/carga/gerador_ec2.sh) | Cria a EC2 geradora, roda o cenário nela, traz os resultados e apaga o que criou |
+| [`apps/basica/tests/carga/executar_testes.sh`](../apps/basica/tests/carga/executar_testes.sh) | Executor local da suíte, com o cenário `carga-ui`; usa o k6 local ou a imagem Docker |
+| [`apps/basica/backend/Dockerfile`](../apps/basica/backend/Dockerfile) | A correção do keep-alive |
+| [`apps/basica/Makefile`](../apps/basica/Makefile) | Alvos `teste-carga-ui` e `teste-carga-ui-ec2` |
+| [`evidencias/testes-carga.txt`](evidencias/testes-carga.txt) | Saída completa do k6 das duas rodadas, sem as linhas de progresso, e as leituras do CloudWatch de cada janela |
+
+```bash
+# 1. renovar a sessão do Learner Lab e garantir o .env (make -C apps/basica env)
+# 2. exportar o token de leitura no terminal e chamar o gerador direto: o Makefile
+#    lê o .env e sobrescreve o que estiver exportado, então o alvo do make só
+#    funciona com o token preenchido no .env
+export ARGUS_READ_TOKEN=...
+apps/basica/tests/carga/gerador_ec2.sh carga-ui
+
+# níveis, duração e pausa são ajustáveis por variável de ambiente:
+CARGA_UI_VUS_3=200 CARGA_UI_DURACAO=10m apps/basica/tests/carga/gerador_ec2.sh carga-ui
+
+# a variante local, para preflight sem criar instância:
+apps/basica/tests/carga/executar_testes.sh carga-ui
+```
+
+&emsp; Como nas seções anteriores, nenhum endpoint, identificador de conta ou token
+aparece neste artefato nem na evidência: as URLs e o id da conta na saída do k6 e
+do gerador foram substituídos por `<url>` e `<conta>` antes de serem versionados.
+
+## Conclusão
+
+&emsp; Este artefato percorreu três perguntas em ordem crescente de alcance. Os 52
+testes unitários responderam se cada unidade calcula certo, com tudo em volta
+substituído por dublê, e todos aprovaram. Os cinco testes de integração, com treze
+casos, responderam se as camadas conversam entre si sem dublê no trecho sob teste:
+doze casos aprovaram e um reprovou, o TI-05.2, na pilha publicada. Os testes de carga
+responderam se o sistema continua respondendo, e em quanto tempo, com 5, 25 e 100
+pessoas usando o dashboard ao mesmo tempo: 25.501 requisições sem nenhuma falha, com
+o percentil 95 abaixo de 100 ms até 25 usuários e de 802 ms com 100.
+
+&emsp; O que dá valor a este conjunto não é o número de aprovações, e sim os dois
+defeitos que ele encontrou e que nenhuma leitura de código encontraria. O primeiro
+veio da integração: o evento aceito pela borda demorava horas, não minutos, para
+aparecer na leitura, porque a ETL varria a tabela `bronze.event` sem índice pelo
+número de ordem `_lsn`. O diagnóstico virou a migration 030 e um teste que a
+sustenta. O segundo veio da carga: um em cada mil pedidos ao dashboard morria com
+502 no balanceador, em qualquer nível de uso, porque o gunicorn fechava conexões
+ociosas em 2 s e o ALB as reaproveitava por 60 s. O diagnóstico virou uma linha no
+Dockerfile, uma nova imagem em produção e uma segunda rodada que provou o efeito.
+Nos dois casos a reprovação foi mantida no relatório e investigada até a causa, em
+vez de contornada afrouxando prazo ou critério.
+
+&emsp; Três coisas ficam apontadas para a próxima iteração, e nenhuma delas é um
+defeito de código. A ETL precisa de uma métrica de distância entre o marcador e a
+ponta da sequência, para que um acúmulo apareça no dia em que começa e não num teste
+dias depois. O teste de carga precisa de um degrau de aquecimento e de um nível
+longo o bastante para que o auto scaling entre em serviço dentro da janela medida.
+E, se o uso real do dashboard um dia se aproximar de 100 usuários simultâneos, o
+recurso a dimensionar é o banco, que chegou a 73% de CPU enquanto a aplicação ficou
+em 8%.
+
+## Referências
+
+&emsp; Fontes consultadas na escrita deste artefato, agrupadas pelo assunto em que
+foram usadas.
+
+**Ferramentas de teste**
+
+1. PYTEST-DEV. *pytest documentation*. Disponível em: <https://docs.pytest.org/en/stable/>. Acesso em: 18 set. 2026.
+2. MICROSOFT. *Playwright: Installation and getting started*. Disponível em: <https://playwright.dev/docs/intro>. Acesso em: 18 set. 2026.
+3. GETMOTO. *Moto: Mock AWS Services*. Disponível em: <https://docs.getmoto.org/en/latest/>. Acesso em: 18 set. 2026.
+4. GRAFANA LABS. *k6 documentation: Constant VUs executor*. Disponível em: <https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-vus/>. Acesso em: 18 set. 2026.
+5. GRAFANA LABS. *k6 documentation: Thresholds*. Disponível em: <https://grafana.com/docs/k6/latest/using-k6/thresholds/>. Acesso em: 18 set. 2026.
+6. GRAFANA LABS. *k6 documentation: http.batch()*. Disponível em: <https://grafana.com/docs/k6/latest/javascript-api/k6-http/batch/>. Acesso em: 18 set. 2026.
+
+**Componentes da AWS exercitados pelos testes**
+
+7. AMAZON WEB SERVICES. *Amazon SQS standard queues* (entrega ao menos uma vez e ordenação de melhor esforço). Disponível em: <https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html>. Acesso em: 18 set. 2026.
+8. AMAZON WEB SERVICES. *Integrating HTTP APIs with AWS services* (integração direta do API Gateway com o SQS, usada no TI-05). Disponível em: <https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-aws-services.html>. Acesso em: 18 set. 2026.
+9. AMAZON WEB SERVICES. *Working with AWS Lambda authorizers for HTTP APIs*. Disponível em: <https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-lambda-authorizer.html>. Acesso em: 18 set. 2026.
+10. AMAZON WEB SERVICES. *Edit attributes for your Application Load Balancer*, seção "Connection idle timeout", que recomenda que a aplicação mantenha a conexão por mais tempo que o balanceador e descreve o 502 resultante. Disponível em: <https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-load-balancer-attributes.html>. Acesso em: 18 set. 2026.
+11. AMAZON WEB SERVICES. *CloudWatch metrics for your Application Load Balancer* (`HTTPCode_ELB_502_Count`, `HTTPCode_Target_5XX_Count`, `TargetResponseTime`, `HealthyHostCount`). Disponível em: <https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-cloudwatch-metrics.html>. Acesso em: 18 set. 2026.
+12. AMAZON WEB SERVICES. *Target tracking scaling policies for Amazon EC2 Auto Scaling* (métrica `ALBRequestCountPerTarget`). Disponível em: <https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html>. Acesso em: 18 set. 2026.
+13. AMAZON WEB SERVICES. *Use an instance refresh to update instances in an Auto Scaling group*. Disponível em: <https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-instance-refresh.html>. Acesso em: 18 set. 2026.
+14. HASHICORP. *Terraform AWS provider: aws_autoscaling_group*, bloco `instance_refresh` e a nota sobre `version = "$Latest"` não disparar o refresh. Disponível em: <https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/autoscaling_group>. Acesso em: 18 set. 2026.
+15. AMAZON WEB SERVICES. *Amazon EC2 testing policy* (testes de estresse de rede a partir de recursos da própria conta). Disponível em: <https://aws.amazon.com/ec2/testing/>. Acesso em: 18 set. 2026.
+16. AMAZON WEB SERVICES. *Penetration testing* (política de eventos simulados, incluindo testes de carga). Disponível em: <https://aws.amazon.com/security/penetration-testing/>. Acesso em: 18 set. 2026.
+
+**Servidor de aplicação e banco**
+
+17. GUNICORN. *Settings: keepalive* (padrão de 2 s e a recomendação de valor maior atrás de um balanceador). Disponível em: <https://gunicorn.org/reference/settings/>. Acesso em: 18 set. 2026.
+18. POSTGRESQL GLOBAL DEVELOPMENT GROUP. *PostgreSQL 16 Documentation: Indexes* (base da migration 030). Disponível em: <https://www.postgresql.org/docs/16/indexes.html>. Acesso em: 18 set. 2026.
+
+**Conceitos**
+
+19. DEAN, J.; BARROSO, L. A. The Tail at Scale. *Communications of the ACM*, v. 56, n. 2, p. 74–80, 2013. Disponível em: <https://doi.org/10.1145/2408776.2408794>. Acesso em: 18 set. 2026. Base para a escolha de percentis, e não médias, como medida de tempo de resposta.
+20. DATABRICKS. *Medallion architecture* (as camadas bronze, silver e gold). Disponível em: <https://www.databricks.com/glossary/medallion-architecture>. Acesso em: 18 set. 2026.
