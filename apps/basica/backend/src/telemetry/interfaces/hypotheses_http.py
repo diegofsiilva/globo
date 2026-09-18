@@ -8,7 +8,11 @@ from uuid import UUID
 
 from flask import Blueprint, current_app, jsonify, request
 
-from telemetry.domain.exceptions import ResourceNotFoundError, ValidationError
+from telemetry.domain.exceptions import (
+    RefinementUnavailableError,
+    ResourceNotFoundError,
+    ValidationError,
+)
 
 hypotheses_api = Blueprint("hypotheses", __name__, url_prefix="/api/v1")
 
@@ -191,6 +195,37 @@ def hypothesis_detail(hypothesis_id: int):
     if item is None:
         raise ResourceNotFoundError("hipotese inexistente ou ainda nao publicada")
     return jsonify(_json_value(item))
+
+
+@hypotheses_api.post("/hypotheses/<int:hypothesis_id>/refinement")
+def hypothesis_refinement(hypothesis_id: int):
+    """Refina a hipotese sem permitir que o modelo acrescente fontes.
+
+    Args:
+        hypothesis_id (int): Identificador da hipotese publicada.
+    """
+    if not request.is_json:
+        raise ValidationError("Content-Type precisa ser application/json")
+    payload = request.get_json()
+    if not isinstance(payload, dict):
+        raise ValidationError("corpo precisa ser um objeto JSON")
+    unexpected = set(payload) - {"question"}
+    if unexpected:
+        raise ValidationError("campo nao permitido", field=sorted(unexpected)[0])
+    question = payload.get("question")
+    if question is not None:
+        if not isinstance(question, str) or not question.strip() or len(question) > 500:
+            raise ValidationError(
+                "question precisa ser texto entre 1 e 500 caracteres", field="question"
+            )
+        question = question.strip()
+    item = repository().detail(hypothesis_id)
+    if item is None:
+        raise ResourceNotFoundError("hipotese inexistente ou ainda nao publicada")
+    refiner = current_app.extensions.get("hypothesis_refiner")
+    if refiner is None:
+        raise RefinementUnavailableError("refinamento por Ollama nao configurado")
+    return jsonify(_json_value(refiner.refine(item, question=question)))
 
 
 @hypotheses_api.post("/hypotheses/<int:hypothesis_id>/feedback")

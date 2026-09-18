@@ -9,12 +9,14 @@ from telemetry.config import Config
 from telemetry.domain.exceptions import (
     ConflictError,
     EventNotFoundError,
+    RefinementUnavailableError,
     ResourceNotFoundError,
     UnsupportedMediaTypeError,
     ValidationError,
 )
 from telemetry.infrastructure.gold import GoldRepository
 from telemetry.infrastructure.hypotheses import HypothesisRepository
+from telemetry.infrastructure.ollama import OllamaHypothesisRefiner
 from telemetry.infrastructure.postgres import PostgresEventRepository, build_pool
 from telemetry.infrastructure.signals import SignalsRepository
 from telemetry.interfaces.auth import register_auth
@@ -31,6 +33,7 @@ def create_app(
     gold: Any = None,
     hypotheses: Any = None,
     signals: Any = None,
+    hypothesis_refiner: Any = None,
 ) -> Flask:
     """Monta a aplicação.
 
@@ -47,6 +50,8 @@ def create_app(
             automaticamente; se `repository`/`gold` forem injetados sem
             `signals`, a extensão fica ausente e a rota de sinais não deve
             ser exercida por esse teste.
+        hypothesis_refiner (Any, optional): Cliente de refinamento injetado em
+            testes. Sem injecao, e criado apenas quando `OLLAMA_URL` existe.
 
     Returns:
         Flask: Instância da aplicação Flask pronta para execução.
@@ -88,6 +93,14 @@ def create_app(
         )
         app.extensions["hypothesis_repository"] = hypotheses or HypothesisRepository(pool)
         app.extensions["signals_repository"] = signals or SignalsRepository(pool)
+    if hypothesis_refiner is not None:
+        app.extensions["hypothesis_refiner"] = hypothesis_refiner
+    elif app.config.get("OLLAMA_URL"):
+        app.extensions["hypothesis_refiner"] = OllamaHypothesisRefiner(
+            app.config["OLLAMA_URL"],
+            app.config["OLLAMA_MODEL"],
+            timeout_seconds=app.config["OLLAMA_TIMEOUT_SECONDS"],
+        )
     app.register_blueprint(api)
     app.register_blueprint(hypotheses_api)
     app.register_blueprint(health)
@@ -186,6 +199,11 @@ def register_error_handlers(app: Flask) -> None:
     def handle_conflict(error: ConflictError):
         """Feedback reenviado com veredito diferente do já registrado -> 409."""
         return problem(409, "Conflict", str(error))
+
+    @app.errorhandler(RefinementUnavailableError)
+    def handle_refinement_unavailable(error: RefinementUnavailableError):
+        """Ollama ausente, indisponivel ou sem lastro valido -> 503."""
+        return problem(503, "Refinement unavailable", str(error))
 
     @app.errorhandler(BadRequest)
     def handle_bad_request(error: BadRequest):

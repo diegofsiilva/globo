@@ -57,6 +57,12 @@ class Config:
     # e o injeta aqui -- e por isso que a aplicacao nao precisa de boto3.
     DASHBOARD_TOKEN_SHA256 = os.getenv("DASHBOARD_TOKEN_SHA256", "")
 
+    # Ollama e opcional e fica fora do motor deterministico. Em desenvolvimento,
+    # OLLAMA_URL normalmente aponta para localhost, na ponta de um tunel SSH.
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "")
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    OLLAMA_TIMEOUT_SECONDS = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "30"))
+
     # O unico POST desta API e feedback textual curto.
     MAX_CONTENT_LENGTH = 4096
 
