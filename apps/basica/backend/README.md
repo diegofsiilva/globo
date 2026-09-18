@@ -87,6 +87,7 @@ terraform output -raw read_api_url
 | `GET /api/v1/hypotheses` | listagem filtrável com paginação keyset |
 | `GET /api/v1/hypotheses/{id}` | linhagem, findings, evidências, qualidade e score |
 | `POST /api/v1/hypotheses/{id}/feedback` | feedback idempotente; payload máximo de 4 KiB |
+| `POST /api/v1/hypotheses/{id}/refinement` | resposta Ollama ancorada na hipótese e em suas evidências |
 
 | Rota | Para quê |
 |---|---|
@@ -213,6 +214,37 @@ rodar local com o dono, consultas que a produção recusaria vão passar.
 | `DEFAULT_WINDOW_HOURS` | `168` | janela quando não se informa período |
 | `MAX_ITEMS_SCANNED` | `20000` | teto de linhas lidas numa agregação |
 | `CORS_ORIGINS` | `*` | restringir antes de produção |
+| `OLLAMA_URL` | — | opcional; normalmente `http://127.0.0.1:11434` via túnel SSH |
+| `OLLAMA_MODEL` | `llama3.1:8b` | nome exato retornado por `ollama list` no servidor |
+| `OLLAMA_TIMEOUT_SECONDS` | `30` | timeout total da inferência |
+
+### Ollama remoto por SSH
+
+O refinamento acontece depois da leitura da hipótese publicada; ele não altera o
+motor determinístico, o score ou as evidências. Cada afirmação devolvida precisa
+citar ids presentes na hipótese. Formato inválido, citação inexistente ou falha
+de rede resulta em `503`, sem resposta parcialmente aterrada.
+
+Abra o túnel em outro terminal, substituindo apenas o usuário recebido fora do
+repositório:
+
+```bash
+ssh -N -L 11434:127.0.0.1:11434 <usuario>@10.8.8.10
+```
+
+O comando pressupõe que o Ollama escuta na porta padrão e somente no loopback do
+servidor. Confirme o túnel com `curl http://127.0.0.1:11434/api/tags`, escolha um
+modelo já instalado e configure as três variáveis acima. A senha SSH deve ser
+digitada no prompt ou administrada pelo agente SSH; ela nunca vai para `.env`,
+comando versionado ou documentação.
+
+Exemplo de chamada:
+
+```bash
+curl -X POST "$API/api/v1/hypotheses/42/refinement" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Quais evidencias sustentam esta hipotese?"}'
+```
 
 O pool nasce com `min_size=0` de propósito, o oposto do que se faz num worker:
 uma Lambda ociosa é congelada, e conexões ociosas de centenas de execuções
