@@ -900,6 +900,16 @@ teste-performance: ## Executa a suite k6 (CENARIO=todos; COM_GRAFANA=1 habilita 
 	$(TESTES_CARGA)/executar_testes.sh "$${CENARIO:-todos}" \
 		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
 
+.PHONY: teste-carga-ui
+teste-carga-ui: ## Carga sobre as telas do dashboard em 3 niveis (5, 25 e 100 usuarios)
+	$(TESTES_CARGA)/executar_testes.sh carga-ui \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-carga-ui-ec2
+teste-carga-ui-ec2: ## Mesma carga das telas, gerada de uma EC2 descartavel dentro da VPC
+	@$(call require_env,AWS_PROFILE)
+	$(TESTES_CARGA)/gerador_ec2.sh carga-ui
+
 .PHONY: teste-lote-drenagem
 teste-lote-drenagem: ## Injeta 1 lote logico de 150 mil eventos (nao mede sozinho a drenagem)
 	K6_QUANTIDADE_LOTES=1 $(TESTES_CARGA)/executar_testes.sh rnf01-lote \

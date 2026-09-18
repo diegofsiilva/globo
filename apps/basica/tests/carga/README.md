@@ -12,6 +12,28 @@ e tokens explícitos: uma execução sem alvo real falha no `setup()`.
 | RNF02 | 11 rotas × 5, 10 usuários concorrentes, filtros semânticos e 600 consultas/min | 100% HTTP 200, nenhuma resposta acima de 5 s, p99 < 5 s |
 | RNF03 | mesmo contrato antes/depois de alterar tasks ECS de 1× para 2× | capacidade 2×, sucesso, p95/p99, zero descarte e persistência |
 | Resiliência | consumidor parado e timeout de cliente em 1 ms | backlog cresce/drena; timeout é detectado e a consulta seguinte recupera |
+| Carga das telas | 5, 25 e 100 usuários abrindo as seis telas do dashboard, 2 min por nível | erros < 1%, p95 < 3 s, p99 < 5 s por requisição; tela inteira em < 5 s no p95; > 99% de telas completas |
+
+## Carga das telas do dashboard
+
+`carga_ui.js` reproduz a abertura de cada tela operacional (`/agora`, `/timeline`,
+`/comparar`, `/explorar`, `/recorte`, `/hipoteses`) com as rotas e parâmetros que o
+frontend envia, em três níveis sequenciais de usuários virtuais. Os níveis, a
+duração, a pausa entre eles e o tempo de pensar saem de `CARGA_UI_VUS_1..3`,
+`CARGA_UI_DURACAO`, `CARGA_UI_PAUSA` e `CARGA_UI_PENSAR_S`. O resultado e a análise
+estão em `artefatos/testes-funcionais.md`, seção "Testes de carga".
+
+```bash
+make -C apps/basica teste-carga-ui        # k6 nesta maquina
+make -C apps/basica teste-carga-ui-ec2    # k6 numa EC2 descartavel dentro da VPC
+```
+
+A variante EC2 (`gerador_ec2.sh`) existe porque carga sustentada saindo de um IP
+residencial contra a AWS parece ataque, e contas de laboratório já foram
+suspensas por isso. A instância `t4g.small` instala o k6, lê o token de um
+parâmetro SSM criptografado, roda o cenário, devolve os resultados ao bucket de
+origem e se desliga com `terminate`; o script baixa os arquivos para
+`resultados/` com o sufixo `-ec2` e apaga o que criou.
 
 ## RNF01 revisado: lote de 150 mil eventos
 
