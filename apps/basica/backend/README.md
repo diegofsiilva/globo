@@ -225,18 +225,18 @@ motor determinístico, o score ou as evidências. Cada afirmação devolvida pre
 citar ids presentes na hipótese. Formato inválido, citação inexistente ou falha
 de rede resulta em `503`, sem resposta parcialmente aterrada.
 
-Abra o túnel em outro terminal, substituindo apenas o usuário recebido fora do
-repositório:
+Preencha `OLLAMA_SSH_HOST` e `OLLAMA_SSH_USER` no `.env`. Depois abra o túnel
+em outro terminal; o próprio SSH solicitará a senha recebida:
 
 ```bash
-ssh -N -L 11434:127.0.0.1:11434 <usuario>@10.8.8.10
+make ollama-tunnel
 ```
 
 O comando pressupõe que o Ollama escuta na porta padrão e somente no loopback do
-servidor. Confirme o túnel com `curl http://127.0.0.1:11434/api/tags`, escolha um
-modelo já instalado e configure as três variáveis acima. A senha SSH deve ser
-digitada no prompt ou administrada pelo agente SSH; ela nunca vai para `.env`,
-comando versionado ou documentação.
+servidor. Com o túnel aberto, rode `make ollama-models`, copie o nome de um
+modelo retornado para `OLLAMA_MODEL` e reinicie o backend. A senha SSH é digitada
+no prompt ou administrada pelo agente SSH; ela nunca vai para `.env`, comando
+versionado ou documentação.
 
 Exemplo de chamada:
 
