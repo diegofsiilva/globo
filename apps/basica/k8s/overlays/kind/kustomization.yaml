@@ -1,0 +1,47 @@
+# Ambiente local: cluster kind, Postgres dentro do cluster, ingress-nginx.
+#
+#   make kind-up                     # cria o cluster e as dependencias
+#   make k8s-apply K8S_OVERLAY=kind  # aplica isto aqui
+#
+# Existe para que o dev rode o sistema inteiro sem credencial da AWS e sem
+# gastar credito do lab -- e, principalmente, para que ele exercite os MESMOS
+# manifestos que vao para o EKS. A unica diferenca de comportamento e o banco
+# (local em vez de RDS) e a classe do Ingress.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argus
+
+resources:
+  - ../../base
+  - postgres.yaml
+
+# As imagens locais construidas por `make k8s-images`, carregadas no no por
+# `make kind-load`. Sem registry no nome: elas nunca sao publicadas.
+images:
+  - name: IMAGE_BACKEND
+    newName: argus-backend
+    newTag: dev
+  - name: IMAGE_FRONTEND
+    newName: argus-frontend
+    newTag: dev
+
+patches:
+  - path: ingress-patch.yaml
+  - path: config-patch.yaml
+  - path: replicas-patch.yaml
+  - path: hpa-patch.yaml
+
+# Aqui o segredo PODE vir de arquivo: sao credenciais de um banco descartavel
+# que so existe dentro do cluster. Na AWS o caminho e outro (`make k8s-secret`,
+# por pipe, sem tocar o disco).
+secretGenerator:
+  - name: argus-backend
+    envs:
+      - secret.env
+
+generatorOptions:
+  # Sem sufixo de hash: o Deployment da base referencia o Secret pelo nome fixo
+  # `argus-backend`, o mesmo nome que a AWS usa. Um sufixo aqui faria os dois
+  # ambientes divergirem no manifesto.
+  disableNameSuffixHash: true

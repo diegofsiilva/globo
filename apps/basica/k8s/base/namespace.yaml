@@ -1,0 +1,12 @@
+# Namespace proprio, e nao `default`.
+#
+# Ele e a fronteira onde NetworkPolicy, ResourceQuota e RBAC passam a poder ser
+# escritos sem valer para o cluster inteiro. Tambem torna `kubectl delete ns
+# argus` uma limpeza completa e previsivel, o que importa num Learner Lab onde
+# o credito acaba.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argus
+  labels:
+    app.kubernetes.io/part-of: argus

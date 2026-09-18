@@ -404,3 +404,73 @@ output "rollback_command" {
     : null
   )
 }
+
+# --------------------------------------------------------------------------- #
+# Kubernetes
+# --------------------------------------------------------------------------- #
+
+output "eks_cluster_name" {
+  description = "Nome do cluster EKS, ou vazio quando create_eks = false."
+  value       = local.criar_eks ? aws_eks_cluster.main[0].name : ""
+}
+
+output "eks_cluster_endpoint" {
+  description = "Endpoint do control plane."
+  value       = local.criar_eks ? aws_eks_cluster.main[0].endpoint : ""
+}
+
+output "eks_cluster_security_group_id" {
+  description = "Security group do cluster. E por ele que os pods entram no RDS."
+  value       = local.criar_eks ? aws_eks_cluster.main[0].vpc_config[0].cluster_security_group_id : ""
+}
+
+output "eks_kubeconfig_command" {
+  description = "Como apontar o kubectl para este cluster. `make k8s-kubeconfig` faz o mesmo."
+
+  value = local.criar_eks ? join(" ", [
+    "aws eks update-kubeconfig",
+    "--name", aws_eks_cluster.main[0].name,
+    "--region", var.region,
+    "--profile g4",
+  ]) : "create_eks = false"
+}
+
+# Os quatro valores abaixo alimentam `make k8s-secret`, que os le por
+# `terraform output -raw` e os canaliza direto para o kubectl. Marcados como
+# sensiveis para que nao aparecam no log do apply; `-raw` continua funcionando.
+#
+# Sem IRSA e sem Pod Identity (o Learner Lab nega iam:CreateRole e
+# iam:CreateOpenIDConnectProvider), o pod nao consegue ler o Secrets Manager
+# sozinho -- e este e o caminho que mantem o segredo fora do repositorio, fora
+# do disco e fora do tfstate.
+
+output "eks_backend_database_url" {
+  description = "DATABASE_URL da API no cluster. Usuario argus_api, so leitura das views v_*."
+  value       = local.read_api_database_url
+  sensitive   = true
+}
+
+output "eks_master_database_url" {
+  description = <<-EOT
+    DATABASE_URL do Job de migration. Usuario MESTRE, e nao argus_api.
+
+    A migration cria schema e faz GRANT, e o usuario de leitura nao tem essa
+    permissao por construcao. Reusar a URL da API aqui falharia com "permission
+    denied for schema" no meio da aplicacao, deixando o banco parcialmente
+    migrado.
+  EOT
+  value       = local.database_url
+  sensitive   = true
+}
+
+output "eks_read_api_db_password" {
+  description = "Senha do usuario de leitura, que o Job de migration usa para criar/atualizar o login."
+  value       = var.read_api_db_password
+  sensitive   = true
+}
+
+output "eks_user_id_hash_salt" {
+  description = "Sal do hash de user_id, consumido pela API."
+  value       = var.user_id_hash_salt
+  sensitive   = true
+}

@@ -1,0 +1,9 @@
+# No kind quem serve o Ingress e o ingress-nginx, nao o controlador de ALB do
+# EKS Auto Mode. A regra de roteamento (/ -> frontend, /api -> backend) vem
+# inteira da base: so a classe muda.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argus
+spec:
+  ingressClassName: nginx

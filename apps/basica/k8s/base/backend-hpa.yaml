@@ -1,0 +1,51 @@
+# Escala horizontal da API de leitura.
+#
+# Substitui a politica de target tracking do ASG (infra/asg.tf), que perseguia
+# ALBRequestCountPerTarget = 60. O equivalente exato aqui exigiria KEDA ou o
+# adapter de metricas externas lendo o CloudWatch; a metrica nativa e CPU. A
+# troca esta registrada na tabela de decisoes do artefato para que o relatorio
+# de RNF03 nao compare os dois numeros como se fossem a mesma coisa.
+#
+# O sintoma de HPA sem metrica e `<unknown>/60%` em `kubectl get hpa`: ele nao
+# escala nada e nao reclama. Quem fornece a metrica e o metrics-server, que o
+# EKS Auto Mode JA traz de fabrica -- no cluster local ele nao existe, e por
+# isso `make kind-up` o instala.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: argus-backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: argus-backend
+
+  # Espelham asg_min_size e asg_max_size, para que a comparacao entre as duas
+  # plataformas isole o orquestrador e nao o dimensionamento.
+  minReplicas: 2
+  maxReplicas: 6
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+
+  behavior:
+    # Sobe rapido, desce devagar. Uma rajada de trafego precisa de capacidade
+    # agora; devolver capacidade cedo demais produz oscilacao, com o HPA subindo
+    # e descendo em ciclo enquanto a carga continua.
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60

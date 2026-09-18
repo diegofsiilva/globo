@@ -237,3 +237,23 @@ resource "aws_security_group_rule" "rds_from_bastion" {
   security_group_id        = aws_security_group.rds.id
   source_security_group_id = aws_security_group.bastion[0].id
 }
+
+# Os pods do cluster Kubernetes entram pelo security group do CLUSTER, que o
+# Auto Mode anexa a toda ENI de no. A liberacao e por grupo e nao por CIDR: o
+# CIDR das sub-redes privadas ja e conhecido, mas a identidade do grupo
+# sobrevive a uma troca de faixa.
+#
+# Sem esta regra o sintoma e indireto: os pods sobem, /health/live passa, mas
+# /health/ready fica em 503 para sempre, o Deployment nunca fica Available e o
+# ALB responde 503 sem alvo saudavel. Nada no log diz "security group".
+resource "aws_security_group_rule" "rds_from_eks" {
+  count = local.criar_eks ? 1 : 0
+
+  type                     = "ingress"
+  description              = "PostgreSQL vindo dos pods do cluster EKS"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_eks_cluster.main[0].vpc_config[0].cluster_security_group_id
+}
