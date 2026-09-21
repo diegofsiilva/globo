@@ -176,6 +176,7 @@ comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 | Ferramentas | pytest 8.4.2 no backend com Python 3.13; pytest 9.1.1 no worker com Python 3.12 e no processamento com Python 3.13; Playwright 1.62.1 com Chromium 151.0.7922.34 |
 | Dublês usados | Apenas o SQS, reproduzido em memória pelo `moto` versão 5 ou superior, no TI-03. Banco, API, navegador e site são reais em todos os testes |
 | Ambiente do TI-05 | Pilha publicada no AWS Academy Learner Lab, região `us-east-1`: API Gateway HTTP, Lambda authorizer, Lambda da API de leitura, SQS, ECS Fargate e RDS PostgreSQL. Nenhum componente dublado |
+| Caminho de leitura exercitado | A Lambda por trás do API Gateway. A pilha tem outras duas portas para a mesma API — o ALB do grupo de auto scaling e, desde a Sprint 4, o Ingress do cluster EKS — e nenhuma delas é exercitada pelo TI-05 (ver [Cobertura do caminho orquestrado por Kubernetes](#cobertura-do-caminho-orquestrado-por-kubernetes)) |
 
 ### Onde está cada coisa no repositório
 
@@ -195,8 +196,10 @@ comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 | [`apps/basica/.env.example`](../apps/basica/.env.example) | Nomes das variáveis que o TI-05 lê do ambiente; URLs e tokens reais ficam no `.env`, que não é versionado |
 | [`apps/basica/db/migrations/030_indice_lsn_em_evento.sql`](../apps/basica/db/migrations/030_indice_lsn_em_evento.sql) | Correção de schema nascida do diagnóstico do TI-05 |
 | [`apps/basica/processing/tests/test_plano_da_etl.py`](../apps/basica/processing/tests/test_plano_da_etl.py) | Teste que sustenta essa correção |
-| [`apps/basica/Makefile`](../apps/basica/Makefile) | Alvos `db-local`, `env`, `auth-show-ingest`, `test-backend`, `test-worker`, `test-processing` e `test-frontend-e2e` |
+| [`apps/basica/Makefile`](../apps/basica/Makefile) | Alvos `db-local`, `env`, `auth-show-ingest`, `test-backend`, `test-worker`, `test-processing`, `test-frontend-e2e` e `k8s-validate` |
+| [`apps/basica/k8s/`](../apps/basica/k8s/) | Manifests do caminho síncrono, renderizados pelo `k8s-validate` |
 | [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) | Saída bruta da execução dos cinco testes |
+| [`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt) | Saída da renderização dos cinco conjuntos de manifests |
 
 ### Pré-condição comum
 
@@ -247,6 +250,17 @@ nenhuma mudança de código.
 vale para a comunicação, e não apenas para a pintura da tela. Um painel que
 escondesse os dados mas ainda assim consultasse a API passaria numa inspeção visual
 e falharia aqui.
+
+&emsp; Uma ressalva de alcance, que vale para os três casos. O site é construído aqui
+com `NEXT_PUBLIC_API_URL` apontando para o endereço absoluto do Flask, e o Playwright
+sobe o backend com `CORS_ORIGINS` declarado: são **duas origens**, `127.0.0.1:3100` e
+`127.0.0.1:5100`, conversando por CORS. Essa era a topologia da implantação até a
+Sprint 3, quando o dashboard vinha do S3 e a API do balanceador. No caminho
+orquestrado por Kubernetes ela deixou de existir: o Ingress serve `/` e `/api` no
+mesmo endereço, a imagem é construída com `NEXT_PUBLIC_API_URL=/` e a requisição sai
+relativa, sem verificação prévia. O que o TI-01 verifica — o contrato entre a tela e
+a API, nos dois sentidos — não depende disso e continua valendo. O que ele deixou de
+reproduzir é o fio exato que vai para o ar.
 
 &emsp; Para reproduzir:
 
@@ -595,6 +609,7 @@ mesma sessão de trabalho.
 | Frontend, contratos e componentes | `make -C apps/basica test-frontend` | 24 aprovados |
 | Frontend integrado, com Playwright | `make -C apps/basica test-frontend-e2e` | 12 aprovados |
 | Pilha publicada, o TI-05 | `uv run pytest tests/integration/test_implantacao.py` | 1 aprovado, 1 reprovado |
+| Manifests do Kubernetes | `make -C apps/basica k8s-validate` | 5 conjuntos renderizados sem erro |
 
 &emsp; São 432 testes aprovados nas suítes que rodam sem credencial de nuvem, mais o
 TI-05, que executado com credencial aprovou um caso e reprovou outro. Os 227 do
@@ -603,11 +618,79 @@ pulados naquela linha são justamente os casos do TI-05, que ficam de fora quand
 `make test-backend` roda sem os tokens da pilha publicada, e por isso o TI-05 tem
 linha própria na tabela.
 
+&emsp; A última linha não entra nessas contagens, porque não é uma suíte de casos: o
+alvo `k8s-validate` renderiza os cinco conjuntos de manifests — `base`, `migrate`,
+`overlays/aws`, `overlays/kind` e `overlays/kind/migrate` — sem contactar cluster
+nenhum, e existe para que um erro de YAML não chegue à entrega. Ele entrou no
+`make check` junto com os manifests e é, hoje, a única verificação automatizada que
+toca no caminho do Kubernetes. Execução registrada em
+[`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt).
+
 &emsp; Uma observação de ambiente, registrada por honestidade de relatório: o alvo
 `test-authorizer` interrompe a coleta com `NoRegionError` quando a variável
 `AWS_REGION` não está definida no terminal. Não é defeito do código nem efeito dos
 testes de integração, e com `AWS_REGION=us-east-1` no ambiente os 18 testes passam,
 como registrado na tabela. O valor sai do `.env` na operação normal do projeto.
+
+&emsp; Uma segunda observação da mesma natureza: numa cópia recém-clonada do
+repositório o `k8s-validate` **falha**, e a falha não é de manifesto.
+O overlay `kind` gera o seu Secret a partir de `k8s/overlays/kind/secret.env`, que
+está no `.gitignore` por ser credencial — ainda que de um banco descartável — e
+precisa ser criado antes:
+
+```bash
+cp apps/basica/k8s/overlays/kind/secret.env.example \
+   apps/basica/k8s/overlays/kind/secret.env
+```
+
+&emsp; Com o arquivo no lugar, os cinco conjuntos renderizam. Sem ele, o alvo para no
+terceiro com `evalsymlink failure`. Como o `k8s-validate` é portão do `make check`, e
+como esse passo não está no runbook de nenhum artefato, fica registrado aqui: é o
+tipo de detalhe que transforma um portão de qualidade em falha de CI no primeiro
+ambiente limpo em que ele rodar.
+
+### Cobertura do caminho orquestrado por Kubernetes
+
+&emsp; Os testes deste artefato foram executados em 17 e 18 de setembro de 2026, na
+mesma janela em que o caminho síncrono — dashboard, API de leitura e migrations —
+passou a ser orquestrado por Kubernetes, conforme
+[`conteineres-final.md`](conteineres-final.md). As duas coisas não se cruzaram, e
+convém dizer exatamente onde cada afirmação deste relatório vale.
+
+&emsp; O caminho **assíncrono** não é afetado. Ingestão, ETL, simulação e carga
+inicial continuam em ECS Fargate por decisão de projeto, e não por omissão: o
+Learner Lab nega `iam:CreateOpenIDConnectProvider` e `eks-auth:AssumeRoleForPodIdentity`,
+o que torna IRSA e Pod Identity impossíveis e tira do cluster a única vantagem que ele
+teria ali. O TI-03, o TI-04 e o TI-05.2 medem a pilha que está no ar, sem ressalva.
+
+&emsp; O caminho **síncrono** é onde a cobertura ficou para trás. A tabela separa o
+que foi medido do que não foi, nos três estados usados no restante do artefato.
+
+| Afirmação | Plataforma em que foi medida | Estado quanto ao EKS |
+|---|---|---|
+| Carga da API de leitura nos três níveis | ALB e grupo de auto scaling, 2 instâncias `t4g.small` | Não executado no cluster |
+| Elasticidade sob carga | Target tracking em 60 requisições por instância por minuto | Não executado; no cluster o gatilho é **CPU**, pelo HPA, e a métrica não é comparável |
+| Contrato entre dashboard e API, o TI-01 | Duas origens, com CORS | Não executado em origem única |
+| Autorização na borda, o TI-05.1 | API Gateway e Lambda authorizer | Não se aplica: o Ingress não passa pelo authorizer |
+| Manifests do cluster | `kubectl kustomize`, sem cluster | **Executado**, sem erro |
+| Sondas, implantação sem queda e autocura | Cluster `kind` local | Executado, e registrado na seção 5 de [`conteineres-final.md`](conteineres-final.md), não aqui |
+
+&emsp; Duas notas sobre a última linha, porque ela é a que mais facilmente seria lida
+com força maior do que tem. A separação das três sondas foi observada em operação — a
+de vida passando enquanto a de prontidão reprovava, com o pod fora do balanceamento e
+sem reinício, até o `Job` de migrations concluir. E as duas medições citadas ali, 547
+respostas sem falha durante um `rollout restart` e recuperação de um pod em 4 s,
+**saíram do cluster local**, não do EKS. Isso não as invalida: o overlay `kind` aplica
+os mesmos manifests do overlay da AWS, mudando apenas o banco e a classe do Ingress.
+Mas o número de 4 s não foi medido contra o Auto Mode, e a comparação com os 300 s do
+`health_check_grace_period` do grupo de auto scaling carrega essa ressalva.
+
+&emsp; Nada disso torna a rodada obsoleta. O `create_eks` é `false` por padrão no
+[`variables.tf`](../apps/basica/infra/variables.tf), porque o cluster cobra por hora
+existindo, e o `terraform.tfvars` do repositório mantém o grupo de auto scaling em
+duas instâncias: o caminho medido aqui é o que sobe por padrão. O que falta é uma
+rodada de carga contra o Ingress, que permitiria comparar as duas plataformas na
+mesma métrica — e essa é uma entrega de sprint, não um acerto de redação.
 
 ## Testes de carga
 
@@ -706,6 +789,17 @@ operador: uma consulta em quatro que falha é uma tela quebrada, não 25% de suc
 &emsp; A URL de leitura que o dashboard consome, e que `make env` grava no `.env`, é
 a do ALB, e por isso o caminho testado é o do grupo de auto scaling, não o da Lambda
 descrita no TI-05. Os dois existem na pilha; o ALB é o preferido quando está no ar.
+
+&emsp; Desde a Sprint 4 existe um terceiro caminho para a mesma API, o Ingress do
+cluster EKS, e ele **não foi exercitado nesta rodada**. A distinção não é formal, e é
+por isso que ela aparece aqui e não numa nota de rodapé: no grupo de auto scaling a
+escala é disparada por requisições por instância por minuto, medida que o ALB publica;
+no cluster, pelo HPA por uso de CPU. São gatilhos diferentes, com tempos de reação
+diferentes, e os números desta seção descrevem o primeiro. O `make env` também não
+conhece o Ingress — ele lê o `api_url_alb` do Terraform e cai para a Lambda —, de modo
+que rodar a carga contra o cluster exigiria apontar `ARGUS_API_URL` à mão para a saída
+de `make k8s-url`. A [tabela de cobertura](#cobertura-do-caminho-orquestrado-por-kubernetes)
+na seção de integração reúne o que ficou de fora.
 
 | Componente | Configuração durante a rodada oficial |
 |---|---|
@@ -848,8 +942,11 @@ dentro do mesmo trabalho: o desencontro de keep-alive entre o gunicorn e o ALB, 
 custava de um a cinco 502 por minuto em qualquer nível de carga. O próximo ensaio deve
 incluir um degrau de aquecimento antes do primeiro nível e um nível 3 mais longo, de
 10 min, para que o auto scaling entre em serviço dentro da janela medida e a
-elasticidade possa ser observada, e não só disparada. Se a carga real um dia se
-aproximar de 100 usuários simultâneos, o recurso a dimensionar é o banco.
+elasticidade possa ser observada, e não só disparada. Deve, também, ser repetido
+contra o Ingress do cluster: é a única forma de comparar as duas maneiras de escalar
+a mesma API, já que uma reage a requisições por instância e a outra a uso de CPU. Se
+a carga real um dia se aproximar de 100 usuários simultâneos, o recurso a dimensionar
+é o banco.
 
 ### Onde está cada coisa e como reproduzir
 
@@ -904,14 +1001,23 @@ Dockerfile, uma nova imagem em produção e uma segunda rodada que provou o efei
 Nos dois casos a reprovação foi mantida no relatório e investigada até a causa, em
 vez de contornada afrouxando prazo ou critério.
 
-&emsp; Três coisas ficam apontadas para a próxima iteração, e nenhuma delas é um
+&emsp; Quatro coisas ficam apontadas para a próxima iteração, e nenhuma delas é um
 defeito de código. A ETL precisa de uma métrica de distância entre o marcador e a
 ponta da sequência, para que um acúmulo apareça no dia em que começa e não num teste
 dias depois. O teste de carga precisa de um degrau de aquecimento e de um nível
 longo o bastante para que o auto scaling entre em serviço dentro da janela medida.
-E, se o uso real do dashboard um dia se aproximar de 100 usuários simultâneos, o
+Se o uso real do dashboard um dia se aproximar de 100 usuários simultâneos, o
 recurso a dimensionar é o banco, que chegou a 73% de CPU enquanto a aplicação ficou
 em 8%.
+
+&emsp; E falta fechar a lacuna que a própria Sprint 4 abriu enquanto estes testes
+rodavam: o caminho síncrono passou a ser orquestrado por Kubernetes, e o que este
+artefato mede do lado da leitura é o grupo de auto scaling, não o cluster. A
+[tabela de cobertura](#cobertura-do-caminho-orquestrado-por-kubernetes) diz linha a
+linha o que vale onde. Dos itens ali, o único já executado é a renderização dos
+manifests; a rodada de carga contra o Ingress é o que permitiria comparar as duas
+plataformas, e ela não cabe numa revisão de texto — o gatilho de escala nem é o
+mesmo dos dois lados.
 
 ## Referências
 

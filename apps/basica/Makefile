@@ -393,12 +393,22 @@ parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
 .PHONY: images
 images: $(addprefix image-,$(IMAGES)) ## Constroi as imagens (ARM64)
 
+# Build-args de quem tem configuracao COMPILADA para dentro do artefato. O Next
+# resolve `NEXT_PUBLIC_*` em tempo de build e congela o valor no bundle: passar a
+# variavel no ambiente do contêiner nao tem efeito nenhum.
+#
+# Sem esta linha, o `ARG NEXT_PUBLIC_HYPOTHESES_SOURCE=mock` do Dockerfile
+# vencia, e a imagem do dashboard ia para o cluster com a tela de Hipoteses
+# servida por dado simulado -- enquanto o caminho antigo, do S3, usava `api`
+# (ver `frontend-build`). O E2E-05 pega isso.
+BUILD_ARGS_frontend := --build-arg NEXT_PUBLIC_HYPOTHESES_SOURCE=$(HYPOTHESES_SOURCE)
+
 .PHONY: $(addprefix image-,$(IMAGES))
 $(addprefix image-,$(IMAGES)): image-%:
 	@# Build local: uma arquitetura so, a da propria maquina. O multi-arquitetura
 	@# custa o dobro do tempo e so faz falta ao publicar -- ver `push`.
 	docker build -f $*/Dockerfile -t argus-$*:dev \
-	  --build-arg GIT_SHA=$(GIT_SHA) $(call CONTEXTO,$*)
+	  --build-arg GIT_SHA=$(GIT_SHA) $(BUILD_ARGS_$*) $(call CONTEXTO,$*)
 
 .PHONY: image-tag
 image-tag: ## Mostra a tag de imagem deste commit
@@ -513,8 +523,10 @@ push: ## Publica as imagens no ECR com a tag do commit
 	  plataformas="linux/arm64"; \
 	  case " $(IMAGES_MULTIARCH) " in *" $$nome "*) plataformas="linux/amd64,linux/arm64";; esac; \
 	  echo "    plataformas: $$plataformas"; \
+	  extra=""; \
+	  case "$$nome" in frontend) extra="$(BUILD_ARGS_frontend)";; esac; \
 	  docker buildx build --platform "$$plataformas" -f $$nome/Dockerfile \
-	    --build-arg GIT_SHA=$(GIT_SHA) \
+	    --build-arg GIT_SHA=$(GIT_SHA) $$extra \
 	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" --push "$$contexto"; \
 	done
 	@echo

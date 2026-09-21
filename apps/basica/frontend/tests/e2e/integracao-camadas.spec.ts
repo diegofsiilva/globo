@@ -34,8 +34,20 @@
 import type { Response } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
-/** Origem do Flask de teste, declarada no `playwright.config.ts`. */
-const API = "http://127.0.0.1:5100";
+/**
+ * Origem da API que o navegador deve procurar.
+ *
+ * O default é o Flask avulso do `playwright.config.ts`, em outra porta que a do
+ * site: são DUAS origens, conversando por CORS, que é como a implantação era até
+ * a Sprint 3 (dashboard no S3, API no ALB).
+ *
+ * No caminho orquestrado por Kubernetes existe uma origem só — o Ingress serve
+ * `/` e `/api` no mesmo endereço, e a imagem do dashboard é construída com
+ * `NEXT_PUBLIC_API_URL=/`, de modo que o `fetch` sai relativo. Apontar esta
+ * variável para o Ingress (ver `playwright.kind.config.ts`) faz os mesmos três
+ * casos rodarem contra essa topologia, sem duplicar nenhuma asserção.
+ */
+const API = process.env.ARGUS_E2E_API_ORIGIN ?? "http://127.0.0.1:5100";
 
 /** Forma crua devolvida por `/api/v1/series/breakdown`. */
 type BreakdownResposta = {
@@ -126,9 +138,17 @@ test.describe("TI-01: dashboard, API de leitura e banco", () => {
     const formatado = (maior.value ?? 0).toLocaleString("pt-BR", {
       maximumFractionDigits: 1,
     });
-    await expect(page.getByRole("row", { name: new RegExp(maior.key) })).toContainText(
-      formatado,
-    );
+    // A linha é localizada pelo seu `rowheader`, e não pelo nome acessível da
+    // linha inteira. A tela tem duas tabelas — "Eventos recebidos recentemente"
+    // e a de agrupamento —, e o nome do dispositivo aparece nas duas: casar pelo
+    // nome da linha resolveria para quatro elementos e falharia em strict mode
+    // sem que nada estivesse errado no sistema. Só a tabela de agrupamento tem
+    // `rowheader`, que é o mesmo fato de que a asserção 3 acima depende.
+    await expect(
+      page
+        .getByRole("row")
+        .filter({ has: page.getByRole("rowheader", { name: maior.key, exact: true }) }),
+    ).toContainText(formatado);
 
     // 5. RNF02: a consulta atravessou as três camadas dentro do limite.
     expect(decorrido).toBeLessThan(5_000);

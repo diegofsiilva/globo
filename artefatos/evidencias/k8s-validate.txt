@@ -1,0 +1,10 @@
+# Validação dos manifests Kubernetes — make -C apps/basica k8s-validate
+# Executado em 21 de setembro de 2026, 17:25 UTC | kubectl v1.37.0 (kustomize v5.8.1)
+# Pré-condição: cp apps/basica/k8s/overlays/kind/secret.env.example apps/basica/k8s/overlays/kind/secret.env
+# Nenhum cluster é contactado: o alvo só renderiza os kustomizations.
+
+  base                     ok
+  migrate                  ok
+  overlays/aws             ok
+  overlays/kind            ok
+  overlays/kind/migrate    ok
