@@ -262,6 +262,15 @@ própria conta rotaciona. Nada é fixado: o Terraform descobre os papéis por ex
 regular e o endereço do registro entra por substituição no momento da aplicação, lido
 do estado.
 
+### 7.1 Descoberta: por que o EKS é viável no Learner Lab
+
+&emsp; A afirmação de que o EKS não funciona no Learner Lab decorre dos fluxos padrão
+de criação, e não de uma indisponibilidade do serviço. Tanto o `eksctl create cluster`
+quanto o fluxo usual do console tentam criar o papel do cluster e, em seguida, criar o
+provedor OpenID Connect para usar IRSA com o AWS Load Balancer Controller. Essas etapas
+dependem de `iam:CreateRole` e `iam:CreateOpenIDConnectProvider`, ações negadas pelo
+laboratório.
+
 ---
 
 ## 8. Como executar
