@@ -285,6 +285,12 @@ serviço com IRSA ou conceder permissões adicionais aos nós. Como o caminho s�
 acessa SQS, S3 nem Secrets Manager diretamente, o `LabEksNodeRole` mínimo permanece
 suficiente e preserva o princípio do menor privilégio.
 
+&emsp; Essa combinação foi validada no ambiente do grupo: o `terraform apply` criou o
+cluster em aproximadamente 12 minutos, sem qualquer negação de permissão. Portanto, a
+restrição do Learner Lab impede o caminho convencional de instalação, mas não impede um
+cluster EKS Auto Mode quando os papéis preexistentes são reutilizados e o ALB é delegado
+ao serviço gerenciado.
+
 ---
 
 ## 8. Como executar
