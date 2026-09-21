@@ -616,9 +616,9 @@ aws sts get-caller-identity --profile g4 --query Account --output text
 que o state passe a descrever uma conta que já não existe.
 
 ```bash
-make -C apps/fullstack install
-make -C apps/fullstack lambda-build   # empacota read_api E authorizer
-make -C apps/fullstack check
+make -C apps/basica install
+make -C apps/basica lambda-build   # empacota read_api E authorizer
+make -C apps/basica check
 ```
 
 &emsp; Os dois zips precisam existir antes do `terraform plan`: o Terraform calcula o
@@ -630,7 +630,7 @@ real no meio do plano.
 #### Passo 2 — infraestrutura, com os serviços desligados
 
 ```bash
-cd apps/fullstack/infra
+cd apps/basica/infra
 cp terraform.tfvars.example terraform.tfvars   # preencher role e senhas
 terraform init
 terraform validate
@@ -650,7 +650,7 @@ definitions, sem iniciar containers cujas imagens ainda não existem.
 
 ```bash
 cd ../../..
-make -C apps/fullstack auth-rotate
+make -C apps/basica auth-rotate
 ```
 
 &emsp; Gera os dois tokens de 256 bits, grava os **hashes** no Secrets Manager e
@@ -665,7 +665,7 @@ dado efetivamente ingerido.
 #### Passo 4 — construir e publicar as imagens no ECR
 
 ```bash
-make -C apps/fullstack push
+make -C apps/basica push
 ```
 
 &emsp; Publica `worker`, `simulator`, `processing` e `loader`, cada uma com duas tags:
@@ -677,8 +677,8 @@ para onde voltar.
 #### Passo 5 — aplicar as migrations e criar o usuário de leitura
 
 ```bash
-make -C apps/fullstack migrate-status-aws   # o que já está aplicado
-make -C apps/fullstack migrate-aws          # aplica as pendentes, até a 026
+make -C apps/basica migrate-status-aws   # o que já está aplicado
+make -C apps/basica migrate-aws          # aplica as pendentes, até a 026
 ```
 
 &emsp; As duas rodam pela task `migration`, dentro da VPC. O RDS é privado e não há
@@ -689,9 +689,9 @@ rota da máquina de quem trabalha até a porta 5432, nem deve haver. Acompanhe c
 única vez, na primeira implantação:
 
 ```bash
-make -C apps/fullstack db-url
+make -C apps/basica db-url
 # exportar DATABASE_URL conforme a saída
-DB_READER_PASSWORD='<a mesma de read_api_db_password>' make -C apps/fullstack db-reader
+DB_READER_PASSWORD='<a mesma de read_api_db_password>' make -C apps/basica db-reader
 ```
 
 &emsp; As migrations só podem ser aplicadas depois que o RDS e a imagem `processing`
@@ -700,8 +700,8 @@ existem; daí a ordem entre os passos 4 e 5.
 #### Passo 6 — carga inicial
 
 ```bash
-make -C apps/fullstack origem-sync
-make -C apps/fullstack load
+make -C apps/basica origem-sync
+make -C apps/basica load
 ```
 
 &emsp; A task `loader` lê os Parquet, usa `COPY FROM STDIN`, executa `ANALYZE` e
@@ -712,9 +712,9 @@ tabela vazia não produz nada.
 #### Passo 7 — ativar os serviços
 
 ```bash
-cd apps/fullstack/infra && terraform apply && cd ../../..
-make -C apps/fullstack sim-on
-make -C apps/fullstack digests
+cd apps/basica/infra && terraform apply && cd ../../..
+make -C apps/basica sim-on
+make -C apps/basica digests
 ```
 
 &emsp; O `apply` ativa workers e processamento conforme o `terraform.tfvars`, com
@@ -725,9 +725,9 @@ apontavam para `latest`.
 #### Passo 8 — publicar o dashboard
 
 ```bash
-make -C apps/fullstack env
-make -C apps/fullstack frontend-install
-make -C apps/fullstack frontend-deploy
+make -C apps/basica env
+make -C apps/basica frontend-install
+make -C apps/basica frontend-deploy
 ```
 
 &emsp; A URL da API entra no bundle em tempo de build; o token, não. Ele é colado pelo
@@ -739,7 +739,7 @@ em rede confiável devido à ausência de TLS na página que recebe o token.
 
 ```bash
 export ARGUS_READ_TOKEN='<o token de leitura do passo 3>'
-make -C apps/fullstack smoke
+make -C apps/basica smoke
 ```
 
 &emsp; O smoke verifica, nesta ordem: **401 sem token**, **403 com token inválido**,
@@ -749,11 +749,11 @@ e tamanho da resposta. Ele falha se qualquer rota passar de 5 s (RNF02).
 #### Passo 10 — evidências
 
 ```bash
-export ARGUS_INGEST_TOKEN=$(make -C apps/fullstack auth-show-ingest)
-make -C apps/fullstack postman-evidencia
-make -C apps/fullstack count
-make -C apps/fullstack dlq
-cd apps/fullstack/infra && terraform plan     # precisa terminar sem mudanças
+export ARGUS_INGEST_TOKEN=$(make -C apps/basica auth-show-ingest)
+make -C apps/basica postman-evidencia
+make -C apps/basica count
+make -C apps/basica dlq
+cd apps/basica/infra && terraform plan     # precisa terminar sem mudanças
 ```
 
 &emsp; `postman-evidencia` executa a coleção completa e versiona um resumo sanitizado,
@@ -886,4 +886,4 @@ views públicas → Lambda → dashboard
 | Análise exploratória | Volumes, nulos, granularidades e relações disponíveis |
 | Telas do dashboard | Recortes temporais, dimensões e nível de detalhe necessário |
 | Código e migrations de `develop` | Estado implementado de ingestão, ETL, checkpoints, detector e hipóteses |
-| Terraform em `apps/fullstack/infra` | Topologia AWS, rede, segurança, observabilidade e ordem operacional |
+| Terraform em `apps/basica/infra` | Topologia AWS, rede, segurança, observabilidade e ordem operacional |

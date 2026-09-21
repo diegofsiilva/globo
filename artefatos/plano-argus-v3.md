@@ -141,7 +141,7 @@ custa migração de dado, custa um rebuild.
 
 ## 4. Schemas do banco
 
-&emsp;Migrations em `apps/fullstack/db/migrations/`, aplicadas por `tools/migrate.py`
+&emsp;Migrations em `apps/basica/db/migrations/`, aplicadas por `tools/migrate.py`
 (runner mínimo com psycopg, controle em `public.schema_migrations`). O Terraform **não**
 cria schema: provisiona a instância e para aí. Separar as duas coisas é o que permite
 iterar o DDL sem `terraform apply`.
@@ -337,7 +337,7 @@ CREATE TABLE bronze.event (
 ```
 
 &emsp;O envelope sai do schema real dos exports do BI e dos modelos Pydantic que já
-existem em `apps/fullstack/worker/src/argus_worker/models.py`. **Reusar `EVENT_TYPES` e o
+existem em `apps/basica/worker/src/argus_worker/models.py`. **Reusar `EVENT_TYPES` e o
 fallback `GenericEvent`**, que já resolve `event_name` desconhecido — é o mecanismo que
 sustenta o RF03 (o parque de TVs atualiza devagar, e schema estrito viraria perda de
 dado em massa). `tools/events_csv_to_json.py` já faz a ponte CSV→JSON, incluindo a
@@ -528,7 +528,7 @@ não.
 
 ## 5. Terraform
 
-&emsp;Base: `apps/fullstack/infra/`. Manter o padrão que o repositório já estabeleceu —
+&emsp;Base: `apps/basica/infra/`. Manter o padrão que o repositório já estabeleceu —
 default correto para conta normal, flag para o Learner Lab, e **nenhuma facilidade em
 arquivo versionado** (o que o ambiente exige cabe em `terraform.tfvars`, que é
 gitignored, ou no runbook).
@@ -613,7 +613,7 @@ argus_dump.sql (4,15 GB)
 &emsp;O `.sql` continua sendo a fonte de verdade; o Parquet é formato de transporte.
 Vale subir os dois para o `origem/` para que a proveniência feche por completo.
 
-&emsp;Loader novo em `apps/fullstack/loader/`, reusando o mapa de tipos de
+&emsp;Loader novo em `apps/basica/loader/`, reusando o mapa de tipos de
 `tools/etl_dump.py`. Requisitos não negociáveis: `COPY` por batch (nunca `INSERT` linha
 a linha), índices criados **depois** da carga de cada tabela, `ANALYZE` no fim. Alvo de
 20 a 30 minutos para as 68,7 M linhas — precisa caber com folga numa sessão do
@@ -627,7 +627,7 @@ tipo de erro que passa despercebido por semanas se ninguém checar.
 
 ## 7. Serviços
 
-**Merge worker** (`apps/fullstack/worker/`) — reescrito. SQS → `change_log` (append) →
+**Merge worker** (`apps/basica/worker/`) — reescrito. SQS → `change_log` (append) →
 MERGE por `lsn` na corrente. Aproveitar `consumer.py`, `observability.py` e o mecanismo
 de heartbeat, que são independentes do destino; `repository.py` e `keys.py` passam a
 falar PostgreSQL. Trocar `boto3` + DynamoDB por `psycopg[binary,pool]`.
@@ -638,14 +638,14 @@ idempotente e tolerante a reentrega do SQS.
 **Event worker** — segundo consumidor, mesma estrutura, escreve em `bronze.event`.
 Reusa `models.py` inteiro.
 
-**Simulador** (`apps/fullstack/simulator/`) — avança o `sim.clock`, lê a janela de
+**Simulador** (`apps/basica/simulator/`) — avança o `sim.clock`, lê a janela de
 bronze/silver à frente do relógio virtual, aplica as falhas de `sim.fault` com a seed
 fixa da `sim.run`, e emite os change events em `POST /v1/changes` por HTTPS.
 
-**Processing worker** (`apps/fullstack/processing/`) — executa três threads no mesmo
+**Processing worker** (`apps/basica/processing/`) — executa três threads no mesmo
 container: bronze→silver, silver→gold e análise. A análise faz canário por cadência,
 EWMA circadiano causal, agrupamento não exclusivo, 11 famílias determinísticas e
-commit protegido por fencing. O [README do processamento](../apps/fullstack/processing/README.md)
+commit protegido por fencing. O [README do processamento](../apps/basica/processing/README.md)
 é o contrato operacional atualizado; este plano preserva o histórico arquitetural.
 
 ---
@@ -746,7 +746,7 @@ obrigatório executar `export AWS_PROFILE=g4 AWS_REGION=us-east-1` antes de `pla
 | `DATASET.md` v1.3 (documentação do dump) | Todas as referências de seção citadas aqui: convenções de tempo (§3.1–§3.3), identidade das chaves (§3.4), dicionário (§5), vocabulários (§6), armadilhas conhecidas (§7) |
 | Telas do dashboard | A justificativa de `prom_point` (§1.2) e o grain exigido pelas telas Explorar e Recorte (§4.4) |
 | EDA do dump (`notebooks/eda_argus.ipynb`) | Os nulos de `rpaas_bucket`, a exclusão mútua entre UF e ISP em `geo_hourly`, e a sobreposição fraca entre rótulos e telemetria |
-| `apps/fullstack/infra/` (arquitetura v2) | Os padrões mantidos: flag de Learner Lab, nada de facilidade em arquivo versionado, separação entre execution role e task role, alarmes por sintoma |
+| `apps/basica/infra/` (arquitetura v2) | Os padrões mantidos: flag de Learner Lab, nada de facilidade em arquivo versionado, separação entre execution role e task role, alarmes por sintoma |
 
 ---
 

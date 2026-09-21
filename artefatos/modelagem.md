@@ -623,12 +623,12 @@ agrupadas em seis contextos:
 
 | Contexto | Serviço / pasta | Papel |
 |---|---|---|
-| **Ingestão** | `apps/fullstack/worker` | Consome as duas filas SQS (o serviço de filas de mensagens da AWS), valida e grava na camada `bronze` (dados crus, ainda sem tratamento) |
-| **Carga inicial** | `apps/fullstack/loader` | Sobe as 33 tabelas do dump (a cópia de exportação do banco do parceiro), de arquivos Parquet (formato de arquivo colunar compactado) para a `bronze` |
-| **Relógio virtual** | `apps/fullstack/simulator` | Anda `sim.now()` e reemite o dump como mudanças, pela rede |
-| **Análise** | `apps/fullstack/processing` | ETL incremental (do inglês *extract, transform, load*, ou seja, extrair, transformar e carregar os dados de uma camada para a seguinte), detector causal e motor das 11 famílias de hipótese |
-| **Leitura** | `apps/fullstack/backend` | API em Flask (framework web Python) executada em instâncias EC2 de um Auto Scaling Group (grupo que cria e substitui máquinas conforme a demanda) atrás de um Application Load Balancer, com arquitetura hexagonal (regras de negócio isoladas da infraestrutura; ver seção 2.7); serve o dashboard, que é o painel de visualização |
-| **Comum** | `apps/fullstack/common` | Conexão, observabilidade (métricas e sinais que revelam o estado interno do sistema em produção) e ciclo de vida compartilhados pelos serviços |
+| **Ingestão** | `apps/basica/worker` | Consome as duas filas SQS (o serviço de filas de mensagens da AWS), valida e grava na camada `bronze` (dados crus, ainda sem tratamento) |
+| **Carga inicial** | `apps/basica/loader` | Sobe as 33 tabelas do dump (a cópia de exportação do banco do parceiro), de arquivos Parquet (formato de arquivo colunar compactado) para a `bronze` |
+| **Relógio virtual** | `apps/basica/simulator` | Anda `sim.now()` e reemite o dump como mudanças, pela rede |
+| **Análise** | `apps/basica/processing` | ETL incremental (do inglês *extract, transform, load*, ou seja, extrair, transformar e carregar os dados de uma camada para a seguinte), detector causal e motor das 11 famílias de hipótese |
+| **Leitura** | `apps/basica/backend` | API em Flask (framework web Python) executada em instâncias EC2 de um Auto Scaling Group (grupo que cria e substitui máquinas conforme a demanda) atrás de um Application Load Balancer, com arquitetura hexagonal (regras de negócio isoladas da infraestrutura; ver seção 2.7); serve o dashboard, que é o painel de visualização |
+| **Comum** | `apps/basica/common` | Conexão, observabilidade (métricas e sinais que revelam o estado interno do sistema em produção) e ciclo de vida compartilhados pelos serviços |
 
 #### 2.1.2 O que o diagrama não é
 
