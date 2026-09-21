@@ -23,12 +23,10 @@ from telemetry.application.normalization import (
 )
 from telemetry.domain.exceptions import ValidationError
 
-
 # ── TU-05 — parse_datetime ────────────────────────────────────────────────
 
 
 class TestParseDatetime:
-
     def test_deve_parsear_iso_8601_com_z(self):
         """Caso válido: '2026-07-13T10:30:00Z' vira datetime UTC."""
         resultado = parse_datetime("2026-07-13T10:30:00Z")
@@ -67,7 +65,6 @@ class TestParseDatetime:
 
 
 class TestParseJsonObject:
-
     def test_deve_parsear_json_string_valido(self):
         """Caso válido: string JSON com objeto → dict."""
         resultado = parse_json_object('{"key": "value", "count": 42}', "campo")
@@ -98,7 +95,6 @@ class TestParseJsonObject:
 
 
 class TestOptionalConversions:
-
     def test_optional_float_converte_string_numerica(self):
         """Caso válido: '3.14' → 3.14."""
         assert optional_float("3.14", "campo") == pytest.approx(3.14)
@@ -126,7 +122,6 @@ class TestOptionalConversions:
 
 
 class TestCanonicalizeKeys:
-
     def test_deve_converter_chaves_csv_para_canonicas(self):
         """Caso válido: 'Event Name' → 'event_name', 'Device Id' → 'device_id'."""
         payload = {
@@ -152,7 +147,6 @@ class TestCanonicalizeKeys:
 
 
 class TestParseEventId:
-
     def test_deve_gerar_uuid_quando_valor_ausente(self):
         """Caso válido: None → UUID v4 gerado automaticamente."""
         resultado = parse_event_id(None)

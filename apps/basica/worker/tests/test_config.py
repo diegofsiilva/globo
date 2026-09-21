@@ -2,17 +2,15 @@
 
 Unidades testadas:
   - Função _env_int: leitura resiliente de inteiros de variáveis de ambiente
-  - Método Config.from_env: validação de modo ('merge' vs 'event'), seleção de prefixos de fila
-    e delimitação de batch_size (clamping a SQS_MAX_MESSAGES).
+  - Método Config.from_env: validação de modo, seleção de prefixos de fila e
+    delimitação de batch_size (clamping a SQS_MAX_MESSAGES).
 """
 
 from __future__ import annotations
 
-import os
 import pytest
 
 from argus_worker.config import SQS_MAX_MESSAGES, Config, _env_int
-
 
 # ── TU-WRK-06 — _env_int e Config.from_env ─────────────────────────────────
 
@@ -45,18 +43,24 @@ class TestWorkerConfig:
             Config.from_env("invalido")
 
     def test_from_env_lanca_erro_quando_faltam_variaveis_obrigatorias(self, monkeypatch):
-        """Ausência de filas ou banco levanta RuntimeError listando as variáveis faltantes."""
+        """Lista as variáveis obrigatórias ausentes no erro de configuração."""
         monkeypatch.delenv("CHANGES_QUEUE_URL", raising=False)
         monkeypatch.delenv("CHANGES_DLQ_URL", raising=False)
         monkeypatch.delenv("DATABASE_URL", raising=False)
 
-        with pytest.raises(RuntimeError, match="variaveis de ambiente obrigatorias ausentes"):
+        with pytest.raises(
+            RuntimeError, match="variaveis de ambiente obrigatorias ausentes"
+        ):
             Config.from_env("merge")
 
     def test_from_env_carrega_modo_merge_com_prefixo_changes(self, monkeypatch):
         """Modo 'merge' lê CHANGES_QUEUE_URL e CHANGES_DLQ_URL."""
-        monkeypatch.setenv("CHANGES_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/changes")
-        monkeypatch.setenv("CHANGES_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/changes-dlq")
+        monkeypatch.setenv(
+            "CHANGES_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/changes"
+        )
+        monkeypatch.setenv(
+            "CHANGES_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/changes-dlq"
+        )
         monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
 
         cfg = Config.from_env("merge")
@@ -67,8 +71,12 @@ class TestWorkerConfig:
 
     def test_from_env_carrega_modo_event_com_prefixo_events(self, monkeypatch):
         """Modo 'event' lê EVENTS_QUEUE_URL e EVENTS_DLQ_URL."""
-        monkeypatch.setenv("EVENTS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/events")
-        monkeypatch.setenv("EVENTS_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/events-dlq")
+        monkeypatch.setenv(
+            "EVENTS_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/events"
+        )
+        monkeypatch.setenv(
+            "EVENTS_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/events-dlq"
+        )
         monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
 
         cfg = Config.from_env("event")
@@ -78,8 +86,12 @@ class TestWorkerConfig:
 
     def test_from_env_limita_batch_size_ao_maximo_do_sqs(self, monkeypatch):
         """batch_size maior que SQS_MAX_MESSAGES (10) é limitado a 10."""
-        monkeypatch.setenv("CHANGES_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/changes")
-        monkeypatch.setenv("CHANGES_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/changes-dlq")
+        monkeypatch.setenv(
+            "CHANGES_QUEUE_URL", "https://sqs.us-east-1.amazonaws.com/123/changes"
+        )
+        monkeypatch.setenv(
+            "CHANGES_DLQ_URL", "https://sqs.us-east-1.amazonaws.com/123/changes-dlq"
+        )
         monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
         monkeypatch.setenv("SQS_BATCH_SIZE", "50")  # Tenta pedir 50
 

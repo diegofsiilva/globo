@@ -6,12 +6,10 @@ Função testada:
 
 from telemetry.application.timeline import amostrar_raia
 
-
 # ── TU-10 — amostrar_raia ─────────────────────────────────────────────────
 
 
 class TestAmostrarRaia:
-
     def test_deve_retornar_todos_pontos_quando_abaixo_do_limite(self):
         """Caso válido: série menor que o limite passa intacta, truncated=False."""
         pontos = [{"bucket_ts": i, "value": i * 10} for i in range(50)]
@@ -27,7 +25,7 @@ class TestAmostrarRaia:
 
         assert truncado is True
         assert len(resultado) <= 10
-        assert resultado[0] == pontos[0]    # primeiro ponto preservado
+        assert resultado[0] == pontos[0]  # primeiro ponto preservado
         assert resultado[-1] == pontos[-1]  # último ponto preservado
 
     def test_nao_deve_duplicar_pontos_na_amostragem(self):

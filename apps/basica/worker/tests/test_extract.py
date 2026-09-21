@@ -1,26 +1,26 @@
 """Testes unitários de extração e resiliência em ``argus_worker.consumer``.
 
 Unidades testadas:
-  - Função _extract: extração flexível de corpos SQS (objeto único, lista crua ou envelope)
-  - Função _registro_recusado: discriminação entre erro de dado/integridade e indisponibilidade
-  - Função _serializavel: conversão de modelos Pydantic ou tipos primitivos para quarentena
+  - Função _extract: extração flexível de corpos SQS
+  - Função _registro_recusado: classificação de erros para a DLQ
+  - Função _serializavel: conversão de modelos para a quarentena
 """
 
 from __future__ import annotations
 
 import json
+
 import psycopg
 import pytest
 from pydantic import BaseModel
 
 from argus_worker.consumer import _extract, _registro_recusado, _serializavel
 
-
 # ── TU-WRK-01 — _extract ───────────────────────────────────────────────────
 
 
 class TestConsumerExtract:
-    """Verifica os três formatos aceitos na extração do corpo da mensagem SQS e tratamento de erros."""
+    """Verifica os formatos aceitos e os erros de corpos SQS."""
 
     def test_deve_extrair_objeto_unico_e_empacotar_em_lista(self):
         """Caso 1: cliente envia um único objeto JSON {...} -> retorna [{...}]."""
@@ -99,17 +99,17 @@ class TestRegistroRecusado:
         assert _registro_recusado(exc) is True
 
     def test_deve_recusar_erro_de_dados(self):
-        """DataError (ex: valor fora do domínio, estouro de tipo numérico) deve ir para DLQ."""
+        """Envia erros de dados para a DLQ."""
         exc = psycopg.errors.DataError("valor inteiro fora do limite aceito")
         assert _registro_recusado(exc) is True
 
     def test_nao_deve_recusar_erro_operacional_de_banco(self):
-        """OperationalError (queda de rede, timeout, banco fora) deve reentregar, NÃO quarentenar."""
+        """Reentrega erros operacionais de banco sem quarentena."""
         exc = psycopg.OperationalError("conexao perdida com o servidor")
         assert _registro_recusado(exc) is False
 
     def test_nao_deve_recusar_erro_de_programacao(self):
-        """ProgrammingError (erro de sintaxe SQL) é defeito do código e não deve culpar o dado."""
+        """Não atribui um erro de programação ao dado recebido."""
         exc = psycopg.ProgrammingError("erro de sintaxe em instrucao SQL")
         assert _registro_recusado(exc) is False
 

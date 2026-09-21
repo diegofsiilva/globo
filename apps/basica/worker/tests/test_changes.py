@@ -12,11 +12,11 @@ Unidades testadas:
 from __future__ import annotations
 
 import datetime as dt
+
 import pytest
 from pydantic import ValidationError
 
 from argus_worker.changes import ChangeEvent, parse_change
-
 
 # ── TU-WRK-04 — ChangeEvent e parse_change ─────────────────────────────────
 
@@ -68,7 +68,7 @@ class TestChangeEventValidation:
         assert evento.captured_at.hour == 15
 
     def test_deve_converter_timestamp_com_fuso_para_utc(self):
-        """Validador _para_utc: data em fuso diferente é convertida para UTC correspondente."""
+        """Converte para UTC uma data informada em outro fuso."""
         fuso_br = dt.timezone(dt.timedelta(hours=-3))
         evento = ChangeEvent(
             source_table="signal_bucket",
@@ -94,7 +94,7 @@ class TestChangeEventValidation:
         assert "pk vazia" in str(exc.value)
 
     def test_deve_rejeitar_insert_update_e_read_sem_after(self):
-        """Regra de negócio em parse_change: op 'i', 'u' ou 'r' exige campo 'after' não vazio."""
+        """Exige ``after`` não vazio para as operações ``i``, ``u`` e ``r``."""
         for op in ("i", "u", "r"):
             raw_sem_after = {
                 "source_table": "live_event",

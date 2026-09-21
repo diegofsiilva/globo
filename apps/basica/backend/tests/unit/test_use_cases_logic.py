@@ -16,6 +16,7 @@ Unidades testadas:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from telemetry.application.use_cases import replace_window, shift_window_back, summarize
@@ -23,7 +24,6 @@ from telemetry.domain.entities import TelemetryEvent
 from telemetry.infrastructure.hypotheses import _decode_cursor, _encode_cursor
 from telemetry.interfaces.auth import _token_do_cabecalho, rota_publica
 from telemetry.ports.event_repository import EventFilters
-
 
 # ── TU-BCK-01 — summarize ──────────────────────────────────────────────────
 
@@ -96,19 +96,25 @@ class TestWindowShift:
         anterior = shift_window_back(filtros)
         assert anterior is not None
         assert anterior.occurred_from == t_from - timedelta(hours=2)  # 08:00
-        assert anterior.occurred_to == t_from                        # 10:00
+        assert anterior.occurred_to == t_from  # 10:00
         assert anterior.event_name == "error"  # Preserva outros filtros
 
     def test_deve_retornar_none_quando_limites_ausentes(self):
         """Sem from ou to definido, retorna None."""
         assert shift_window_back(EventFilters(occurred_from=None, occurred_to=None)) is None
-        assert shift_window_back(EventFilters(occurred_from=datetime.now(UTC), occurred_to=None)) is None
+        assert (
+            shift_window_back(EventFilters(occurred_from=datetime.now(UTC), occurred_to=None))
+            is None
+        )
 
     def test_deve_retornar_none_quando_span_invalido(self):
         """Intervalo com to <= from (span nulo ou negativo) retorna None."""
         t = datetime(2026, 8, 12, 10, 0, 0, tzinfo=UTC)
         assert shift_window_back(EventFilters(occurred_from=t, occurred_to=t)) is None
-        assert shift_window_back(EventFilters(occurred_from=t, occurred_to=t - timedelta(hours=1))) is None
+        assert (
+            shift_window_back(EventFilters(occurred_from=t, occurred_to=t - timedelta(hours=1)))
+            is None
+        )
 
     def test_replace_window_substitui_apenas_limites_temporais(self):
         """replace_window preserva todos os outros slots de EventFilters."""

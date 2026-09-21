@@ -11,7 +11,6 @@ import json
 
 from argus_simulator.emitter import TETO_DE_ITENS, TETO_DO_CORPO_BYTES, _blocos
 
-
 # ── TU-SIM-04 — _blocos ────────────────────────────────────────────────────
 
 
@@ -36,8 +35,7 @@ class TestEmitterBlocos:
     def test_deve_fatiar_quando_exceder_teto_de_itens(self):
         """Ao atingir TETO_DE_ITENS (500), deve abrir um novo bloco."""
         changes = [
-            {"source_table": "ca_point", "op": "i", "pk": {"id": i}}
-            for i in range(1050)
+            {"source_table": "ca_point", "op": "i", "pk": {"id": i}} for i in range(1050)
         ]
         blocos = _blocos(changes)
 
@@ -56,7 +54,12 @@ class TestEmitterBlocos:
         # Cada item com ~10 KB de payload
         payload_10k = "x" * 10_000
         changes = [
-            {"source_table": "operation_metrics", "op": "i", "pk": {"id": i}, "data": payload_10k}
+            {
+                "source_table": "operation_metrics",
+                "op": "i",
+                "pk": {"id": i},
+                "data": payload_10k,
+            }
             for i in range(10)
         ]
         blocos = _blocos(changes)
@@ -66,7 +69,8 @@ class TestEmitterBlocos:
 
         for bloco in blocos:
             tamanho_bloco = sum(
-                len(json.dumps(c, ensure_ascii=False, default=str).encode()) for c in bloco
+                len(json.dumps(c, ensure_ascii=False, default=str).encode())
+                for c in bloco
             )
             # A menos que seja um item isolado gigante, cada bloco respeita o teto
             if len(bloco) > 1:

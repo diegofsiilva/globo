@@ -13,8 +13,7 @@ from __future__ import annotations
 import datetime as dt
 import random
 
-from argus_simulator.faults import TIPOS, Falha, _params, sortear
-
+from argus_simulator.faults import Falha, _params, sortear
 
 # ── TU-SIM-01 — Falha.alcanca ──────────────────────────────────────────────
 
@@ -27,7 +26,7 @@ class TestFalhaAlcanca:
         self.t_end = dt.datetime(2026, 7, 12, 11, 0, 0, tzinfo=dt.UTC)
 
     def test_deve_alcancar_quando_dentro_da_janela_e_alvo_exato(self):
-        """Ponto dentro da janela [ts_start, ts_end) com todos os alvos correspondentes."""
+        """Alcança o ponto dentro da janela quando o alvo corresponde."""
         falha = Falha(
             kind="error_spike",
             target={"source": "npaw", "entity": "live_stream", "metric": "buffer_ratio"},
@@ -75,7 +74,7 @@ class TestFalhaAlcanca:
         assert falha.alcanca(ts_depois, "npaw", "qualquer", "qualquer") is False
 
     def test_deve_tratar_campos_ausentes_no_target_como_coringas(self):
-        """Target especificando apenas 'source' deve aceitar qualquer 'entity' e 'metric'."""
+        """Trata campos ausentes no alvo como coringas."""
         falha = Falha(
             kind="source_outage",
             target={"source": "prometheus"},
@@ -107,11 +106,17 @@ class TestFalhaAlcanca:
 
 
 class TestFalhaAplicar:
-    """Verifica a distorção matemática aplicada aos valores de acordo com o tipo da falha."""
+    """Verifica a distorção aplicada aos valores por tipo de falha."""
 
     def test_deve_retornar_none_quando_valor_original_for_none(self):
         """Valor nulo de entrada deve preservar None."""
-        falha = Falha("error_spike", {}, dt.datetime.now(), dt.datetime.now(), {"multiplicador": 5.0})
+        falha = Falha(
+            "error_spike",
+            {},
+            dt.datetime.now(),
+            dt.datetime.now(),
+            {"multiplicador": 5.0},
+        )
         assert falha.aplicar(None) is None
 
     def test_deve_retornar_none_para_source_outage(self):
@@ -122,7 +127,13 @@ class TestFalhaAplicar:
 
     def test_deve_multiplicar_valor_conforme_parametro(self):
         """Aplica multiplicador escalar sobre o valor numérico."""
-        falha = Falha("error_spike", {}, dt.datetime.now(), dt.datetime.now(), {"multiplicador": 4.5})
+        falha = Falha(
+            "error_spike",
+            {},
+            dt.datetime.now(),
+            dt.datetime.now(),
+            {"multiplicador": 4.5},
+        )
         assert falha.aplicar(10.0) == 45.0
         assert falha.aplicar(0.0) == 0.0
 
@@ -149,7 +160,7 @@ class TestSortearEFalhasParams:
 
         assert len(falhas_1) == 4
         assert len(falhas_2) == 4
-        for f1, f2 in zip(falhas_1, falhas_2):
+        for f1, f2 in zip(falhas_1, falhas_2, strict=True):
             assert f1.kind == f2.kind
             assert f1.target == f2.target
             assert f1.ts_start == f2.ts_start
@@ -184,7 +195,7 @@ class TestSortearEFalhasParams:
         assert sortear(seed=1, t0=t0, t1=t1, fontes=[], quantas=5) == []
 
     def test_params_gera_multiplicadores_dentro_dos_intervalos_definidos(self):
-        """Verifica se os multiplicadores de cada tipo de falha respeitam as faixas documentadas."""
+        """Mantém os multiplicadores nas faixas definidas por tipo."""
         rng = random.Random(12345)
 
         # error_spike: [3.0, 12.0]

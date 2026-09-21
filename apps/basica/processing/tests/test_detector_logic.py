@@ -1,4 +1,4 @@
-"""Testes unitários de lógica matemática do detector, qualidade e scoring em ``argus_processing``.
+"""Testes unitários da lógica do detector, da qualidade e do scoring.
 
 Unidades testadas:
   - Funções de argus_processing.detector:
@@ -10,19 +10,19 @@ Unidades testadas:
       - _clamp: limitação matemática ao intervalo fechado [0.0, 1.0]
   - Função de argus_processing.scoring:
       - score_features: ponderação explicável de features, penalização por contradição,
-        cálculo de cobertura e atribuição de níveis de confiança ('high', 'medium', 'low').
+        cálculo de cobertura e atribuição de níveis de confiança.
 """
 
 from __future__ import annotations
 
 import math
+
 import pytest
 
 from argus_processing.catalog import MetricPolicy
 from argus_processing.detector import _bad_direction, _inverse, _material, _transform
 from argus_processing.quality import _clamp
 from argus_processing.scoring import score_features
-
 
 # ── TU-PRC-01 — detector: _transform e _inverse ────────────────────────────
 
@@ -45,7 +45,7 @@ class TestDetectorTransformAndInverse:
         assert pytest.approx(_transform(9.0, policy), rel=1e-6) == math.log1p(9.0)
 
     def test_transform_limita_valores_negativos_a_zero_antes_do_log1p(self):
-        """Valores negativos são protegidos com max(value, 0.0) para evitar math domain error."""
+        """Protege o log1p contra valores negativos."""
         policy = MetricPolicy(
             direction="up",
             transform="log1p",
@@ -56,7 +56,7 @@ class TestDetectorTransformAndInverse:
         assert _transform(-10.0, policy) == 0.0
 
     def test_transform_retorna_identidade_para_outras_politicas(self):
-        """Quando transform não é 'log1p' (ex: 'identity' ou 'none'), valor não é alterado."""
+        """Mantém o valor quando a política não usa ``log1p``."""
         policy = MetricPolicy(
             direction="two_sided",
             transform="identity",
@@ -111,7 +111,7 @@ class TestDetectorMaterialAndDirection:
         assert _material(observed=125.0, expected=100.0, policy=policy) is True
 
     def test_material_reprova_se_falhar_no_limiar_absoluto(self):
-        """Reprova se delta absoluto for menor que materiality_absolute, mesmo com alta variação relativa."""
+        """Reprova quando somente o limiar relativo é atendido."""
         policy = MetricPolicy(
             direction="up",
             transform="identity",
@@ -123,7 +123,7 @@ class TestDetectorMaterialAndDirection:
         assert _material(observed=3.0, expected=1.0, policy=policy) is False
 
     def test_material_reprova_se_falhar_no_limiar_relativo(self):
-        """Reprova se delta relativo for menor que materiality_relative, mesmo com grande variação absoluta."""
+        """Reprova quando somente o limiar absoluto é atendido."""
         policy = MetricPolicy(
             direction="up",
             transform="identity",
@@ -154,7 +154,7 @@ class TestDetectorMaterialAndDirection:
         assert _bad_direction(observed=100.0, expected=100.0, policy=policy) is False
 
     def test_bad_direction_down(self):
-        """Métricas de direção 'down' só são anômalas quando caem (observed < expected)."""
+        """Marca métricas ``down`` apenas quando o observado cai."""
         policy = MetricPolicy("down", "identity", 1.0, 0.1, 0.01)
         assert _bad_direction(observed=80.0, expected=100.0, policy=policy) is True
         assert _bad_direction(observed=120.0, expected=100.0, policy=policy) is False
@@ -187,10 +187,10 @@ class TestQualityClamp:
 
 
 class TestScoreFeatures:
-    """Verifica a pontuação explicável, penalidade de contradição e níveis de confiança."""
+    """Verifica score, contradição, cobertura e confiança."""
 
     def test_score_com_todas_features_disponiveis_e_perfeitas(self):
-        """Features A, T, C, E, I com valor 1.0, Q=1.0 e sem contradição -> score=100, high confidence."""
+        """Produz score 100 com todas as features perfeitas."""
         values = {
             "A": ("available", 1.0, "anomalia forte"),
             "T": ("available", 1.0, "alinhamento temporal"),

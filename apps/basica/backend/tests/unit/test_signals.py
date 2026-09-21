@@ -10,19 +10,16 @@ from datetime import UTC, datetime
 
 from telemetry.application.signals import (
     LIMIAR_CRITICAL,
-    LIMIAR_SINAL,
     LIMIAR_WARNING,
     GenerateSignals,
     _severidade,
     _signal_id,
 )
 
-
 # ── TU-11 — _severidade ──────────────────────────────────────────────────
 
 
 class TestSeveridade:
-
     # --- Casos válidos de classificação ---
 
     def test_deve_retornar_critical_para_zscore_alto(self):
@@ -49,7 +46,7 @@ class TestSeveridade:
         # Logo abaixo de warning → stable
         assert _severidade(2.49) == "stable"
         # Exatamente em warning → warning
-        assert _severidade(LIMIAR_WARNING) == "warning"   # 2.5
+        assert _severidade(LIMIAR_WARNING) == "warning"  # 2.5
 
         # Logo abaixo de critical → warning
         assert _severidade(3.99) == "warning"
@@ -65,7 +62,6 @@ class TestSeveridade:
 
 
 class TestSignalId:
-
     def test_deve_gerar_id_deterministico(self):
         """Caso válido: mesma tripla → mesmo ID a cada chamada."""
         id1 = _signal_id("pop-sp", "app-video", "p95_latency")
@@ -99,7 +95,6 @@ class _FakeSignalsRepository:
 
 
 class TestGenerateSignals:
-
     @staticmethod
     def _bucket(source, entity, metric, ts, z, value=100, media=50, desvio=10):
         return {
@@ -127,7 +122,7 @@ class TestGenerateSignals:
         assert resultado["count"] == 1
         sinal = resultado["items"][0]
         assert sinal["severity"] == "warning"  # |3.0| >= 2.5 e < 4.0
-        assert sinal["multiplier"] == 2.4      # 120 / 50
+        assert sinal["multiplier"] == 2.4  # 120 / 50
         assert sinal["consecutive_buckets_over_threshold"] == 2
         assert sinal["trend"] == [120, 120]
 
@@ -151,12 +146,9 @@ class TestGenerateSignals:
         antes = datetime(2026, 7, 14, 11, 0, tzinfo=UTC)
 
         linhas = [
-            self._bucket(f"pop-{i}", "app", "metric", agora, z=3.0 + i * 0.5)
-            for i in range(5)
+            self._bucket(f"pop-{i}", "app", "metric", agora, z=3.0 + i * 0.5) for i in range(5)
         ]
-        resultado = GenerateSignals(_FakeSignalsRepository(linhas)).execute(
-            antes, agora, limite=2
-        )
+        resultado = GenerateSignals(_FakeSignalsRepository(linhas)).execute(antes, agora, limite=2)
 
         assert resultado["count"] == 2
         assert resultado["truncated"] is True
