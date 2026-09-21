@@ -1,139 +1,290 @@
-# Testes Funcionais e Unitários do Sistema Argus
+# Testes funcionais, unitários e de carga
 
-## 1. Visão Geral da Suíte de Testes Unitários
+> **Escopo desta atualização:** testes unitários. As seções de testes de
+> integração, caso de uso com análise de valor limite e carga serão incluídas
+> após a implementação e a execução efetiva dessas etapas.
 
-Esta suíte de testes unitários foi desenvolvida para verificar componentes com **lógica de negócio interna densa** (estruturas condicionais `if/elif/else`, laços de iteração `for`, validações de regras de domínio, transformações matemáticas e tratamento de exceções).
+## 1. Objetivo e escopo
 
-Todos os testes são **puramente unitários e isolados**:
-- Não dependem de banco de dados ativo, filas AWS SQS, rede ou serviços externos.
-- Execução determinística em alta velocidade (< 1 segundo).
+Este documento registra o planejamento, a implementação, a execução e os
+resultados dos testes do Argus. Nesta entrega foram avaliadas unidades de lógica
+do backend, do worker de ingestão, do simulador e do motor de processamento.
 
-### Informações gerais consolidadas
+Os testes desta seção são unitários porque exercitam funções, métodos ou classes
+em memória, sem PostgreSQL, filas SQS, rede ou serviços da AWS. A suíte foi
+implementada com `pytest` e inclui entradas válidas, entradas inválidas e valores
+de fronteira.
 
-| Módulo / Serviço | Localização dos Testes | Framework | Quantidade de Testes | Status |
+### 1.1 Critérios de aceite desta etapa
+
+| Critério | Evidência observada | Situação |
+|---|---|---|
+| Pelo menos quatro testes unitários implementados | 133 casos automatizados em 12 arquivos | Aprovado |
+| Função, método ou classe testada identificada | Unidade indicada na matriz e no arquivo de cada teste | Aprovado |
+| Casos válidos e casos de erro | Casos TU-01 e TU-03 válidos; TU-02, TU-04, TU-05 e TU-09 de erro ou rejeição | Aprovado |
+| Uso de ferramenta automatizada | `pytest` nos quatro serviços | Aprovado |
+| Testes efetivamente executados | 133 aprovados e nenhuma falha na execução de 21/09/2026 | Aprovado |
+| Código, comandos e evidências localizáveis | Caminhos e comandos registrados nas seções 2, 5 e 6 | Aprovado |
+
+## 2. Ambiente, ferramenta e localização
+
+### 2.1 Ambiente da execução
+
+| Item | Valor observado |
+|---|---|
+| Data e hora | 21/09/2026, 16:56:50 (UTC-03:00) |
+| Sistema | Linux |
+| Linguagem | Python 3.12.3 |
+| Ferramenta | pytest |
+| Versão no backend | pytest 8.4.2 |
+| Versão nos demais serviços | pytest 9.1.1 |
+| Dependências externas | Nenhuma para os arquivos unitários selecionados |
+| Evidência textual | [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+### 2.2 Inventário do código executado
+
+| Serviço | Arquivo de teste | Unidades principais | Casos |
+|---|---|---|---:|
+| Backend | [`test_normalization.py`](../apps/basica/backend/tests/unit/test_normalization.py) | `parse_datetime`, `parse_json_object`, conversões, chaves e UUID | 20 |
+| Backend | [`test_redaction.py`](../apps/basica/backend/tests/unit/test_redaction.py) | `hash_user_id`, `sanitize_url`, `redact_headers`, `redact_attributes` | 15 |
+| Backend | [`test_signals.py`](../apps/basica/backend/tests/unit/test_signals.py) | `_severidade`, `_signal_id`, `GenerateSignals.execute` | 11 |
+| Backend | [`test_timeline.py`](../apps/basica/backend/tests/unit/test_timeline.py) | `amostrar_raia` | 6 |
+| Backend | [`test_use_cases_logic.py`](../apps/basica/backend/tests/unit/test_use_cases_logic.py) | resumo, janelas, cursores e autenticação | 11 |
+| Worker | [`test_changes.py`](../apps/basica/worker/tests/test_changes.py) | `ChangeEvent`, `parse_change` | 7 |
+| Worker | [`test_check_size.py`](../apps/basica/worker/tests/test_check_size.py) | `check_size` | 4 |
+| Worker | [`test_config.py`](../apps/basica/worker/tests/test_config.py) | `_env_int`, `Config.from_env` | 8 |
+| Worker | [`test_extract.py`](../apps/basica/worker/tests/test_extract.py) | `_extract`, `_registro_recusado`, `_serializavel` | 14 |
+| Simulador | [`test_emitter.py`](../apps/basica/simulator/tests/test_emitter.py) | `_blocos` | 5 |
+| Simulador | [`test_faults.py`](../apps/basica/simulator/tests/test_faults.py) | `Falha.alcanca`, `Falha.aplicar`, `sortear`, `_params` | 15 |
+| Processamento | [`test_detector_logic.py`](../apps/basica/processing/tests/test_detector_logic.py) | transformações, materialidade, direção, qualidade e scoring | 17 |
+| **Total** | **12 arquivos** | **funções, métodos e classes isolados** | **133** |
+
+Os arquivos-fonte exercitados ficam nos diretórios `src/telemetry`,
+`src/argus_worker`, `src/argus_simulator` e `src/argus_processing` dos
+respectivos serviços. As configurações do pytest estão nos arquivos
+`pyproject.toml` de cada serviço.
+
+## 3. Planejamento e rastreabilidade
+
+Foram selecionados nove casos representativos para documentação detalhada. A
+seleção inclui comportamento nominal, rejeição de dados inválidos, proteção de
+informações, autenticação, análise de sinais e os dois lados da fronteira de
+4 MB. Os demais testes dos 12 arquivos funcionam como suíte complementar de
+regressão.
+
+| ID | Unidade testada | Tipo | Requisito ou caso de uso relacionado | Arquivo automatizado |
 |---|---|---|---|---|
-| **Backend** | `apps/basica/backend/tests/unit/` | pytest (Python 3.12) | 63 testes | ✅ 100% aprovados |
-| **Worker (Ingestão & CDC)** | `apps/basica/worker/tests/` | pytest (Python 3.12) | 78 testes | ✅ 100% aprovados |
-| **Simulador de Telemetria** | `apps/basica/simulator/tests/` | pytest (Python 3.12) | 22 testes | ✅ 100% aprovados |
-| **Motor de Processamento** | `apps/basica/processing/tests/` | pytest (Python 3.12) | 51 testes | ✅ 100% aprovados |
-| **Lambda Authorizer** | `apps/basica/authorizer/tests/` | pytest (Python 3.12) | 18 testes | ✅ 100% aprovados |
+| TU-01 | `hash_user_id` | Válido | RNF10 — proteção dos dados coletados | `backend/tests/unit/test_redaction.py` |
+| TU-02 | `parse_datetime` | Erro | RF01/RF03 — receber telemetria sem aceitar data inválida | `backend/tests/unit/test_normalization.py` |
+| TU-03 | `amostrar_raia` | Fronteira válida | RF12 — apresentar gráficos e indicadores | `backend/tests/unit/test_timeline.py` |
+| TU-04 | `GenerateSignals.execute` | Fluxo alternativo | RF13 — destacar falhas de maior impacto | `backend/tests/unit/test_signals.py` |
+| TU-05 | `_extract` | Erro | RNF04/RNF11 — isolar entrada inválida e identificar a falha | `worker/tests/test_extract.py` |
+| TU-06 | `check_size` | Limite aceito | RNF04 — impedir que payload inválido comprometa o fluxo | `worker/tests/test_check_size.py` |
+| TU-07 | `check_size` | Imediatamente acima | RNF04 — rejeitar payload irrecuperável | `worker/tests/test_check_size.py` |
+| TU-08 | `_material` | Válido | RF17/RNF08 — hipóteses apoiadas por evidências relevantes | `processing/tests/test_detector_logic.py` |
+| TU-09 | `_token_do_cabecalho` | Erro | RNF09 — acesso apenas com credencial autorizada | `backend/tests/unit/test_use_cases_logic.py` |
 
----
+## 4. Especificação e resultado dos casos
 
-## 2. Especificação das Unidades Testadas
+### TU-01 — Gerar identificador desidentificado e determinístico
 
-Conforme as boas práticas de engenharia de software e testes de unidade, cada teste foca na menor unidade testável do software. A tabela a seguir classifica e referencia cada unidade no código-fonte:
+- **Objetivo:** verificar que `hash_user_id` transforma um identificador em um
+  hash estável, sem expor o valor original, apoiando o RNF10.
+- **Unidade testada:** função `hash_user_id`, em
+  [`redaction.py`](../apps/basica/backend/src/telemetry/application/redaction.py).
+- **Pré-condições:** ambiente do backend instalado pelo `uv`; nenhuma conexão
+  externa é necessária.
+- **Dados de entrada:** `user_id="usuario-123"` e
+  `salt="meu-salt-secreto"`.
+- **Procedimento:** executar o nó pytest indicado na seção 6; o teste calcula
+  independentemente o SHA-256 esperado e compara os 32 caracteres iniciais.
+- **Resultado esperado:** hash hexadecimal determinístico com 32 caracteres.
+- **Resultado obtido:** valor, tamanho e alfabeto hexadecimal aprovados.
+- **Situação:** **Aprovado**.
+- **Evidência:** saída `PASSED` para o nó TU-01 no arquivo de evidência.
 
-### 2.1. Simulador (`apps/basica/simulator/`)
+### TU-02 — Rejeitar data em formato desconhecido
 
-| Unidade Testada | Tipo no Código | Arquivo Fonte de Origem | Arquivo de Teste | Lógica Interna Testada |
-|---|---|---|---|---|
-| `Falha.alcanca` | **Método de Classe** (na classe `Falha`) | [`faults.py`](../apps/basica/simulator/src/argus_simulator/faults.py) | `tests/test_faults.py` | Avalia intervalo temporal `ts_start <= ts < ts_end` (limite inferior inclusivo e superior exclusivo) e correspondência de chaves de alvo (`source`, `entity`, `metric`), tratando chaves ausentes no alvo como coringas (*wildcards*). |
-| `Falha.aplicar` | **Método de Classe** (na classe `Falha`) | [`faults.py`](../apps/basica/simulator/src/argus_simulator/faults.py) | `tests/test_faults.py` | Lógica de distorção de telemetria: preserva `None` de entrada, converte qualquer valor em `None` para falhas do tipo `source_outage` (apagão de métrica), e aplica multiplicação escalar `valor * multiplicador` para outros tipos. |
-| `sortear` | **Função de Módulo** | [`faults.py`](../apps/basica/simulator/src/argus_simulator/faults.py) | `tests/test_faults.py` | Geração pseudo-aleatória determinística baseada em semente (`seed`) via `random.Random`, ordenação prévia e estável de fontes, e ordenação cronológica estrita das falhas geradas por `ts_start`. |
-| `_params` | **Função de Módulo** | [`faults.py`](../apps/basica/simulator/src/argus_simulator/faults.py) | `tests/test_faults.py` | Geração de parâmetros numéricos dentro das faixas estatísticas de cada tipo de incidente: `error_spike` [3.0, 12.0], `latency` [1.15, 1.6], `drift` [0.7, 0.9] e `source_outage` `{}`. |
-| `_blocos` | **Função de Módulo** | [`emitter.py`](../apps/basica/simulator/src/argus_simulator/emitter.py) | `tests/test_emitter.py` | Algoritmo de empacotamento em lotes com corte duplo: limite de tamanho serializado em bytes (`TETO_DO_CORPO_BYTES = 48 KB`) para respeitar restrições de URI do API Gateway e limite de quantidade (`TETO_DE_ITENS = 500`). Trata itens individualmente gigantes mantendo-os em blocos isolados sem descarte. |
+- **Objetivo:** garantir que uma data não interpretável não seja silenciosamente
+  aceita durante a normalização de telemetria.
+- **Unidade testada:** função `parse_datetime`, em
+  [`normalization.py`](../apps/basica/backend/src/telemetry/application/normalization.py).
+- **Pré-condições:** ambiente do backend instalado; nenhuma dependência externa.
+- **Dados de entrada:** string `"nao-e-uma-data"`.
+- **Procedimento:** chamar `parse_datetime` dentro de `pytest.raises` e validar
+  a exceção de domínio e a mensagem contendo `invalido`.
+- **Resultado esperado:** `ValidationError`; nenhum `datetime` produzido.
+- **Resultado obtido:** a exceção esperada foi capturada.
+- **Situação:** **Aprovado**.
+- **Evidência:** nó TU-02 marcado como `PASSED` no arquivo de evidência.
 
-### 2.2. Workers de Ingestão (`apps/basica/worker/`)
+### TU-03 — Amostrar série um ponto acima do limite
 
-| Unidade Testada | Tipo no Código | Arquivo Fonte de Origem | Arquivo de Teste | Lógica Interna Testada |
-|---|---|---|---|---|
-| `_extract` | **Função de Módulo** | [`consumer.py`](../apps/basica/worker/src/argus_worker/consumer.py) | `tests/test_extract.py` | Extração flexível dos 3 formatos de mensagem entregues pelo API Gateway/SQS (objeto único `{...}`, lista crua `[{...}]` ou envelope `{"events": [...]}`). Valida e rejeita strings vazias, JSONs malformados, tipos primitivos ou listas sem itens. |
-| `_registro_recusado` | **Função de Módulo** | [`consumer.py`](../apps/basica/worker/src/argus_worker/consumer.py) | `tests/test_extract.py` | Lógica de decisão de destino de falha: erros de dados/integridade (`IntegrityError`, `DataError`) retornam `True` (desvio para DLQ para não travar a fila), enquanto falhas de infraestrutura (`OperationalError`) e sintaxe (`ProgrammingError`) retornam `False` para reentrega. |
-| `_serializavel` | **Função de Módulo** | [`consumer.py`](../apps/basica/worker/src/argus_worker/consumer.py) | `tests/test_extract.py` | Normalização para serialização em quarentena: detecta se o objeto possui método `model_dump` (Pydantic) e converte em dicionário ou preserva objetos nativos. |
-| `ChangeEvent` | **Classe** (modelo Pydantic) | [`changes.py`](../apps/basica/worker/src/argus_worker/changes.py) | `tests/test_changes.py` | Validação de esquemas de CDC: `_tabela_conhecida` (método validador de classe que barra tabelas fora da allowlist fechada), `_para_utc` (normalização forçada de datas para UTC), e `_pk_nao_vazia` (rejeição de chaves primárias vazias). |
-| `parse_change` | **Função de Módulo** | [`changes.py`](../apps/basica/worker/src/argus_worker/changes.py) | `tests/test_changes.py` | Regra de coerência operacional: se a operação for inserção (`i`), atualização (`u`) ou leitura (`r`), valida a presença obrigatória do campo `after`; se for deleção (`d`), permite ausência de `after`. |
-| `check_size` | **Função de Módulo** | [`repository.py`](../apps/basica/worker/src/argus_worker/repository.py) | `tests/test_check_size.py` | Validação de guarda de capacidade: calcula tamanho em bytes do payload serializado e levanta `ChangeTooLarge` se ultrapassar `MAX_CHANGE_BYTES` (4.000.000 bytes / 4 MB). |
-| `_env_int` | **Função de Módulo** | [`config.py`](../apps/basica/worker/src/argus_worker/config.py) | `tests/test_config.py` | Conversão e fallback de inteiros a partir de variáveis de ambiente, levantando `ValueError` com mensagem amigável em caso de valor não numérico. |
-| `Config.from_env` | **Método de Classe** (na classe `Config`) | [`config.py`](../apps/basica/worker/src/argus_worker/config.py) | `tests/test_config.py` | Carregamento condicional por modo (`merge` vs `event`), validação de variáveis de ambiente obrigatórias, mapeamento de prefixos de fila (`CHANGES_` vs `EVENTS_`) e clamping do `batch_size` ao teto duro do SQS (`SQS_MAX_MESSAGES = 10`). |
+- **Objetivo:** confirmar que `amostrar_raia` reduz uma série que ultrapassa o
+  limite sem perder as extremidades temporais usadas pela Timeline.
+- **Unidade testada:** função `amostrar_raia`, em
+  [`timeline.py`](../apps/basica/backend/src/telemetry/application/timeline.py).
+- **Pré-condições:** lista ordenada em memória; nenhuma conexão externa.
+- **Dados de entrada:** 101 pontos e `limite=100`.
+- **Procedimento:** executar a função e verificar `truncated=True`, quantidade
+  menor ou igual a 100 e preservação do primeiro e do último ponto.
+- **Resultado esperado:** série truncada, com extremos preservados.
+- **Resultado obtido:** todas as pós-condições foram atendidas.
+- **Situação:** **Aprovado**.
+- **Evidência:** nó TU-03 marcado como `PASSED` no arquivo de evidência.
 
-### 2.3. Processamento & Detecção (`apps/basica/processing/`)
+### TU-04 — Ignorar sinal que deixou de exceder o limiar
 
-| Unidade Testada | Tipo no Código | Arquivo Fonte de Origem | Arquivo de Teste | Lógica Interna Testada |
-|---|---|---|---|---|
-| `_transform` | **Função de Módulo** | [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py) | `tests/test_detector_logic.py` | Transformação de espaço métrico: aplica `math.log1p(max(value, 0.0))` para comprimir cauda longa em métricas com política `log1p` (prevenindo z-scores falsos em latência) e identidade para as demais. |
-| `_inverse` | **Função de Módulo** | [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py) | `tests/test_detector_logic.py` | Reversão matemática de `log1p` usando `math.expm1` para retornar valores esperados à unidade nativa exibida ao operador. |
-| `_material` | **Função de Módulo** | [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py) | `tests/test_detector_logic.py` | Filtro de relevância operacional que exige **simultaneamente** desvio absoluto (`|obs - exp| >= abs`) e desvio relativo (`|obs - exp| / exp >= rel`), com proteção contra divisão por zero (`1e-12`). |
-| `_bad_direction` | **Função de Módulo** | [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py) | `tests/test_detector_logic.py` | Filtragem direcional de desvios prejudiciais: distingue se anomalia é para cima (`up`), para baixo (`down`) ou bidirecional (`two_sided`), descartando melhorias operacionais. |
-| `_clamp` | **Função de Módulo** | [`quality.py`](../apps/basica/processing/src/argus_processing/quality.py) | `tests/test_detector_logic.py` | Limitação de valores numéricos de razões estatísticas ao intervalo fechado `[0.0, 1.0]`. |
-| `score_features` | **Função de Módulo** | [`scoring.py`](../apps/basica/processing/src/argus_processing/scoring.py) | `tests/test_detector_logic.py` | Cálculo do score ponderado de hipóteses (pesos A:0.25, T:0.20, C:0.20, E:0.15, I:0.15, Q:0.05), penalização por contradição (`-30 * contradiction`), cálculo de cobertura e determinação da confiança (`high`, `medium`, `low`). |
+- **Objetivo:** verificar que o backend não apresenta como ativo um sinal cujo
+  bucket mais recente voltou à faixa estável.
+- **Unidade testada:** método `GenerateSignals.execute`, em
+  [`signals.py`](../apps/basica/backend/src/telemetry/application/signals.py).
+- **Pré-condições:** repositório fake em memória retornando dois buckets.
+- **Dados de entrada:** primeiro bucket com `z=3.0` e último com `z=1.5`, abaixo
+  do limiar de sinal `2.0`.
+- **Procedimento:** executar o caso de uso e inspecionar `count` e `items`.
+- **Resultado esperado:** `count=0` e `items=[]`.
+- **Resultado obtido:** nenhum sinal ativo foi produzido.
+- **Situação:** **Aprovado**.
+- **Evidência:** nó TU-04 marcado como `PASSED` no arquivo de evidência.
 
-### 2.4. Backend (`apps/basica/backend/`)
+### TU-05 — Rejeitar JSON inválido recebido pelo worker
 
-| Unidade Testada | Tipo no Código | Arquivo Fonte de Origem | Arquivo de Teste | Lógica Interna Testada |
-|---|---|---|---|---|
-| `summarize` | **Função de Módulo** | [`use_cases.py`](../apps/basica/backend/src/telemetry/application/use_cases.py) | `tests/unit/test_use_cases_logic.py` | Agregação estatística de eventos de uma sessão: calcula `event_count`, contagem por tipo em `by_event_name`, `error_count`, datas de início e fim, duração em segundos e metadados de aparelho/app. |
-| `shift_window_back` | **Função de Módulo** | [`use_cases.py`](../apps/basica/backend/src/telemetry/application/use_cases.py) | `tests/unit/test_use_cases_logic.py` | Cálculo de deslocamento de janela temporal para comparação entre períodos (RF14). Valida se `occurred_from` e `occurred_to` existem e se `span > 0`, deslocando os limites para trás com precisão de microssegundos. |
-| `replace_window` | **Função de Módulo** | [`use_cases.py`](../apps/basica/backend/src/telemetry/application/use_cases.py) | `tests/unit/test_use_cases_logic.py` | Clonagem de slots de `EventFilters` atualizando unicamente as datas de início e fim sem alterar os demais filtros de sessão, aparelho ou app. |
-| `_encode_cursor` / `_decode_cursor` | **Funções de Módulo** | [`hypotheses.py`](../apps/basica/backend/src/telemetry/infrastructure/hypotheses.py) | `tests/unit/test_use_cases_logic.py` | Serialização e desserialização de cursores opacos de paginação keyset em Base64 URL-safe, com remoção e recomposição de padding (`=`) e tratamento resiliente de erros com `ValueError('cursor invalido')`. |
-| `_token_do_cabecalho` | **Função de Módulo** | [`auth.py`](../apps/basica/backend/src/telemetry/interfaces/auth.py) | `tests/unit/test_use_cases_logic.py` | Extração do token Bearer com inspeção case-insensitive de prefixo `bearer `, rejeição de esquemas estranhos (ex: `Basic`), tokens vazios e strings nulas. |
-| `rota_publica` | **Função de Módulo** | [`auth.py`](../apps/basica/backend/src/telemetry/interfaces/auth.py) | `tests/unit/test_use_cases_logic.py` | Regra de liberação de rotas públicas (`/health/live`, `/health/ready`, `/docs`, `/openapi.json`, `/favicon.ico`) vs rotas protegidas que exigem token (`/api/v1/events`, etc.). |
+- **Objetivo:** confirmar que um corpo corrompido é identificado antes da
+  persistência e recebe motivo de falha reproduzível.
+- **Unidade testada:** função `_extract`, em
+  [`consumer.py`](../apps/basica/worker/src/argus_worker/consumer.py).
+- **Pré-condições:** ambiente do worker instalado; não requer SQS nem banco.
+- **Dados de entrada:** corpo `"{ chave_sem_fechar: "` e chave `"events"`.
+- **Procedimento:** chamar `_extract` dentro de `pytest.raises` e comparar a
+  mensagem de erro com `JSON invalido`.
+- **Resultado esperado:** `ValueError` identificando JSON inválido.
+- **Resultado obtido:** exceção e mensagem esperadas foram observadas.
+- **Situação:** **Aprovado**.
+- **Evidência:** nó TU-05 marcado como `PASSED` no arquivo de evidência.
 
----
+### TU-06 — Aceitar payload exatamente no limite de 4 MB
 
-## 3. Tabela Consolidada de Casos de Teste Unitários
+- **Objetivo:** provar que a guarda de tamanho não rejeita um change event ainda
+  permitido pelo contrato.
+- **Unidade testada:** função `check_size`, em
+  [`repository.py`](../apps/basica/worker/src/argus_worker/repository.py).
+- **Pré-condições:** `MAX_CHANGE_BYTES=4.000.000`; mesma serialização da
+  implementação.
+- **Dados de entrada:** dicionário cujo JSON possui exatamente `4.000.000` bytes.
+- **Procedimento:** confirmar o tamanho serializado e chamar `check_size`.
+- **Resultado esperado:** retorno sem exceção.
+- **Resultado obtido:** o payload no limite foi aceito.
+- **Situação:** **Aprovado**.
+- **Evidência:** nó TU-06 marcado como `PASSED` no arquivo de evidência.
 
-| ID | Unidade testada | Tipo no Código | Tipo de Caso | Entrada | Resultado Esperado | Situação |
-|---|---|---|---|---|---|---|
-| **TU-01 a TU-30** | `redaction`, `normalization`, `timeline`, `signals` | Módulos do backend | Válidos / Limites | Payloads e query params variados | Sanitização, parsing, amostragem e z-score | ✅ Aprovado |
-| **TU-31** | `Falha.alcanca` | Método de Classe | Válido | `ts` dentro da janela com target exato | Retorna `True` | ✅ Aprovado |
-| **TU-32** | `Falha.alcanca` | Método de Classe | Limite | `ts == ts_start` (inclusivo) e `ts == ts_end` (exclusivo) | `True` no início e `False` no fim | ✅ Aprovado |
-| **TU-33** | `Falha.alcanca` | Método de Classe | Limite | Target sem campos `entity`/`metric` (coringas) | Retorna `True` para qualquer entidade/métrica | ✅ Aprovado |
-| **TU-34** | `Falha.alcanca` | Método de Classe | Erro previsto | `ts` anterior ou posterior à janela da falha | Retorna `False` | ✅ Aprovado |
-| **TU-35** | `Falha.aplicar` | Método de Classe | Válido | `valor = 10.0`, multiplicador = `4.5` | Retorna `45.0` | ✅ Aprovado |
-| **TU-36** | `Falha.aplicar` | Método de Classe | Regra especial | Tipo `source_outage` com `valor = 150.0` | Retorna `None` (simula ausência de dado) | ✅ Aprovado |
-| **TU-37** | `Falha.aplicar` | Método de Classe | Limite | `valor = None` | Retorna `None` | ✅ Aprovado |
-| **TU-38** | `sortear` | Função | Determinismo | Mesma `seed=42`, `t0`, `t1` e `fontes` executado 2 vezes | Retorna exatamente as mesmas falhas | ✅ Aprovado |
-| **TU-39** | `sortear` | Função | Ordenação | 10 falhas sorteadas aleatoriamente | Lista estritamente ordenada por `ts_start` | ✅ Aprovado |
-| **TU-40** | `_params` | Função | Limites | Tipo `error_spike`, `latency`, `drift` | Multiplicadores dentro das faixas [3.0, 12.0], [1.15, 1.6], [0.7, 0.9] | ✅ Aprovado |
-| **TU-41** | `_blocos` | Função | Limite de Quantidade | 1050 itens | Fatiamento em blocos de 500, 500 e 50 itens | ✅ Aprovado |
-| **TU-42** | `_blocos` | Função | Limite de Bytes | 10 itens de 10 KB (> 48 KB total) | Divisão em múltiplos blocos respeitando 48 KB | ✅ Aprovado |
-| **TU-43** | `_blocos` | Função | Caso Especial | Item individual com 53 KB (> teto) | Bloco isolado contendo o item, sem descarte | ✅ Aprovado |
-| **TU-44** | `_extract` | Função | Válido | Objeto único `{"event_name": "x"}` | Extraído como lista `[{"event_name": "x"}]` | ✅ Aprovado |
-| **TU-45** | `_extract` | Função | Válido | Envelope `{"changes": [...]}` | Lista interna extraída diretamente | ✅ Aprovado |
-| **TU-46** | `_extract` | Função | Erro previsto | String vazia ou espaços em branco | Levanta `ValueError("corpo da mensagem vazio")` | ✅ Aprovado |
-| **TU-47** | `_extract` | Função | Erro previsto | JSON inválido ou tipo primitivo numérico | Levanta `ValueError` | ✅ Aprovado |
-| **TU-48** | `_registro_recusado` | Função | Regra de Negócio | `IntegrityError` e `DataError` | Retorna `True` (direciona para DLQ) | ✅ Aprovado |
-| **TU-49** | `_registro_recusado` | Função | Regra de Negócio | `OperationalError` e `ProgrammingError` | Retorna `False` (mantém na fila para reentrega) | ✅ Aprovado |
-| **TU-50** | `ChangeEvent` | Classe | Validação | Tabela inexistente `tabela_xpto` | Levanta `ValidationError("tabela desconhecida")` | ✅ Aprovado |
-| **TU-51** | `ChangeEvent` | Classe | Validação | Timestamp sem fuso horário | Convertido para UTC automaticamente | ✅ Aprovado |
-| **TU-52** | `ChangeEvent` | Classe | Validação | Chave primária vazia `pk={}` | Levanta `ValidationError("pk vazia")` | ✅ Aprovado |
-| **TU-53** | `parse_change` | Função | Coerência | Operação `u` sem campo `after` | Levanta `ValueError("op='u' exige after")` | ✅ Aprovado |
-| **TU-54** | `parse_change` | Função | Coerência | Operação `d` sem campo `after` | Aceita sem erro | ✅ Aprovado |
-| **TU-55** | `check_size` | Função | Limite de Guarda | Payload serializado > 4.000.000 bytes | Levanta `ChangeTooLarge` | ✅ Aprovado |
-| **TU-56** | `_env_int` | Função | Válido / Erro | String `"123"` vs `"texto"` | Retorna `123` e levanta `ValueError` | ✅ Aprovado |
-| **TU-57** | `Config.from_env` | Método de Classe | Validação | Modo desconhecido `"invalido"` | Levanta `ValueError` | ✅ Aprovado |
-| **TU-58** | `Config.from_env` | Método de Classe | Limite | Variável `SQS_BATCH_SIZE=50` | `batch_size` limitado ao teto 10 | ✅ Aprovado |
-| **TU-59** | `_transform` / `_inverse` | Funções | Transformação | Política `log1p` vs `identity` | Compressão log1p e reversão expm1 simétricas | ✅ Aprovado |
-| **TU-60** | `_material` | Função | Materialidade Dupla | Delta absoluto e relativo simultâneos | `True` apenas quando atende ambos | ✅ Aprovado |
-| **TU-61** | `_bad_direction` | Função | Direcionalidade | Direção `up`, `down` e `two_sided` | Descarte de desvios que representam melhoria | ✅ Aprovado |
-| **TU-62** | `score_features` | Função | Ponderação | Features completas sem contradição | `score=100.0`, `confidence="high"` | ✅ Aprovado |
-| **TU-63** | `score_features` | Função | Penalidade | Contradição = 0.5 | Reduz 15 pontos do score base | ✅ Aprovado |
-| **TU-64** | `summarize` | Função | Agregação | Sessão com 3 eventos (1 erro) | Resumo com totais, datas e contagem por tipo | ✅ Aprovado |
-| **TU-65** | `shift_window_back` | Função | Cálculo Temporal | Janela de 2h (10h às 12h) | Recua para período anterior (08h às 10h) | ✅ Aprovado |
-| **TU-66** | `_encode_cursor` / `_decode` | Funções | Keyset Paging | Tupla `[score, start, id]` | Codificação Base64 URL-safe e decodificação exata | ✅ Aprovado |
-| **TU-67** | `_token_do_cabecalho` | Função | Segurança | `"Bearer tok1"`, `"bearer tok2"`, `"Basic ..."` | Extração correta nos dois primeiros e `None` no último | ✅ Aprovado |
-| **TU-68** | `rota_publica` | Função | Autorização | `/health/live`, `/docs` vs `/api/v1/events` | `True` para públicas e `False` para protegidas | ✅ Aprovado |
+### TU-07 — Rejeitar payload um byte acima do limite
 
----
+- **Objetivo:** comprovar o primeiro valor inválido após a fronteira de tamanho.
+- **Unidade testada:** função `check_size`, no mesmo arquivo do TU-06.
+- **Pré-condições:** iguais às do TU-06.
+- **Dados de entrada:** JSON de exatamente `4.000.001` bytes.
+- **Procedimento:** chamar `check_size` dentro de `pytest.raises`.
+- **Resultado esperado:** lançamento de `ChangeTooLarge`.
+- **Resultado obtido:** `ChangeTooLarge` foi capturada.
+- **Situação:** **Aprovado**.
+- **Evidência:** nó TU-07 marcado como `PASSED` no arquivo de evidência.
 
-## 4. Como Executar os Testes Unitários
+### TU-08 — Aprovar desvio que atende aos dois critérios de materialidade
 
-Todos os testes unitários podem ser disparados tanto localmente quanto nos pipelines de integração contínua (CI):
+- **Objetivo:** verificar que uma evidência só é material quando atende
+  simultaneamente aos limites absoluto e relativo.
+- **Unidade testada:** função `_material`, em
+  [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py).
+- **Pré-condições:** política com limite absoluto `10.0` e relativo `0.20`.
+- **Dados de entrada:** observado `125.0` e esperado `100.0`, com diferença
+  absoluta `25.0` e relativa `25%`.
+- **Procedimento:** executar `_material` com a política indicada.
+- **Resultado esperado:** `True`, pois ambos os critérios são atendidos.
+- **Resultado obtido:** retorno `True`.
+- **Situação:** **Aprovado**.
+- **Evidência:** nó TU-08 marcado como `PASSED` no arquivo de evidência.
+
+### TU-09 — Rejeitar cabeçalhos de autenticação inválidos
+
+- **Objetivo:** garantir que esquemas diferentes de Bearer, valores vazios e
+  entradas ausentes não sejam interpretados como credenciais.
+- **Unidade testada:** função `_token_do_cabecalho`, em
+  [`auth.py`](../apps/basica/backend/src/telemetry/interfaces/auth.py).
+- **Pré-condições:** nenhuma; função pura.
+- **Dados de entrada:** `None`, string vazia, `"Basic dXNlcjpwYXNz"`,
+  `"Bearer"` e `"Bearer    "`.
+- **Procedimento:** executar a função para cada entrada e comparar o retorno.
+- **Resultado esperado:** `None` em todos os casos.
+- **Resultado obtido:** todas as entradas foram rejeitadas.
+- **Situação:** **Aprovado**.
+- **Evidência:** nó TU-09 marcado como `PASSED` no arquivo de evidência.
+
+## 5. Resultado consolidado da execução
+
+| Serviço | Coletados | Aprovados | Reprovados | Duração observada | Situação |
+|---|---:|---:|---:|---:|---|
+| Backend | 63 | 63 | 0 | 0,04 s | Aprovado |
+| Worker | 33 | 33 | 0 | 0,23 s | Aprovado |
+| Simulador | 20 | 20 | 0 | 0,04 s | Aprovado |
+| Processamento | 17 | 17 | 0 | 0,02 s | Aprovado |
+| **Total** | **133** | **133** | **0** | **0,33 s somados** | **Aprovado** |
+
+As durações são as informadas pelo pytest em execuções separadas e locais; a
+soma serve apenas como registro desta rodada, não como ensaio de desempenho. Os
+testes que dependem de PostgreSQL não fazem parte desta contagem unitária.
+
+### 5.1 Conclusão
+
+O item de testes unitários atende ao mínimo da especificação e o ultrapassa em
+amplitude: há mais de quatro casos, unidades identificadas, entradas válidas,
+erros e fronteiras, execução automatizada e evidência reproduzível. O resultado
+comprovado nesta rodada é de 133 testes aprovados e nenhuma reprovação.
+
+Essa aprovação é restrita às unidades e entradas exercitadas. Ela não substitui
+os testes de integração, o teste completo de um caso de uso nem os ensaios de
+carga exigidos nas próximas etapas do documento.
+
+## 6. Instruções para reprodução
+
+Os comandos partem da raiz do repositório e usam os ambientes declarados em
+cada `pyproject.toml`:
 
 ```bash
-# Executar todos os testes unitários do backend
-cd apps/basica/backend && uv run pytest tests/unit -v
+# Backend: 63 testes unitários
+cd apps/basica/backend
+uv run --quiet pytest tests/unit --tb=no
 
-# Executar testes unitários do simulador
-cd apps/basica/simulator && uv run pytest tests/test_faults.py tests/test_emitter.py -v
+# Worker: 33 testes unitários selecionados
+cd ../worker
+uv run --quiet pytest \
+  tests/test_changes.py \
+  tests/test_check_size.py \
+  tests/test_config.py \
+  tests/test_extract.py \
+  --tb=no
 
-# Executar testes unitários do worker de ingestão
-cd apps/basica/worker && uv run pytest tests/test_extract.py tests/test_changes.py tests/test_check_size.py tests/test_config.py -v
+# Simulador: 20 testes unitários selecionados
+cd ../simulator
+uv run --quiet pytest tests/test_emitter.py tests/test_faults.py --tb=no
 
-# Executar testes unitários de detecção e scoring do processamento
-cd apps/basica/processing && uv run pytest tests/test_detector_logic.py -v
-
-# Executar o portão de testes unitários através do Makefile
-make -C apps/basica test-simulator test-worker test-processing
+# Processamento: 17 testes unitários selecionados
+cd ../processing
+uv run --quiet pytest tests/test_detector_logic.py --tb=no
 ```
+
+Para reproduzir apenas os nove casos detalhados, devem ser usados os nós pytest
+registrados integralmente em
+[`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt). Um processo
+terminado com código `0`, todos os nós como `PASSED` e nenhuma linha `FAILED`
+reproduz o resultado aprovado.
+
+## 7. Próximas etapas do documento
+
+Sem antecipar resultados ainda não executados, permanecem pendentes:
+
+1. documentar e executar pelo menos dois testes de integração entre camadas;
+2. selecionar um caso de uso e cobrir fluxo principal, alternativos, exceções,
+   pós-condições e valores nos limites e imediatamente ao redor deles;
+3. executar três níveis progressivos de carga, registrando concorrência, volume,
+   duração, latência, erros, critérios de sucesso e conclusão.
