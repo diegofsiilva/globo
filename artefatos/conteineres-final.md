@@ -2,14 +2,14 @@
 
 &emsp; Este artefato descreve a aplicação Argus sob o recorte da Sprint 4: arquitetura
 distribuída, conteinerização, orquestração e mecanismos de resiliência frente a falhas.
-Ele documenta uma decisão específica — **onde** o Kubernetes entra no sistema — e a
+Ele documenta uma decisão específica: **onde** o Kubernetes entra no sistema. O texto
 sustenta com a evidência colhida em cluster de verdade.
 
 &emsp; A conclusão, adiantada: o Kubernetes orquestra o **caminho síncrono** (dashboard,
 API de leitura e a aplicação de migrations); o **ECS Fargate continua intocado** no
 caminho assíncrono (ingestão por SQS, ETL, simulação e carga inicial). Isso não é
 migração pela metade. É escolha de plataforma por característica de carga, e a seção 3
-explica por que a alternativa — levar tudo para o cluster — seria lateral num caso e
+explica por que levar tudo para o cluster seria lateral num caso e
 regressão de segurança no outro.
 
 ---
@@ -48,7 +48,7 @@ que justifica plataformas diferentes.
 | Caminho | Gatilho de escala | O que já resolve a elasticidade |
 |---|---|---|
 | Assíncrono | Profundidade da fila | A própria fila: o SQS absorve a rajada e o consumidor drena no seu ritmo |
-| Síncrono | Requisições por segundo, com latência percebida pelo usuário | Nada, antes desta sprint — o ASG levava minutos para repor uma instância |
+| Síncrono | Requisições por segundo, com latência percebida pelo usuário | Nada, antes desta sprint; o ASG levava minutos para repor uma instância |
 
 ### 2.1 Componentes no cluster
 
@@ -57,9 +57,9 @@ que justifica plataformas diferentes.
 | `Deployment argus-frontend` | `argus-events-dev-frontend` (nginx + export estático) | Serve o dashboard |
 | `Deployment argus-backend` | `argus-events-dev-backend` (Flask + gunicorn) | API de leitura, porta 5000 |
 | `Job argus-db-migrate` | `argus-events-dev-processing` | Aplica as 29 migrations e termina |
-| `Ingress argus` | — | Entrada única: `/` para o dashboard, `/api` para a API |
-| `HorizontalPodAutoscaler` | — | 2 a 6 réplicas da API, por CPU |
-| `PodDisruptionBudget` | — | Impede que uma consolidação de nó tire todas as réplicas |
+| `Ingress argus` | Não aplicável | Entrada única: `/` para o dashboard, `/api` para a API |
+| `HorizontalPodAutoscaler` | Não aplicável | 2 a 6 réplicas da API, por CPU |
+| `PodDisruptionBudget` | Não aplicável | Impede que uma consolidação de nó tire todas as réplicas |
 
 ---
 
@@ -71,11 +71,11 @@ Kubernetes", e sim "onde o Kubernetes conserta um problema real".
 **No caminho assíncrono, ele não conserta nada.** O ECS Fargate já entrega estado
 desejado declarativo, verificação de saúde, implantação gradual e escala automática.
 Mover os workers para lá do cluster seria trocar de ferramenta sem trocar de
-capacidade — e, num ponto, seria piorar: o AWS Academy Learner Lab nega
+capacidade e, num ponto, seria piorar: o AWS Academy Learner Lab nega
 `iam:CreateRole`, `iam:AttachRolePolicy` e `iam:CreateOpenIDConnectProvider`, o que
 torna **IRSA e EKS Pod Identity impossíveis**. Os workers precisam de SQS; para lhes dar
 credencial no cluster seria preciso conceder permissão ampla ao nó inteiro, trocando o
-papel por task — granular — por um papel compartilhado por todos os pods daquele nó.
+papel por task, granular, por um papel compartilhado por todos os pods daquele nó.
 
 **No caminho síncrono, ele conserta bastante.** Até a Sprint 3 a API rodava assim, no
 `infra/templates/user_data.sh.tftpl` de cada instância do ASG:
@@ -86,7 +86,7 @@ dnf install docker  →  docker pull  →  docker run -p 5000:5000
 
 &emsp; Isso é orquestração de contêiner feita à mão numa máquina virtual. Não há
 implantação gradual: publicar uma versão nova significa substituir instâncias. Não há
-reposição do contêiner por saúde — apenas o target group derrubando a instância inteira.
+reposição do contêiner por saúde, apenas o target group derrubando a instância inteira.
 E o `health_check_grace_period = 300s` existe justamente para cobrir o tempo de boot,
 instalação e download da imagem.
 
@@ -99,18 +99,18 @@ API compilada dentro do bundle. Um Ingress único elimina as duas coisas de uma 
 
 | # | Decisão | Alternativa descartada | Atributo de qualidade | Falha prevista e mitigação | Custo | Como reverter |
 |---|---|---|---|---|---|---|
-| 1 | Kubernetes só no caminho síncrono | Levar `merge`, `event` e `processing` também | Adequação: cada carga na plataforma que resolve o problema dela | Duas plataformas a operar; mitigado por observabilidade comum no CloudWatch | — | Escrever `Deployment` para os workers; a imagem já serve |
+| 1 | Kubernetes só no caminho síncrono | Levar `merge`, `event` e `processing` também | Adequação: cada carga na plataforma que resolve o problema dela | Duas plataformas a operar; mitigado por observabilidade comum no CloudWatch | Não aplicável | Escrever `Deployment` para os workers; a imagem já serve |
 | 2 | EKS em **Auto Mode** | Cluster com node group gerenciado + AWS Load Balancer Controller por Helm | Viabilidade: o controlador por Helm exige IRSA, bloqueado no lab | Sobretaxa de gerenciamento por hora de nó | Sobretaxa do Auto Mode | `compute_config.enabled = false` e um node group clássico |
-| 3 | Cluster na VPC do Argus, não na default | Reusar o cluster de laboratório já existente | Segurança: o RDS é privado e só é alcançável de dentro da VPC | Depende de `create_network = true` | — | `create_eks = false` |
-| 4 | Nós com o papel `LabEksNodeRole` mínimo | `LabRole`, que traz SQS, S3 e Secrets Manager | Menor privilégio | Nenhuma: nenhum pod deste cluster fala com a AWS | — | Trocar `node_role_arn` |
+| 3 | Cluster na VPC do Argus, não na default | Reusar o cluster de laboratório já existente | Segurança: o RDS é privado e só é alcançável de dentro da VPC | Depende de `create_network = true` | Não aplicável | `create_eks = false` |
+| 4 | Nós com o papel `LabEksNodeRole` mínimo | `LabRole`, que traz SQS, S3 e Secrets Manager | Menor privilégio | Nenhuma: nenhum pod deste cluster fala com a AWS | Não aplicável | Trocar `node_role_arn` |
 | 5 | ASG zerado, não destruído | Remover `asg.tf` e `alb.tf` | Reversibilidade durante a sprint | Recurso ocioso no estado | Nenhum, com capacidade zero | Dois valores no `terraform.tfvars` |
 | 6 | Ingress único com origem única | Um `Service` do tipo `LoadBalancer` por aplicação | Simplicidade: elimina CORS e desacopla a imagem do ambiente | Uma regra de roteamento errada afeta os dois serviços | Um balanceador em vez de dois | Separar em dois `Ingress` |
-| 7 | Sonda de vida em `/health/live` | `/health/ready`, que consulta o banco | Disponibilidade | Uma queda do RDS mataria **todos** os pods ao mesmo tempo | — | Trocar o `path` da sonda |
+| 7 | Sonda de vida em `/health/live` | `/health/ready`, que consulta o banco | Disponibilidade | Uma queda do RDS mataria **todos** os pods ao mesmo tempo | Não aplicável | Trocar o `path` da sonda |
 | 8 | Sem limite de CPU nos contêineres | `limits.cpu` declarado | Latência previsível | Cota CFS provoca estrangulamento em rajada, invisível nas métricas usuais | Nó pode precisar ser maior | Acrescentar `limits.cpu` |
-| 9 | Escala por CPU | Requisições por alvo, como fazia o ASG | Disponibilidade da métrica sem componente extra | A métrica não é a mesma do ASG; a comparação entre plataformas precisa dizer isso | — | KEDA, ou o adaptador de métricas externas |
+| 9 | Escala por CPU | Requisições por alvo, como fazia o ASG | Disponibilidade da métrica sem componente extra | A métrica não é a mesma do ASG; a comparação entre plataformas precisa dizer isso | Não aplicável | KEDA, ou o adaptador de métricas externas |
 | 10 | Imagens multi-arquitetura para as duas do cluster | Somente `arm64`, como as quatro do Fargate | Compatibilidade: as node pools padrão do Auto Mode são `amd64` | `CrashLoopBackOff` com `exec format error` | ~2 min a mais no build | Node pool customizada `arm64` |
-| 11 | `topologySpreadConstraints` com `ScheduleAnyway` | `DoNotSchedule` | Velocidade de implantação | Distribuição entre zonas deixa de ser garantida | — | Trocar para `DoNotSchedule` quando houver nó quente |
-| 12 | Segredo montado por `kubectl` a partir do Terraform | Provider `kubernetes` no Terraform, ou arquivo `.env` | Segurança: o valor não toca disco, repositório nem estado | Exige `rollout restart` após rotação; automatizado no alvo do Makefile | — | Operador de segredos externos, se houver IRSA |
+| 11 | `topologySpreadConstraints` com `ScheduleAnyway` | `DoNotSchedule` | Velocidade de implantação | Distribuição entre zonas deixa de ser garantida | Não aplicável | Trocar para `DoNotSchedule` quando houver nó quente |
+| 12 | Segredo montado por `kubectl` a partir do Terraform | Provider `kubernetes` no Terraform, ou arquivo `.env` | Segurança: o valor não toca disco, repositório nem estado | Exige `rollout restart` após rotação; automatizado no alvo do Makefile | Não aplicável | Operador de segredos externos, se houver IRSA |
 
 ---
 
@@ -126,7 +126,7 @@ API compilada dentro do bundle. Um Ingress único elimina as duas coisas de uma 
 
 &emsp; A imagem do dashboard é construída com `NEXT_PUBLIC_API_URL=/`. O cliente monta a
 requisição como `fetch(`${API_URL.replace(/\/$/, "")}${path}`)`, e `path` já começa com
-`/api/v1` — então a chamada sai **relativa**. Não pode ser string vazia: o cliente a
+`/api/v1`, então a chamada sai **relativa**. Não pode ser string vazia: o cliente a
 rejeita de propósito, para que uma configuração faltando falhe alto em vez de gerar
 requisições para a própria página.
 
@@ -135,7 +135,7 @@ requisições para a própria página.
 1. O navegador nunca emite requisição de verificação prévia, e **o CORS deixa de ser
    parâmetro operacional**.
 2. A imagem **deixa de depender do endereço do ambiente**. A mesma tag roda no cluster
-   local e no EKS — o que importa num laboratório onde o endereço do balanceador muda a
+   local e no EKS, o que importa num laboratório onde o endereço do balanceador muda a
    cada sessão.
 3. Não há reescrita de caminho: o prefixo chega intacto ao Flask.
 
@@ -148,7 +148,7 @@ declarada; com `/` antes de `/api`, ele casaria tudo e a API nunca receberia req
 
 ### 5.1 Três sondas, três problemas distintos
 
-&emsp; Trocá-las de lugar tem consequência concreta — e é por isso que elas não são
+&emsp; Trocá-las de lugar tem consequência concreta, e é por isso que elas não são
 intercambiáveis:
 
 | Sonda | Alvo | O que aconteceria se estivesse trocada |
@@ -166,7 +166,7 @@ route "/health/ready"  status 503   ← a de prontidão falha: relation "silver.
 ```
 
 &emsp; O pod ficou fora do balanceamento, **sem ser reiniciado**, até o `Job` de
-migrations concluir — quando voltou sozinho.
+migrations concluir, quando voltou sozinho.
 
 ### 5.2 Implantação sem queda
 
@@ -191,7 +191,7 @@ RESULTADO: 547 respostas 200, 0 falhas
 recuperado em 4s
 ```
 
-&emsp; O ASG levava até **300 segundos** para repor uma instância — o valor do
+&emsp; O ASG levava até **300 segundos** para repor uma instância, o valor do
 `health_check_grace_period`, dimensionado para cobrir boot, `dnf install` e `docker
 pull`. São duas ordens de grandeza de diferença, e vêm do mesmo fato: o Kubernetes
 reagenda um processo, enquanto o ASG precisa construir uma máquina.
@@ -217,7 +217,7 @@ durante uma operação que deveria ser invisível.
 
 &emsp; Todas as bases são fixadas por resumo criptográfico (`@sha256:`), e não por tag:
 uma tag pode passar a apontar para outra imagem sem que arquivo nenhum do repositório
-mude. Cada contexto de build tem seu próprio `.dockerignore` — o de `apps/basica/`
+mude. Cada contexto de build tem seu próprio `.dockerignore`, o de `apps/basica/`
 cobre os quatro serviços que compartilham `common/`; `backend/` e `frontend/` têm os
 seus, porque constroem a partir da própria pasta.
 
@@ -232,7 +232,7 @@ nem chega a escutar na porta.
 &emsp; As node pools padrão do Auto Mode são `amd64`; as máquinas do time e o Fargate
 são `arm64`. As duas imagens do cluster são publicadas para as duas arquiteturas, numa
 lista de manifestos. Publicar só `arm64` coloca o pod em `CrashLoopBackOff` com
-`exec format error` — a mesma falha que já apareceu no ASG.
+`exec format error`, a mesma falha que já apareceu no ASG.
 
 &emsp; Por isso a publicação usa `docker buildx build --push`, e não `docker build`
 seguido de `docker push`: uma lista de manifestos só existe no registro, e o `push`
@@ -290,7 +290,7 @@ make -C apps/basica k8s-url
 ```
 
 &emsp; O alvo `make check` passou a incluir `k8s-validate`, que renderiza os seis
-conjuntos de manifestos sem tocar em cluster nenhum — é o portão que impede um erro de
+conjuntos de manifestos sem tocar em cluster nenhum, e é o portão que impede um erro de
 YAML de chegar à entrega.
 
 ---
@@ -306,7 +306,7 @@ make -C apps/basica k8s-delete       # remove o namespace e, com ele, o balancea
 ```
 
 &emsp; Para derrubar o cluster inteiro, `create_eks = false` e `make tf-apply`. ECS,
-RDS, balanceador e ASG não referenciam nada dele e continuam de pé — o que é, também,
+RDS, balanceador e ASG não referenciam nada dele e continuam de pé, o que é, também,
 a demonstração prática da decisão 5.
 
 ---
@@ -321,20 +321,20 @@ terceira aponta a seção deste artefato que aquele trecho sustenta.
 
 | Tempo | O que o vídeo mostra | Evidência na tela |
 |---|---|---|
-| 0:00–0:30 | Apresentação do grupo e do recorte da sprint | — |
+| 0:00–0:30 | Apresentação do grupo e do recorte da sprint | Não aplicável |
 | 0:30–1:40 | **Código em contêiner**: os seis `Dockerfile`, o multi-estágio, o usuário sem privilégio e a base fixada por resumo | `USER argus` uid 10001 e `USER nginx` uid 101; `HEALTHCHECK` em cada imagem; `@sha256:` nas bases (6.1) |
 | 1:40–2:30 | O build multi-arquitetura e a lista de manifestos no ECR | `docker buildx build --platform linux/amd64,linux/arm64`; `docker manifest inspect` listando as duas arquiteturas (6.2) |
 | 2:30–3:30 | **Kubernetes**: o cluster no console, os nós e os objetos aplicados | `kubectl get nodes`; `kubectl -n argus get pods,svc,ingress,hpa,pdb` (2.1) |
 | 3:30–4:10 | O Ingress de origem única | O dashboard em `/` e o relógio virtual em `/api/v1/clock`, no mesmo endereço, sem CORS (4) |
 | 4:10–4:40 | O `Job` de migrations | `kubectl get job` em `1/1`; as 29 migrations no registro do contêiner (2.1) |
-| 4:40–5:30 | **Resiliência — autocura**: remoção de um pod da API | Pod reagendado e `Ready` em segundos, contra os 300 s do ASG (5.3) |
-| 5:30–6:30 | **Resiliência — implantação sem queda sob carga** | `rollout restart` com o teste de carga rodando; zero erro no relatório (5.2) |
+| 4:40–5:30 | **Resiliência: autocura**. Remoção de um pod da API | Pod reagendado e `Ready` em segundos, contra os 300 s do ASG (5.3) |
+| 5:30–6:30 | **Resiliência: implantação sem queda sob carga** | `rollout restart` com o teste de carga rodando; zero erro no relatório (5.2) |
 | 6:30–6:50 | Escala automática | `kubectl get hpa -w` com as réplicas subindo e descendo (3.1, decisão 9) |
-| 6:50–7:00 | Encerramento | — |
+| 6:50–7:00 | Encerramento | Não aplicável |
 
 ---
 
-## Apêndice A — Mapa de arquivos
+## Apêndice A: Mapa de arquivos
 
 | Arquivo | Papel |
 |---|---|
