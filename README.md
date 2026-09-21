@@ -80,13 +80,13 @@ Toda linha carrega um `available_at`, que é o instante em que a informação *f
 
 Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas, então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
 
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura do Argus v3](artefatos/arquitetura-inicial.md), no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/basica/infra/README.md).
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura do Argus v3](artefatos/arquitetura-inicial.md), no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/fullstack/infra/README.md).
 
 > **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
 ### Arquitetura v4 da Sprint 3
 
-A **arquitetura v4 foi desenvolvida na Sprint 3, a sprint atual**, para acrescentar
+A **arquitetura v4 foi desenvolvida na Sprint 3** para acrescentar
 uma VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade,
 NAT Gateway, bastion host, API de leitura em instâncias EC2 sob Auto Scaling Group,
 Application Load Balancer, CloudFront e a opção de RDS Multi-AZ. O diagrama e a
@@ -99,26 +99,43 @@ provisionado na conta do Learner Lab.
 
 ## Estrutura de pastas
 
+```text
+g04/
+├── README.md
+├── .gitignore
+├── apps/
+│   └── fullstack/   # aplicação, infraestrutura e comandos de execução
+├── artefatos/       # documentação e evidências das sprints
+├── slides/          # apresentações das sprints
+└── assets/          # logos do Inteli e do parceiro
+```
+
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-| `/apps/basica/db/migrations` | As 29 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
-| `/apps/basica/backend` | API de leitura em Flask com arquitetura hexagonal, servida por contêiner no cluster Kubernetes |
-| `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
-| `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
-| `/apps/basica/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
-| `/apps/basica/processing` | ETL, checkpoints, canário, detector e motor determinístico das 11 famílias de hipótese |
-| `/apps/basica/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
-| `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por nginx no cluster |
-| `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
-| `/apps/basica/k8s` | Manifestos Kubernetes do caminho síncrono, em base e overlays (`aws`, `kind`) |
-| `/apps/basica/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
-| `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
+| `/apps` | Aplicações do projeto, organizadas em subpastas |
+| `/apps/fullstack` | Aplicação Argus completa: serviços, dashboard, infraestrutura e ferramentas |
+| `/apps/fullstack/authorizer` | Autorização das APIs por token Bearer |
+| `/apps/fullstack/db/migrations` | As 29 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+| `/apps/fullstack/backend` | API de leitura em Flask com arquitetura hexagonal, servida por contêiner no cluster Kubernetes |
+| `/apps/fullstack/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
+| `/apps/fullstack/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
+| `/apps/fullstack/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
+| `/apps/fullstack/processing` | ETL, checkpoints, canário, detector e motor determinístico das 11 famílias de hipótese |
+| `/apps/fullstack/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
+| `/apps/fullstack/frontend` | Dashboard em Next.js, export estático servido por nginx no cluster |
+| `/apps/fullstack/infra` | Terraform de toda a infraestrutura AWS |
+| `/apps/fullstack/k8s` | Manifestos Kubernetes do caminho síncrono, em base e overlays (`aws`, `kind`) |
+| `/apps/fullstack/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
+| `/apps/fullstack/notebooks` | Análise exploratória do dataset do parceiro |
+| `/apps/fullstack/observability` | Configuração local de Prometheus e Grafana para acompanhar os testes |
+| `/apps/fullstack/tests` | Testes de carga, escalabilidade e resiliência |
 | `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem, MVP, infraestrutura e integração |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
 | `/artefatos/postman` | Coleção Postman de teste das duas APIs + evidências `evidencias/newman-*.json` |
 | `/assets` | Logos usados neste README |
-| `/apps/basica/Makefile` | Comandos do projeto; `make -C apps/basica` lista os alvos |
-| `/apps/basica/.env.example` | Chaves de configuração; os valores ficam em `/apps/basica/.env`, fora do repositório |
+| `/slides` | Apresentações das sprints em PDF |
+| `/apps/fullstack/Makefile` | Comandos do projeto; `make -C apps/fullstack` lista os alvos |
+| `/apps/fullstack/.env.example` | Chaves de configuração; os valores ficam em `/apps/fullstack/.env`, fora do repositório |
 | `README.md` | Este arquivo |
 | `.gitignore` | Arquivos e pastas ignorados pelo controle de versão |
 
@@ -132,10 +149,16 @@ provisionado na conta do Learner Lab.
 - [uv](https://docs.astral.sh/uv/), que monta os ambientes a partir do `pyproject.toml` de cada app
 - Node.js 20+ (para o dashboard)
 - Docker (para o PostgreSQL local e para construir as imagens dos serviços)
-- Terraform 1.x (para a infraestrutura)
-- Credenciais AWS configuradas (`aws sts get-caller-identity` deve responder)
+- GNU Make e Bash (para os comandos do `Makefile`; no Windows, use WSL com essas ferramentas e integração com o Docker)
 
-Em Codespaces ou VS Code, tudo o que segue funciona sem configuração adicional.
+Para a implantação na AWS, também são necessários Terraform 1.x, AWS CLI e
+credenciais do Learner Lab no profile `g4` (`aws sts get-caller-identity --profile g4`
+deve responder). A execução local abaixo não depende de credenciais AWS.
+
+No VS Code ou Codespaces, instale os pré-requisitos no ambiente em que os comandos
+serão executados. As configurações específicas do backend ficam em
+[`apps/fullstack/backend/.vscode`](apps/fullstack/backend/.vscode) e
+[`apps/fullstack/backend/.devcontainer`](apps/fullstack/backend/.devcontainer).
 
 ### Passos
 
@@ -144,53 +167,69 @@ Em Codespaces ou VS Code, tudo o que segue funciona sem configuração adicional
 git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
 cd g04
 
-# 2. instalar as dependências dos apps Python
-make -C apps/basica install
+# 2. instalar as dependências dos serviços e do dashboard
+make -C apps/fullstack install
+make -C apps/fullstack frontend-install
 
 # 3. subir um PostgreSQL 16 local e aplicar as 29 migrations
-make -C apps/basica db-local
+make -C apps/fullstack db-local
 
-# 4. rodar a suíte de testes (66 do worker + 85 do backend)
-make -C apps/basica test
+# 4. rodar a suíte de testes
+make -C apps/fullstack test
 
-# 5. para usar serviços publicados, gerar as variáveis após o primeiro
-#    terraform apply descrito na seção "Execução na AWS"
-make -C apps/basica env
+# 5. subir a API de leitura local e manter este terminal aberto
+make -C apps/fullstack api DATABASE_URL=postgresql://argus:argus@localhost:55432/argus
 
-# 6. subir a API de leitura local, apontando para o banco local
-make -C apps/basica api
-
-# 7. subir o dashboard contra a API publicada
-make -C apps/basica frontend-install
-make -C apps/basica frontend-dev
+# 6. em outro terminal, a partir da raiz do repositório, subir o dashboard
+make -C apps/fullstack frontend-dev ARGUS_API_URL=http://localhost:5000
 ```
 
-O `db-local` sobe o container `argus-pg` na porta **55432** (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations. `make db-stop` derruba, `make db-psql` abre um `psql` dentro dele.
+O `db-local` sobe o container `argus-pg` na porta **55432** (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations. `make -C apps/fullstack db-stop` derruba, `make -C apps/fullstack db-psql` abre um `psql` dentro dele.
+
+No ambiente local padrão, a API usa `AUTH_REQUIRED=0`; a tela de acesso do dashboard
+exige o formato de 64 caracteres hexadecimais. Nesse ambiente local, use 64 zeros:
+`0000000000000000000000000000000000000000000000000000000000000000`.
+O banco começa sem o dataset do parceiro, portanto as telas podem ficar sem dados.
+Para usar a API publicada,
+gere o `.env` com `make -C apps/fullstack env` após a implantação na AWS e use o
+token de leitura desse ambiente.
 
 | Serviço | Porta local | Como subir |
 |---------|-------------|------------|
-| API de leitura | 5000 | `make -C apps/basica api` |
-| Dashboard | 3000 | `make -C apps/basica frontend-dev` |
+| API de leitura | 5000 | `make -C apps/fullstack api` |
+| Dashboard | 3000 | `make -C apps/fullstack frontend-dev ARGUS_API_URL=http://localhost:5000` |
 
-O backend também sobe por um único arquivo, sem `make`:
+O backend também possui scripts de desenvolvimento que preparam o ambiente Python,
+sem `make`. Com o banco local já iniciado:
 
 ```bash
-python apps/basica/backend/run.py
+# Linux/macOS
+DATABASE_URL=postgresql://argus:argus@localhost:55432/argus sh apps/fullstack/backend/scripts/dev.sh
 ```
 
-Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask**, que é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`. Para apenas instalar, testar e analisar o código, não é necessário gerar o `.env` nem possuir credenciais AWS.
+```powershell
+# Windows (PowerShell)
+$env:DATABASE_URL = "postgresql://argus:argus@localhost:55432/argus"
+& ./apps/fullstack/backend/scripts/dev.ps1
+```
 
-Os workers não são executados localmente contra a fila real: use `make -C apps/basica images` para construir as quatro imagens e `make -C apps/basica replay` para reenviar os eventos de exemplo à API de ingestão publicada.
+Os scripts criam o `.venv`, instalam as dependências e executam `run.py`. No VS Code,
+abra `apps/fullstack/backend` como workspace, selecione o interpretador desse
+`.venv`, configure `DATABASE_URL` no ambiente ou em `apps/fullstack/.env` e execute
+**Run and Debug → Backend Flask**. Para apenas instalar, testar e analisar o código,
+não é necessário gerar o `.env` nem possuir credenciais AWS.
+
+Os workers não são executados localmente contra a fila real: use `make -C apps/fullstack images` para construir as quatro imagens e `make -C apps/fullstack replay` para reenviar os eventos de exemplo à API de ingestão publicada.
 
 ### Sem credenciais AWS
 
 Os testes usam um SQS falso (moto) mas um PostgreSQL **de verdade**, porque a parte difícil deste sistema é o SQL: o MERGE idempotente, o keyset de paginação, a barreira do `available_at`. Um dublê que respondesse "ok" a tudo isso testaria apenas o dublê.
 
-Com `make db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são **pulados** em vez de quebrarem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
+Com `make -C apps/fullstack db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são **pulados** em vez de quebrarem. Os alvos que acessam a AWS ou as APIs publicadas (`deploy`, `smoke`, `postman`) precisam da configuração correspondente. `api` e `frontend-dev` aceitam os valores locais mostrados acima.
 
-> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore`; o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). As três APIs exigem `Authorization: Bearer` (RNF09); os tokens saem de `make -C apps/basica auth-rotate` e nunca entram no repositório, nem no bundle do dashboard.
+> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/fullstack/.env`, que está no `.gitignore`; o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). As três APIs exigem `Authorization: Bearer` (RNF09); os tokens saem de `make -C apps/fullstack auth-rotate` e nunca entram no repositório, nem no bundle do dashboard.
 
-Outros alvos úteis, todos com o prefixo `make -C apps/basica`: `lint`, `check`, `smoke`, `dlq`, `pause` e `resume`.
+Outros alvos úteis, todos com o prefixo `make -C apps/fullstack`: `lint`, `check`, `smoke`, `dlq`, `pause` e `resume`.
 
 ### O sistema inteiro num cluster Kubernetes local
 
@@ -198,17 +237,17 @@ O dashboard e a API também rodam num cluster de verdade na sua máquina, sem ne
 
 ```bash
 # pré-requisitos adicionais: kubectl e kind (brew install kubectl kind)
-make -C apps/basica kind-up                      # cluster, ingress-nginx, metrics-server
-make -C apps/basica k8s-images kind-load         # constrói e carrega as imagens
-make -C apps/basica k8s-apply   K8S_OVERLAY=kind
-make -C apps/basica k8s-migrate K8S_OVERLAY=kind
+make -C apps/fullstack kind-up                      # cluster, ingress-nginx, metrics-server
+make -C apps/fullstack k8s-images kind-load         # constrói e carrega as imagens
+make -C apps/fullstack k8s-apply   K8S_OVERLAY=kind
+make -C apps/fullstack k8s-migrate K8S_OVERLAY=kind
 
 # dashboard e API na MESMA origem, sem CORS
 open http://localhost:8080/
 curl -s http://localhost:8080/api/v1/clock
 ```
 
-`make -C apps/basica kind-down` destrói tudo. O runbook completo, incluindo o caminho na AWS, está em [`apps/basica/k8s/README.md`](apps/basica/k8s/README.md).
+`make -C apps/fullstack kind-down` destrói tudo. O runbook completo, incluindo o caminho na AWS, está em [`apps/fullstack/k8s/README.md`](apps/fullstack/k8s/README.md).
 
 > **Recursos.** Um nó rodando control plane, ingress-nginx, metrics-server, PostgreSQL e a aplicação pede folga de CPU. Com menos de 4 vCPU na VM do Docker, o próprio API server começa a responder `TLS handshake timeout` — o sintoma parece "o cluster caiu", e é só falta de CPU.
 
@@ -216,7 +255,7 @@ curl -s http://localhost:8080/api/v1/clock
 
 ## Execução na AWS
 
-Toda a infraestrutura é provisionada por Terraform em [`apps/basica/infra`](apps/basica/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado.
+Toda a infraestrutura é provisionada por Terraform em [`apps/fullstack/infra`](apps/fullstack/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado.
 
 A rede é gerenciada pelo projeto: as tarefas, a API de leitura e o banco vivem em **sub-redes privadas**, sem endereço público, e alcançam os serviços da AWS por um **NAT Gateway**. O tráfego da VPC é registrado em Flow Logs. O desenho, as justificativas e as evidências de aplicação estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md); `create_network = false` devolve o stack à VPC padrão da conta e dispensa o custo do NAT.
 
@@ -244,62 +283,62 @@ AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`.
 
 ```bash
 # 1. empacota a API de leitura: o Terraform precisa do zip já no plan
-make -C apps/basica install
-make -C apps/basica lambda-build
+make -C apps/fullstack install
+make -C apps/fullstack lambda-build
 
 # 2. cria a infraestrutura sem os serviços (o ECR nasce vazio)
-cd apps/basica/infra
+cd apps/fullstack/infra
 cp terraform.tfvars.example terraform.tfvars   # e preencha
 terraform init
 terraform apply -var="worker_desired_count=0" -var="processing_desired_count=0"
 
 # 3. publica as seis imagens no ECR
-cd ../../.. && make -C apps/basica push
+cd ../../.. && make -C apps/fullstack push
 
 # 4. aplica as migrations e cria o usuário de leitura
-make -C apps/basica db-url        # mostra como montar a DATABASE_URL
-make -C apps/basica migrate
-make -C apps/basica db-reader
+make -C apps/fullstack db-url        # mostra como montar a DATABASE_URL
+make -C apps/fullstack migrate
+make -C apps/fullstack db-reader
 
 # 5. carga inicial: sobe o Parquet e dispara a task (20 a 30 min, 68,7 M linhas)
-make -C apps/basica parquet       # só na primeira vez: dump MySQL -> Parquet
-make -C apps/basica origem-sync
-make -C apps/basica load
+make -C apps/fullstack parquet       # só na primeira vez: dump MySQL -> Parquet
+make -C apps/fullstack origem-sync
+make -C apps/fullstack load
 
 # 6. liga os workers e, depois que a carga terminar, o simulador
-cd apps/basica/infra && terraform apply
-cd ../../.. && make -C apps/basica sim-on
+cd apps/fullstack/infra && terraform apply
+cd ../../.. && make -C apps/fullstack sim-on
 
 # 7. gera o .env a partir dos outputs e publica o dashboard no S3
-make -C apps/basica env
-make -C apps/basica frontend-install
-make -C apps/basica frontend-deploy      # imprime o endereço público do dashboard
+make -C apps/fullstack env
+make -C apps/fullstack frontend-install
+make -C apps/fullstack frontend-deploy      # imprime o endereço público do dashboard
 
 # 8. sobe o caminho síncrono no cluster Kubernetes
 #    (create_eks = true no terraform.tfvars; o apply do passo 6 já criou o cluster)
-make -C apps/basica k8s-kubeconfig       # aponta o kubectl para o cluster
-make -C apps/basica k8s-bootstrap        # classe de Ingress do ALB
-make -C apps/basica k8s-push             # backend e frontend, multi-arquitetura
-make -C apps/basica k8s-secret           # segredo montado a partir dos outputs
-make -C apps/basica k8s-migrate          # Job das migrations
-make -C apps/basica k8s-apply
-make -C apps/basica k8s-url              # imprime o endereço do dashboard e da API
+make -C apps/fullstack k8s-kubeconfig       # aponta o kubectl para o cluster
+make -C apps/fullstack k8s-bootstrap        # classe de Ingress do ALB
+make -C apps/fullstack k8s-push             # backend e frontend, multi-arquitetura
+make -C apps/fullstack k8s-secret           # segredo montado a partir dos outputs
+make -C apps/fullstack k8s-migrate          # Job das migrations
+make -C apps/fullstack k8s-apply
+make -C apps/fullstack k8s-url              # imprime o endereço do dashboard e da API
 ```
 
 O simulador fica desligado até a carga terminar de propósito: simular mudança sobre tabela vazia não produz nada útil.
 
-Nos deploys seguintes, `make -C apps/basica deploy` testa, empacota, aplica e roda o smoke num
+Nos deploys seguintes, `make -C apps/fullstack deploy` testa, empacota, aplica e roda o smoke num
 comando só.
 
 Verificação:
 
 ```bash
-make -C apps/basica k8s-status # pods, HPA, PDB e Ingress do cluster
-make -C apps/basica smoke      # confere as rotas da API publicada
-make -C apps/basica postman    # roda a coleção Postman contra as APIs
-make -C apps/basica count      # conta as linhas carregadas por camada
-make -C apps/basica dlq        # mostra o que foi rejeitado, com o motivo
-make -C apps/basica logs SERVICO=worker    # worker|simulator|processing|loader
+make -C apps/fullstack k8s-status # pods, HPA, PDB e Ingress do cluster
+make -C apps/fullstack smoke      # confere as rotas da API publicada
+make -C apps/fullstack postman    # roda a coleção Postman contra as APIs
+make -C apps/fullstack count      # conta as linhas carregadas por camada
+make -C apps/fullstack dlq        # mostra o que foi rejeitado, com o motivo
+make -C apps/fullstack logs SERVICO=worker    # worker|simulator|processing|loader
 ```
 
 Para economizar crédito do lab, `pause` e `resume` desligam e religam os serviços sem destruir nada, e o RDS continua de pé, que é o que guarda o trabalho da carga.
@@ -319,11 +358,11 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
 | [Modelagem](artefatos/modelagem.md) | Diagrama de classes UML (unificado + quatro recortes) e descrição textual do modelo de domínio |
 | [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
-| [Frontend](apps/basica/frontend/README.md) | Rotas, estrutura App Router, fontes de dados e comandos de validação |
-| [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
+| [Frontend](apps/fullstack/frontend/README.md) | Rotas, estrutura App Router, fontes de dados e comandos de validação |
+| [API de leitura](apps/fullstack/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
 | [Conteinerização e orquestração](artefatos/conteineres-final.md) | Arquitetura distribuída, imagens Docker, Kubernetes no caminho síncrono e mecanismos de resiliência |
-| [Infraestrutura](apps/basica/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
-| [Kubernetes](apps/basica/k8s/README.md) | Runbook do cluster: manifestos, overlays, segredos, custo e desligamento |
+| [Infraestrutura](apps/fullstack/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
+| [Kubernetes](apps/fullstack/k8s/README.md) | Runbook do cluster: manifestos, overlays, segredos, custo e desligamento |
 
 A API também se documenta em tempo de execução: `GET /docs` serve a Swagger UI e `GET /openapi.json` a especificação OpenAPI 3.1.
 
@@ -334,7 +373,7 @@ A API também se documenta em tempo de execução: `GET /docs` serve a Swagger U
 - **Fluxo de branches:** branch de tema → `develop` → `main`. Nunca commitar direto em `main`.
 - **Commits:** Conventional Commits em português, no imperativo, distribuídos ao longo da sprint.
 - **Documentação de código:** docstrings (PEP 257) em Python e JSDoc em JavaScript. Todo módulo tem cabeçalho descritivo e toda função documenta parâmetros, retorno e comportamento.
-- **Qualidade:** `make -C apps/basica check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
+- **Qualidade:** `make -C apps/fullstack check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
 - **Tags:** uma tag `SPRINTX` por entrega, criada na data de entrega da sprint.
 
 ---

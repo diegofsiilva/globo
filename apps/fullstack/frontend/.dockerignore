@@ -1,0 +1,24 @@
+# O frontend usa frontend/ como contexto, portanto o .dockerignore de
+# apps/fullstack/ nao se aplica aqui.
+#
+# node_modules fica de fora de proposito: a imagem roda `npm ci` a partir do
+# package-lock.json, e mandar a pasta da maquina no contexto trocaria um
+# install reproduzivel por uma copia que pode estar com binario de outra
+# arquitetura.
+node_modules
+.next
+out
+.env
+.env.*
+!.env.example
+
+# Gerado a cada build por `make frontend-build-info`. A imagem escreve o seu
+# proprio a partir dos build args, entao herdar o da maquina so produziria um
+# commit errado dentro do container.
+public/build-info.json
+
+# Saida de teste: nada disso vai para a imagem.
+playwright-report
+test-results
+tsconfig.tsbuildinfo
+*.log

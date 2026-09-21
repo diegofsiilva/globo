@@ -217,7 +217,7 @@ durante uma operação que deveria ser invisível.
 
 &emsp; Todas as bases são fixadas por resumo criptográfico (`@sha256:`), e não por tag:
 uma tag pode passar a apontar para outra imagem sem que arquivo nenhum do repositório
-mude. Cada contexto de build tem seu próprio `.dockerignore` — o de `apps/basica/`
+mude. Cada contexto de build tem seu próprio `.dockerignore` — o de `apps/fullstack/`
 cobre os quatro serviços que compartilham `common/`; `backend/` e `frontend/` têm os
 seus, porque constroem a partir da própria pasta.
 
@@ -266,15 +266,15 @@ do estado.
 
 ## 8. Como executar
 
-&emsp; O runbook completo está em [`apps/basica/k8s/README.md`](../apps/basica/k8s/README.md).
+&emsp; O runbook completo está em [`apps/fullstack/k8s/README.md`](../apps/fullstack/k8s/README.md).
 
 **Local, sem credencial da AWS:**
 
 ```bash
-make -C apps/basica kind-up
-make -C apps/basica k8s-images kind-load
-make -C apps/basica k8s-apply   K8S_OVERLAY=kind
-make -C apps/basica k8s-migrate K8S_OVERLAY=kind
+make -C apps/fullstack kind-up
+make -C apps/fullstack k8s-images kind-load
+make -C apps/fullstack k8s-apply   K8S_OVERLAY=kind
+make -C apps/fullstack k8s-migrate K8S_OVERLAY=kind
 # saída esperada: dashboard em http://localhost:8080/ e API em /api/v1/clock,
 # na mesma origem
 ```
@@ -283,10 +283,10 @@ make -C apps/basica k8s-migrate K8S_OVERLAY=kind
 
 ```bash
 aws rds start-db-instance --db-instance-identifier argus-events-dev --profile g4
-make -C apps/basica tf-apply            # create_eks = true no terraform.tfvars
-make -C apps/basica k8s-kubeconfig k8s-bootstrap
-make -C apps/basica k8s-push k8s-secret k8s-migrate k8s-apply
-make -C apps/basica k8s-url
+make -C apps/fullstack tf-apply            # create_eks = true no terraform.tfvars
+make -C apps/fullstack k8s-kubeconfig k8s-bootstrap
+make -C apps/fullstack k8s-push k8s-secret k8s-migrate k8s-apply
+make -C apps/fullstack k8s-url
 ```
 
 &emsp; O alvo `make check` passou a incluir `k8s-validate`, que renderiza os seis
@@ -301,8 +301,8 @@ YAML de chegar à entrega.
 de trabalho:
 
 ```bash
-make -C apps/basica k8s-scale-zero   # sem pod pendente, os nós são consolidados até zero
-make -C apps/basica k8s-delete       # remove o namespace e, com ele, o balanceador
+make -C apps/fullstack k8s-scale-zero   # sem pod pendente, os nós são consolidados até zero
+make -C apps/fullstack k8s-delete       # remove o namespace e, com ele, o balanceador
 ```
 
 &emsp; Para derrubar o cluster inteiro, `create_eks = false` e `make tf-apply`. ECS,
@@ -338,13 +338,13 @@ terceira aponta a seção deste artefato que aquele trecho sustenta.
 
 | Arquivo | Papel |
 |---|---|
-| `apps/basica/infra/eks.tf` | Cluster Auto Mode, descoberta dos papéis do laboratório, entradas de acesso |
-| `apps/basica/infra/vpc.tf` | Etiquetas `kubernetes.io/role/*`, sem as quais o balanceador não é provisionado |
-| `apps/basica/infra/rds.tf` | Regra que autoriza os pods a alcançar o banco |
-| `apps/basica/k8s/base/` | `Deployment`, `Service`, `HPA`, `PDB`, `Ingress` e `ConfigMap` |
-| `apps/basica/k8s/migrate/` | `Job` de migrations, aplicado à parte porque o modelo de um `Job` é imutável |
-| `apps/basica/k8s/overlays/aws/` | Classe de Ingress do balanceador e anotações |
-| `apps/basica/k8s/overlays/kind/` | Banco local, ingress-nginx, uma réplica por carga |
-| `apps/basica/frontend/Dockerfile` | Imagem do dashboard |
-| `apps/basica/frontend/nginx.conf` | Servidor do export estático, preparado para raiz somente-leitura |
-| `apps/basica/Makefile` | Alvos `k8s-*` e `kind-*` |
+| `apps/fullstack/infra/eks.tf` | Cluster Auto Mode, descoberta dos papéis do laboratório, entradas de acesso |
+| `apps/fullstack/infra/vpc.tf` | Etiquetas `kubernetes.io/role/*`, sem as quais o balanceador não é provisionado |
+| `apps/fullstack/infra/rds.tf` | Regra que autoriza os pods a alcançar o banco |
+| `apps/fullstack/k8s/base/` | `Deployment`, `Service`, `HPA`, `PDB`, `Ingress` e `ConfigMap` |
+| `apps/fullstack/k8s/migrate/` | `Job` de migrations, aplicado à parte porque o modelo de um `Job` é imutável |
+| `apps/fullstack/k8s/overlays/aws/` | Classe de Ingress do balanceador e anotações |
+| `apps/fullstack/k8s/overlays/kind/` | Banco local, ingress-nginx, uma réplica por carga |
+| `apps/fullstack/frontend/Dockerfile` | Imagem do dashboard |
+| `apps/fullstack/frontend/nginx.conf` | Servidor do export estático, preparado para raiz somente-leitura |
+| `apps/fullstack/Makefile` | Alvos `k8s-*` e `kind-*` |

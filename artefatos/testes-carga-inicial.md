@@ -32,7 +32,7 @@ Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, proce
 
 A carga foi gerada com k6 contra uma implantação real no AWS Academy Learner Lab, região `us-east-1`. As execuções de RNF01, RNF02 e RNF03 usaram a imagem ARM64 `66b4fbe59313`. As métricas do cliente foram enviadas ao Prometheus por Remote Write; métricas de API Gateway, SQS, ECS e RDS vieram do CloudWatch e foram visualizadas no Grafana.
 
-Os valores estruturados estão em [`assets/performance/evidencias-2026-09-02.json`](assets/performance/evidencias-2026-09-02.json) e [`assets/performance/evidencias-lotes-2026-09-09.json`](assets/performance/evidencias-lotes-2026-09-09.json). Logs completos do k6 ficam em `apps/basica/tests/carga/resultados/`, diretório ignorado pelo Git. Nenhuma credencial, token ou endpoint foi versionado.
+Os valores estruturados estão em [`assets/performance/evidencias-2026-09-02.json`](assets/performance/evidencias-2026-09-02.json) e [`assets/performance/evidencias-lotes-2026-09-09.json`](assets/performance/evidencias-lotes-2026-09-09.json). Logs completos do k6 ficam em `apps/fullstack/tests/carga/resultados/`, diretório ignorado pelo Git. Nenhuma credencial, token ou endpoint foi versionado.
 
 Este relatório distingue três estados:
 
@@ -255,7 +255,7 @@ depende de intervenção manual, o que não escala para reimplantações futuras
 
 ### 3.1 Stack e indicadores
 
-A stack local unificada usa Prometheus e Grafana em `apps/basica/observability/`. O Prometheus recebe métricas k6; o Grafana provisiona os dashboards **Argus - Testes de Carga (RNF01/02/03)** e **RNF04/05/11 - Resiliência Argus**, com Prometheus e CloudWatch como fontes.
+A stack local unificada usa Prometheus e Grafana em `apps/fullstack/observability/`. O Prometheus recebe métricas k6; o Grafana provisiona os dashboards **Argus - Testes de Carga (RNF01/02/03)** e **RNF04/05/11 - Resiliência Argus**, com Prometheus e CloudWatch como fontes.
 
 | Indicador solicitado | Fonte | Visualização e evidência |
 |---|---|---|

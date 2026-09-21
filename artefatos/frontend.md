@@ -131,12 +131,12 @@
 
 ## 2. Organização e qualidade do código
 
-&emsp; O código-fonte está em [`apps/basica/frontend`](../apps/basica/frontend). A especificação de entrega usa o caminho genérico `/apps/frontend`; no monorepo Argus, o equivalente concreto é `/apps/basica/frontend`, ao lado do back-end, do worker, do banco e da infraestrutura do mesmo MVP. A documentação registra essa diferença para que o avaliador encontre o código sem sugerir uma migração artificial de diretório.
+&emsp; O código-fonte está em [`apps/fullstack/frontend`](../apps/fullstack/frontend). A especificação de entrega usa o caminho genérico `/apps/frontend`; no monorepo Argus, o equivalente concreto é `/apps/fullstack/frontend`, ao lado do back-end, do worker, do banco e da infraestrutura do mesmo MVP. A documentação registra essa diferença para que o avaliador encontre o código sem sugerir uma migração artificial de diretório.
 
 ### 2.1 Estrutura de pastas
 
 ```text
-apps/basica/frontend/
+apps/fullstack/frontend/
 ├── src/
 │   ├── app/
 │   │   ├── (operations)/
@@ -211,7 +211,7 @@ componente visual da rota
 
 ### 2.5 Fixture determinística e comandos de verificação
 
-&emsp; O arquivo [`fixture.sql`](../apps/basica/frontend/tests/e2e/fixture.sql) limpa apenas as tabelas necessárias do banco de teste e insere:
+&emsp; O arquivo [`fixture.sql`](../apps/fullstack/frontend/tests/e2e/fixture.sql) limpa apenas as tabelas necessárias do banco de teste e insere:
 
 - relógio simulado fixo;
 - sinais atual e de baseline;
@@ -223,9 +223,9 @@ componente visual da rota
 &emsp; O dump de produção não participa da execução. O alvo E2E reaplica as migrations e a fixture a cada rodada, e nunca usa o banco `argus` para asserções.
 
 ```bash
-make -C apps/basica db-local
-make -C apps/basica test-frontend
-make -C apps/basica test-frontend-e2e
+make -C apps/fullstack db-local
+make -C apps/fullstack test-frontend
+make -C apps/fullstack test-frontend-e2e
 ```
 
 &emsp; O primeiro comando sobe o PostgreSQL local. `test-frontend` executa Vitest. `test-frontend-e2e` migra e semeia `argus_test`, gera o build com Hipóteses em modo `api`, inicia Flask e servidor estático temporários e executa Playwright. O Chromium é instalado uma vez com `npx playwright install chromium` no diretório do front-end.
@@ -443,5 +443,5 @@ make -C apps/basica test-frontend-e2e
 - [Entendimento de UX e User Stories](./entendimento_ux.md)
 - [Documentação do back-end](./backend.md)
 - [MVP inicial](./mvp-inicial.md)
-- [Contrato de rotas do front-end](../apps/basica/frontend/rotas-frontend.md)
-- [Instruções do front-end](../apps/basica/frontend/README.md)
+- [Contrato de rotas do front-end](../apps/fullstack/frontend/rotas-frontend.md)
+- [Instruções do front-end](../apps/fullstack/frontend/README.md)
