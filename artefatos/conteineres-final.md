@@ -271,6 +271,13 @@ provedor OpenID Connect para usar IRSA com o AWS Load Balancer Controller. Essas
 dependem de `iam:CreateRole` e `iam:CreateOpenIDConnectProvider`, ações negadas pelo
 laboratório.
 
+&emsp; A investigação, conduzida por integrante do grupo com apoio de IA, identificou
+que a conta do laboratório já disponibiliza os papéis `LabEksClusterRole` e
+`LabEksNodeRole`. O arquivo `infra/eks.tf` não fixa os nomes, pois o prefixo da sessão
+muda a cada laboratório. Em vez disso, consulta os papéis por expressão regular e usa
+os ARNs encontrados no cluster e nos nós, por meio das permissões já liberadas de
+`iam:ListRoles` e `iam:PassRole`.
+
 ---
 
 ## 8. Como executar
