@@ -75,12 +75,19 @@ CONTEXTO = $(if $(filter backend frontend,$(1)),$(1),.)
 # As node pools padrao do EKS Auto Mode sao amd64, enquanto o Fargate do caminho
 # assincrono e as maquinas do time sao arm64 (Apple Silicon). Publicar so arm64
 # colocaria o pod em CrashLoopBackOff com `exec format error` -- a mesma falha
-# que ja mordeu o time no ASG. As quatro imagens que rodam SO no Fargate seguem
+# que ja mordeu o time no ASG. As tres imagens que rodam SO no Fargate seguem
 # arm64, que custa ~20% menos e dispensa emulacao no build.
+#
+# `processing` entrou nesta lista em 21/09/2026. Sao TRES as imagens que o
+# cluster executa, e nao duas: alem do backend e do frontend, o `Job` de
+# migration usa a imagem de processing (ver k8s/migrate/job-db-migrate.yaml).
+# Publicada so em arm64, ela nunca poderia ter rodado nos nos amd64 do Auto
+# Mode; no `kind` passava despercebido porque a maquina do dev e amd64. Quem
+# guarda essa invariante agora e tools/verifica_manifests.py.
 #
 # A escolha da plataforma por imagem e feita no `push`, em shell: o nome da
 # imagem la e variavel de SHELL (vem do laco), e uma funcao de make nao alcanca.
-IMAGES_MULTIARCH := backend frontend
+IMAGES_MULTIARCH := backend frontend processing
 
 # A tag que as task definitions referenciam. NUNCA `latest`.
 #
@@ -1473,6 +1480,11 @@ k8s-validate: ## Renderiza todos os overlays sem tocar em cluster nenhum
 	  $(KUBECTL) kustomize $(K8S)/$$alvo > /dev/null; \
 	  echo "ok"; \
 	done
+	@# O kustomize so responde "este YAML e valido". As invariantes que ele nao
+	@# alcanca -- ordem das regras do Ingress, arquitetura das imagens e as chaves
+	@# do Secret -- ficam no verificador, que tambem nao toca em cluster nenhum.
+	@python3 $(TOOLS)/verifica_manifests.py \
+	  --k8s $(K8S) --makefile Makefile --kubectl $(KUBECTL)
 
 # --------------------------------------------------------------------------- #
 # Kubernetes local (kind)

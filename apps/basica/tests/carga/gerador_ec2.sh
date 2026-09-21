@@ -117,7 +117,13 @@ tar -xzf /tmp/k6.tgz -C /tmp && install "/tmp/k6-v${K6_VERSAO}-linux-arm64/k6" /
 mkdir -p /work/resultados && cd /work
 aws s3 cp "s3://$BUCKET/$PREFIXO/scripts/" /work/ --recursive --quiet
 export ARGUS_API_URL='$ARGUS_API_URL'
+# O \`set -x\` da linha acima imprime cada comando JA EXPANDIDO em /var/log/carga.log,
+# que este script baixa para resultados/. Sem desligar o rastreamento aqui, o token
+# recuperado do SSM aparece em texto claro no log -- o que anula o motivo de ele vir
+# de um SecureString em vez de viajar no user_data.
+set +x
 export ARGUS_READ_TOKEN="\$(aws ssm get-parameter --name '$PARAMETRO' --with-decryption --query Parameter.Value --output text)"
+set -x
 export K6_TEST_ID='$TEST_ID'
 export K6_RESULT_FILE='resultados/${CENARIO}_resultado.json'
 $ENV_K6
