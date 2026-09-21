@@ -278,6 +278,13 @@ muda a cada laboratório. Em vez disso, consulta os papéis por expressão regul
 os ARNs encontrados no cluster e nos nós, por meio das permissões já liberadas de
 `iam:ListRoles` e `iam:PassRole`.
 
+&emsp; O segundo desvio é o EKS Auto Mode. Com o balanceamento elástico habilitado no
+cluster, a própria AWS provisiona o ALB a partir do `Ingress` usando o papel do cluster.
+Não foi necessário instalar o AWS Load Balancer Controller por Helm, criar uma conta de
+serviço com IRSA ou conceder permissões adicionais aos nós. Como o caminho síncrono não
+acessa SQS, S3 nem Secrets Manager diretamente, o `LabEksNodeRole` mínimo permanece
+suficiente e preserva o princípio do menor privilégio.
+
 ---
 
 ## 8. Como executar
