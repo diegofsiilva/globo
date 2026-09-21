@@ -41,23 +41,52 @@ de fronteira.
 | Dependências externas | Nenhuma para os arquivos unitários selecionados |
 | Evidência textual | [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
 
-### 2.2 Inventário do código executado
+### 2.2 O que é uma unidade nos scripts pytest
 
-| Serviço | Arquivo de teste | Unidades principais | Casos |
-|---|---|---|---:|
-| Backend | [`test_normalization.py`](../apps/basica/backend/tests/unit/test_normalization.py) | `parse_datetime`, `parse_json_object`, conversões, chaves e UUID | 20 |
-| Backend | [`test_redaction.py`](../apps/basica/backend/tests/unit/test_redaction.py) | `hash_user_id`, `sanitize_url`, `redact_headers`, `redact_attributes` | 15 |
-| Backend | [`test_signals.py`](../apps/basica/backend/tests/unit/test_signals.py) | `_severidade`, `_signal_id`, `GenerateSignals.execute` | 11 |
-| Backend | [`test_timeline.py`](../apps/basica/backend/tests/unit/test_timeline.py) | `amostrar_raia` | 6 |
-| Backend | [`test_use_cases_logic.py`](../apps/basica/backend/tests/unit/test_use_cases_logic.py) | resumo, janelas, cursores e autenticação | 11 |
-| Worker | [`test_changes.py`](../apps/basica/worker/tests/test_changes.py) | `ChangeEvent`, `parse_change` | 7 |
-| Worker | [`test_check_size.py`](../apps/basica/worker/tests/test_check_size.py) | `check_size` | 4 |
-| Worker | [`test_config.py`](../apps/basica/worker/tests/test_config.py) | `_env_int`, `Config.from_env` | 8 |
-| Worker | [`test_extract.py`](../apps/basica/worker/tests/test_extract.py) | `_extract`, `_registro_recusado`, `_serializavel` | 14 |
-| Simulador | [`test_emitter.py`](../apps/basica/simulator/tests/test_emitter.py) | `_blocos` | 5 |
-| Simulador | [`test_faults.py`](../apps/basica/simulator/tests/test_faults.py) | `Falha.alcanca`, `Falha.aplicar`, `sortear`, `_params` | 15 |
-| Processamento | [`test_detector_logic.py`](../apps/basica/processing/tests/test_detector_logic.py) | transformações, materialidade, direção, qualidade e scoring | 17 |
-| **Total** | **12 arquivos** | **funções, métodos e classes isolados** | **133** |
+Neste documento, **unidade** é o menor elemento do código de produção exercitado
+isoladamente. Ela pode ser uma função, um método ou uma classe. A unidade não
+deve ser confundida com a estrutura usada pelo pytest para organizar a suíte.
+
+| Elemento encontrado no script | Significado |
+|---|---|
+| Função ou método importado do diretório `src/` | Unidade de produção sob teste |
+| Função com nome iniciado por `test_` | Caso de teste automatizado, com entrada e resultado esperado |
+| Classe com nome iniciado por `Test` | Agrupamento de casos relacionados; não é, por si só, a unidade testada |
+| Fake, stub ou `monkeypatch` | Recurso para substituir uma dependência e manter a unidade isolada |
+| `assert` ou `pytest.raises` | Verificação do resultado ou do erro esperado |
+
+Exemplo real simplificado de `test_check_size.py`:
+
+```python
+class TestCheckSize:  # agrupamento do pytest
+    def test_deve_rejeitar_payload_um_byte_acima_do_limite(self):  # caso
+        with pytest.raises(ChangeTooLarge):  # resultado esperado
+            check_size(change_acima)  # unidade testada: função de produção
+```
+
+Nesse exemplo, `check_size` é a unidade, `TestCheckSize` organiza os casos e
+`test_deve_rejeitar_payload_um_byte_acima_do_limite` é um caso automatizado.
+Logo, **133 é a quantidade de casos executados, não a quantidade de unidades**.
+Uma mesma unidade pode ser exercitada por vários casos válidos, de erro e de
+fronteira.
+
+### 2.3 Inventário do código executado
+
+| Serviço | Arquivo de teste | Unidades principais | Tipo de unidade | Casos |
+|---|---|---|---|---:|
+| Backend | [`test_normalization.py`](../apps/basica/backend/tests/unit/test_normalization.py) | `parse_datetime`, `parse_json_object`, conversões, chaves e UUID | Funções | 20 |
+| Backend | [`test_redaction.py`](../apps/basica/backend/tests/unit/test_redaction.py) | `hash_user_id`, `sanitize_url`, `redact_headers`, `redact_attributes` | Funções | 15 |
+| Backend | [`test_signals.py`](../apps/basica/backend/tests/unit/test_signals.py) | `_severidade`, `_signal_id`, `GenerateSignals.execute` | Funções e método de caso de uso | 11 |
+| Backend | [`test_timeline.py`](../apps/basica/backend/tests/unit/test_timeline.py) | `amostrar_raia` | Função | 6 |
+| Backend | [`test_use_cases_logic.py`](../apps/basica/backend/tests/unit/test_use_cases_logic.py) | resumo, janelas, cursores e autenticação | Funções | 11 |
+| Worker | [`test_changes.py`](../apps/basica/worker/tests/test_changes.py) | `ChangeEvent`, `parse_change` | Classe/modelo e função | 7 |
+| Worker | [`test_check_size.py`](../apps/basica/worker/tests/test_check_size.py) | `check_size` | Função | 4 |
+| Worker | [`test_config.py`](../apps/basica/worker/tests/test_config.py) | `_env_int`, `Config.from_env` | Função e método de classe | 8 |
+| Worker | [`test_extract.py`](../apps/basica/worker/tests/test_extract.py) | `_extract`, `_registro_recusado`, `_serializavel` | Funções | 14 |
+| Simulador | [`test_emitter.py`](../apps/basica/simulator/tests/test_emitter.py) | `_blocos` | Função | 5 |
+| Simulador | [`test_faults.py`](../apps/basica/simulator/tests/test_faults.py) | `Falha.alcanca`, `Falha.aplicar`, `sortear`, `_params` | Métodos de instância e funções | 15 |
+| Processamento | [`test_detector_logic.py`](../apps/basica/processing/tests/test_detector_logic.py) | transformações, materialidade, direção, qualidade e scoring | Funções | 17 |
+| **Total** | **12 arquivos** | **conjunto de unidades isoladas** | **Funções, métodos e classe/modelo** | **133 casos** |
 
 Os arquivos-fonte exercitados ficam nos diretórios `src/telemetry`,
 `src/argus_worker`, `src/argus_simulator` e `src/argus_processing` dos
@@ -72,17 +101,17 @@ informações, autenticação, análise de sinais e os dois lados da fronteira d
 4 MB. Os demais testes dos 12 arquivos funcionam como suíte complementar de
 regressão.
 
-| ID | Unidade testada | Tipo | Requisito ou caso de uso relacionado | Arquivo automatizado |
-|---|---|---|---|---|
-| TU-01 | `hash_user_id` | Válido | RNF10 — proteção dos dados coletados | `backend/tests/unit/test_redaction.py` |
-| TU-02 | `parse_datetime` | Erro | RF01/RF03 — receber telemetria sem aceitar data inválida | `backend/tests/unit/test_normalization.py` |
-| TU-03 | `amostrar_raia` | Fronteira válida | RF12 — apresentar gráficos e indicadores | `backend/tests/unit/test_timeline.py` |
-| TU-04 | `GenerateSignals.execute` | Fluxo alternativo | RF13 — destacar falhas de maior impacto | `backend/tests/unit/test_signals.py` |
-| TU-05 | `_extract` | Erro | RNF04/RNF11 — isolar entrada inválida e identificar a falha | `worker/tests/test_extract.py` |
-| TU-06 | `check_size` | Limite aceito | RNF04 — impedir que payload inválido comprometa o fluxo | `worker/tests/test_check_size.py` |
-| TU-07 | `check_size` | Imediatamente acima | RNF04 — rejeitar payload irrecuperável | `worker/tests/test_check_size.py` |
-| TU-08 | `_material` | Válido | RF17/RNF08 — hipóteses apoiadas por evidências relevantes | `processing/tests/test_detector_logic.py` |
-| TU-09 | `_token_do_cabecalho` | Erro | RNF09 — acesso apenas com credencial autorizada | `backend/tests/unit/test_use_cases_logic.py` |
+| ID | Unidade testada | Tipo de unidade | Natureza do caso | Requisito ou caso de uso relacionado | Arquivo automatizado |
+|---|---|---|---|---|---|
+| TU-01 | `hash_user_id` | Função | Válido | RNF10 — proteção dos dados coletados | `backend/tests/unit/test_redaction.py` |
+| TU-02 | `parse_datetime` | Função | Erro | RF01/RF03 — receber telemetria sem aceitar data inválida | `backend/tests/unit/test_normalization.py` |
+| TU-03 | `amostrar_raia` | Função | Fronteira válida | RF12 — apresentar gráficos e indicadores | `backend/tests/unit/test_timeline.py` |
+| TU-04 | `GenerateSignals.execute` | Método de caso de uso | Fluxo alternativo | RF13 — destacar falhas de maior impacto | `backend/tests/unit/test_signals.py` |
+| TU-05 | `_extract` | Função | Erro | RNF04/RNF11 — isolar entrada inválida e identificar a falha | `worker/tests/test_extract.py` |
+| TU-06 | `check_size` | Função | Limite aceito | RNF04 — impedir que payload inválido comprometa o fluxo | `worker/tests/test_check_size.py` |
+| TU-07 | `check_size` | Função | Imediatamente acima | RNF04 — rejeitar payload irrecuperável | `worker/tests/test_check_size.py` |
+| TU-08 | `_material` | Função | Válido | RF17/RNF08 — hipóteses apoiadas por evidências relevantes | `processing/tests/test_detector_logic.py` |
+| TU-09 | `_token_do_cabecalho` | Função | Erro | RNF09 — acesso apenas com credencial autorizada | `backend/tests/unit/test_use_cases_logic.py` |
 
 ## 4. Especificação e resultado dos casos
 
