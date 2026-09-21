@@ -6,13 +6,13 @@
 
 | Item | Valor |
 |---|---|
-| **Ferramenta** | pytest 8.4.2 (Python 3.12.3) |
-| **Comando de execução** | `cd apps/basica/backend && .venv/bin/python -m pytest tests/unit -v` |
-| **Localização dos testes** | `apps/basica/backend/tests/unit/` |
-| **Quantidade de testes** | 52 |
-| **Resultado final** | ✅ **52 passed** — 0 failed — 0 errors |
-| **Tempo de execução** | 0.04 s |
-| **Evidência** | [`artefatos/evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+| Ferramenta | pytest 8.4.2 (Python 3.12.3) |
+| Comando de execução | `cd apps/basica/backend && .venv/bin/python -m pytest tests/unit -v` |
+| Localização dos testes | `apps/basica/backend/tests/unit/` |
+| Quantidade de testes | 52 |
+| Resultado final | ✅ 52 passed, 0 failed, 0 errors |
+| Tempo de execução | 0.04 s |
+| Evidência | [`artefatos/evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
 
 ### Arquivos de teste
 
@@ -25,11 +25,11 @@
 
 ### Isolamento
 
-Todos os testes são **puramente unitários**:
+Todos os testes são puramente unitários:
 
 - Nenhuma dependência de banco de dados, AWS, rede ou API externa.
-- A classe `GenerateSignals` (que depende de um repositório) foi isolada com um **stub** (`_FakeSignalsRepository`).
-- Execução completa em **< 0.1 s**.
+- A classe `GenerateSignals` (que depende de um repositório) foi isolada com um stub (`_FakeSignalsRepository`).
+- Execução completa em menos de 0,1 s.
 
 ### Tabela de casos de teste
 
@@ -135,8 +135,8 @@ nenhuma das pontas isoladamente. Isso último já é assunto dos testes unitári
 | TI-05 | Cliente HTTP externo | API Gateway e o Lambda authorizer das duas APIs publicadas | HTTPS com cabeçalho `Authorization: Bearer` | A borda recusa com 401 ou 403 a requisição sem token, com token desconhecido e com token da audiência errada, aceitando só o da própria audiência |
 | TI-05 | Rota `POST /v1/events` no API Gateway | Fila SQS, event-worker no Fargate, RDS, ETL e a rota `GET /api/v1/events` | Integração direta entre API Gateway e SQS, sem Lambda no caminho de escrita | Um evento aceito na borda aparece na API de leitura dentro do prazo, com os campos preservados |
 
-&emsp; A última linha merece um comentário, porque a espera nela não é defeito. A
-ingestão é assíncrona por projeto: a borda enfileira e responde de imediato, e quem
+&emsp; A última linha merece um comentário, porque a espera que ela descreve é
+proposital. A ingestão é assíncrona por projeto: a borda enfileira e responde de imediato, e quem
 grava é o worker. O que o teste afirma é que essa espera termina, e termina dentro
 de um prazo que faça sentido para quem opera o sistema.
 
@@ -253,14 +253,14 @@ e falharia aqui.
 
 &emsp; Uma ressalva de alcance, que vale para os três casos. O site é construído aqui
 com `NEXT_PUBLIC_API_URL` apontando para o endereço absoluto do Flask, e o Playwright
-sobe o backend com `CORS_ORIGINS` declarado: são **duas origens**, `127.0.0.1:3100` e
+sobe o backend com `CORS_ORIGINS` declarado: são duas origens, `127.0.0.1:3100` e
 `127.0.0.1:5100`, conversando por CORS. Essa era a topologia da implantação até a
 Sprint 3, quando o dashboard vinha do S3 e a API do balanceador. No caminho
 orquestrado por Kubernetes ela deixou de existir: o Ingress serve `/` e `/api` no
 mesmo endereço, a imagem é construída com `NEXT_PUBLIC_API_URL=/` e a requisição sai
-relativa, sem verificação prévia. O que o TI-01 verifica — o contrato entre a tela e
-a API, nos dois sentidos — não depende disso e continua valendo. O que ele deixou de
-reproduzir é o fio exato que vai para o ar.
+relativa, sem verificação prévia. O contrato entre a tela e a API, nos dois
+sentidos, que é o que o TI-01 verifica, não depende dessa topologia e continua
+valendo. O que o teste deixou de reproduzir é o fio exato que vai para o ar.
 
 &emsp; Para reproduzir:
 
@@ -332,8 +332,8 @@ gravada. A mensagem inválida no mesmo lote não impede isso e termina na fila d
 descarte com o motivo registrado. E a reentrega, que o SQS faz sempre que a
 confirmação de processamento não chega a tempo, não duplica a linha.
 
-&emsp; A ordem das mensagens no primeiro caso não é arbitrária. A inválida vem antes
-da válida porque é a ordem que mais machuca: se o consumidor abortasse o lote ao
+&emsp; A ordem das mensagens no primeiro caso foi escolhida com cuidado. A inválida
+vem antes da válida porque é a ordem que mais machuca: se o consumidor abortasse o lote ao
 encontrar o erro, o evento válido seguinte nunca chegaria ao banco, e o teste com a
 ordem inversa não perceberia.
 
@@ -376,7 +376,8 @@ marcadores de progresso, que são o que torna a ETL incremental, e o comportamen
 pipeline em repouso.
 
 &emsp; O valor escolhido, 412,5, é improvável de aparecer por acaso. Encontrá-lo na
-camada gold prova que ele veio da linha que o teste inseriu, e não de outra, o que
+camada gold prova que ele veio da linha que o teste inseriu, descartando qualquer
+outra origem, o que
 uma asserção sobre um valor comum como zero ou cem não conseguiria garantir.
 
 | Campo | Conteúdo |
@@ -430,9 +431,9 @@ antes de qualquer integração; a separação de audiência entre os dois tokens
 comportamento do pipeline assíncrono inteiro. O TI-05 existe para cobrir essas
 quatro.
 
-&emsp; O carimbo de tempo do evento merece explicação, porque não é o óbvio. Ele é o
-instante virtual lido em `GET /api/v1/clock` menos um minuto, e não a hora da
-máquina. A API de leitura só mostra linha cujo `available_at` seja menor ou igual ao
+&emsp; O carimbo de tempo do evento merece explicação, porque contraria a intuição.
+Ele é o instante virtual lido em `GET /api/v1/clock` menos um minuto, em vez da hora
+da máquina. A API de leitura só mostra linha cujo `available_at` seja menor ou igual ao
 instante da simulação, e no grão de sessão o `available_at` é o próprio `ts` do
 evento. Um evento carimbado com a hora real ficaria invisível, e o teste falharia sem
 que nada estivesse errado no sistema.
@@ -458,6 +459,15 @@ que nada estivesse errado no sistema.
 &emsp; O primeiro caso é o tipo de asserção que nenhum teste local consegue fazer,
 porque o authorizer só existe na borda do API Gateway e o Flask local roda sem ele.
 O segundo reprovou, e a subseção a seguir explica por quê.
+
+&emsp; Uma observação sobre o alcance do TI-05.2, porque um evento só costuma ser
+amostra fraca demais para sustentar conclusão. Aqui ele não sustenta nenhuma sozinho:
+o que o caso prova é que aquele evento não atravessou em 300 s. A afirmação geral
+sobre frescor, a de que hoje ele se mede em horas, vem do acúmulo medido no
+diagnóstico: 115.971.059 linhas na bronze contra uma vazão de cerca de 185.000 por
+hora, observada em cinco ciclos consecutivos. Isso é um limite calculado, que independe de quantos
+eventos o teste envie. O evento único serve para localizar em que ponto o pipeline parou,
+não para estimar quanto ele demora.
 
 #### Diagnóstico do caso reprovado
 
@@ -499,7 +509,7 @@ o tempo de calendário seria ainda maior que a estimativa.
 #### A correção que o diagnóstico produziu
 
 &emsp; Investigar por que cada ciclo leva dezesseis minutos para processar cinquenta
-mil linhas levou a um defeito de schema, e não apenas a uma condição operacional.
+mil linhas levou a um defeito de schema, e não apenas a uma lentidão operacional.
 Duas funções da ETL filtram a tabela `bronze.event` pela coluna `_lsn`: a
 `etl.proxima_faixa_lsn`, que decide a faixa de cada ciclo, e a
 `silver.build_session_event`, que faz a promoção. A tabela é particionada por `ts` e
@@ -517,14 +527,15 @@ poda de partição seguida de leitura por índice.
 | Sem índice em `_lsn` | Varredura sequencial de todas as partições, com 250.000 linhas descartadas pelo filtro | 48,7 ms |
 | Com índice em `_lsn` | Leitura por índice sem acesso à tabela, com `Heap Fetches` igual a zero | 12,6 ms |
 
-&emsp; O ganho de quatro vezes nesse volume não é o ponto principal. O que importa é
-que a forma do custo muda: a varredura cresce com a tabela, e a leitura por índice
+&emsp; Mais importante que o ganho de quatro vezes nesse volume é o que acontece com
+a forma do custo: a varredura cresce com a tabela, e a leitura por índice
 cresce com o que se pede. A correção está na migration
 [`030_indice_lsn_em_evento.sql`](../apps/basica/db/migrations/030_indice_lsn_em_evento.sql).
 
 &emsp; Ela vem acompanhada do teste
 [`test_plano_da_etl.py`](../apps/basica/processing/tests/test_plano_da_etl.py), que
-verifica o plano de execução, e não o tempo de relógio. Medir tempo em teste produz
+verifica o plano de execução, deixando o tempo de relógio de fora. Medir tempo em
+teste produz
 um portão instável, que reprova consulta correta em máquina carregada e acaba
 ignorado por todos. O teste popula a tabela com `_lsn` descorrelacionado de `ts`, que
 é o caso real, e exige que nenhuma partição seja varrida sequencialmente. Foi
@@ -539,8 +550,8 @@ correção.
 
 #### O que este resultado diz sobre o sistema
 
-&emsp; O primeiro achado é que o frescor de ponta a ponta da implantação é hoje medido
-em horas, e não em minutos, e que o limite está na ETL, não na fila. A ingestão faz
+&emsp; O primeiro achado é que o frescor de ponta a ponta da implantação se mede hoje
+em horas, e que o limite está na ETL. A fila não tem responsabilidade nisso. A ingestão faz
 sua parte em segundos: aceita, enfileira, consome e grava. O relatório de carga
 registra uma amostra de frescor de 38 minutos e 32 segundos, e a situação medida aqui
 é pior que aquela amostra.
@@ -564,8 +575,8 @@ foi tomada sobre a infraestrutura durante este trabalho.
 
 &emsp; Por fim, vale notar o que falta de instrumentação. Não existe métrica de
 distância entre o marcador e a ponta da sequência. Se existisse, o acúmulo teria
-aparecido em 14 de setembro, quando a carga foi feita, e não num teste de integração
-três dias depois.
+aparecido em 14 de setembro, no dia da carga, em vez de esperar um teste de
+integração três dias depois.
 
 #### Segredo e evidência
 
@@ -619,8 +630,8 @@ pulados naquela linha são justamente os casos do TI-05, que ficam de fora quand
 linha própria na tabela.
 
 &emsp; A última linha não entra nessas contagens, porque não é uma suíte de casos: o
-alvo `k8s-validate` renderiza os cinco conjuntos de manifests — `base`, `migrate`,
-`overlays/aws`, `overlays/kind` e `overlays/kind/migrate` — sem contactar cluster
+alvo `k8s-validate` renderiza os cinco conjuntos de manifests (`base`, `migrate`,
+`overlays/aws`, `overlays/kind` e `overlays/kind/migrate`) sem contactar cluster
 nenhum, e existe para que um erro de YAML não chegue à entrega. Ele entrou no
 `make check` junto com os manifests e é, hoje, a única verificação automatizada que
 toca no caminho do Kubernetes. Execução registrada em
@@ -633,9 +644,9 @@ testes de integração, e com `AWS_REGION=us-east-1` no ambiente os 18 testes pa
 como registrado na tabela. O valor sai do `.env` na operação normal do projeto.
 
 &emsp; Uma segunda observação da mesma natureza: numa cópia recém-clonada do
-repositório o `k8s-validate` **falha**, e a falha não é de manifesto.
+repositório o `k8s-validate` falha, e a falha não é de manifesto.
 O overlay `kind` gera o seu Secret a partir de `k8s/overlays/kind/secret.env`, que
-está no `.gitignore` por ser credencial — ainda que de um banco descartável — e
+está no `.gitignore` por ser credencial, ainda que de um banco descartável, e
 precisa ser criado antes:
 
 ```bash
@@ -652,45 +663,46 @@ ambiente limpo em que ele rodar.
 ### Cobertura do caminho orquestrado por Kubernetes
 
 &emsp; Os testes deste artefato foram executados em 17 e 18 de setembro de 2026, na
-mesma janela em que o caminho síncrono — dashboard, API de leitura e migrations —
-passou a ser orquestrado por Kubernetes, conforme
+mesma janela em que o caminho síncrono, com dashboard, API de leitura e
+migrations, passou a ser orquestrado por Kubernetes, conforme
 [`conteineres-final.md`](conteineres-final.md). As duas coisas não se cruzaram, e
 convém dizer exatamente onde cada afirmação deste relatório vale.
 
-&emsp; O caminho **assíncrono** não é afetado. Ingestão, ETL, simulação e carga
-inicial continuam em ECS Fargate por decisão de projeto, e não por omissão: o
+&emsp; O caminho assíncrono segue intacto. Ingestão, ETL, simulação e carga inicial
+continuam em ECS Fargate porque assim foi decidido, e a razão está documentada: o
 Learner Lab nega `iam:CreateOpenIDConnectProvider` e `eks-auth:AssumeRoleForPodIdentity`,
 o que torna IRSA e Pod Identity impossíveis e tira do cluster a única vantagem que ele
 teria ali. O TI-03, o TI-04 e o TI-05.2 medem a pilha que está no ar, sem ressalva.
 
-&emsp; O caminho **síncrono** é onde a cobertura ficou para trás. A tabela separa o
+&emsp; O caminho síncrono é onde a cobertura ficou para trás. A tabela separa o
 que foi medido do que não foi, nos três estados usados no restante do artefato.
 
 | Afirmação | Plataforma em que foi medida | Estado quanto ao EKS |
 |---|---|---|
 | Carga da API de leitura nos três níveis | ALB e grupo de auto scaling, 2 instâncias `t4g.small` | Não executado no cluster |
-| Elasticidade sob carga | Target tracking em 60 requisições por instância por minuto | Não executado; no cluster o gatilho é **CPU**, pelo HPA, e a métrica não é comparável |
+| Elasticidade sob carga | Target tracking em 60 requisições por instância por minuto | Não executado; no cluster o gatilho é a CPU, pelo HPA, e a métrica não é comparável |
 | Contrato entre dashboard e API, o TI-01 | Duas origens, com CORS | Não executado em origem única |
 | Autorização na borda, o TI-05.1 | API Gateway e Lambda authorizer | Não se aplica: o Ingress não passa pelo authorizer |
-| Manifests do cluster | `kubectl kustomize`, sem cluster | **Executado**, sem erro |
+| Manifests do cluster | `kubectl kustomize`, sem cluster | Executado, sem erro |
 | Sondas, implantação sem queda e autocura | Cluster `kind` local | Executado, e registrado na seção 5 de [`conteineres-final.md`](conteineres-final.md), não aqui |
 
-&emsp; Duas notas sobre a última linha, porque ela é a que mais facilmente seria lida
-com força maior do que tem. A separação das três sondas foi observada em operação — a
-de vida passando enquanto a de prontidão reprovava, com o pod fora do balanceamento e
-sem reinício, até o `Job` de migrations concluir. E as duas medições citadas ali, 547
-respostas sem falha durante um `rollout restart` e recuperação de um pod em 4 s,
-**saíram do cluster local**, não do EKS. Isso não as invalida: o overlay `kind` aplica
-os mesmos manifests do overlay da AWS, mudando apenas o banco e a classe do Ingress.
-Mas o número de 4 s não foi medido contra o Auto Mode, e a comparação com os 300 s do
-`health_check_grace_period` do grupo de auto scaling carrega essa ressalva.
+&emsp; A última linha pede duas notas, porque é a que mais facilmente seria lida com
+força maior do que tem. A separação das três sondas foi mesmo observada em operação:
+a de vida passava enquanto a de prontidão reprovava, com o pod fora do balanceamento
+e sem reinício, até o `Job` de migrations concluir. Já as duas medições citadas ali,
+as 547 respostas sem falha durante um `rollout restart` e a recuperação de um pod em
+4 s, saíram do cluster local. O overlay `kind` aplica os mesmos manifests do overlay
+da AWS, mudando apenas o banco e a classe do Ingress, de modo que os números seguem
+valendo como demonstração do mecanismo. Ainda assim, o valor de 4 s nunca foi medido
+contra o Auto Mode, e a comparação com os 300 s do `health_check_grace_period` do
+grupo de auto scaling carrega essa ressalva.
 
 &emsp; Nada disso torna a rodada obsoleta. O `create_eks` é `false` por padrão no
 [`variables.tf`](../apps/basica/infra/variables.tf), porque o cluster cobra por hora
 existindo, e o `terraform.tfvars` do repositório mantém o grupo de auto scaling em
 duas instâncias: o caminho medido aqui é o que sobe por padrão. O que falta é uma
-rodada de carga contra o Ingress, que permitiria comparar as duas plataformas na
-mesma métrica — e essa é uma entrega de sprint, não um acerto de redação.
+rodada de carga contra o Ingress, capaz de comparar as duas plataformas na mesma
+métrica. Isso é entrega de sprint, fora do alcance de uma revisão de texto.
 
 ## Testes de carga
 
@@ -767,8 +779,8 @@ Systems Manager, espera o resultado voltar ao bucket e apaga tudo o que criou,
 inclusive a instância. Um efeito colateral bem-vindo é que a medida deixa de conter
 a latência da internet entre a casa do operador e a AWS.
 
-&emsp; As rotas de cada tela foram levantadas no código do frontend, e não escolhidas
-à mão, para que o teste meça o que o dashboard realmente pede. A tabela abaixo é o
+&emsp; As rotas de cada tela foram levantadas no código do frontend, em vez de
+escolhidas à mão, para que o teste meça o que o dashboard realmente pede. A tabela abaixo é o
 que uma abertura de tela custa à API.
 
 | Tela | Rotas disparadas ao abrir | Requisições |
@@ -791,14 +803,14 @@ a do ALB, e por isso o caminho testado é o do grupo de auto scaling, não o da 
 descrita no TI-05. Os dois existem na pilha; o ALB é o preferido quando está no ar.
 
 &emsp; Desde a Sprint 4 existe um terceiro caminho para a mesma API, o Ingress do
-cluster EKS, e ele **não foi exercitado nesta rodada**. A distinção não é formal, e é
+cluster EKS, e ele não foi exercitado nesta rodada. A distinção não é formal, e é
 por isso que ela aparece aqui e não numa nota de rodapé: no grupo de auto scaling a
 escala é disparada por requisições por instância por minuto, medida que o ALB publica;
 no cluster, pelo HPA por uso de CPU. São gatilhos diferentes, com tempos de reação
 diferentes, e os números desta seção descrevem o primeiro. O `make env` também não
-conhece o Ingress — ele lê o `api_url_alb` do Terraform e cai para a Lambda —, de modo
-que rodar a carga contra o cluster exigiria apontar `ARGUS_API_URL` à mão para a saída
-de `make k8s-url`. A [tabela de cobertura](#cobertura-do-caminho-orquestrado-por-kubernetes)
+conhece o Ingress: ele lê o `api_url_alb` do Terraform e, na falta dele, cai para a
+Lambda. Rodar a carga contra o cluster exige apontar `ARGUS_API_URL` à mão para a
+saída de `make k8s-url`. A [tabela de cobertura](#cobertura-do-caminho-orquestrado-por-kubernetes)
 na seção de integração reúne o que ficou de fora.
 
 | Componente | Configuração durante a rodada oficial |
@@ -813,8 +825,9 @@ na seção de integração reúne o que ficou de fora.
 
 &emsp; Os três níveis rodam em sequência no mesmo processo, com 2 min cada e 30 s de
 pausa entre eles, para que a API volte ao repouso antes do degrau seguinte. O
-volume de requisições é consequência do número de usuários e do tempo de pensar, e
-não um parâmetro fixado; por isso ele aparece medido, e não planejado.
+volume de requisições decorre do número de usuários e do tempo de pensar, em vez de
+ser fixado de antemão. Por isso ele aparece na tabela como medida, com o valor que a
+execução produziu.
 
 | Nível | Usuários simultâneos | Duração | Telas abertas | Requisições | Vazão média |
 |---|---:|---:|---:|---:|---:|
@@ -836,11 +849,24 @@ sozinho e reprova a execução se não forem atendidos, foram estes, por nível:
 
 ### Resultados
 
-| Nível | Usuários | Erros | p50 | p95 | p99 | Máximo | Tela p95 | Telas completas | Situação |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 1 | 5 | 0 de 1.040 | 9 ms | 94 ms | 278 ms | 889 ms | 157 ms | 100% | Aprovado |
-| 2 | 25 | 0 de 5.208 | 9 ms | 96 ms | 309 ms | 548 ms | 148 ms | 100% | Aprovado |
-| 3 | 100 | 0 de 19.253 | 23 ms | 802 ms | 1.302 ms | 1.656 ms | 964 ms | 100% | Aprovado |
+| Nível | Usuários | Erros | p50 | p95 | p99 | Máximo | Tela p95 | Telas completas | Situação | Ressalva |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| 1 | 5 | 0 de 1.040 | 9 ms | 94 ms | 278 ms | 889 ms | 157 ms | 100% | Aprovado | O p95 inclui o aquecimento das instâncias e é maior que o do nível 2 |
+| 2 | 25 | 0 de 5.208 | 9 ms | 96 ms | 309 ms | 548 ms | 148 ms | 100% | Aprovado | — |
+| 3 | 100 | 0 de 19.253 | 23 ms | 802 ms | 1.302 ms | 1.656 ms | 964 ms | 100% | Aprovado | O auto scaling disparou, mas não entrou em serviço dentro da janela: os 100 usuários foram atendidos pelas duas instâncias originais |
+
+&emsp; A coluna de ressalva cumpre uma função. Um "Aprovado" sozinho sugeriria que
+o sistema absorveu 100 usuários com a elasticidade funcionando, quando o que se
+mediu foi outra coisa: as duas instâncias originais deram conta por conta própria.
+A afirmação fica mais fraca e, ao mesmo tempo, mais interessante. A análise adiante
+desenvolve as duas ressalvas.
+
+&emsp; Nenhum dos três níveis chegou perto de reprovar, e é por isso que eles não
+dizem onde fica o teto. O maior p95 observado, 802 ms, está a um sexto do limite de
+5 s do RNF02, e a CPU da aplicação não passou de 12%. Saber que o sistema aguenta
+muito mais do que precisa ainda deixa em aberto quanto ele aguenta, e para responder
+isso é
+preciso um degrau que reprove, e a conclusão desta seção registra isso como lacuna.
 
 &emsp; Por tela, o p95 do tempo de abertura em cada nível mostra onde a carga pesa:
 
@@ -863,12 +889,12 @@ banco de 33% em repouso ao pico de 73% no nível 3; CPU média das instâncias E
 
 ### Análise
 
-&emsp; **Até 25 usuários a carga é invisível.** O p50 é de 9 ms nos dois primeiros
+&emsp; Até 25 usuários a carga é invisível. O p50 é de 9 ms nos dois primeiros
 níveis e o p95 fica abaixo de 100 ms; a CPU das instâncias não sai de 3%. Para o
 tamanho de equipe que um dashboard interno atende, este é o regime de operação, e
 ele tem duas ordens de grandeza de folga.
 
-&emsp; **Com 100 usuários o banco passa a ser o gargalo.** O p95 sobe para 802 ms e
+&emsp; Com 100 usuários o banco passa a ser o gargalo. O p95 sobe para 802 ms e
 as telas que mais agregam, Recorte, Explorar e Hipóteses, são as que mais sentem: um
 crosstab de mil células, breakdowns de 24 h e o relatório de hipóteses. A CPU do RDS
 vai a 73% enquanto a das instâncias EC2 fica em 8%, o que diz que o próximo recurso a
@@ -876,14 +902,14 @@ esgotar é o banco, não a aplicação, e que mais instâncias no grupo não aju
 neste ponto: ajudaria índice, cache ou uma classe maior de RDS. Os tempos continuam
 dentro do critério, com o p99 em 1,3 s contra um limite de 5 s.
 
-&emsp; **A tela Agora tem uma cauda que não vem da carga.** Seu p95 de 859 ms no
+&emsp; A tela Agora tem uma cauda que não vem da carga. Seu p95 de 859 ms no
 nível 1 é maior que nos níveis 2 e 3. O nível 1 é o primeiro do teste e captura o
 aquecimento das duas instâncias, recém-substituídas pelo rollout, com o plano das
 consultas ainda por entrar em cache. O máximo do nível 1, 889 ms, é essa mesma
 primeira abertura. Um degrau de aquecimento antes do primeiro nível removeria o
 efeito.
 
-&emsp; **O auto scaling disparou, mas chegou depois do teste.** Com 9.627
+&emsp; O auto scaling disparou, mas chegou depois do teste. Com 9.627
 requisições por minuto sobre duas instâncias, a média passou de 4.800 por alvo, oitenta
 vezes a meta de 60. O alarme entrou em estado de alerta às 17:55:56 UTC, e a
 capacidade desejada foi de 2 para 6; as quatro instâncias novas ainda estavam em
@@ -926,7 +952,7 @@ latência da internet. No nível 3 a segunda é mais lenta, com p95 de 802 ms co
 528 ms, e o banco estava mais ocupado desde antes do teste, com 33% de CPU em
 repouso contra 24% na véspera, provavelmente porque o processamento recém-reimplantado
 estava a recuperar o atraso da ETL. A comparação direta entre as rodadas é
-portanto indicativa, e não uma medida; a que vale é a rodada oficial.
+portanto indicativa; a medida que vale é a da rodada oficial.
 
 ### Conclusão
 
@@ -942,11 +968,32 @@ dentro do mesmo trabalho: o desencontro de keep-alive entre o gunicorn e o ALB, 
 custava de um a cinco 502 por minuto em qualquer nível de carga. O próximo ensaio deve
 incluir um degrau de aquecimento antes do primeiro nível e um nível 3 mais longo, de
 10 min, para que o auto scaling entre em serviço dentro da janela medida e a
-elasticidade possa ser observada, e não só disparada. Deve, também, ser repetido
+elasticidade chegue a ser observada em operação, e não apenas disparada. Deve,
+também, ser repetido
 contra o Ingress do cluster: é a única forma de comparar as duas maneiras de escalar
 a mesma API, já que uma reage a requisições por instância e a outra a uso de CPU. Se
 a carga real um dia se aproximar de 100 usuários simultâneos, o recurso a dimensionar
 é o banco.
+
+&emsp; Duas lacunas desta rodada ficam registradas, e nenhuma delas é achado: são
+coisas que não foram feitas.
+
+&emsp; O teto não foi procurado. Os três níveis foram escolhidos por parecerem
+representativos do uso, e todos passaram com folga larga. Um ensaio que quer afirmar
+capacidade precisa de pelo menos um degrau que reprove algum critério. Sem isso o
+relatório afirma "aguenta 100 usuários", o que é verdade, e deixa quem lê imaginando
+se o número seguinte seria 120 ou 12.000. O roteiro já aceita o número de usuários
+por variável de ambiente (`CARGA_UI_VUS_3`), de modo que o custo é tempo de
+execução, sem escrita de código.
+
+&emsp; Não há captura de painel. Todos os números desta seção vêm do resumo do k6
+e de leituras do CloudWatch transcritas em texto. O repositório versiona um painel
+feito exatamente para esta medição,
+[`observability/grafana/dashboards/argus-k6.json`](../apps/basica/observability/grafana/dashboards/argus-k6.json),
+servido por `make observabilidade-up`, e ele não foi usado. As duas formas de
+evidência cumprem papéis distintos: o número transcrito pode ser conferido contra a
+saída bruta, enquanto a imagem do painel mostra a forma da curva, que é o que
+denuncia degrau, serrilha e saturação. Uma não substitui a outra.
 
 ### Onde está cada coisa e como reproduzir
 
@@ -978,6 +1025,43 @@ apps/basica/tests/carga/executar_testes.sh carga-ui
 aparece neste artefato nem na evidência: as URLs e o id da conta na saída do k6 e
 do gerador foram substituídos por `<url>` e `<conta>` antes de serem versionados.
 
+## Cobertura de requisitos
+
+&emsp; As tabelas deste artefato dizem, teste a teste, quais requisitos cada um
+exercita. O que elas não permitem ler é a ausência: quantos requisitos não são
+alcançados por teste nenhum. Esta seção existe para tornar isso legível, porque uma
+lista só de presenças deixa o leitor sem saber se o silêncio sobre um requisito
+significa cobertura implícita ou esquecimento.
+
+&emsp; O projeto declara 28 requisitos em [`requisitos.md`](requisitos.md), 17
+funcionais e 11 não funcionais. Varrendo todo o código de teste do repositório, e
+não apenas os casos descritos aqui, chega-se a 19 requisitos nomeados por pelo menos
+um teste e 9 nomeados por nenhum.
+
+| Requisito | Assunto | Existe teste que o toque? |
+|---|---|---|
+| RF02 | Receber eventos de plataformas diferentes (TV, móvel, web) | Não identificado. A ingestão é testada por conteúdo de mensagem, não por plataforma de origem |
+| RF07 | Coletar os seis tipos de evento | Provavelmente sim, sem declarar: os fixtures do TI-03 são os seis eventos reais exportados do BI |
+| RF13 | Consultas simples das falhas de maior impacto | Provavelmente sim, sem declarar: a tela Explorar, exercitada pelo E2E-03, traz "Erros mais frequentes" |
+| RF15 | Destacar aumentos relevantes, como picos de erro | Provavelmente sim, sem declarar: os sinais da tela Agora, exercitados pelo E2E-02 e pelos unitários de `signals` |
+| RF17 | Apresentar hipóteses ordenadas por relevância | Provavelmente sim, sem declarar: o E2E-05 abre a tela e confere score e evidência |
+| RNF06 | Compatibilidade com os protocolos do MVP | Não identificado |
+| RNF07 | Usar sem orientação técnica detalhada | Fora do alcance de teste automatizado; exige teste com usuário |
+| RNF08 | Reconhecer a que problema cada hipótese se refere | Fora do alcance de teste automatizado; exige teste com usuário |
+| RNF11 | Registrar o suficiente sobre falhas para investigá-las | Provavelmente sim, sem declarar: o TI-03 verifica que a mensagem inválida vai para a fila de descarte com o motivo anexado |
+
+&emsp; A coluna da direita separa três situações que não deveriam ser confundidas.
+Dois requisitos, o RNF07 e o RNF08, são de usabilidade, e nenhuma suíte
+automatizada os resolve. Afirmar o contrário seria falso: o caminho deles é teste
+com usuário.
+Cinco são exercitados na prática, mas por testes que não os nomeiam: a cobertura
+existe e não é auditável, o que na hora de uma revisão vale quase o mesmo que não
+existir. Dois, o RF02 e o RNF06, não têm teste que se possa apontar.
+
+&emsp; A correção barata é a segunda coluna de cinco linhas: declarar o requisito no
+cabeçalho do teste que já o exercita, como o TI-01 faz. Isso não escreve teste novo e
+transforma cinco ausências aparentes em cobertura verificável.
+
 ## Conclusão
 
 &emsp; Este artefato percorreu três perguntas em ordem crescente de alcance. Os 52
@@ -989,10 +1073,9 @@ responderam se o sistema continua respondendo, e em quanto tempo, com 5, 25 e 10
 pessoas usando o dashboard ao mesmo tempo: 25.501 requisições sem nenhuma falha, com
 o percentil 95 abaixo de 100 ms até 25 usuários e de 802 ms com 100.
 
-&emsp; O que dá valor a este conjunto não é o número de aprovações, e sim os dois
-defeitos que ele encontrou e que nenhuma leitura de código encontraria. O primeiro
-veio da integração: o evento aceito pela borda demorava horas, não minutos, para
-aparecer na leitura, porque a ETL varria a tabela `bronze.event` sem índice pelo
+&emsp; O valor deste conjunto está menos no número de aprovações do que nos dois
+defeitos que ele encontrou, e que nenhuma leitura de código encontraria. O primeiro
+veio da integração: o evento aceito pela borda levava horas para aparecer na leitura, porque a ETL varria a tabela `bronze.event` sem índice pelo
 número de ordem `_lsn`. O diagnóstico virou a migration 030 e um teste que a
 sustenta. O segundo veio da carga: um em cada mil pedidos ao dashboard morria com
 502 no balanceador, em qualquer nível de uso, porque o gunicorn fechava conexões
@@ -1016,8 +1099,8 @@ artefato mede do lado da leitura é o grupo de auto scaling, não o cluster. A
 [tabela de cobertura](#cobertura-do-caminho-orquestrado-por-kubernetes) diz linha a
 linha o que vale onde. Dos itens ali, o único já executado é a renderização dos
 manifests; a rodada de carga contra o Ingress é o que permitiria comparar as duas
-plataformas, e ela não cabe numa revisão de texto — o gatilho de escala nem é o
-mesmo dos dois lados.
+plataformas, e ela não cabe numa revisão de texto, até porque o gatilho de escala
+nem é o mesmo dos dois lados.
 
 ## Referências
 
