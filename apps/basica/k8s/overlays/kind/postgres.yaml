@@ -1,0 +1,80 @@
+# PostgreSQL 16 dentro do cluster, so para o ambiente local.
+#
+# emptyDir e nao PersistentVolumeClaim: dispensa StorageClass e faz o
+# `kind delete cluster` levar os dados junto, que e o comportamento desejado num
+# ambiente descartavel. Quem quer um banco que sobrevive usa `make db-local`.
+#
+# Usuario, senha e base espelham o `make db-local` (argus/argus/argus), para que
+# a DATABASE_URL local seja a mesma dos testes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-postgres
+  labels:
+    app.kubernetes.io/name: argus-postgres
+    app.kubernetes.io/part-of: argus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus-postgres
+        app.kubernetes.io/part-of: argus
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: argus
+            - name: POSTGRES_PASSWORD
+              value: argus
+            - name: POSTGRES_DB
+              value: argus
+            # O initdb do Postgres recusa rodar num diretorio que ja tem
+            # conteudo. Um subdiretorio do emptyDir evita o `lost+found` que
+            # alguns volumes criam.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              # `pg_isready` responde durante o initdb, quando um servidor
+              # TEMPORARIO esta de pe e prestes a ser derrubado. Conectar de
+              # verdade so funciona quando o servidor definitivo assume -- a
+              # mesma armadilha ja documentada em backend/compose.yaml.
+              command: ["psql", "-U", "argus", "-d", "argus", "-c", "SELECT 1"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argus-postgres
+  labels:
+    app.kubernetes.io/name: argus-postgres
+    app.kubernetes.io/part-of: argus
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: argus-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

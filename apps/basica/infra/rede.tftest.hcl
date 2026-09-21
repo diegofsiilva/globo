@@ -39,6 +39,22 @@ override_data {
   override_during = plan
 }
 
+# Os papeis do EKS sao descobertos por regex na conta do Learner Lab (eks.tf).
+# A conta mockada nao devolve papel nenhum, e a precondicao do cluster -- que
+# existe para falhar cedo quando a descoberta nao acha nada -- dispararia aqui
+# por motivo errado. Estes ARNs sao de mentira e so precisam nao ser vazios.
+override_data {
+  target          = data.aws_iam_roles.eks_cluster[0]
+  values          = { arns = ["arn:aws:iam::000000000000:role/LabEksClusterRole-teste"] }
+  override_during = plan
+}
+
+override_data {
+  target          = data.aws_iam_roles.eks_node[0]
+  values          = { arns = ["arn:aws:iam::000000000000:role/LabEksNodeRole-teste"] }
+  override_during = plan
+}
+
 run "topologia" {
   command = plan
 

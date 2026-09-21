@@ -14,13 +14,11 @@ Next.js de API (`app/api`).
 
 | Variável de ambiente | Papel |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | Base da API de leitura de eventos. Obrigatória no build. |
+| `NEXT_PUBLIC_API_URL` | Base da API de leitura de eventos e hipóteses. Obrigatória no build. |
 | `NEXT_PUBLIC_HYPOTHESES_SOURCE` | `mock` ou `api`. Obrigatória no build. |
-| `NEXT_PUBLIC_HYPOTHESES_API_URL` | Base do motor de hipóteses. Obrigatória se a fonte for `api`. |
 
 &emsp;Os alvos `make -C apps/basica frontend-dev` e `frontend-build` copiam
-`ARGUS_API_URL`, `HYPOTHESES_SOURCE` e `HYPOTHESES_API_URL` para as variáveis
-públicas acima.
+`ARGUS_API_URL` e `HYPOTHESES_SOURCE` para as variáveis públicas acima.
 
 ## 2. Rotas do dashboard (Next.js)
 
@@ -32,15 +30,14 @@ para `/agora`. Com `trailingSlash`, o export estático também responde em
 |---|---|---|---|---|
 | `GET` | `/` | Redireciona para `/agora` | — | — |
 | `GET` | `/agora` | Degradações e sinais em tempo real | Mock em `agora/_mocks` | RF12, RF13, RF15, RF16 |
-| `GET` | `/explorar` | Exploração por tipo, período e dimensão | Mock em `explorar/_mocks` | RF08–RF12 |
+| `GET` | `/explorar` | Exploração por tipo, período e dimensão | APIs de eventos e séries | RF08–RF12 |
 | `GET` | `/comparar` | Janela atual contra referências históricas | Mock em `comparar/_mocks` | RF14, US05 |
-| `GET` | `/hipoteses` | Causas prováveis ranqueadas | Mock ou `GET /api/v1/hypotheses` | RF17, RNF08 |
+| `GET` | `/hipoteses` | Causas prováveis ranqueadas | `GET /api/v1/hypotheses` por padrão | RF17, RNF08 |
 | `GET` | `/timeline` | Seis fontes em um eixo temporal | Mock em `timeline/_mocks` | US01, US06, RF16 |
 | `GET` | `/recorte` | População afetada e mapa de calor | Mock em `recorte/_mocks` | US07, US08, RF16 |
 
-&emsp;O cliente HTTP `src/lib/events/api.ts` (`GET /api/v1/events`) existe, mas a
-página raiz deixou de montar o monitor ao vivo. Enquanto `/` redireciona para
-`/agora`, esse cliente **não** é exercido pelas rotas da navegação.
+&emsp;O cliente HTTP `src/lib/events/api.ts` (`GET /api/v1/events`) alimenta a
+lista de eventos recentes em `/explorar` e a amostra de sessões em `/recorte`.
 
 ### 2.1 Query string das páginas
 
@@ -141,7 +138,7 @@ Resposta esperada (`EventsResponse`):
 &emsp;Status diferente de 2xx vira erro de consulta. O cliente **não** envia
 `cursor`; só a primeira página é usada.
 
-### 3.2 `GET {NEXT_PUBLIC_HYPOTHESES_API_URL}/api/v1/hypotheses`
+### 3.2 `GET {NEXT_PUBLIC_API_URL}/api/v1/hypotheses`
 
 &emsp;Cliente: `hipoteses/_lib/http-source.ts`, ativo somente com
 `NEXT_PUBLIC_HYPOTHESES_SOURCE=api`. Polling a cada 30 s. Timeout tratado em
@@ -218,8 +215,9 @@ Erros mapeados pelo adapter:
 | Outro HTTP não 2xx | `ARG-HYP-HTTP-{status}` | `server` |
 | Corpo não JSON | `ARG-HYP-INVALID-JSON` | `invalid-response` |
 
-&emsp;Esta rota **não** existe na API Flask de eventos. Enquanto o motor não
-estiver publicado, o build deve usar `HYPOTHESES_SOURCE=mock`.
+&emsp;A rota devolve apenas manifestos promovidos pelo portão de publicação do
+motor. Uma execução em modo sombra permanece armazenada e auditável no RDS,
+mas não é apresentada como diagnóstico publicado no dashboard.
 
 ## 4. Rotas da API de leitura que o frontend passará a esperar
 

@@ -59,7 +59,7 @@ describe("contrato HTTP da tela Hipóteses", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const report = await createHttpHypothesesSource("http://api.test/")({
+    const report = await createHttpHypothesesSource()({
       from: "2026-07-14T11:30:00.000Z",
       to: "2026-07-14T12:00:00.000Z",
       scope: { source: "prometheus" },
@@ -83,7 +83,7 @@ describe("contrato HTTP da tela Hipóteses", () => {
   test("[TA-07] rejeita resposta sem lista de hipóteses", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ count: 1 })));
 
-    await expect(createHttpHypothesesSource("http://api.test")()).rejects.toMatchObject({
+    await expect(createHttpHypothesesSource()()).rejects.toMatchObject({
       kind: "invalid-response",
       reference: "ARG-HYP-INVALID-SHAPE",
       retryable: false,

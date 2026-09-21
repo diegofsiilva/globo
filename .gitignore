@@ -38,6 +38,13 @@ apps/basica/authorizer/dist/
 # nao o do repositorio.
 apps/basica/frontend/public/build-info.json
 
+# Segredo do cluster local (kind). Sao credenciais de um PostgreSQL descartavel
+# que vive dentro do cluster, mas o arquivo fica fora do repositorio mesmo assim:
+# a unica diferenca entre ele e o de um ambiente real e o conteudo, e essa e
+# exatamente a distincao que nao da para confiar a quem edita com pressa.
+# O secret.env.example mostra as chaves.
+apps/basica/k8s/overlays/kind/secret.env
+
 # Endpoints, IDs de conta e segredos. O .env.example mostra as chaves, nunca
 # os valores.
 .env

@@ -1,0 +1,15 @@
+# Orcamento de interrupcao da API.
+#
+# Nao e decoracao: o Karpenter do EKS Auto Mode consolida nos de forma agressiva
+# e drena sem cerimonia. Sem este objeto, ele pode escolher tirar os DOIS pods
+# do backend ao mesmo tempo para esvaziar um no -- e a API sai do ar durante uma
+# operacao que deveria ser invisivel.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: argus-backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus-backend

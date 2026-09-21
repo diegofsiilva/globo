@@ -1,0 +1,109 @@
+# Dashboard: export estatico do Next 16 servido por nginx.
+#
+# Ate a Sprint 3 o mesmo `out/` era publicado no website do S3
+# (infra/frontend_s3.tf). Dentro do cluster ele passa a ser servido pela MESMA
+# origem que a API, atraves do Ingress -- e e isso que elimina o CORS e o
+# acoplamento entre o endereco do ambiente e o bundle compilado.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-frontend
+  labels:
+    app.kubernetes.io/name: argus-frontend
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/part-of: argus
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  minReadySeconds: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus-frontend
+        app.kubernetes.io/component: dashboard
+        app.kubernetes.io/part-of: argus
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        # uid 101 e o usuario `nginx` que ja vem na imagem oficial e que o
+        # frontend/Dockerfile reusa em vez de criar outro.
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      # So a de zona, diferente do backend, que tambem espalha por host: servir
+      # HTML estatico nao tem estado nem dependencia externa, entao duas
+      # replicas no mesmo no continuam absorvendo a queda de uma delas. O que
+      # importa aqui e sobreviver a perda de uma zona.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: argus-frontend
+      containers:
+        - name: frontend
+          image: IMAGE_FRONTEND
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          # Servir arquivo estatico nao tem dependencia externa: liveness e
+          # readiness podem apontar para o mesmo alvo sem o risco que existe no
+          # backend, onde /health/ready consulta o banco.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # O nginx.conf da imagem aponta pid, client_body_temp e os demais
+        # caminhos temporarios para /tmp exatamente para que a raiz possa ser
+        # somente-leitura. Sem este volume o nginx nao consegue gravar o pid e
+        # nem chega a escutar na porta.
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,45 @@
+# Uma replica por Deployment no ambiente local.
+#
+# A base usa duas, que e o minimo para o PodDisruptionBudget proteger uma
+# durante um drain. Num cluster de verdade isso custa pouco; num no unico de
+# kind rodando dentro de uma VM de 4 vCPU, dobrar backend e frontend satura a
+# CPU e o proprio API server passa a dar timeout.
+#
+# O que se perde aqui: a evidencia de alta disponibilidade, que e demonstrada no
+# EKS. O que se mantem: manifests, probes, Ingress de origem unica, Job de
+# migration e o rolling update com `maxUnavailable: 0` -- que continua sendo
+# exercitado, porque o maxSurge cria o pod novo antes de tirar o velho mesmo com
+# uma replica so.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-backend
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: backend
+          # Metade dos workers do padrao do Dockerfile. O gunicorn dimensiona
+          # para a maquina em que roda, e a maquina aqui e um laptop.
+          command:
+            ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "run:build_app()"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-frontend
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: frontend
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi

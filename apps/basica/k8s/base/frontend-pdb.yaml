@@ -1,0 +1,11 @@
+# Mesmo raciocinio do PDB do backend: o dashboard nao pode sumir durante uma
+# consolidacao de no.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: argus-frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus-frontend

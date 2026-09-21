@@ -1,0 +1,36 @@
+# Anotacoes do ALB.
+#
+# Os valores de health check e de deregistration_delay sao os MESMOS de
+# infra/alb.tf, de proposito: assim a comparacao de carga entre o ASG e o
+# cluster isola a camada de orquestracao, e nao o tuning do balanceador.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argus
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+
+    # `ip` e nao `instance`: o ALB registra o IP do POD direto, sem passar pelo
+    # NodePort. Sem isso o preStop nao adiantaria -- o alvo seria o no, que
+    # continua saudavel enquanto o pod sai.
+    alb.ingress.kubernetes.io/target-type: ip
+
+    # /health/live e nao /health/ready, pela mesma razao registrada em
+    # infra/alb.tf: `ready` consulta o PostgreSQL, e um banco fora do ar
+    # reprovaria TODOS os alvos de uma vez.
+    #
+    # Esta anotacao vale para os DOIS target groups (backend e frontend), e e
+    # por isso que o nginx.conf do frontend tambem responde /health/live.
+    alb.ingress.kubernetes.io/healthcheck-path: /health/live
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+
+    # 30s: o mesmo do target group do ASG. Casado com o `preStop: sleep 10` do
+    # Deployment, e o que fecha a janela de 502 durante um rolling update.
+    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+spec:
+  ingressClassName: argus-alb

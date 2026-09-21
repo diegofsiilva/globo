@@ -1,0 +1,31 @@
+# Configuracao NAO sensivel da API de leitura.
+#
+# O que e segredo (DATABASE_URL, DASHBOARD_TOKEN_SHA256, USER_ID_HASH_SALT) vive
+# no Secret `argus-backend`, criado por `make k8s-secret` a partir dos outputs do
+# Terraform -- nunca versionado. A divisao segue o contrato declarado em
+# backend/src/telemetry/config.py.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argus-backend
+data:
+  AWS_REGION: "us-east-1"
+  LOG_LEVEL: "INFO"
+
+  # Janela padrao das consultas, em horas (7 dias). Mesmo default de config.py.
+  DEFAULT_WINDOW_HOURS: "168"
+
+  # Teto de linhas varridas por consulta. Protege o RDS de uma query aberta.
+  MAX_ITEMS_SCANNED: "20000"
+
+  # O dashboard e a API sao servidos pela MESMA origem atraves do Ingress
+  # (/ -> frontend, /api -> backend), entao o navegador nunca emite preflight e
+  # esta lista deixa de ser o que autoriza o acesso. Fica restrita mesmo assim:
+  # se alguem publicar o dashboard em outro host no futuro, o default permissivo
+  # de config.py ("*") passaria despercebido.
+  CORS_ORIGINS: "http://localhost:3000"
+
+  # A API valida o Bearer dentro da aplicacao. No ASG quem ligava isso era o
+  # user_data; aqui e explicito. Desligar exigiria editar este arquivo, o que
+  # aparece no diff da revisao -- diferente de um default silencioso.
+  AUTH_REQUIRED: "1"

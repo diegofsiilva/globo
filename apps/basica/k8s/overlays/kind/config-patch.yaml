@@ -1,0 +1,14 @@
+# Ajustes do ambiente local.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argus-backend
+data:
+  # Sem token local. O operador que roda `make kind-up` nao tem como obter o
+  # Bearer de producao, e exigi-lo tornaria o ambiente local inutil para
+  # desenvolvimento. E o mesmo default de backend/src/telemetry/config.py.
+  AUTH_REQUIRED: "0"
+  LOG_LEVEL: "DEBUG"
+  # O Ingress do kind responde em localhost:8080; a origem e a mesma, mas
+  # manter a porta aqui evita surpresa se alguem apontar o `next dev` para ele.
+  CORS_ORIGINS: "http://localhost:8080,http://localhost:3000"

@@ -1,0 +1,14 @@
+# Job de migration no ambiente local. Mesma razao de estar fora do overlay
+# principal que na AWS -- ver overlays/aws/migrate/kustomization.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argus
+
+resources:
+  - ../../../migrate
+
+images:
+  - name: IMAGE_PROCESSING
+    newName: argus-processing
+    newTag: dev
