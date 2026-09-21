@@ -79,15 +79,18 @@ def test_valores_aceitos_vem_das_constantes_do_codigo(client):
     assert set(field["schema"]["items"]["enum"]) == FACET_FIELDS
 
 
-def test_spec_documenta_somente_a_escrita_estreita_de_feedback(client):
-    """A unica mutacao publica e o feedback idempotente de hipotese."""
+def test_spec_documenta_somente_os_posts_de_hipotese(client):
+    """Os unicos POSTs sao o feedback persistente e o refinamento sem escrita."""
     spec = client.get("/openapi.json").json
 
     writes = set()
     for caminho, operacoes in spec["paths"].items():
         for method in set(operacoes) - {"get"}:
             writes.add((method, caminho))
-    assert writes == {("post", "/api/v1/hypotheses/{hypothesis_id}/feedback")}
+    assert writes == {
+        ("post", "/api/v1/hypotheses/{hypothesis_id}/feedback"),
+        ("post", "/api/v1/hypotheses/{hypothesis_id}/refinement"),
+    }
 
 
 def test_spec_nao_expoe_campo_sensivel_como_filtravel(client):
@@ -130,8 +133,7 @@ def test_apenas_as_rotas_publicas_conhecidas_dispensam_token(client):
         caminho
         for caminho, operacoes in spec["paths"].items()
         for metodo, operacao in operacoes.items()
-        if metodo in {"get", "post", "put", "patch", "delete"}
-        and operacao.get("security") == []
+        if metodo in {"get", "post", "put", "patch", "delete"} and operacao.get("security") == []
     }
 
     assert publicas == {"/health/live", "/docs", "/openapi.json"}

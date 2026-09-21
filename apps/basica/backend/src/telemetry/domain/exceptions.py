@@ -33,3 +33,7 @@ class ResourceNotFoundError(TelemetryError):
 
 class ConflictError(TelemetryError):
     """A operacao conflita com um registro idempotente anterior."""
+
+
+class RefinementUnavailableError(TelemetryError):
+    """O refinamento por LLM falhou ou nao pode provar seu lastro."""
