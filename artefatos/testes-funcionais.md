@@ -679,9 +679,9 @@ que foi medido do que não foi, nos três estados usados no restante do artefato
 
 | Afirmação | Plataforma em que foi medida | Estado quanto ao EKS |
 |---|---|---|
-| Carga da API de leitura nos três níveis | ALB e grupo de auto scaling, 2 instâncias `t4g.small` | Não executado no cluster |
-| Elasticidade sob carga | Target tracking em 60 requisições por instância por minuto | Não executado; no cluster o gatilho é a CPU, pelo HPA, e a métrica não é comparável |
-| Contrato entre dashboard e API, o TI-01 | Duas origens, com CORS | Não executado em origem única |
+| Carga da API de leitura nos três níveis | ALB e grupo de auto scaling, 2 instâncias `t4g.small` | Executado também no cluster em 21/09; ver [Rodada no cluster](#rodada-no-cluster-kubernetes) |
+| Elasticidade sob carga | Target tracking em 60 requisições por instância por minuto | Tentado no cluster e impossível de medir: o HPA ficou sem métrica de CPU durante toda a rodada |
+| Contrato entre dashboard e API, o TI-01 | Duas origens, com CORS | Executado em origem única no cluster local, 3 casos aprovados |
 | Autorização na borda, o TI-05.1 | API Gateway e Lambda authorizer | Não se aplica: o Ingress não passa pelo authorizer |
 | Manifests do cluster | `kubectl kustomize`, sem cluster | Executado, sem erro |
 | Sondas, implantação sem queda e autocura | Cluster `kind` local | Executado, e registrado na seção 5 de [`conteineres-final.md`](conteineres-final.md), não aqui |
@@ -978,13 +978,13 @@ a carga real um dia se aproximar de 100 usuários simultâneos, o recurso a dime
 &emsp; Duas lacunas desta rodada ficam registradas, e nenhuma delas é achado: são
 coisas que não foram feitas.
 
-&emsp; O teto não foi procurado. Os três níveis foram escolhidos por parecerem
-representativos do uso, e todos passaram com folga larga. Um ensaio que quer afirmar
-capacidade precisa de pelo menos um degrau que reprove algum critério. Sem isso o
-relatório afirma "aguenta 100 usuários", o que é verdade, e deixa quem lê imaginando
-se o número seguinte seria 120 ou 12.000. O roteiro já aceita o número de usuários
-por variável de ambiente (`CARGA_UI_VUS_3`), de modo que o custo é tempo de
-execução, sem escrita de código.
+&emsp; O teto não foi procurado nesta rodada. Os três níveis foram escolhidos por
+parecerem representativos do uso, e todos passaram com folga larga. Um ensaio que
+quer afirmar capacidade precisa de pelo menos um degrau que reprove algum critério.
+Sem isso o relatório afirma "aguenta 100 usuários", o que é verdade, e deixa quem lê
+imaginando se o número seguinte seria 120 ou 12.000. A lacuna foi fechada em 21 de
+setembro, contra o cluster, e o resultado está na seção
+[Rodada no cluster Kubernetes](#rodada-no-cluster-kubernetes).
 
 &emsp; Não há captura de painel. Todos os números desta seção vêm do resumo do k6
 e de leituras do CloudWatch transcritas em texto. O repositório versiona um painel
@@ -994,6 +994,71 @@ servido por `make observabilidade-up`, e ele não foi usado. As duas formas de
 evidência cumprem papéis distintos: o número transcrito pode ser conferido contra a
 saída bruta, enquanto a imagem do painel mostra a forma da curva, que é o que
 denuncia degrau, serrilha e saturação. Uma não substitui a outra.
+
+### Rodada no cluster Kubernetes
+
+&emsp; Em 21 de setembro de 2026 as duas lacunas apontadas acima foram atacadas numa
+sessão só, com o cluster EKS no ar e a carga entrando pelo Ingress. Foram duas
+rodadas, ambas geradas de uma EC2 dentro da VPC, pelo mesmo roteiro e com o mesmo
+gerador da rodada de 18 de setembro. A primeira repete os três níveis originais, para
+que a comparação entre plataformas seja de igual para igual. A segunda sobe a carga
+até algum critério reprovar.
+
+&emsp; A comparação de igual para igual, com o mesmo roteiro nos dois caminhos:
+
+| Nível | Usuários | Requisições | p95 no Ingress | p95 no ALB | Tela p95 no Ingress | Tela p95 no ALB |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 | 5 | 1.020 | 90 ms | 94 ms | 121 ms | 157 ms |
+| 2 | 25 | 5.144 | 149 ms | 96 ms | 230 ms | 148 ms |
+| 3 | 100 | 19.411 | 662 ms | 802 ms | 772 ms | 964 ms |
+
+&emsp; Zero erros em 25.576 requisições, como na rodada do balanceador. O cluster sai
+à frente no degrau mais pesado e atrás no do meio, com diferenças pequenas demais
+para sustentar preferência por uma plataforma. O que o número diz é que a troca de
+plataforma não custou desempenho.
+
+&emsp; A segunda rodada procurou o teto, com 200, 450 e 900 usuários simultâneos. O k6
+terminou com código de saída 99, que é como ele sinaliza limiar ultrapassado:
+
+| Nível | Usuários | Requisições | Erros | p95 | Telas completas | Situação |
+|---|---:|---:|---:|---:|---:|---|
+| 1 | 200 | 29.448 | 0% | 2.766 ms | 100% | Aprovado, com 8% de folga no p95 |
+| 2 | 450 | 37.254 | 15,21% | 9.486 ms | 78,77% | Reprovado |
+| 3 | 900 | 31.171 | 24,80% | 30.001 ms | 69,51% | Reprovado por esgotamento do prazo |
+
+&emsp; O teto está entre 200 e 450 usuários simultâneos. Esse é o número que faltava
+ao relatório anterior, e ele reposiciona os 100 usuários da rodada oficial: são
+metade da carga que o sistema ainda atende dentro do critério, e não um valor
+distante de qualquer limite.
+
+&emsp; A ressalva é grande, porém, e precisa vir junto do número. O teto medido é o de
+duas réplicas, porque o autoescalador nunca entrou em ação. O autoescalador passou os 36 minutos de cluster no ar reportando `FailedGetResourceMetric`,
+141 vezes, e o motivo apareceu em uma linha: o `APIService v1beta1.metrics.k8s.io`
+não existe naquele cluster. Sem servidor de métricas não há métrica de CPU, sem
+métrica de CPU o HPA não calcula réplica, e as duas réplicas iniciais atenderam
+sozinhas os 900 usuários do último degrau.
+
+&emsp; Isso contradiz o que o runbook afirma. O [`k8s/README.md`](../apps/basica/k8s/README.md)
+diz que o `metrics-server` já vem no Auto Mode, diferente do `kind`, que precisa
+instalá-lo. A observação em cluster mostra o contrário: o Auto Mode gerencia a
+capacidade de nós, e não instala o servidor de métricas, que continua sendo um
+complemento à parte. A decisão de escalar por CPU, registrada no artefato de
+conteinerização, portanto nunca chegou a funcionar na AWS. No `kind` funciona, porque
+o `make kind-up` instala o `metrics-server` explicitamente.
+
+&emsp; Dois efeitos colaterais apareceram junto. Os dois pods do backend reiniciaram
+duas vezes cada durante a saturação, derrubados pela própria sonda de vida quando ela
+deixou de responder a tempo, o que retira capacidade justamente no momento de maior
+demanda. E o RDS chegou a 86% de CPU sem saturar, o que situa o gargalo desta rodada
+na camada de aplicação. Com o autoescalador funcionando, o teto subiria até encontrar
+o banco, e é essa segunda medição que fica pendente.
+
+&emsp; A evidência bruta das duas rodadas está versionada em
+[`evidencias/carga-kubernetes/`](evidencias/carga-kubernetes/), com o resumo do k6 em
+JSON, a saída de texto e o log de cada instância geradora. O diagnóstico do
+autoescalador está em
+[`evidencias/carga-kubernetes.txt`](evidencias/carga-kubernetes.txt). Endereços,
+identificador de conta e token foram substituídos antes de versionar.
 
 ### Onde está cada coisa e como reproduzir
 
