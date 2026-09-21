@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="3600" height="2320" viewBox="0 0 3600 2320" role="img" aria-labelledby="title desc">
   <title id="title">Diagrama de implantação da arquitetura distribuída do Argus</title>
-  <desc id="desc">Arquitetura híbrida na AWS com ingestão assíncrona em API Gateway, SQS e ECS Fargate, caminho síncrono em Kubernetes no Amazon EKS Auto Mode e persistência em RDS PostgreSQL dentro de uma VPC distribuída em duas zonas de disponibilidade.</desc>
+  <desc id="desc">Arquitetura híbrida na AWS com ingestão assíncrona em API Gateway, SQS e ECS Fargate, caminho síncrono configurável entre EC2/ASG e Amazon EKS Auto Mode, e persistência em RDS PostgreSQL dentro de uma VPC distribuída em duas zonas de disponibilidade.</desc>
 
   <defs>
     <filter id="shadow" x="-10%" y="-10%" width="125%" height="130%">
@@ -44,7 +44,7 @@
 
   <rect width="3600" height="2400" fill="#ffffff"/>
   <text x="1800" y="64" class="title" text-anchor="middle">Diagrama de implantação do Argus — arquitetura final</text>
-  <text x="1800" y="103" class="subtitle" text-anchor="middle">AWS us-east-1 · VPC em duas AZs · ECS Fargate no caminho assíncrono · EKS Auto Mode no caminho síncrono</text>
+  <text x="1800" y="103" class="subtitle" text-anchor="middle">AWS us-east-1 · VPC em duas AZs · ECS Fargate no caminho assíncrono · EC2/ASG ou EKS Auto Mode no caminho síncrono</text>
 
   <!-- Legenda -->
   <g transform="translate(2880,26)">
@@ -120,10 +120,10 @@
     <rect x="55" y="1250" width="430" height="205" class="node"/>
     <text x="270" y="1287" class="stereo">«object storage»</text>
     <text x="270" y="1324" class="node-title">Amazon S3</text>
-    <text x="270" y="1353" class="node-subtitle">bucket «origem»</text>
+    <text x="270" y="1353" class="node-subtitle">origem · frontend no modo EC2</text>
     <rect x="85" y="1373" width="370" height="58" class="artifact"/>
     <text x="270" y="1398" class="artifact-title">Parquet · 33 tabelas</text>
-    <text x="270" y="1422" class="artifact-text">manifesto da carga inicial</text>
+    <text x="270" y="1422" class="artifact-text">manifesto · website estático</text>
   </g>
 
   <!-- ECS/Fargate: caminho assíncrono -->
@@ -160,7 +160,7 @@
 
   <!-- EKS Auto Mode -->
   <rect x="1455" y="390" width="825" height="1285" class="group"/>
-  <text x="1490" y="430" class="section-title" fill="#245bb8">Amazon EKS Auto Mode · Kubernetes 1.33</text>
+  <text x="1490" y="430" class="section-title" fill="#245bb8">Amazon EKS Auto Mode · modalidade Kubernetes</text>
   <text x="1490" y="461" class="section-note">control plane gerenciado; nós e pods nas sub-redes privadas das duas AZs</text>
 
   <g filter="url(#shadow)">
@@ -311,7 +311,7 @@
   <path d="M3090 1465 L3000 1465 L3000 785 L2870 785" class="flow"/>
   <rect x="2915" y="1418" width="170" height="30" class="label-bg"/><text x="3000" y="1439" class="flow-label">SSH 22 restrito</text>
   <path d="M2757 880 L2757 1090 L2260 1090 L2260 1160 L1400 1160 L1400 1390 L1360 1390" class="flow"/>
-  <rect x="2181" y="1122" width="158" height="30" class="label-bg"/><text x="2260" y="1143" class="flow-label">túnel 5432</text>
+  <rect x="2181" y="1122" width="158" height="30" class="label-bg"/><text x="2260" y="1143" class="flow-label">conexão PostgreSQL</text>
   <path d="M2502 880 L2502 1025 L2365 1025 L2365 1525 L2620 1525 L2620 1570" class="flow"/>
 
   <rect x="550" y="1847" width="200" height="30" class="label-bg"/><text x="650" y="1868" class="flow-label">pull de imagens</text>
@@ -351,17 +351,17 @@
     <text x="1480" y="2093" class="node-title">Amazon CloudWatch + SNS</text>
     <rect x="1250" y="2115" width="460" height="95" class="artifact"/>
     <text x="1480" y="2144" class="artifact-title">logs · métricas · alarmes</text>
-    <text x="1480" y="2172" class="artifact-text">VPC Flow Logs · alertas por e-mail</text>
-    <text x="1480" y="2200" class="artifact-text">ALB e serviços centralizados</text>
+    <text x="1480" y="2172" class="artifact-text">VPC Flow Logs em S3 · SNS condicional</text>
+    <text x="1480" y="2200" class="artifact-text">EKS sem coleta central automática</text>
   </g>
 
   <g filter="url(#shadow)">
     <rect x="1780" y="2025" width="520" height="220" class="node"/>
     <text x="2040" y="2058" class="stereo">«serverless function»</text>
-    <text x="2040" y="2093" class="node-title">Lambda authorizer</text>
+    <text x="2040" y="2093" class="node-title">Lambdas de API</text>
     <rect x="1810" y="2115" width="460" height="95" class="artifact"/>
-    <text x="2040" y="2144" class="artifact-title">protege a ingestão</text>
-    <text x="2040" y="2172" class="artifact-text">valida hash do token</text>
+    <text x="2040" y="2144" class="artifact-title">authorizer + API de leitura</text>
+    <text x="2040" y="2172" class="artifact-text">ingestão e dashboard compatíveis</text>
     <text x="2040" y="2200" class="artifact-text">cache de 5 min · falha fechada</text>
   </g>
 
@@ -382,14 +382,14 @@
     <rect x="2930" y="2115" width="460" height="95" class="artifact"/>
     <text x="3160" y="2144" class="artifact-title">infra/ · k8s/base/ · overlays/</text>
     <text x="3160" y="2172" class="artifact-text">AWS e kind · imagens imutáveis</text>
-    <text x="3160" y="2200" class="artifact-text">ASG legado preservado em escala zero</text>
+    <text x="3160" y="2200" class="artifact-text">ASG/EC2 compatível · EKS condicional</text>
   </g>
 
   <!-- Nota de evolução -->
   <rect x="3090" y="1660" width="430" height="210" fill="#fff8e8" stroke="#d99a2b" stroke-width="3" rx="8"/>
-  <text x="3305" y="1697" class="stereo">«fallback de plataforma»</text>
-  <text x="3305" y="1734" class="node-title">ASG/EC2 legado</text>
-  <text x="3305" y="1770" class="artifact-text">recursos mantidos no Terraform</text>
-  <text x="3305" y="1800" class="artifact-text">mínimo = 0 · desejado = 0</text>
-  <text x="3305" y="1830" class="artifact-text">reativável em contingência</text>
+  <text x="3305" y="1697" class="stereo">«modalidade alternativa»</text>
+  <text x="3305" y="1734" class="node-title">ASG/EC2</text>
+  <text x="3305" y="1770" class="artifact-text">API Flask atrás do ALB legado</text>
+  <text x="3305" y="1800" class="artifact-text">modo padrão da develop</text>
+  <text x="3305" y="1830" class="artifact-text">zerado quando EKS está ativo</text>
 </svg>
