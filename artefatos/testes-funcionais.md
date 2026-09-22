@@ -397,9 +397,10 @@ fronteira. Todos foram automatizados e possuem evidência reproduzível pelos
 comandos registrados. Nesta rodada nenhum reprovou.
 
 &emsp; O alcance dessa aprovação para no que foi exercitado: estas unidades, estas
-entradas. Integração entre camadas, cobertura completa de um caso de uso e
-ensaios de carga continuam pendentes, e cada um responde a uma pergunta que
-nenhum teste unitário alcança.
+entradas. As seções seguintes ampliam a verificação com os testes de integração
+e de carga já executados. A cobertura completa de caso de uso e análise de valor
+limite permanece no backlog, porque responde a uma pergunta que os testes
+unitários isolados não alcançam.
 
 ### Instruções para reprodução
 
@@ -990,7 +991,7 @@ mesma sessão de trabalho.
 
 &emsp; São 432 testes aprovados nas suítes que rodam sem credencial de nuvem, mais o
 TI-05, que executado com credencial aprovou um caso e reprovou outro. Os 227 do
-backend incluem os 52 testes unitários da seção anterior e os 3 casos do TI-02. Os 2
+backend incluem os 63 testes unitários do backend e os 3 casos do TI-02. Os 2
 pulados naquela linha são justamente os casos do TI-05, que ficam de fora quando
 `make test-backend` roda sem os tokens da pilha publicada, e por isso o TI-05 tem
 linha própria na tabela.
@@ -1028,11 +1029,12 @@ ambiente limpo em que ele rodar.
 
 ### Cobertura do caminho orquestrado por Kubernetes
 
-&emsp; Os testes deste artefato foram executados em 17 e 18 de setembro de 2026, na
-mesma janela em que o caminho síncrono, com dashboard, API de leitura e
+&emsp; Os testes iniciais deste artefato foram executados em 17 e 18 de setembro de
+2026, na mesma janela em que o caminho síncrono, com dashboard, API de leitura e
 migrations, passou a ser orquestrado por Kubernetes, conforme
-[`conteineres-final.md`](conteineres-final.md). As duas coisas não se cruzaram, e
-convém dizer exatamente onde cada afirmação deste relatório vale.
+[`conteineres-final.md`](conteineres-final.md). Em 21 de setembro, os testes
+alcançaram também o Ingress do EKS, permitindo separar o que foi medido no grupo
+de auto scaling, no cluster local e no cluster publicado.
 
 &emsp; O caminho assíncrono segue intacto. Ingestão, ETL, simulação e carga inicial
 continuam em ECS Fargate porque assim foi decidido, e a razão está documentada: o
@@ -1065,12 +1067,13 @@ valendo como demonstração do mecanismo. Ainda assim, o valor de 4 s nunca foi 
 contra o Auto Mode, e a comparação com os 300 s do `health_check_grace_period` do
 grupo de auto scaling carrega essa ressalva.
 
-&emsp; Nada disso torna a rodada obsoleta. O `create_eks` é `false` por padrão no
-[`variables.tf`](../apps/basica/infra/variables.tf), porque o cluster cobra por hora
-existindo, e o `terraform.tfvars` do repositório mantém o grupo de auto scaling em
-duas instâncias: o caminho medido aqui é o que sobe por padrão. O que falta é uma
-rodada de carga contra o Ingress, capaz de comparar as duas plataformas na mesma
-métrica. Isso é entrega de sprint, fora do alcance de uma revisão de texto.
+&emsp; Nada disso torna a rodada original obsoleta. O `create_eks` é `false` por padrão
+no [`variables.tf`](../apps/basica/infra/variables.tf), porque o cluster cobra por
+hora existindo, e o `terraform.tfvars` do repositório mantém o grupo de auto scaling
+em duas instâncias: esse continua sendo o caminho que sobe por padrão. A rodada de
+21 de setembro fechou a comparação de desempenho contra o Ingress. O que permanece
+pendente é repetir o ensaio com o `metrics-server` instalado, para medir a
+elasticidade do HPA em vez do limite das duas réplicas iniciais.
 
 ## Testes de carga
 
@@ -1505,9 +1508,10 @@ transforma cinco ausências aparentes em cobertura verificável.
 
 ## Conclusão
 
-&emsp; Este artefato percorreu três perguntas em ordem crescente de alcance. Os 52
-testes unitários responderam se cada unidade calcula certo, com tudo em volta
-substituído por dublê, e todos aprovaram. Os cinco testes de integração, com treze
+&emsp; Este artefato percorreu três perguntas em ordem crescente de alcance. Os 133
+testes unitários selecionados nos quatro serviços responderam se cada unidade
+calcula certo, com tudo em volta substituído por dublê, e todos aprovaram. Desse
+conjunto, 63 pertencem ao backend. Os cinco testes de integração, com treze
 casos, responderam se as camadas conversam entre si sem dublê no trecho sob teste:
 doze casos aprovaram e um reprovou, o TI-05.2, na pilha publicada. Os testes de carga
 responderam se o sistema continua respondendo, e em quanto tempo, com 5, 25 e 100
@@ -1526,23 +1530,20 @@ Dockerfile, uma nova imagem em produção e uma segunda rodada que provou o efei
 Nos dois casos a reprovação foi mantida no relatório e investigada até a causa, em
 vez de contornada afrouxando prazo ou critério.
 
-&emsp; Quatro coisas ficam apontadas para a próxima iteração, e nenhuma delas é um
-defeito de código. A ETL precisa de uma métrica de distância entre o marcador e a
-ponta da sequência, para que um acúmulo apareça no dia em que começa e não num teste
-dias depois. O teste de carga precisa de um degrau de aquecimento e de um nível
-longo o bastante para que o auto scaling entre em serviço dentro da janela medida.
-Se o uso real do dashboard um dia se aproximar de 100 usuários simultâneos, o
-recurso a dimensionar é o banco, que chegou a 73% de CPU enquanto a aplicação ficou
-em 8%.
+&emsp; Três coisas ficam apontadas para a próxima iteração, e nenhuma invalida as
+execuções registradas. A ETL precisa de uma métrica de distância entre o marcador e
+a ponta da sequência, para que um acúmulo apareça no dia em que começa e não num
+teste dias depois. A carga no grupo de auto scaling ainda se beneficia de um degrau
+de aquecimento e de um nível longo o bastante para observar a entrada das novas
+instâncias. E a elasticidade do Kubernetes deve ser medida novamente depois da
+instalação do `metrics-server`, pois a rodada no Ingress já comparou o desempenho
+das plataformas e localizou o intervalo de reprovação entre 100 e 200 usuários,
+mas o HPA permaneceu sem métrica e as duas réplicas iniciais atenderam sozinhas.
 
-&emsp; E falta fechar a lacuna que a própria Sprint 4 abriu enquanto estes testes
-rodavam: o caminho síncrono passou a ser orquestrado por Kubernetes, e o que este
-artefato mede do lado da leitura é o grupo de auto scaling, não o cluster. A
-[tabela de cobertura](#cobertura-do-caminho-orquestrado-por-kubernetes) diz linha a
-linha o que vale onde. Dos itens ali, o único já executado é a renderização dos
-manifests; a rodada de carga contra o Ingress é o que permitiria comparar as duas
-plataformas, e ela não cabe numa revisão de texto, até porque o gatilho de escala
-nem é o mesmo dos dois lados.
+&emsp; Assim, integração entre camadas, carga pelo ALB e carga pelo Ingress do EKS
+foram efetivamente executadas. O item ainda fora deste artefato é a seção específica
+de testes de caso de uso e análise do valor limite, registrada no backlog para a
+próxima inclusão.
 
 ## Referências
 
