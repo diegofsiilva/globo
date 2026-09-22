@@ -23,12 +23,10 @@ from telemetry.application.normalization import (
 )
 from telemetry.domain.exceptions import ValidationError
 
-
-# ── TU-05 — parse_datetime ────────────────────────────────────────────────
+# ── TU-BCK-09 — parse_datetime ────────────────────────────────────────────────
 
 
 class TestParseDatetime:
-
     def test_deve_parsear_iso_8601_com_z(self):
         """Caso válido: '2026-07-13T10:30:00Z' vira datetime UTC."""
         resultado = parse_datetime("2026-07-13T10:30:00Z")
@@ -63,11 +61,10 @@ class TestParseDatetime:
         assert resultado.tzinfo is not None
 
 
-# ── TU-06 — parse_json_object ─────────────────────────────────────────────
+# ── TU-BCK-10 — parse_json_object ─────────────────────────────────────────────
 
 
 class TestParseJsonObject:
-
     def test_deve_parsear_json_string_valido(self):
         """Caso válido: string JSON com objeto → dict."""
         resultado = parse_json_object('{"key": "value", "count": 42}', "campo")
@@ -94,11 +91,10 @@ class TestParseJsonObject:
             parse_json_object("[1, 2, 3]", "campo")
 
 
-# ── TU-07 — optional_float / optional_int ─────────────────────────────────
+# ── TU-BCK-11 — optional_float / optional_int ─────────────────────────────────
 
 
 class TestOptionalConversions:
-
     def test_optional_float_converte_string_numerica(self):
         """Caso válido: '3.14' → 3.14."""
         assert optional_float("3.14", "campo") == pytest.approx(3.14)
@@ -122,11 +118,10 @@ class TestOptionalConversions:
             optional_int("3.14", "device_model_year")
 
 
-# ── TU-08 — canonicalize_keys ─────────────────────────────────────────────
+# ── TU-BCK-12 — canonicalize_keys ─────────────────────────────────────────────
 
 
 class TestCanonicalizeKeys:
-
     def test_deve_converter_chaves_csv_para_canonicas(self):
         """Caso válido: 'Event Name' → 'event_name', 'Device Id' → 'device_id'."""
         payload = {
@@ -148,11 +143,10 @@ class TestCanonicalizeKeys:
         assert resultado == payload
 
 
-# ── TU-09 — parse_event_id ────────────────────────────────────────────────
+# ── TU-BCK-13 — parse_event_id ────────────────────────────────────────────────
 
 
 class TestParseEventId:
-
     def test_deve_gerar_uuid_quando_valor_ausente(self):
         """Caso válido: None → UUID v4 gerado automaticamente."""
         resultado = parse_event_id(None)
