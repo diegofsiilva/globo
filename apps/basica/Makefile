@@ -262,7 +262,12 @@ test-observabilidade: ## Valida scripts, Compose e dashboards sem acessar AWS ne
 
 .PHONY: test-authorizer
 test-authorizer: ## Testes do Lambda authorizer (Bearer, audiencias, rotacao)
-	cd $(AUTHORIZER) && uv run --quiet --group dev pytest
+	@# `handler.py` cria o cliente do Secrets Manager no import, e o botocore so
+	@# aceita a regiao por AWS_DEFAULT_REGION -- AWS_REGION, que e o que o .env
+	@# define, nao basta. Sem isso a coleta do pytest quebra com NoRegionError
+	@# numa maquina sem a variavel no shell. Nenhuma chamada sai daqui: o cliente
+	@# so precisa de uma regiao para ser construido.
+	cd $(AUTHORIZER) && AWS_DEFAULT_REGION=$${AWS_DEFAULT_REGION:-$${AWS_REGION:-us-east-1}} uv run --quiet --group dev pytest
 
 # TEST_DATABASE_URL aponta para o banco de teste local por padrao. Os testes que
 # precisam de banco sao PULADOS quando ele nao existe, em vez de quebrarem —
