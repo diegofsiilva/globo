@@ -211,10 +211,32 @@ function resumirNivel(data, nivel) {
   const dur = data.metrics[`http_req_duration{${n}}`];
   const falhas = data.metrics[`http_req_failed{${n}}`];
   const telas = {};
+  const limiares = {
+    agregado: {
+      erros: data.metrics[`http_req_failed{${n}}`]?.thresholds?.["rate<0.01"]?.ok ?? false,
+      req_p95: data.metrics[`http_req_duration{${n}}`]?.thresholds?.["p(95)<3000"]?.ok ?? false,
+      req_p99: data.metrics[`http_req_duration{${n}}`]?.thresholds?.["p(99)<5000"]?.ok ?? false,
+      tela_p95: data.metrics[`tela_ms{${n}}`]?.thresholds?.["p(95)<5000"]?.ok ?? false,
+      telas_completas: data.metrics[`telas_completas{${n}}`]?.thresholds?.["rate>0.99"]?.ok ?? false,
+    },
+    telas: {},
+  };
+  const criteriosFalhos = [];
+  for (const [criterio, atendido] of Object.entries(limiares.agregado)) {
+    if (!atendido) criteriosFalhos.push(`agregado.${criterio}`);
+  }
   for (const tela of TELAS) {
     const t = data.metrics[`tela_ms{${n},tela:${tela}}`];
     const d = data.metrics[`http_req_duration{${n},tela:${tela}}`];
     const f = data.metrics[`http_req_failed{${n},tela:${tela}}`];
+    limiares.telas[tela] = {
+      abertura_p95: t?.thresholds?.["p(95)<5000"]?.ok ?? false,
+      requisicao_p95: d?.thresholds?.["p(95)<3000"]?.ok ?? false,
+      erros: f?.thresholds?.["rate<0.01"]?.ok ?? false,
+    };
+    for (const [criterio, atendido] of Object.entries(limiares.telas[tela])) {
+      if (!atendido) criteriosFalhos.push(`telas.${tela}.${criterio}`);
+    }
     telas[tela] = {
       tela_p50_ms: numero(t, "med").toFixed(0),
       tela_p95_ms: numero(t, "p(95)").toFixed(0),
@@ -236,6 +258,9 @@ function resumirNivel(data, nivel) {
     tela_p95_ms: numero(data.metrics[`tela_ms{${n}}`], "p(95)").toFixed(0),
     telas_completas_pct: (numero(data.metrics[`telas_completas{${n}}`], "rate") * 100).toFixed(2),
     telas,
+    limiares,
+    criterios_falhos: criteriosFalhos,
+    aprovado: criteriosFalhos.length === 0,
   };
 }
 
@@ -249,9 +274,7 @@ export function handleSummary(data) {
     pensar_s: PENSAR_S,
     total_requisicoes: numero(data.metrics.http_reqs, "count"),
     niveis,
-    aprovado: Object.values(data.metrics).every((m) =>
-      !m.thresholds || Object.values(m.thresholds).every((t) => t.ok),
-    ),
+    aprovado: Object.values(niveis).every((nivel) => nivel.aprovado),
   };
   const arquivo = __ENV.K6_RESULT_FILE || "resultados/carga_ui_resultado.json";
   return {

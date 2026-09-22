@@ -106,9 +106,11 @@ com um caso reprovado.
 &emsp; No total, treze casos implementados e executados, doze aprovados e um
 reprovado. O reprovado é o TI-05.2, cuja causa raiz está identificada: o evento
 chegou ao banco, mas a ETL não o promoveu para a camada consultável dentro do prazo
-do teste. A reprovação foi mantida como está, investigada até o fim e transformada
-em correção, em vez de contornada afrouxando o prazo. A execução completa, com a
-saída bruta de cada suíte, está em
+do teste. A reprovação foi mantida como está, investigada até o fim e deu origem
+a uma correção, em vez de ser contornada afrouxando o prazo. A correção foi
+validada localmente pelo plano de execução, mas o fluxo completo na infraestrutura
+publicada ainda não foi reexecutado. A execução original, com a saída bruta de
+cada suíte, está em
 [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt).
 
 &emsp; Este relatório usa os mesmos três estados adotados em
@@ -672,7 +674,9 @@ convém dizer exatamente onde cada afirmação deste relatório vale.
 continuam em ECS Fargate porque assim foi decidido, e a razão está documentada: o
 Learner Lab nega `iam:CreateOpenIDConnectProvider` e `eks-auth:AssumeRoleForPodIdentity`,
 o que torna IRSA e Pod Identity impossíveis e tira do cluster a única vantagem que ele
-teria ali. O TI-03, o TI-04 e o TI-05.2 medem a pilha que está no ar, sem ressalva.
+teria ali. O TI-03 e o TI-04 medem a pilha que está no ar. O TI-05.2 também foi
+executado na pilha publicada, mas reprovou; sua correção ainda não foi reconfirmada
+remotamente.
 
 &emsp; O caminho síncrono é onde a cobertura ficou para trás. A tabela separa o
 que foi medido do que não foi, nos três estados usados no restante do artefato.
@@ -723,7 +727,8 @@ simultâneos, contra a pilha publicada na AWS. Houve duas rodadas. A primeira, g
 da máquina de desenvolvimento, encontrou um defeito de configuração entre o
 balanceador e o servidor de aplicação, que produzia um erro a cada poucas dezenas de
 segundos em qualquer nível de carga. O defeito foi corrigido e implantado, e a segunda
-rodada, gerada de dentro da própria AWS, é a oficial: 25.501 requisições, nenhuma
+rodada, gerada de dentro da própria AWS, é a oficial: 25.501 requisições de carga,
+mais uma requisição de setup para obter o relógio virtual (25.502 no total), nenhuma
 falha, e o percentil 95 abaixo de 1 s mesmo com 100 usuários.
 
 ### Vocabulário usado nesta seção
@@ -957,7 +962,7 @@ portanto indicativa; a medida que vale é a da rodada oficial.
 ### Conclusão
 
 &emsp; A API de leitura atende, com margem, ao RNF02 nos três níveis testados: o
-tempo de resposta ficou abaixo de 1,7 s em todas as 25.501 requisições, contra um
+tempo de resposta ficou abaixo de 1,7 s em todas as 25.501 requisições de carga, contra um
 limite de 5 s; nenhuma requisição falhou; e o p95 para abrir uma tela inteira ficou em
 964 ms com 100 usuários simultâneos. A carga do nível 3, 9.627 requisições por
 minuto, é várias vezes maior que a expectativa de uso de um dashboard interno, e o
@@ -1022,14 +1027,16 @@ terminou com código de saída 99, que é como ele sinaliza limiar ultrapassado:
 
 | Nível | Usuários | Requisições | Erros | p95 | Telas completas | Situação |
 |---|---:|---:|---:|---:|---:|---|
-| 1 | 200 | 29.448 | 0% | 2.766 ms | 100% | Aprovado, com 8% de folga no p95 |
+| 1 | 200 | 29.448 | 0% | 2.766 ms | 100% | Reprovado: viola limiares por tela |
 | 2 | 450 | 37.254 | 15,21% | 9.486 ms | 78,77% | Reprovado |
 | 3 | 900 | 31.171 | 24,80% | 30.001 ms | 69,51% | Reprovado por esgotamento do prazo |
 
-&emsp; O teto está entre 200 e 450 usuários simultâneos. Esse é o número que faltava
-ao relatório anterior, e ele reposiciona os 100 usuários da rodada oficial: são
-metade da carga que o sistema ainda atende dentro do critério, e não um valor
-distante de qualquer limite.
+&emsp; O maior nível aprovado observado foi o de 100 usuários, e o primeiro nível
+reprovado foi o de 200. Portanto, o intervalo experimental do limite está entre
+100 e 200 usuários simultâneos; não há evidência suficiente para afirmar o teto
+exato. O resultado de 200 não pode ser aprovado pelos critérios completos, apesar
+do p95 agregado de 2.766 ms: a tela Agora excedeu 5 s na abertura e 3 s nas requisições, e Recorte excedeu 3 s nas
+requisições.
 
 &emsp; A ressalva é grande, porém, e precisa vir junto do número. O teto medido é o de
 duas réplicas, porque o autoescalador nunca entrou em ação. O autoescalador passou os 36 minutos de cluster no ar reportando `FailedGetResourceMetric`,
@@ -1055,7 +1062,12 @@ o banco, e é essa segunda medição que fica pendente.
 
 &emsp; A evidência bruta das duas rodadas está versionada em
 [`evidencias/carga-kubernetes/`](evidencias/carga-kubernetes/), com o resumo do k6 em
-JSON, a saída de texto e o log de cada instância geradora. O diagnóstico do
+JSON, a saída de texto e o log de cada instância geradora. Para conferir quais
+critérios passaram, a saída de texto é a leitura confiável: ela marca cada linha com
+`✓` para limiar atendido e `✗` para limiar ultrapassado. Nos arquivos
+`*-summary-k6.json` a convenção é a oposta e engana quem lê depressa — ali o booleano
+sob `thresholds` indica que o limiar *foi ultrapassado*, de modo que `true` significa
+reprovado. O diagnóstico do
 autoescalador está em
 [`evidencias/carga-kubernetes.txt`](evidencias/carga-kubernetes.txt). Endereços,
 identificador de conta e token foram substituídos antes de versionar.
@@ -1135,7 +1147,8 @@ substituído por dublê, e todos aprovaram. Os cinco testes de integração, com
 casos, responderam se as camadas conversam entre si sem dublê no trecho sob teste:
 doze casos aprovaram e um reprovou, o TI-05.2, na pilha publicada. Os testes de carga
 responderam se o sistema continua respondendo, e em quanto tempo, com 5, 25 e 100
-pessoas usando o dashboard ao mesmo tempo: 25.501 requisições sem nenhuma falha, com
+pessoas usando o dashboard ao mesmo tempo: 25.501 requisições de carga sem nenhuma falha,
+mais uma requisição de setup, com
 o percentil 95 abaixo de 100 ms até 25 usuários e de 802 ms com 100.
 
 &emsp; O valor deste conjunto está menos no número de aprovações do que nos dois

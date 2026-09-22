@@ -12,7 +12,7 @@ e tokens explícitos: uma execução sem alvo real falha no `setup()`.
 | RNF02 | 11 rotas × 5, 10 usuários concorrentes, filtros semânticos e 600 consultas/min | 100% HTTP 200, nenhuma resposta acima de 5 s, p99 < 5 s |
 | RNF03 | mesmo contrato antes/depois de alterar tasks ECS de 1× para 2× | capacidade 2×, sucesso, p95/p99, zero descarte e persistência |
 | Resiliência | consumidor parado e timeout de cliente em 1 ms | backlog cresce/drena; timeout é detectado e a consulta seguinte recupera |
-| Carga das telas | 5, 25 e 100 usuários abrindo as seis telas do dashboard, 2 min por nível | erros < 1%, p95 < 3 s, p99 < 5 s por requisição; tela inteira em < 5 s no p95; > 99% de telas completas |
+| Carga das telas | 5, 25 e 100 usuários abrindo as seis telas do dashboard, 2 min por nível | erros < 1%, p95 < 3 s, p99 < 5 s por requisição; tela inteira em < 5 s no p95; > 99% de telas completas. Cada critério vale no agregado do nível **e** tela a tela: um nível só é aprovado se as seis telas passarem |
 
 ## Carga das telas do dashboard
 
@@ -22,6 +22,12 @@ frontend envia, em três níveis sequenciais de usuários virtuais. Os níveis, 
 duração, a pausa entre eles e o tempo de pensar saem de `CARGA_UI_VUS_1..3`,
 `CARGA_UI_DURACAO`, `CARGA_UI_PAUSA` e `CARGA_UI_PENSAR_S`. O resultado e a análise
 estão em `artefatos/testes-funcionais.md`, seção "Testes de carga".
+
+O JSON de resultado traz, para cada nível, o campo `limiares` com o veredito de cada
+critério (agregado e por tela), a lista `criterios_falhos` com os que não passaram e o
+booleano `aprovado` do nível. Sem isso o resumo só dizia se a rodada inteira passou, e
+um nível que viola um limiar de uma única tela — sem violar nenhum agregado — passava
+despercebido na leitura manual dos números.
 
 ```bash
 make -C apps/basica teste-carga-ui        # k6 nesta maquina
