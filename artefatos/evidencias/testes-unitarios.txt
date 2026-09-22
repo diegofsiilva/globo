@@ -1,0 +1,79 @@
+EVIDÊNCIA DE EXECUÇÃO DOS TESTES UNITÁRIOS DO ARGUS
+Data: 2026-09-21T16:56:50-03:00
+Ambiente: Linux, Python 3.12.3
+
+1. SUÍTES UNITÁRIAS SELECIONADAS
+
+$ cd apps/basica/backend
+$ uv run --quiet pytest tests/unit --tb=no
+...............................................................          [100%]
+63 passed in 0.04s
+
+$ cd apps/basica/worker
+$ uv run --quiet pytest tests/test_changes.py tests/test_check_size.py tests/test_config.py tests/test_extract.py --tb=no
+.................................                                        [100%]
+33 passed in 0.23s
+
+$ cd apps/basica/simulator
+$ uv run --quiet pytest tests/test_emitter.py tests/test_faults.py --tb=no
+....................                                                     [100%]
+20 passed in 0.04s
+
+$ cd apps/basica/processing
+$ uv run --quiet pytest tests/test_detector_logic.py --tb=no
+.................                                                        [100%]
+17 passed in 0.02s
+
+RESULTADO CONSOLIDADO: 133 aprovados, 0 reprovados.
+
+2. CASOS DETALHADOS TU-01 A TU-09
+
+Mapeamento entre ID documental e nó automatizado:
+TU-01 = test_deve_gerar_hash_deterministico_de_32_hex
+TU-02 = test_deve_levantar_erro_para_formato_desconhecido
+TU-03 = test_serie_um_acima_do_limite_e_truncada
+TU-04 = test_deve_ignorar_grupo_cujo_ultimo_bucket_esta_abaixo_do_limiar
+TU-05 = test_deve_lancar_erro_quando_json_invalido
+TU-06 = test_deve_permitir_payload_exatamente_no_limite
+TU-07 = test_deve_rejeitar_payload_um_byte_acima_do_limite
+TU-08 = test_material_aprova_quando_atende_ambos_limiares
+TU-09 = test_token_do_cabecalho_rejeita_formatos_invalidos
+
+Backend (pytest 8.4.2)
+
+$ uv run --quiet pytest -vv \
+  tests/unit/test_redaction.py::TestHashUserId::test_deve_gerar_hash_deterministico_de_32_hex \
+  tests/unit/test_normalization.py::TestParseDatetime::test_deve_levantar_erro_para_formato_desconhecido \
+  tests/unit/test_timeline.py::TestAmostrarRaia::test_serie_um_acima_do_limite_e_truncada \
+  tests/unit/test_signals.py::TestGenerateSignals::test_deve_ignorar_grupo_cujo_ultimo_bucket_esta_abaixo_do_limiar \
+  tests/unit/test_use_cases_logic.py::TestAuthHelpers::test_token_do_cabecalho_rejeita_formatos_invalidos
+
+tests/unit/test_redaction.py::TestHashUserId::test_deve_gerar_hash_deterministico_de_32_hex PASSED
+tests/unit/test_normalization.py::TestParseDatetime::test_deve_levantar_erro_para_formato_desconhecido PASSED
+tests/unit/test_timeline.py::TestAmostrarRaia::test_serie_um_acima_do_limite_e_truncada PASSED
+tests/unit/test_signals.py::TestGenerateSignals::test_deve_ignorar_grupo_cujo_ultimo_bucket_esta_abaixo_do_limiar PASSED
+tests/unit/test_use_cases_logic.py::TestAuthHelpers::test_token_do_cabecalho_rejeita_formatos_invalidos PASSED
+5 passed in 0.02s
+
+Worker (pytest 9.1.1)
+
+$ uv run --quiet pytest -vv \
+  tests/test_extract.py::TestConsumerExtract::test_deve_lancar_erro_quando_json_invalido \
+  tests/test_check_size.py::TestCheckSize::test_deve_permitir_payload_exatamente_no_limite \
+  tests/test_check_size.py::TestCheckSize::test_deve_rejeitar_payload_um_byte_acima_do_limite
+
+tests/test_extract.py::TestConsumerExtract::test_deve_lancar_erro_quando_json_invalido PASSED
+tests/test_check_size.py::TestCheckSize::test_deve_permitir_payload_exatamente_no_limite PASSED
+tests/test_check_size.py::TestCheckSize::test_deve_rejeitar_payload_um_byte_acima_do_limite PASSED
+3 passed in 0.16s
+
+Processamento (pytest 9.1.1)
+
+$ uv run --quiet pytest -vv \
+  tests/test_detector_logic.py::TestDetectorMaterialAndDirection::test_material_aprova_quando_atende_ambos_limiares
+
+tests/test_detector_logic.py::TestDetectorMaterialAndDirection::test_material_aprova_quando_atende_ambos_limiares PASSED
+1 passed in 0.03s
+
+Todos os comandos terminaram com código 0. Não houve acesso a PostgreSQL, rede,
+SQS ou AWS nesta execução.
