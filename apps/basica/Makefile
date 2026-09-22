@@ -75,12 +75,19 @@ CONTEXTO = $(if $(filter backend frontend,$(1)),$(1),.)
 # As node pools padrao do EKS Auto Mode sao amd64, enquanto o Fargate do caminho
 # assincrono e as maquinas do time sao arm64 (Apple Silicon). Publicar so arm64
 # colocaria o pod em CrashLoopBackOff com `exec format error` -- a mesma falha
-# que ja mordeu o time no ASG. As quatro imagens que rodam SO no Fargate seguem
+# que ja mordeu o time no ASG. As tres imagens que rodam SO no Fargate seguem
 # arm64, que custa ~20% menos e dispensa emulacao no build.
+#
+# `processing` entrou nesta lista em 21/09/2026. Sao TRES as imagens que o
+# cluster executa, e nao duas: alem do backend e do frontend, o `Job` de
+# migration usa a imagem de processing (ver k8s/migrate/job-db-migrate.yaml).
+# Publicada so em arm64, ela nunca poderia ter rodado nos nos amd64 do Auto
+# Mode; no `kind` passava despercebido porque a maquina do dev e amd64. Quem
+# guarda essa invariante agora e tools/verifica_manifests.py.
 #
 # A escolha da plataforma por imagem e feita no `push`, em shell: o nome da
 # imagem la e variavel de SHELL (vem do laco), e uma funcao de make nao alcanca.
-IMAGES_MULTIARCH := backend frontend
+IMAGES_MULTIARCH := backend frontend processing
 
 # A tag que as task definitions referenciam. NUNCA `latest`.
 #
@@ -255,7 +262,12 @@ test-observabilidade: ## Valida scripts, Compose e dashboards sem acessar AWS ne
 
 .PHONY: test-authorizer
 test-authorizer: ## Testes do Lambda authorizer (Bearer, audiencias, rotacao)
-	cd $(AUTHORIZER) && uv run --quiet --group dev pytest
+	@# `handler.py` cria o cliente do Secrets Manager no import, e o botocore so
+	@# aceita a regiao por AWS_DEFAULT_REGION -- AWS_REGION, que e o que o .env
+	@# define, nao basta. Sem isso a coleta do pytest quebra com NoRegionError
+	@# numa maquina sem a variavel no shell. Nenhuma chamada sai daqui: o cliente
+	@# so precisa de uma regiao para ser construido.
+	cd $(AUTHORIZER) && AWS_DEFAULT_REGION=$${AWS_DEFAULT_REGION:-$${AWS_REGION:-us-east-1}} uv run --quiet --group dev pytest
 
 # TEST_DATABASE_URL aponta para o banco de teste local por padrao. Os testes que
 # precisam de banco sao PULADOS quando ele nao existe, em vez de quebrarem —
@@ -393,12 +405,22 @@ parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
 .PHONY: images
 images: $(addprefix image-,$(IMAGES)) ## Constroi as imagens (ARM64)
 
+# Build-args de quem tem configuracao COMPILADA para dentro do artefato. O Next
+# resolve `NEXT_PUBLIC_*` em tempo de build e congela o valor no bundle: passar a
+# variavel no ambiente do contêiner nao tem efeito nenhum.
+#
+# Sem esta linha, o `ARG NEXT_PUBLIC_HYPOTHESES_SOURCE=mock` do Dockerfile
+# vencia, e a imagem do dashboard ia para o cluster com a tela de Hipoteses
+# servida por dado simulado -- enquanto o caminho antigo, do S3, usava `api`
+# (ver `frontend-build`). O E2E-05 pega isso.
+BUILD_ARGS_frontend := --build-arg NEXT_PUBLIC_HYPOTHESES_SOURCE=$(HYPOTHESES_SOURCE)
+
 .PHONY: $(addprefix image-,$(IMAGES))
 $(addprefix image-,$(IMAGES)): image-%:
 	@# Build local: uma arquitetura so, a da propria maquina. O multi-arquitetura
 	@# custa o dobro do tempo e so faz falta ao publicar -- ver `push`.
 	docker build -f $*/Dockerfile -t argus-$*:dev \
-	  --build-arg GIT_SHA=$(GIT_SHA) $(call CONTEXTO,$*)
+	  --build-arg GIT_SHA=$(GIT_SHA) $(BUILD_ARGS_$*) $(call CONTEXTO,$*)
 
 .PHONY: image-tag
 image-tag: ## Mostra a tag de imagem deste commit
@@ -513,8 +535,10 @@ push: ## Publica as imagens no ECR com a tag do commit
 	  plataformas="linux/arm64"; \
 	  case " $(IMAGES_MULTIARCH) " in *" $$nome "*) plataformas="linux/amd64,linux/arm64";; esac; \
 	  echo "    plataformas: $$plataformas"; \
+	  extra=""; \
+	  case "$$nome" in frontend) extra="$(BUILD_ARGS_frontend)";; esac; \
 	  docker buildx build --platform "$$plataformas" -f $$nome/Dockerfile \
-	    --build-arg GIT_SHA=$(GIT_SHA) \
+	    --build-arg GIT_SHA=$(GIT_SHA) $$extra \
 	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" --push "$$contexto"; \
 	done
 	@echo
@@ -914,6 +938,16 @@ observabilidade-check: ## Valida Prometheus, Grafana e os dois datasources (Prom
 teste-performance: ## Executa a suite k6 (CENARIO=todos; COM_GRAFANA=1 habilita metricas)
 	$(TESTES_CARGA)/executar_testes.sh "$${CENARIO:-todos}" \
 		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-carga-ui
+teste-carga-ui: ## Carga sobre as telas do dashboard em 3 niveis (5, 25 e 100 usuarios)
+	$(TESTES_CARGA)/executar_testes.sh carga-ui \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-carga-ui-ec2
+teste-carga-ui-ec2: ## Mesma carga das telas, gerada de uma EC2 descartavel dentro da VPC
+	@$(call require_env,AWS_PROFILE)
+	$(TESTES_CARGA)/gerador_ec2.sh carga-ui
 
 .PHONY: teste-lote-drenagem
 teste-lote-drenagem: ## Injeta 1 lote logico de 150 mil eventos (nao mede sozinho a drenagem)
@@ -1451,6 +1485,11 @@ k8s-validate: ## Renderiza todos os overlays sem tocar em cluster nenhum
 	  $(KUBECTL) kustomize $(K8S)/$$alvo > /dev/null; \
 	  echo "ok"; \
 	done
+	@# O kustomize so responde "este YAML e valido". As invariantes que ele nao
+	@# alcanca -- ordem das regras do Ingress, arquitetura das imagens e as chaves
+	@# do Secret -- ficam no verificador, que tambem nao toca em cluster nenhum.
+	@python3 $(TOOLS)/verifica_manifests.py \
+	  --k8s $(K8S) --makefile Makefile --kubectl $(KUBECTL)
 
 # --------------------------------------------------------------------------- #
 # Kubernetes local (kind)

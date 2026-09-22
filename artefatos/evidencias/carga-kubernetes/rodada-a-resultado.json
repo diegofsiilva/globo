@@ -1,0 +1,181 @@
+{
+  "requisito": "carga-ui",
+  "test_id": "20260921T183035Z",
+  "meta": "erros < 1%, p95 < 3 s e p99 < 5 s por requisicao; tela aberta em < 5 s no p95",
+  "pensar_s": 2,
+  "total_requisicoes": 25576,
+  "niveis": {
+    "nivel_1": {
+      "usuarios": 5,
+      "duracao": "2m",
+      "requisicoes": 1020,
+      "telas_abertas": 290,
+      "erros_pct": "0.00",
+      "p50_ms": "8",
+      "p95_ms": "90",
+      "p99_ms": "303",
+      "max_ms": "2571",
+      "tela_p95_ms": "121",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "40",
+          "tela_p95_ms": "2563",
+          "tela_max_ms": "2572",
+          "req_p95_ms": "818",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "9",
+          "tela_p95_ms": "93",
+          "tela_max_ms": "95",
+          "req_p95_ms": "53",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "6",
+          "tela_p95_ms": "58",
+          "tela_max_ms": "67",
+          "req_p95_ms": "24",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "30",
+          "tela_p95_ms": "83",
+          "tela_max_ms": "103",
+          "req_p95_ms": "49",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "62",
+          "tela_p95_ms": "128",
+          "tela_max_ms": "153",
+          "req_p95_ms": "105",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "7",
+          "tela_p95_ms": "187",
+          "tela_max_ms": "306",
+          "req_p95_ms": "134",
+          "erros_pct": "0.00"
+        }
+      }
+    },
+    "nivel_2": {
+      "usuarios": 25,
+      "duracao": "2m",
+      "requisicoes": 5144,
+      "telas_abertas": 1461,
+      "erros_pct": "0.00",
+      "p50_ms": "7",
+      "p95_ms": "149",
+      "p99_ms": "1858",
+      "max_ms": "2882",
+      "tela_p95_ms": "230",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "29",
+          "tela_p95_ms": "541",
+          "tela_max_ms": "639",
+          "req_p95_ms": "420",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "8",
+          "tela_p95_ms": "20",
+          "tela_max_ms": "61",
+          "req_p95_ms": "12",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "5",
+          "tela_p95_ms": "23",
+          "tela_max_ms": "208",
+          "req_p95_ms": "16",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "30",
+          "tela_p95_ms": "240",
+          "tela_max_ms": "318",
+          "req_p95_ms": "93",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "62",
+          "tela_p95_ms": "2402",
+          "tela_max_ms": "2882",
+          "req_p95_ms": "1890",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "5",
+          "tela_p95_ms": "41",
+          "tela_max_ms": "1079",
+          "req_p95_ms": "19",
+          "erros_pct": "0.00"
+        }
+      }
+    },
+    "nivel_3": {
+      "usuarios": 100,
+      "duracao": "2m",
+      "requisicoes": 19411,
+      "telas_abertas": 5592,
+      "erros_pct": "0.00",
+      "p50_ms": "15",
+      "p95_ms": "662",
+      "p99_ms": "1069",
+      "max_ms": "1806",
+      "tela_p95_ms": "772",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "72",
+          "tela_p95_ms": "1234",
+          "tela_max_ms": "1884",
+          "req_p95_ms": "1031",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "8",
+          "tela_p95_ms": "29",
+          "tela_max_ms": "778",
+          "req_p95_ms": "19",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "6",
+          "tela_p95_ms": "98",
+          "tela_max_ms": "482",
+          "req_p95_ms": "62",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "68",
+          "tela_p95_ms": "731",
+          "tela_max_ms": "1317",
+          "req_p95_ms": "603",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "283",
+          "tela_p95_ms": "1012",
+          "tela_max_ms": "1296",
+          "req_p95_ms": "882",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "6",
+          "tela_p95_ms": "591",
+          "tela_max_ms": "1199",
+          "req_p95_ms": "496",
+          "erros_pct": "0.00"
+        }
+      }
+    }
+  },
+  "aprovado": true
+}

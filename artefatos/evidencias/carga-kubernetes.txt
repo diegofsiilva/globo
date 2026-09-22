@@ -1,0 +1,43 @@
+# Caminho síncrono no EKS: rodadas de carga contra o Ingress e diagnóstico do HPA
+# 21 de setembro de 2026. Cluster argus-events-livia-dev-eks, EKS Auto Mode 1.33, nós amd64.
+# URLs e identificadores de conta substituídos; nenhum token aparece.
+
+## Estado do cluster ao fim das rodadas
+  deployment.apps/argus-backend    2/2   2     2     36m
+  deployment.apps/argus-frontend   2/2   2     2     36m
+  horizontalpodautoscaler.autoscaling/argus-backend    Deployment/argus-backend    cpu: <unknown>/60%   2     6     2     36m
+  horizontalpodautoscaler.autoscaling/argus-frontend   Deployment/argus-frontend   cpu: <unknown>/70%   2     4     2     36m
+  poddisruptionbudget.policy/argus-backend    1     N/A   1     36m
+  poddisruptionbudget.policy/argus-frontend   1     N/A   1     36m
+
+## Nós
+  amd64   v1.33.13-eks-bca9cf6
+  amd64   v1.33.13-eks-bca9cf6
+
+## O HPA nunca obteve métrica
+    ScalingActive  False   FailedGetResourceMetric  the HPA was unable to compute the replica count: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+    Warning  FailedComputeMetricsReplicas  33m (x12 over 36m)   horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+    Warning  FailedGetResourceMetric       73s (x141 over 36m)  horizontal-pod-autoscaler  failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+
+## O APIService de métricas não existe neste cluster
+  Error from server (NotFound): apiservices.apiregistration.k8s.io "v1beta1.metrics.k8s.io" not found
+
+## Reinícios do backend sob saturação
+  argus-backend-7f7cb4dc7-9nk5m   1/1   Running   2 (6m35s ago)   25m
+  argus-backend-7f7cb4dc7-sp22q   1/1   Running   2 (5m52s ago)   25m
+
+## Rodada A — comparável (5, 25 e 100 usuários)
+   meta: erros < 1%, p95 < 3 s e p99 < 5 s por requisicao; tela aberta em < 5 s no p95
+   nivel     VUs    reqs   erros%    p50      p95      p99      max  telap95   telas%
+   nivel_1     5    1020     0.00      8       90      303     2571      121   100.00
+   nivel_2    25    5144     0.00      7      149     1858     2882      230   100.00
+   nivel_3   100   19411     0.00     15      662     1069     1806      772   100.00
+   total de requisicoes: 25576
+
+## Rodada B — busca de limite (200, 450 e 900 usuários)
+   meta: erros < 1%, p95 < 3 s e p99 < 5 s por requisicao; tela aberta em < 5 s no p95
+   nivel     VUs    reqs   erros%    p50      p95      p99      max  telap95   telas%
+   nivel_1   200   29448     0.00    405     2766     3870     5936     3076   100.00
+   nivel_2   450   37254    15.21   1104     9486    11236    12380    10166    78.77
+   nivel_3   900   31171    24.80   4406    30001    30007    30055    30120    69.51
+   total de requisicoes: 97874
