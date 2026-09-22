@@ -87,6 +87,7 @@ terraform output -raw read_api_url
 | `GET /api/v1/hypotheses` | listagem filtrável com paginação keyset |
 | `GET /api/v1/hypotheses/{id}` | linhagem, findings, evidências, qualidade e score |
 | `POST /api/v1/hypotheses/{id}/feedback` | feedback idempotente; payload máximo de 4 KiB |
+| `POST /api/v1/hypotheses/{id}/refinement` | resposta Ollama ancorada na hipótese e em suas evidências |
 
 | Rota | Para quê |
 |---|---|
@@ -213,6 +214,52 @@ rodar local com o dono, consultas que a produção recusaria vão passar.
 | `DEFAULT_WINDOW_HOURS` | `168` | janela quando não se informa período |
 | `MAX_ITEMS_SCANNED` | `20000` | teto de linhas lidas numa agregação |
 | `CORS_ORIGINS` | `*` | restringir antes de produção |
+| `OLLAMA_URL` | — | habilita o refinamento; com SSH pode ser `http://ollama.internal:11434` |
+| `OLLAMA_MODEL` | — | opcional; vazio seleciona o primeiro modelo instalado |
+| `OLLAMA_TIMEOUT_SECONDS` | `90` | timeout total da inferência; o modelo remoto atual tem 30B |
+| `OLLAMA_SSH_HOST` | — | host SSH fornecido pelo parceiro |
+| `OLLAMA_SSH_PORT` | `22` | porta SSH |
+| `OLLAMA_SSH_USER` | — | usuário SSH |
+| `OLLAMA_SSH_PASSWORD` | — | senha somente no `.env` ignorado pelo Git |
+| `OLLAMA_REMOTE_HOST` | `127.0.0.1` | endereço do Ollama visto pelo servidor remoto |
+| `OLLAMA_REMOTE_PORT` | `11434` | porta do Ollama no servidor remoto |
+
+### Ollama remoto por SSH
+
+O refinamento acontece depois da leitura da hipótese publicada; ele não altera o
+motor determinístico, o score ou as evidências. Cada afirmação devolvida precisa
+citar ids presentes na hipótese. Formato inválido, citação inexistente ou falha
+de rede resulta em `503`, sem resposta parcialmente aterrada.
+
+Preencha no `.env` apenas os dados recebidos:
+
+```env
+OLLAMA_SSH_HOST=10.8.8.10
+OLLAMA_SSH_USER=<usuario>
+OLLAMA_SSH_PASSWORD=<senha>
+OLLAMA_URL=http://ollama.internal:11434
+```
+
+Ao iniciar o backend, o adaptador prepara uma sessão SSH persistente. Quando a
+tela recebe uma hipótese, ela solicita o refinamento automaticamente e o backend
+executa o cliente HTTP no próprio servidor remoto; não há botão nem comando de
+túnel, e não é necessário habilitar port forwarding no SSH. Se
+`OLLAMA_MODEL` estiver vazio, o backend consulta `/api/tags` pelo mesmo canal e
+usa o primeiro modelo instalado. A senha existe somente no `.env` local, que é
+ignorado pelo Git.
+
+Se a conta foi criada com senha temporária, faça uma única conexão interativa
+com `ssh <usuario>@10.8.8.10`, defina a nova senha solicitada pelo servidor e
+atualize `OLLAMA_SSH_PASSWORD`. As inferências seguintes são inteiramente
+automáticas e não usam o terminal.
+
+Exemplo de chamada:
+
+```bash
+curl -X POST "$API/api/v1/hypotheses/42/refinement" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Quais evidencias sustentam esta hipotese?"}'
+```
 
 O pool nasce com `min_size=0` de propósito, o oposto do que se faz num worker:
 uma Lambda ociosa é congelada, e conexões ociosas de centenas de execuções

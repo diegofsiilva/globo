@@ -17,12 +17,10 @@ from telemetry.application.redaction import (
     sanitize_url,
 )
 
-
-# ── TU-01 — hash_user_id ─────────────────────────────────────────────────
+# ── TU-BCK-05 — hash_user_id ─────────────────────────────────────────────────
 
 
 class TestHashUserId:
-
     def test_deve_gerar_hash_deterministico_de_32_hex(self):
         """Caso válido: user_id presente gera SHA-256 truncado em 32 chars."""
         salt = "meu-salt-secreto"
@@ -54,11 +52,10 @@ class TestHashUserId:
         assert h1 != h2
 
 
-# ── TU-02 — sanitize_url ─────────────────────────────────────────────────
+# ── TU-BCK-06 — sanitize_url ─────────────────────────────────────────────────
 
 
 class TestSanitizeUrl:
-
     def test_deve_remover_token_e_preservar_parametros_seguros(self):
         """Caso válido: 'token' sai, 'page' e 'sort' ficam."""
         url = "https://api.example.com/data?page=2&token=abc123&sort=asc"
@@ -89,11 +86,10 @@ class TestSanitizeUrl:
         assert sanitize_url("") is None
 
 
-# ── TU-03 — redact_headers ───────────────────────────────────────────────
+# ── TU-BCK-07 — redact_headers ───────────────────────────────────────────────
 
 
 class TestRedactHeaders:
-
     def test_deve_manter_apenas_headers_da_allowlist(self):
         """Caso válido: Content-Type e X-Client-Version passam; Authorization e Cookie não."""
         headers = {
@@ -125,11 +121,10 @@ class TestRedactHeaders:
         assert "ACCEPT" not in resultado
 
 
-# ── TU-04 — redact_attributes ────────────────────────────────────────────
+# ── TU-BCK-08 — redact_attributes ────────────────────────────────────────────
 
 
 class TestRedactAttributes:
-
     def test_deve_remover_campos_bloqueados_e_sanitizar_url(self):
         """Caso válido: authorization e response_headers saem; request_url é sanitizada."""
         attributes = {

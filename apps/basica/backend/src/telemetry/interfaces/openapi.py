@@ -168,6 +168,35 @@ def _hypothesis_paths() -> dict[str, Any]:
                 },
             }
         },
+        "/api/v1/hypotheses/{hypothesis_id}/refinement": {
+            "post": {
+                "tags": ["Hipoteses"],
+                "summary": "Refina uma hipotese com Ollama",
+                "description": (
+                    "A resposta usa somente a hipotese publicada e devolve as fontes "
+                    "citadas por cada afirmacao. Nao altera o diagnostico."
+                ),
+                "parameters": [hypothesis_id],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {"question": {"type": "string", "maxLength": 500}},
+                            }
+                        }
+                    },
+                },
+                "responses": {
+                    "200": {"description": "Resposta refinada, citada e rastreavel"},
+                    "404": {"$ref": "#/components/responses/NaoEncontrado"},
+                    "422": {"$ref": "#/components/responses/Invalido"},
+                    "503": {"description": "Ollama indisponivel ou resposta sem lastro"},
+                },
+            }
+        },
     }
 
 
