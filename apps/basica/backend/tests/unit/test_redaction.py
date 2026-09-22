@@ -17,7 +17,7 @@ from telemetry.application.redaction import (
     sanitize_url,
 )
 
-# ── TU-01 — hash_user_id ─────────────────────────────────────────────────
+# ── TU-BCK-05 — hash_user_id ─────────────────────────────────────────────────
 
 
 class TestHashUserId:
@@ -52,7 +52,7 @@ class TestHashUserId:
         assert h1 != h2
 
 
-# ── TU-02 — sanitize_url ─────────────────────────────────────────────────
+# ── TU-BCK-06 — sanitize_url ─────────────────────────────────────────────────
 
 
 class TestSanitizeUrl:
@@ -86,7 +86,7 @@ class TestSanitizeUrl:
         assert sanitize_url("") is None
 
 
-# ── TU-03 — redact_headers ───────────────────────────────────────────────
+# ── TU-BCK-07 — redact_headers ───────────────────────────────────────────────
 
 
 class TestRedactHeaders:
@@ -121,7 +121,7 @@ class TestRedactHeaders:
         assert "ACCEPT" not in resultado
 
 
-# ── TU-04 — redact_attributes ────────────────────────────────────────────
+# ── TU-BCK-08 — redact_attributes ────────────────────────────────────────────
 
 
 class TestRedactAttributes:

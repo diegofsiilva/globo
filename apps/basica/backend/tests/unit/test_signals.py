@@ -16,7 +16,7 @@ from telemetry.application.signals import (
     _signal_id,
 )
 
-# ── TU-11 — _severidade ──────────────────────────────────────────────────
+# ── TU-BCK-15 — _severidade ──────────────────────────────────────────────────
 
 
 class TestSeveridade:
@@ -58,7 +58,7 @@ class TestSeveridade:
         assert _severidade(-LIMIAR_CRITICAL) == "critical"
 
 
-# ── TU-12 — _signal_id ───────────────────────────────────────────────────
+# ── TU-BCK-16 — _signal_id ───────────────────────────────────────────────────
 
 
 class TestSignalId:
@@ -81,7 +81,7 @@ class TestSignalId:
         assert all(c in "0123456789abcdef" for c in result)
 
 
-# ── TU-13 — GenerateSignals.execute (com repositório fake) ───────────────
+# ── TU-BCK-17 — GenerateSignals.execute (com repositório fake) ───────────────
 
 
 class _FakeSignalsRepository:

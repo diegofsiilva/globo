@@ -23,7 +23,7 @@ from telemetry.application.normalization import (
 )
 from telemetry.domain.exceptions import ValidationError
 
-# ── TU-05 — parse_datetime ────────────────────────────────────────────────
+# ── TU-BCK-09 — parse_datetime ────────────────────────────────────────────────
 
 
 class TestParseDatetime:
@@ -61,7 +61,7 @@ class TestParseDatetime:
         assert resultado.tzinfo is not None
 
 
-# ── TU-06 — parse_json_object ─────────────────────────────────────────────
+# ── TU-BCK-10 — parse_json_object ─────────────────────────────────────────────
 
 
 class TestParseJsonObject:
@@ -91,7 +91,7 @@ class TestParseJsonObject:
             parse_json_object("[1, 2, 3]", "campo")
 
 
-# ── TU-07 — optional_float / optional_int ─────────────────────────────────
+# ── TU-BCK-11 — optional_float / optional_int ─────────────────────────────────
 
 
 class TestOptionalConversions:
@@ -118,7 +118,7 @@ class TestOptionalConversions:
             optional_int("3.14", "device_model_year")
 
 
-# ── TU-08 — canonicalize_keys ─────────────────────────────────────────────
+# ── TU-BCK-12 — canonicalize_keys ─────────────────────────────────────────────
 
 
 class TestCanonicalizeKeys:
@@ -143,7 +143,7 @@ class TestCanonicalizeKeys:
         assert resultado == payload
 
 
-# ── TU-09 — parse_event_id ────────────────────────────────────────────────
+# ── TU-BCK-13 — parse_event_id ────────────────────────────────────────────────
 
 
 class TestParseEventId:

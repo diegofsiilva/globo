@@ -6,7 +6,7 @@ Função testada:
 
 from telemetry.application.timeline import amostrar_raia
 
-# ── TU-10 — amostrar_raia ─────────────────────────────────────────────────
+# ── TU-BCK-14 — amostrar_raia ─────────────────────────────────────────────────
 
 
 class TestAmostrarRaia:
