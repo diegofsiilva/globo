@@ -1,8 +1,9 @@
 # Testes funcionais, unitários e de carga
 
 &emsp; Este documento registra como os testes do Argus foram planejados, escritos e
-executados, e o que eles produziram. Esta entrega cobre unidades de lógica de
-quatro serviços: backend, worker de ingestão, simulador e motor de processamento.
+executados, e o que eles produziram. A seção de testes unitários cobre unidades
+de lógica de quatro serviços: backend, worker de ingestão, simulador e motor de
+processamento, integradas na branch `develop`.
 
 ## Testes Unitários
 
@@ -54,17 +55,17 @@ na hora de contar o que foi testado.
 | Fake, stub ou `monkeypatch` | Recurso para substituir uma dependência e manter a unidade isolada |
 | `assert` ou `pytest.raises` | Verificação do resultado ou do erro esperado |
 
-Exemplo real simplificado de `test_check_size.py`:
+Exemplo real simplificado de `test_normalization.py`:
 
 ```python
-class TestCheckSize:  # agrupamento do pytest
-    def test_deve_rejeitar_payload_um_byte_acima_do_limite(self):  # caso
-        with pytest.raises(ChangeTooLarge):  # resultado esperado
-            check_size(change_acima)  # unidade testada: função de produção
+class TestParseDatetime:  # agrupamento do pytest
+    def test_deve_levantar_erro_para_formato_desconhecido(self):  # caso
+        with pytest.raises(ValidationError, match="invalido"):  # resultado esperado
+            parse_datetime("nao-e-uma-data")  # unidade testada: função de produção
 ```
 
-&emsp; Nesse exemplo, `check_size` é a unidade, `TestCheckSize` organiza os casos e
-`test_deve_rejeitar_payload_um_byte_acima_do_limite` é um caso automatizado.
+&emsp; Nesse exemplo, `parse_datetime` é a unidade, `TestParseDatetime` organiza os
+casos e `test_deve_levantar_erro_para_formato_desconhecido` é um caso automatizado.
 Daí a leitura correta do número: os 133 contam casos executados, e as unidades
 por trás deles são bem menos, já que uma mesma função costuma aparecer em vários
 casos entre válidos, de erro e de fronteira.
@@ -97,9 +98,8 @@ respectivos serviços. As configurações do pytest estão nos arquivos
 &emsp; Nove casos foram escolhidos para documentação detalhada, procurando cobrir
 situações de naturezas diferentes: o comportamento nominal, a recusa de dado
 inválido, a proteção de informação pessoal, a autenticação e a análise de sinais.
-Os dois últimos são os lados opostos da fronteira de 4 MB, no limite exato e um
-byte acima dele. O restante dos 12 arquivos continua valendo como suíte de
-regressão.
+Os TU-06 e TU-07 são os lados opostos da fronteira de 4 MB, no limite exato e um
+byte acima dele. O restante dos 12 arquivos continua valendo como suíte de regressão.
 
 | ID | Unidade testada | Tipo de unidade | Natureza do caso | Requisito ou caso de uso relacionado | Arquivo automatizado |
 |---|---|---|---|---|---|
@@ -117,138 +117,262 @@ regressão.
 
 #### TU-01 - Gerar identificador desidentificado e determinístico
 
-- **Objetivo:** verificar que `hash_user_id` transforma um identificador em um
-  hash estável, sem expor o valor original, apoiando o RNF10.
-- **Unidade testada:** função `hash_user_id`, em
-  [`redaction.py`](../apps/basica/backend/src/telemetry/application/redaction.py).
-- **Pré-condições:** ambiente do backend instalado pelo `uv`; nenhuma conexão
-  externa é necessária.
-- **Dados de entrada:** `user_id="usuario-123"` e
-  `salt="meu-salt-secreto"`.
-- **Procedimento:** executar o nó pytest indicado em Instruções para reprodução;
-  o teste calcula independentemente o SHA-256 esperado e compara os 32
-  caracteres iniciais.
-- **Resultado esperado:** hash hexadecimal determinístico com 32 caracteres.
-- **Resultado obtido:** valor, tamanho e alfabeto hexadecimal aprovados.
-- **Situação:** Aprovado.
-- **Evidência:** saída `PASSED` para o nó TU-01 no arquivo de evidência.
+&emsp; Este caso verifica a desidentificação usada para impedir que o backend exponha
+diretamente o identificador do usuário. A comparação não usa um valor copiado da
+implementação: o próprio teste calcula o SHA-256 esperado e confronta o resultado.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-01 |
+| Objetivo | Verificar que `hash_user_id` transforma um identificador em um hash estável sem expor o valor original |
+| Requisito | RNF10, proteção dos dados coletados |
+| Unidade testada | Função `hash_user_id`, em [`redaction.py`](../apps/basica/backend/src/telemetry/application/redaction.py) |
+| Pré-condições | Ambiente do backend instalado pelo `uv`; nenhuma conexão externa necessária |
+| Dados de entrada | `user_id="usuario-123"` e `salt="meu-salt-secreto"` |
+| Procedimento | Executar o nó pytest do caso; o teste calcula independentemente o SHA-256 de `salt:user_id`, recorta os 32 primeiros caracteres e compara valor, tamanho e alfabeto |
+| Situação | Aprovado |
+| Evidência | `test_redaction.py` aprovado no bloco da execução em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-01.1 | Identificador e salt válidos | Hash determinístico, hexadecimal e com 32 caracteres | Valor igual ao SHA-256 calculado de forma independente; tamanho e caracteres hexadecimais confirmados | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/backend
+uv run pytest tests/unit/test_redaction.py::TestHashUserId::test_deve_gerar_hash_deterministico_de_32_hex -v
+```
 
 #### TU-02 - Rejeitar data em formato desconhecido
 
-- **Objetivo:** garantir que uma data não interpretável não seja silenciosamente
-  aceita durante a normalização de telemetria.
-- **Unidade testada:** função `parse_datetime`, em
-  [`normalization.py`](../apps/basica/backend/src/telemetry/application/normalization.py).
-- **Pré-condições:** ambiente do backend instalado; nenhuma dependência externa.
-- **Dados de entrada:** string `"nao-e-uma-data"`.
-- **Procedimento:** chamar `parse_datetime` dentro de `pytest.raises` e validar
-  a exceção de domínio e a mensagem contendo `invalido`.
-- **Resultado esperado:** `ValidationError`; nenhum `datetime` produzido.
-- **Resultado obtido:** a exceção esperada foi capturada.
-- **Situação:** Aprovado.
-- **Evidência:** nó TU-02 marcado como `PASSED` no arquivo de evidência.
+&emsp; Este é o caso de erro da seleção. Ele protege a fronteira de normalização:
+uma data incompreensível deve ser recusada de forma tipada, em vez de virar um
+horário incorreto ou avançar silenciosamente pelo pipeline.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-02 |
+| Objetivo | Garantir que uma data não interpretável seja rejeitada durante a normalização da telemetria |
+| Requisitos | RF01/RF03, receber telemetria sem aceitar data inválida |
+| Unidade testada | Função `parse_datetime`, em [`normalization.py`](../apps/basica/backend/src/telemetry/application/normalization.py) |
+| Pré-condições | Ambiente do backend instalado; nenhuma dependência externa |
+| Dados de entrada | String `"nao-e-uma-data"` |
+| Procedimento | Chamar `parse_datetime` dentro de `pytest.raises` e verificar a classe da exceção e a presença de `invalido` na mensagem |
+| Situação | Aprovado |
+| Evidência | `test_normalization.py` aprovado no bloco da execução em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-02.1 | Texto que não corresponde a nenhum formato de data aceito | `ValidationError` com indicação de valor inválido; nenhum `datetime` produzido | A exceção de domínio e a mensagem esperadas foram capturadas | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/backend
+uv run pytest tests/unit/test_normalization.py::TestParseDatetime::test_deve_levantar_erro_para_formato_desconhecido -v
+```
 
 #### TU-03 - Amostrar série um ponto acima do limite
 
-- **Objetivo:** confirmar que `amostrar_raia` reduz uma série que ultrapassa o
-  limite sem perder as extremidades temporais usadas pela Timeline.
-- **Unidade testada:** função `amostrar_raia`, em
-  [`timeline.py`](../apps/basica/backend/src/telemetry/application/timeline.py).
-- **Pré-condições:** lista ordenada em memória; nenhuma conexão externa.
-- **Dados de entrada:** 101 pontos e `limite=100`.
-- **Procedimento:** executar a função e verificar `truncated=True`, quantidade
-  menor ou igual a 100 e preservação do primeiro e do último ponto.
-- **Resultado esperado:** série truncada, com extremos preservados.
-- **Resultado obtido:** todas as pós-condições foram atendidas.
-- **Situação:** Aprovado.
-- **Evidência:** nó TU-03 marcado como `PASSED` no arquivo de evidência.
+&emsp; Este caso usa o primeiro valor acima da fronteira aceita. Além de confirmar a
+redução, verifica que a amostragem preserva as duas extremidades temporais, necessárias
+para que a Timeline não apresente uma janela diferente daquela consultada.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-03 |
+| Objetivo | Confirmar que `amostrar_raia` reduz uma série que ultrapassa o limite sem perder as extremidades temporais |
+| Requisito | RF12, apresentar gráficos e indicadores |
+| Unidade testada | Função `amostrar_raia`, em [`timeline.py`](../apps/basica/backend/src/telemetry/application/timeline.py) |
+| Pré-condições | Lista ordenada criada em memória; nenhuma conexão externa |
+| Dados de entrada | 101 pontos sequenciais e `limite=100` |
+| Procedimento | Executar a função e verificar o indicador de truncamento, a quantidade retornada e a preservação do primeiro e do último ponto |
+| Situação | Aprovado |
+| Evidência | `test_timeline.py` aprovado no bloco da execução em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-03.1 | Série com 101 pontos para um limite de 100 | `truncated=True`, no máximo 100 pontos e extremos preservados | Truncamento ativado, quantidade dentro do limite e primeiro e último pontos mantidos | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/backend
+uv run pytest tests/unit/test_timeline.py::TestAmostrarRaia::test_serie_um_acima_do_limite_e_truncada -v
+```
 
 #### TU-04 - Ignorar sinal que deixou de exceder o limiar
 
-- **Objetivo:** verificar que o backend não apresenta como ativo um sinal cujo
-  bucket mais recente voltou à faixa estável.
-- **Unidade testada:** método `GenerateSignals.execute`, em
-  [`signals.py`](../apps/basica/backend/src/telemetry/application/signals.py).
-- **Pré-condições:** repositório fake em memória retornando dois buckets.
-- **Dados de entrada:** primeiro bucket com `z=3.0` e último com `z=1.5`, abaixo
-  do limiar de sinal `2.0`.
-- **Procedimento:** executar o caso de uso e inspecionar `count` e `items`.
-- **Resultado esperado:** `count=0` e `items=[]`.
-- **Resultado obtido:** nenhum sinal ativo foi produzido.
-- **Situação:** Aprovado.
-- **Evidência:** nó TU-04 marcado como `PASSED` no arquivo de evidência.
+&emsp; Este caso exercita um fluxo alternativo do caso de uso sem acessar banco. Um
+repositório fake fornece os buckets necessários e mantém sob teste somente a decisão
+de apresentar ou descartar o sinal.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-04 |
+| Objetivo | Verificar que o backend não apresenta como ativo um sinal cujo bucket mais recente voltou à faixa estável |
+| Requisito | RF13, destacar falhas de maior impacto |
+| Unidade testada | Método `GenerateSignals.execute`, em [`signals.py`](../apps/basica/backend/src/telemetry/application/signals.py) |
+| Pré-condições | Repositório fake em memória retornando dois buckets; nenhuma conexão externa |
+| Dados de entrada | Bucket anterior com `z=3.0` e bucket mais recente com `z=1.5`, abaixo do limiar de sinal `2.0` |
+| Procedimento | Instanciar `GenerateSignals` com o fake, executar o caso de uso no intervalo dos buckets e inspecionar `count` e `items` |
+| Situação | Aprovado |
+| Evidência | `test_signals.py` aprovado no bloco da execução em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-04.1 | Dois buckets do mesmo sinal, sendo o último estável | `count=0` e `items=[]` | Nenhum sinal ativo foi produzido | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/backend
+uv run pytest tests/unit/test_signals.py::TestGenerateSignals::test_deve_ignorar_grupo_cujo_ultimo_bucket_esta_abaixo_do_limiar -v
+```
 
 #### TU-05 - Rejeitar JSON inválido recebido pelo worker
 
-- **Objetivo:** confirmar que um corpo corrompido é identificado antes da
-  persistência e recebe motivo de falha reproduzível.
-- **Unidade testada:** função `_extract`, em
-  [`consumer.py`](../apps/basica/worker/src/argus_worker/consumer.py).
-- **Pré-condições:** ambiente do worker instalado; não requer SQS nem banco.
-- **Dados de entrada:** corpo `"{ chave_sem_fechar: "` e chave `"events"`.
-- **Procedimento:** chamar `_extract` dentro de `pytest.raises` e comparar a
-  mensagem de erro com `JSON invalido`.
-- **Resultado esperado:** `ValueError` identificando JSON inválido.
-- **Resultado obtido:** exceção e mensagem esperadas foram observadas.
-- **Situação:** Aprovado.
-- **Evidência:** nó TU-05 marcado como `PASSED` no arquivo de evidência.
+&emsp; Este caso verifica a primeira barreira do consumidor. Um corpo corrompido deve
+ser identificado antes de qualquer tentativa de persistência e produzir um motivo
+de falha reproduzível.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-05 |
+| Objetivo | Confirmar que o worker recusa um corpo JSON corrompido antes da persistência |
+| Requisitos | RNF04/RNF11, isolar a entrada inválida e identificar a falha |
+| Unidade testada | Função `_extract`, em [`consumer.py`](../apps/basica/worker/src/argus_worker/consumer.py) |
+| Pré-condições | Ambiente do worker instalado; nenhuma fila SQS ou banco necessário |
+| Dados de entrada | Corpo `"{ chave_sem_fechar: "` e chave `"events"` |
+| Procedimento | Chamar `_extract` dentro de `pytest.raises` e comparar a mensagem da exceção com `JSON invalido` |
+| Situação | Aprovado |
+| Evidência | Nó TU-05 aprovado em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-05.1 | Corpo que não pode ser interpretado como JSON | `ValueError` identificando JSON inválido; nenhuma estrutura extraída | Exceção e mensagem esperadas observadas | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/worker
+uv run pytest tests/test_extract.py::TestConsumerExtract::test_deve_lancar_erro_quando_json_invalido -v
+```
 
 #### TU-06 - Aceitar payload exatamente no limite de 4 MB
 
-- **Objetivo:** provar que a guarda de tamanho não rejeita um change event ainda
-  permitido pelo contrato.
-- **Unidade testada:** função `check_size`, em
-  [`repository.py`](../apps/basica/worker/src/argus_worker/repository.py).
-- **Pré-condições:** `MAX_CHANGE_BYTES=4.000.000`; mesma serialização da
-  implementação.
-- **Dados de entrada:** dicionário cujo JSON possui exatamente `4.000.000` bytes.
-- **Procedimento:** confirmar o tamanho serializado e chamar `check_size`.
-- **Resultado esperado:** retorno sem exceção.
-- **Resultado obtido:** o payload no limite foi aceito.
-- **Situação:** Aprovado.
-- **Evidência:** nó TU-06 marcado como `PASSED` no arquivo de evidência.
+&emsp; Este caso cobre o último valor válido da fronteira de tamanho. Ele comprova que
+a guarda não rejeita um change event que ainda pertence ao contrato aceito.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-06 |
+| Objetivo | Verificar que a guarda de tamanho aceita um payload exatamente no limite |
+| Requisito | RNF04, impedir que payload inválido comprometa o fluxo |
+| Unidade testada | Função `check_size`, em [`repository.py`](../apps/basica/worker/src/argus_worker/repository.py) |
+| Pré-condições | `MAX_CHANGE_BYTES=4.000.000`; uso da mesma serialização da implementação |
+| Dados de entrada | Dicionário cujo JSON serializado possui exatamente `4.000.000` bytes |
+| Procedimento | Confirmar o tamanho serializado e chamar `check_size` diretamente |
+| Situação | Aprovado |
+| Evidência | Nó TU-06 aprovado em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-06.1 | JSON com exatamente 4.000.000 bytes | Retorno sem exceção | Payload no limite aceito | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/worker
+uv run pytest tests/test_check_size.py::TestCheckSize::test_deve_permitir_payload_exatamente_no_limite -v
+```
 
 #### TU-07 - Rejeitar payload um byte acima do limite
 
-- **Objetivo:** comprovar o primeiro valor inválido após a fronteira de tamanho.
-- **Unidade testada:** função `check_size`, no mesmo arquivo do TU-06.
-- **Pré-condições:** iguais às do TU-06.
-- **Dados de entrada:** JSON de exatamente `4.000.001` bytes.
-- **Procedimento:** chamar `check_size` dentro de `pytest.raises`.
-- **Resultado esperado:** lançamento de `ChangeTooLarge`.
-- **Resultado obtido:** `ChangeTooLarge` foi capturada.
-- **Situação:** Aprovado.
-- **Evidência:** nó TU-07 marcado como `PASSED` no arquivo de evidência.
+&emsp; Este é o par negativo do TU-06. Ao usar o primeiro valor inválido depois da
+fronteira, ele comprova que a comparação de tamanho não possui erro de inclusão.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-07 |
+| Objetivo | Comprovar que a guarda rejeita o primeiro valor acima do limite permitido |
+| Requisito | RNF04, rejeitar payload irrecuperável sem comprometer os demais |
+| Unidade testada | Função `check_size`, em [`repository.py`](../apps/basica/worker/src/argus_worker/repository.py) |
+| Pré-condições | Iguais às do TU-06 |
+| Dados de entrada | Dicionário cujo JSON serializado possui exatamente `4.000.001` bytes |
+| Procedimento | Confirmar o tamanho e chamar `check_size` dentro de `pytest.raises` |
+| Situação | Aprovado |
+| Evidência | Nó TU-07 aprovado em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-07.1 | JSON com exatamente 4.000.001 bytes | Lançamento de `ChangeTooLarge` | Exceção `ChangeTooLarge` capturada | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/worker
+uv run pytest tests/test_check_size.py::TestCheckSize::test_deve_rejeitar_payload_um_byte_acima_do_limite -v
+```
 
 #### TU-08 - Aprovar desvio que atende aos dois critérios de materialidade
 
-- **Objetivo:** verificar que uma evidência só é material quando atende
-  simultaneamente aos limites absoluto e relativo.
-- **Unidade testada:** função `_material`, em
-  [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py).
-- **Pré-condições:** política com limite absoluto `10.0` e relativo `0.20`.
-- **Dados de entrada:** observado `125.0` e esperado `100.0`, com diferença
-  absoluta `25.0` e relativa `25%`.
-- **Procedimento:** executar `_material` com a política indicada.
-- **Resultado esperado:** `True`, pois ambos os critérios são atendidos.
-- **Resultado obtido:** retorno `True`.
-- **Situação:** Aprovado.
-- **Evidência:** nó TU-08 marcado como `PASSED` no arquivo de evidência.
+&emsp; Este caso verifica a conjunção das duas regras de materialidade. Um desvio só
+deve seguir para a análise quando supera simultaneamente os limites absoluto e
+relativo definidos pela política.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-08 |
+| Objetivo | Verificar que uma evidência é material quando atende simultaneamente aos limites absoluto e relativo |
+| Requisitos | RF17/RNF08, hipóteses apoiadas por evidências relevantes |
+| Unidade testada | Função `_material`, em [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py) |
+| Pré-condições | Política com limite absoluto `10.0` e relativo `0.20` |
+| Dados de entrada | Valor observado `125.0` e esperado `100.0`, diferença absoluta `25.0` e relativa `25%` |
+| Procedimento | Executar `_material` com os valores e a política indicados e comparar o retorno booleano |
+| Situação | Aprovado |
+| Evidência | Nó TU-08 aprovado em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-08.1 | Desvio acima dos dois limites da política | `True` | Retorno `True` | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/processing
+uv run pytest tests/test_detector_logic.py::TestDetectorMaterialAndDirection::test_material_aprova_quando_atende_ambos_limiares -v
+```
 
 #### TU-09 - Rejeitar cabeçalhos de autenticação inválidos
 
-- **Objetivo:** garantir que esquemas diferentes de Bearer, valores vazios e
-  entradas ausentes não sejam interpretados como credenciais.
-- **Unidade testada:** função `_token_do_cabecalho`, em
-  [`auth.py`](../apps/basica/backend/src/telemetry/interfaces/auth.py).
-- **Pré-condições:** nenhuma; função pura.
-- **Dados de entrada:** `None`, string vazia, `"Basic dXNlcjpwYXNz"`,
-  `"Bearer"` e `"Bearer    "`.
-- **Procedimento:** executar a função para cada entrada e comparar o retorno.
-- **Resultado esperado:** `None` em todos os casos.
-- **Resultado obtido:** todas as entradas foram rejeitadas.
-- **Situação:** Aprovado.
-- **Evidência:** nó TU-09 marcado como `PASSED` no arquivo de evidência.
+&emsp; Este caso cobre entradas ausentes, vazias e com esquema incorreto. A unidade
+deve devolver ausência de credencial, impedindo que esses valores avancem como um
+token Bearer válido.
+
+| Campo | Conteúdo |
+|---|---|
+| Identificador | TU-09 |
+| Objetivo | Garantir que cabeçalhos ausentes ou fora do formato Bearer não sejam interpretados como credenciais |
+| Requisito | RNF09, acesso apenas com credencial autorizada |
+| Unidade testada | Função `_token_do_cabecalho`, em [`auth.py`](../apps/basica/backend/src/telemetry/interfaces/auth.py) |
+| Pré-condições | Nenhuma; função pura executada em memória |
+| Dados de entrada | `None`, string vazia, `"Basic dXNlcjpwYXNz"`, `"Bearer"` e `"Bearer    "` |
+| Procedimento | Executar a função para cada entrada e comparar todos os retornos com `None` |
+| Situação | Aprovado |
+| Evidência | Nó TU-09 aprovado em [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+
+| Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|---|
+| TU-09.1 | Cinco formas ausentes ou inválidas de cabeçalho | `None` para todas as entradas | Todas as entradas rejeitadas com retorno `None` | Aprovado |
+
+&emsp; Para reproduzir apenas este caso:
+
+```bash
+cd apps/basica/backend
+uv run pytest tests/unit/test_use_cases_logic.py::TestAuthHelpers::test_token_do_cabecalho_rejeita_formatos_invalidos -v
+```
 
 ### Resultado consolidado da execução
 
@@ -267,9 +391,10 @@ ensaios de carga. Os testes que dependem de PostgreSQL ficam fora desta contagem
 #### Conclusão
 
 &emsp; A entrega cumpre o que a especificação pede e vai além em amplitude. O mínimo
-eram quatro casos; foram 133, com as unidades identificadas uma a uma, cobrindo
-entrada válida, erro e fronteira, todos automatizados e com evidência que se
-reproduz pelo comando registrado. Nesta rodada nenhum reprovou.
+eram quatro casos; a suíte executada reuniu 133, dos quais nove foram escolhidos e
+descritos em detalhe, com a unidade identificada, entradas válidas, erro e
+fronteira. Todos foram automatizados e possuem evidência reproduzível pelos
+comandos registrados. Nesta rodada nenhum reprovou.
 
 &emsp; O alcance dessa aprovação para no que foi exercitado: estas unidades, estas
 entradas. Integração entre camadas, cobertura completa de um caso de uso e
@@ -304,10 +429,10 @@ cd ../processing
 uv run --quiet pytest tests/test_detector_logic.py --tb=no
 ```
 
-&emsp; Para rodar apenas os nove casos detalhados, use os nós pytest que o arquivo
-[`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) registra um a
-um. A reprodução confere quando o processo termina com código `0`, todos os nós
-aparecem como `PASSED` e nenhuma linha traz `FAILED`.
+&emsp; Os comandos de cada um dos nove casos detalhados aparecem imediatamente após
+sua tabela. A reprodução confere
+quando o processo termina com código `0`, o caso aparece como `PASSED` e nenhuma
+linha traz `FAILED`.
 
 ## Testes de integração
 
