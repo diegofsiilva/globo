@@ -1,74 +1,313 @@
-# Testes Funcionais
+# Testes funcionais, unitários e de carga
 
-## Testes unitários
+&emsp; Este documento registra como os testes do Argus foram planejados, escritos e
+executados, e o que eles produziram. Esta entrega cobre unidades de lógica de
+quatro serviços: backend, worker de ingestão, simulador e motor de processamento.
 
-### Informações gerais
+## Testes Unitários
 
-| Item | Valor |
-|---|---|
-| Ferramenta | pytest 8.4.2 (Python 3.12.3) |
-| Comando de execução | `cd apps/basica/backend && .venv/bin/python -m pytest tests/unit -v` |
-| Localização dos testes | `apps/basica/backend/tests/unit/` |
-| Quantidade de testes | 52 |
-| Resultado final | ✅ 52 passed, 0 failed, 0 errors |
-| Tempo de execução | 0.04 s |
-| Evidência | [`artefatos/evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+### Objetivo e escopo
 
-### Arquivos de teste
+&emsp; O que torna estes testes unitários é o isolamento. Cada um exercita uma função,
+um método ou uma classe em memória, sem subir PostgreSQL, sem tocar nas filas SQS
+e sem chamar a AWS. A suíte roda em `pytest` e cobre entradas válidas, entradas
+inválidas e valores nas fronteiras.
 
-| Arquivo | Módulo testado | Testes |
+#### Critérios de aceite desta etapa
+
+| Critério | Evidência observada | Situação |
 |---|---|---|
-| `tests/unit/test_redaction.py` | `telemetry.application.redaction` | 15 |
-| `tests/unit/test_normalization.py` | `telemetry.application.normalization` | 20 |
-| `tests/unit/test_timeline.py` | `telemetry.application.timeline` | 6 |
-| `tests/unit/test_signals.py` | `telemetry.application.signals` | 11 |
+| Pelo menos quatro testes unitários implementados | 133 casos automatizados em 12 arquivos | Aprovado |
+| Função, método ou classe testada identificada | Unidade indicada na matriz e no arquivo de cada teste | Aprovado |
+| Casos válidos e casos de erro | TU-01, TU-03, TU-06 e TU-08 válidos; TU-02, TU-04, TU-05, TU-07 e TU-09 de erro ou rejeição | Aprovado |
+| Uso de ferramenta automatizada | `pytest` nos quatro serviços | Aprovado |
+| Testes efetivamente executados | 133 aprovados e nenhuma falha na execução de 21/09/2026 | Aprovado |
+| Código, comandos e evidências localizáveis | Caminhos, comandos e evidências registrados em Ambiente, ferramenta e localização, Resultado consolidado da execução e Instruções para reprodução | Aprovado |
 
-### Isolamento
+### Ambiente, ferramenta e localização
 
-Todos os testes são puramente unitários:
+#### Ambiente da execução
 
-- Nenhuma dependência de banco de dados, AWS, rede ou API externa.
-- A classe `GenerateSignals` (que depende de um repositório) foi isolada com um stub (`_FakeSignalsRepository`).
-- Execução completa em menos de 0,1 s.
+| Item | Valor observado |
+|---|---|
+| Data e hora | 21/09/2026, 16:56:50 (UTC-03:00) |
+| Sistema | Linux |
+| Linguagem | Python 3.12.3 |
+| Ferramenta | pytest |
+| Versão no backend | pytest 8.4.2 |
+| Versão nos demais serviços | pytest 9.1.1 |
+| Dependências externas | Nenhuma para os arquivos unitários selecionados |
+| Evidência textual | [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
 
-### Tabela de casos de teste
+#### O que é uma unidade nos scripts pytest
 
-| ID | Unidade testada | Tipo | Entrada | Resultado esperado | Resultado obtido | Situação |
-|---|---|---|---|---|---|---|
-| TU-01 | `redaction.hash_user_id` | Válido | `"usuario-123"`, salt `"meu-salt-secreto"` | Hash SHA-256 truncado em 32 hex chars, determinístico | Hash correto de 32 chars | ✅ Aprovado |
-| TU-02 | `redaction.hash_user_id` | Erro | `None`, `""`, `"***"` | `None` para todas as entradas | `None` retornado | ✅ Aprovado |
-| TU-03 | `redaction.sanitize_url` | Válido | URL com `token=abc123&page=2&sort=asc` | `token` removido, `page` e `sort` preservados | URL sanitizada corretamente | ✅ Aprovado |
-| TU-04 | `redaction.sanitize_url` | Erro | `None`, `""` | `None` | `None` retornado | ✅ Aprovado |
-| TU-05 | `redaction.redact_headers` | Válido | Dict com Content-Type, Authorization, Cookie | Apenas Content-Type e X-Client-Version sobrevivem | Filtragem correta | ✅ Aprovado |
-| TU-06 | `redaction.redact_headers` | Erro | `"string"`, `None`, `42` | `{}` sem exceção | `{}` retornado | ✅ Aprovado |
-| TU-07 | `redaction.redact_attributes` | Válido | Dict com `authorization`, `response_headers`, `request_url` com token | Campos bloqueados removidos, URL sanitizada | Redação aplicada corretamente | ✅ Aprovado |
-| TU-08 | `normalization.parse_datetime` | Válido | `"2026-07-13T10:30:00Z"` | datetime UTC com year=2026, month=7, hour=10 | datetime correto em UTC | ✅ Aprovado |
-| TU-09 | `normalization.parse_datetime` | Erro | `None` | `ValidationError` com "obrigatorio" | Exceção levantada | ✅ Aprovado |
-| TU-10 | `normalization.parse_datetime` | Erro | `"nao-e-uma-data"` | `ValidationError` com "invalido" | Exceção levantada | ✅ Aprovado |
-| TU-11 | `normalization.parse_json_object` | Válido | `'{"key": "value"}'` | `{"key": "value"}` | Dict parseado | ✅ Aprovado |
-| TU-12 | `normalization.parse_json_object` | Erro | `"{invalido"` | `ValidationError` com "JSON valido" | Exceção levantada | ✅ Aprovado |
-| TU-13 | `normalization.parse_json_object` | Erro | `"[1, 2, 3]"` | `ValidationError` com "objeto JSON" | Exceção levantada | ✅ Aprovado |
-| TU-14 | `normalization.optional_float` | Válido | `"3.14"` | `3.14` (float) | `3.14` retornado | ✅ Aprovado |
-| TU-15 | `normalization.optional_float` | Erro | `"abc"` | `ValidationError` com "numerico" | Exceção levantada | ✅ Aprovado |
-| TU-16 | `normalization.optional_int` | Válido | `"2024"` | `2024` (int) | `2024` retornado | ✅ Aprovado |
-| TU-17 | `normalization.optional_int` | Erro | `"3.14"` | `ValidationError` com "inteiro" | Exceção levantada | ✅ Aprovado |
-| TU-18 | `normalization.canonicalize_keys` | Válido | `{"Event Name": "request"}` | `{"event_name": "request"}` | Chave mapeada | ✅ Aprovado |
-| TU-19 | `normalization.parse_event_id` | Válido | `None` | UUID v4 gerado | Instância de UUID | ✅ Aprovado |
-| TU-20 | `normalization.parse_event_id` | Erro | `"nao-e-uuid"` | `ValidationError` com "UUID" | Exceção levantada | ✅ Aprovado |
-| TU-21 | `timeline.amostrar_raia` | Válido | 50 pontos, limite=100 | Lista intacta, `truncated=False` | Sem redução | ✅ Aprovado |
-| TU-22 | `timeline.amostrar_raia` | Válido | 500 pontos, limite=10 | ≤10 pontos com bordas preservadas | Bordas presentes | ✅ Aprovado |
-| TU-23 | `timeline.amostrar_raia` | Erro previsto | 200 pontos, limite=50 | Sem duplicatas na amostra | Zero duplicatas | ✅ Aprovado |
-| TU-24 | `timeline.amostrar_raia` | Limite | `[]`, limite=100 | `([], False)` | Lista vazia | ✅ Aprovado |
-| TU-25 | `signals._severidade` | Válido | `4.0`, `2.5`, `2.0` | `critical`, `warning`, `stable` | Classificação correta | ✅ Aprovado |
-| TU-26 | `signals._severidade` | Limite | `2.49`, `2.5`, `3.99`, `4.0` | `stable→warning→warning→critical` | Transições exatas | ✅ Aprovado |
-| TU-27 | `signals._signal_id` | Válido | Tripla `("pop-sp", "app-video", "p95_latency")` | ID de 16 hex chars, determinístico | ID estável | ✅ Aprovado |
-| TU-28 | `signals.GenerateSignals.execute` | Válido | 2 buckets com z=3.0, value=120, media=50 | 1 sinal, severity=warning, multiplier=2.4 | Sinal montado | ✅ Aprovado |
-| TU-29 | `signals.GenerateSignals.execute` | Erro previsto | Último bucket com z=1.5 (< limiar 2.0) | 0 sinais, items=[] | Sinal filtrado | ✅ Aprovado |
-| TU-30 | `signals.GenerateSignals.execute` | Válido | 5 sinais, limite=2 | count=2, truncated=True, ordenado por |z| desc | Truncamento com ranking | ✅ Aprovado |
+&emsp; Neste documento, **unidade** é o menor elemento do código de produção exercitado
+isoladamente: uma função, um método ou uma classe. Vale distingui-la da estrutura
+que o pytest usa para organizar a suíte, porque as duas costumam ser confundidas
+na hora de contar o que foi testado.
 
-> **Nota:** A tabela acima resume os 30 cenários principais. Os 52 testes completos incluem subcasos adicionais dentro de cada grupo (ex: salts diferentes, formato americano de data, threshold_value calculado, etc.). A evidência completa está em [`testes-unitarios.txt`](evidencias/testes-unitarios.txt).
+| Elemento encontrado no script | Significado |
+|---|---|
+| Função ou método importado do diretório `src/` | Unidade de produção sob teste |
+| Função com nome iniciado por `test_` | Caso de teste automatizado, com entrada e resultado esperado |
+| Classe com nome iniciado por `Test` | Agrupamento de casos relacionados; não é, por si só, a unidade testada |
+| Fake, stub ou `monkeypatch` | Recurso para substituir uma dependência e manter a unidade isolada |
+| `assert` ou `pytest.raises` | Verificação do resultado ou do erro esperado |
 
----
+Exemplo real simplificado de `test_check_size.py`:
+
+```python
+class TestCheckSize:  # agrupamento do pytest
+    def test_deve_rejeitar_payload_um_byte_acima_do_limite(self):  # caso
+        with pytest.raises(ChangeTooLarge):  # resultado esperado
+            check_size(change_acima)  # unidade testada: função de produção
+```
+
+&emsp; Nesse exemplo, `check_size` é a unidade, `TestCheckSize` organiza os casos e
+`test_deve_rejeitar_payload_um_byte_acima_do_limite` é um caso automatizado.
+Daí a leitura correta do número: os 133 contam casos executados, e as unidades
+por trás deles são bem menos, já que uma mesma função costuma aparecer em vários
+casos entre válidos, de erro e de fronteira.
+
+#### Inventário do código executado
+
+| Serviço | Arquivo de teste | Unidades principais | Tipo de unidade | Casos |
+|---|---|---|---|---:|
+| Backend | [`test_normalization.py`](../apps/basica/backend/tests/unit/test_normalization.py) | `parse_datetime`, `parse_json_object`, conversões, chaves e UUID | Funções | 20 |
+| Backend | [`test_redaction.py`](../apps/basica/backend/tests/unit/test_redaction.py) | `hash_user_id`, `sanitize_url`, `redact_headers`, `redact_attributes` | Funções | 15 |
+| Backend | [`test_signals.py`](../apps/basica/backend/tests/unit/test_signals.py) | `_severidade`, `_signal_id`, `GenerateSignals.execute` | Funções e método de caso de uso | 11 |
+| Backend | [`test_timeline.py`](../apps/basica/backend/tests/unit/test_timeline.py) | `amostrar_raia` | Função | 6 |
+| Backend | [`test_use_cases_logic.py`](../apps/basica/backend/tests/unit/test_use_cases_logic.py) | resumo, janelas, cursores e autenticação | Funções | 11 |
+| Worker | [`test_changes.py`](../apps/basica/worker/tests/test_changes.py) | `ChangeEvent`, `parse_change` | Classe/modelo e função | 7 |
+| Worker | [`test_check_size.py`](../apps/basica/worker/tests/test_check_size.py) | `check_size` | Função | 4 |
+| Worker | [`test_config.py`](../apps/basica/worker/tests/test_config.py) | `_env_int`, `Config.from_env` | Função e método de classe | 8 |
+| Worker | [`test_extract.py`](../apps/basica/worker/tests/test_extract.py) | `_extract`, `_registro_recusado`, `_serializavel` | Funções | 14 |
+| Simulador | [`test_emitter.py`](../apps/basica/simulator/tests/test_emitter.py) | `_blocos` | Função | 5 |
+| Simulador | [`test_faults.py`](../apps/basica/simulator/tests/test_faults.py) | `Falha.alcanca`, `Falha.aplicar`, `sortear`, `_params` | Métodos de instância e funções | 15 |
+| Processamento | [`test_detector_logic.py`](../apps/basica/processing/tests/test_detector_logic.py) | transformações, materialidade, direção, qualidade e scoring | Funções | 17 |
+| **Total** | **12 arquivos** | **conjunto de unidades isoladas** | **Funções, métodos e classe/modelo** | **133 casos** |
+
+&emsp; Os arquivos-fonte exercitados ficam nos diretórios `src/telemetry`,
+`src/argus_worker`, `src/argus_simulator` e `src/argus_processing` dos
+respectivos serviços. As configurações do pytest estão nos arquivos
+`pyproject.toml` de cada serviço.
+
+### Planejamento e rastreabilidade
+
+&emsp; Nove casos foram escolhidos para documentação detalhada, procurando cobrir
+situações de naturezas diferentes: o comportamento nominal, a recusa de dado
+inválido, a proteção de informação pessoal, a autenticação e a análise de sinais.
+Os dois últimos são os lados opostos da fronteira de 4 MB, no limite exato e um
+byte acima dele. O restante dos 12 arquivos continua valendo como suíte de
+regressão.
+
+| ID | Unidade testada | Tipo de unidade | Natureza do caso | Requisito ou caso de uso relacionado | Arquivo automatizado |
+|---|---|---|---|---|---|
+| TU-01 | `hash_user_id` | Função | Válido | RNF10, proteção dos dados coletados | `backend/tests/unit/test_redaction.py` |
+| TU-02 | `parse_datetime` | Função | Erro | RF01/RF03, receber telemetria sem aceitar data inválida | `backend/tests/unit/test_normalization.py` |
+| TU-03 | `amostrar_raia` | Função | Fronteira válida | RF12, apresentar gráficos e indicadores | `backend/tests/unit/test_timeline.py` |
+| TU-04 | `GenerateSignals.execute` | Método de caso de uso | Fluxo alternativo | RF13, destacar falhas de maior impacto | `backend/tests/unit/test_signals.py` |
+| TU-05 | `_extract` | Função | Erro | RNF04/RNF11, isolar entrada inválida e identificar a falha | `worker/tests/test_extract.py` |
+| TU-06 | `check_size` | Função | Limite aceito | RNF04, impedir que payload inválido comprometa o fluxo | `worker/tests/test_check_size.py` |
+| TU-07 | `check_size` | Função | Imediatamente acima | RNF04, rejeitar payload irrecuperável | `worker/tests/test_check_size.py` |
+| TU-08 | `_material` | Função | Válido | RF17/RNF08, hipóteses apoiadas por evidências relevantes | `processing/tests/test_detector_logic.py` |
+| TU-09 | `_token_do_cabecalho` | Função | Erro | RNF09, acesso apenas com credencial autorizada | `backend/tests/unit/test_use_cases_logic.py` |
+
+### Especificação e resultado dos casos
+
+#### TU-01 - Gerar identificador desidentificado e determinístico
+
+- **Objetivo:** verificar que `hash_user_id` transforma um identificador em um
+  hash estável, sem expor o valor original, apoiando o RNF10.
+- **Unidade testada:** função `hash_user_id`, em
+  [`redaction.py`](../apps/basica/backend/src/telemetry/application/redaction.py).
+- **Pré-condições:** ambiente do backend instalado pelo `uv`; nenhuma conexão
+  externa é necessária.
+- **Dados de entrada:** `user_id="usuario-123"` e
+  `salt="meu-salt-secreto"`.
+- **Procedimento:** executar o nó pytest indicado em Instruções para reprodução;
+  o teste calcula independentemente o SHA-256 esperado e compara os 32
+  caracteres iniciais.
+- **Resultado esperado:** hash hexadecimal determinístico com 32 caracteres.
+- **Resultado obtido:** valor, tamanho e alfabeto hexadecimal aprovados.
+- **Situação:** Aprovado.
+- **Evidência:** saída `PASSED` para o nó TU-01 no arquivo de evidência.
+
+#### TU-02 - Rejeitar data em formato desconhecido
+
+- **Objetivo:** garantir que uma data não interpretável não seja silenciosamente
+  aceita durante a normalização de telemetria.
+- **Unidade testada:** função `parse_datetime`, em
+  [`normalization.py`](../apps/basica/backend/src/telemetry/application/normalization.py).
+- **Pré-condições:** ambiente do backend instalado; nenhuma dependência externa.
+- **Dados de entrada:** string `"nao-e-uma-data"`.
+- **Procedimento:** chamar `parse_datetime` dentro de `pytest.raises` e validar
+  a exceção de domínio e a mensagem contendo `invalido`.
+- **Resultado esperado:** `ValidationError`; nenhum `datetime` produzido.
+- **Resultado obtido:** a exceção esperada foi capturada.
+- **Situação:** Aprovado.
+- **Evidência:** nó TU-02 marcado como `PASSED` no arquivo de evidência.
+
+#### TU-03 - Amostrar série um ponto acima do limite
+
+- **Objetivo:** confirmar que `amostrar_raia` reduz uma série que ultrapassa o
+  limite sem perder as extremidades temporais usadas pela Timeline.
+- **Unidade testada:** função `amostrar_raia`, em
+  [`timeline.py`](../apps/basica/backend/src/telemetry/application/timeline.py).
+- **Pré-condições:** lista ordenada em memória; nenhuma conexão externa.
+- **Dados de entrada:** 101 pontos e `limite=100`.
+- **Procedimento:** executar a função e verificar `truncated=True`, quantidade
+  menor ou igual a 100 e preservação do primeiro e do último ponto.
+- **Resultado esperado:** série truncada, com extremos preservados.
+- **Resultado obtido:** todas as pós-condições foram atendidas.
+- **Situação:** Aprovado.
+- **Evidência:** nó TU-03 marcado como `PASSED` no arquivo de evidência.
+
+#### TU-04 - Ignorar sinal que deixou de exceder o limiar
+
+- **Objetivo:** verificar que o backend não apresenta como ativo um sinal cujo
+  bucket mais recente voltou à faixa estável.
+- **Unidade testada:** método `GenerateSignals.execute`, em
+  [`signals.py`](../apps/basica/backend/src/telemetry/application/signals.py).
+- **Pré-condições:** repositório fake em memória retornando dois buckets.
+- **Dados de entrada:** primeiro bucket com `z=3.0` e último com `z=1.5`, abaixo
+  do limiar de sinal `2.0`.
+- **Procedimento:** executar o caso de uso e inspecionar `count` e `items`.
+- **Resultado esperado:** `count=0` e `items=[]`.
+- **Resultado obtido:** nenhum sinal ativo foi produzido.
+- **Situação:** Aprovado.
+- **Evidência:** nó TU-04 marcado como `PASSED` no arquivo de evidência.
+
+#### TU-05 - Rejeitar JSON inválido recebido pelo worker
+
+- **Objetivo:** confirmar que um corpo corrompido é identificado antes da
+  persistência e recebe motivo de falha reproduzível.
+- **Unidade testada:** função `_extract`, em
+  [`consumer.py`](../apps/basica/worker/src/argus_worker/consumer.py).
+- **Pré-condições:** ambiente do worker instalado; não requer SQS nem banco.
+- **Dados de entrada:** corpo `"{ chave_sem_fechar: "` e chave `"events"`.
+- **Procedimento:** chamar `_extract` dentro de `pytest.raises` e comparar a
+  mensagem de erro com `JSON invalido`.
+- **Resultado esperado:** `ValueError` identificando JSON inválido.
+- **Resultado obtido:** exceção e mensagem esperadas foram observadas.
+- **Situação:** Aprovado.
+- **Evidência:** nó TU-05 marcado como `PASSED` no arquivo de evidência.
+
+#### TU-06 - Aceitar payload exatamente no limite de 4 MB
+
+- **Objetivo:** provar que a guarda de tamanho não rejeita um change event ainda
+  permitido pelo contrato.
+- **Unidade testada:** função `check_size`, em
+  [`repository.py`](../apps/basica/worker/src/argus_worker/repository.py).
+- **Pré-condições:** `MAX_CHANGE_BYTES=4.000.000`; mesma serialização da
+  implementação.
+- **Dados de entrada:** dicionário cujo JSON possui exatamente `4.000.000` bytes.
+- **Procedimento:** confirmar o tamanho serializado e chamar `check_size`.
+- **Resultado esperado:** retorno sem exceção.
+- **Resultado obtido:** o payload no limite foi aceito.
+- **Situação:** Aprovado.
+- **Evidência:** nó TU-06 marcado como `PASSED` no arquivo de evidência.
+
+#### TU-07 - Rejeitar payload um byte acima do limite
+
+- **Objetivo:** comprovar o primeiro valor inválido após a fronteira de tamanho.
+- **Unidade testada:** função `check_size`, no mesmo arquivo do TU-06.
+- **Pré-condições:** iguais às do TU-06.
+- **Dados de entrada:** JSON de exatamente `4.000.001` bytes.
+- **Procedimento:** chamar `check_size` dentro de `pytest.raises`.
+- **Resultado esperado:** lançamento de `ChangeTooLarge`.
+- **Resultado obtido:** `ChangeTooLarge` foi capturada.
+- **Situação:** Aprovado.
+- **Evidência:** nó TU-07 marcado como `PASSED` no arquivo de evidência.
+
+#### TU-08 - Aprovar desvio que atende aos dois critérios de materialidade
+
+- **Objetivo:** verificar que uma evidência só é material quando atende
+  simultaneamente aos limites absoluto e relativo.
+- **Unidade testada:** função `_material`, em
+  [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py).
+- **Pré-condições:** política com limite absoluto `10.0` e relativo `0.20`.
+- **Dados de entrada:** observado `125.0` e esperado `100.0`, com diferença
+  absoluta `25.0` e relativa `25%`.
+- **Procedimento:** executar `_material` com a política indicada.
+- **Resultado esperado:** `True`, pois ambos os critérios são atendidos.
+- **Resultado obtido:** retorno `True`.
+- **Situação:** Aprovado.
+- **Evidência:** nó TU-08 marcado como `PASSED` no arquivo de evidência.
+
+#### TU-09 - Rejeitar cabeçalhos de autenticação inválidos
+
+- **Objetivo:** garantir que esquemas diferentes de Bearer, valores vazios e
+  entradas ausentes não sejam interpretados como credenciais.
+- **Unidade testada:** função `_token_do_cabecalho`, em
+  [`auth.py`](../apps/basica/backend/src/telemetry/interfaces/auth.py).
+- **Pré-condições:** nenhuma; função pura.
+- **Dados de entrada:** `None`, string vazia, `"Basic dXNlcjpwYXNz"`,
+  `"Bearer"` e `"Bearer    "`.
+- **Procedimento:** executar a função para cada entrada e comparar o retorno.
+- **Resultado esperado:** `None` em todos os casos.
+- **Resultado obtido:** todas as entradas foram rejeitadas.
+- **Situação:** Aprovado.
+- **Evidência:** nó TU-09 marcado como `PASSED` no arquivo de evidência.
+
+### Resultado consolidado da execução
+
+| Serviço | Coletados | Aprovados | Reprovados | Duração observada | Situação |
+|---|---:|---:|---:|---:|---|
+| Backend | 63 | 63 | 0 | 0,04 s | Aprovado |
+| Worker | 33 | 33 | 0 | 0,23 s | Aprovado |
+| Simulador | 20 | 20 | 0 | 0,04 s | Aprovado |
+| Processamento | 17 | 17 | 0 | 0,02 s | Aprovado |
+| **Total** | **133** | **133** | **0** | **0,33 s somados** | **Aprovado** |
+
+&emsp; As durações saem do próprio pytest, em execuções locais e separadas. A soma vale
+como registro desta rodada e nada afirma sobre desempenho, que é assunto dos
+ensaios de carga. Os testes que dependem de PostgreSQL ficam fora desta contagem.
+
+#### Conclusão
+
+&emsp; A entrega cumpre o que a especificação pede e vai além em amplitude. O mínimo
+eram quatro casos; foram 133, com as unidades identificadas uma a uma, cobrindo
+entrada válida, erro e fronteira, todos automatizados e com evidência que se
+reproduz pelo comando registrado. Nesta rodada nenhum reprovou.
+
+&emsp; O alcance dessa aprovação para no que foi exercitado: estas unidades, estas
+entradas. Integração entre camadas, cobertura completa de um caso de uso e
+ensaios de carga continuam pendentes, e cada um responde a uma pergunta que
+nenhum teste unitário alcança.
+
+### Instruções para reprodução
+
+&emsp; Os comandos partem da raiz do repositório e usam os ambientes declarados em
+cada `pyproject.toml`:
+
+```bash
+# Backend: 63 testes unitários
+cd apps/basica/backend
+uv run --quiet pytest tests/unit --tb=no
+
+# Worker: 33 testes unitários selecionados
+cd ../worker
+uv run --quiet pytest \
+  tests/test_changes.py \
+  tests/test_check_size.py \
+  tests/test_config.py \
+  tests/test_extract.py \
+  --tb=no
+
+# Simulador: 20 testes unitários selecionados
+cd ../simulator
+uv run --quiet pytest tests/test_emitter.py tests/test_faults.py --tb=no
+
+# Processamento: 17 testes unitários selecionados
+cd ../processing
+uv run --quiet pytest tests/test_detector_logic.py --tb=no
+```
+
+&emsp; Para rodar apenas os nove casos detalhados, use os nós pytest que o arquivo
+[`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) registra um a
+um. A reprodução confere quando o processo termina com código `0`, todos os nós
+aparecem como `PASSED` e nenhuma linha traz `FAILED`.
 
 ## Testes de integração
 
