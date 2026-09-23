@@ -3,7 +3,7 @@
 &emsp; Este documento registra como os testes do Argus foram planejados, escritos e
 executados, e o que eles produziram. A seção de testes unitários cobre unidades
 de lógica de quatro serviços: backend, worker de ingestão, simulador e motor de
-processamento, integradas na branch `develop`.
+processamento.
 
 ## Testes Unitários
 
@@ -1175,7 +1175,7 @@ Os casos CT02 a CT07 e CT16 a CT24 estão parametrizados em [`test_uc03_valores_
 
 Nos casos CT02–CT07, o retorno do cálculo de score é controlado para observar apenas a classificação. Já os casos CT16–CT24 executam `score_features`. Para alcançar exatamente as coberturas de 0,79, 0,80 e 0,81, CT19–CT21 também controlam os pesos usados no cálculo. Dessa forma, é possível verificar a fronteira da decisão mesmo quando esses valores não surgem com os pesos padrão.
 
-### Fluxo principal, alternativas e exceções
+### Fluxo principal, fluxos alternativos e exceções
 
 As tabelas mostram o que cada cenário conseguiu verificar. A situação **Aprovado** se refere às asserções daquele teste. As descrições de A1, E1 e E2 distinguem a classificação, a persistência, o registro do erro e a decisão de publicação para mostrar onde cada comportamento foi observado.
 
@@ -1374,13 +1374,27 @@ uv run ruff format --check --no-cache src tests
 
 | Verificação da versão final | Resultado observado |
 |---|---|
-| Testes específicos do UC03, incluindo os cenários de E1 e os dois parâmetros de CT13c e CT15b | `29 passed in 73.00s (0:01:13)` |
-| Suíte completa do processamento, incluindo os demais nós da matriz | `95 passed in 351.73s (0:05:51)` |
+| Testes específicos do UC03, incluindo os cenários de E1 e os dois parâmetros de CT13c e CT15b | `29 passed in 67.69s (0:01:07)` |
+| Suíte completa do processamento, incluindo os demais nós da matriz | `95 passed in 315.00s (0:05:15)` |
 | Falhas, erros e testes ignorados | Nenhum |
 | Ruff, análise estática | `All checks passed!` |
 | Ruff, formatação | `27 files already formatted` |
 
 Alguns CTs compartilham um teste com várias asserções, enquanto CT13c e CT15b aparecem duas vezes cada por causa dos parâmetros. A matriz permite localizar essas correspondências e reproduzir cada caso.
+
+As imagens abaixo reproduzem a saída do terminal da execução apresentada nesta versão. O conteúdo foi organizado para facilitar a leitura, preservando os comandos, os resultados e os tempos registrados.
+
+![Preparação do PostgreSQL e aplicação das 29 migrations na versão final](assets/uc03-final-terminal-banco.png)
+
+*Figura 4 - Preparação do banco utilizado na versão final dos testes.*
+
+![Saída dos 29 testes específicos do UC03 aprovados na versão final](assets/uc03-final-terminal-suite-uc03.png)
+
+*Figura 5 - Execução dos 29 testes específicos do UC03, incluindo as novas verificações de persistência, publicação e tratamento de erros.*
+
+![Saída dos 95 testes do processamento aprovados e das verificações do Ruff](assets/uc03-final-terminal-suite-completa.png)
+
+*Figura 6 - Suíte completa do processamento e verificações de análise estática e formatação aprovadas na versão final.*
 
 ### O que os resultados mostraram
 
