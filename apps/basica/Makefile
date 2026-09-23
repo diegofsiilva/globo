@@ -248,7 +248,11 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch ## Roda as suites que tem teste
+
+.PHONY: test-hypothesis-batch
+test-hypothesis-batch: ## Valida o lote CDC sem usar AWS ou banco
+	cd $(TOOLS) && $(UV) python -m unittest discover -s tests -p test_hypothesis_batch.py
 
 .PHONY: test-observabilidade
 test-observabilidade: ## Valida scripts, Compose e dashboards sem acessar AWS nem subir containers
@@ -866,6 +870,26 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 	@$(call require_env,ARGUS_INGEST_URL)
 	@$(call require_env,ARGUS_INGEST_TOKEN)
 	cd $(TOOLS) && $(UV) python replay_events.py --url "$(ARGUS_INGEST_URL)" --src "$(EVENTS_SRC)"
+
+# BATCH_FILE deve ser absoluto e apontar para fora do repositorio.
+# O envio e separado da preparacao para permitir
+# revisar as 52 mudancas antes de colocá-las na fila.
+.PHONY: hypothesis-batch-prepare hypothesis-batch-send hypothesis-batch-verify
+hypothesis-batch-prepare: ## Prepara lote CDC (BATCH_FILE=/caminho/fora/do/repo.json)
+	@$(call require_env,DATABASE_URL)
+	@test -n "$(BATCH_FILE)" || { echo "defina BATCH_FILE" >&2; exit 1; }
+	cd $(TOOLS) && $(UV) python hypothesis_batch.py prepare --output "$(BATCH_FILE)"
+
+hypothesis-batch-send: ## Envia lote CDC preparado uma vez (BATCH_FILE=...)
+	@$(call require_env,ARGUS_CHANGES_URL)
+	@$(call require_env,ARGUS_INGEST_TOKEN)
+	@test -n "$(BATCH_FILE)" || { echo "defina BATCH_FILE" >&2; exit 1; }
+	cd $(TOOLS) && $(UV) python hypothesis_batch.py send --input "$(BATCH_FILE)"
+
+hypothesis-batch-verify: ## Mostra Bronze, Silver, Gold e hipotese do lote
+	@$(call require_env,DATABASE_URL)
+	@test -n "$(BATCH_FILE)" || { echo "defina BATCH_FILE" >&2; exit 1; }
+	cd $(TOOLS) && $(UV) python hypothesis_batch.py verify --input "$(BATCH_FILE)"
 
 .PHONY: observabilidade-up
 observabilidade-up: ## Sobe Prometheus e Grafana locais (dashboards de resiliencia RNF04/05/11 e de carga RNF01/02/03)
