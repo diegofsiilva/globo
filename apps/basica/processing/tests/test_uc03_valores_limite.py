@@ -232,6 +232,19 @@ def test_a2_evidencia_obrigatoria_ausente_prevalece_sobre_score(monkeypatch):
 
 
 def test_a3_contradicao_determinante_prevalece_sobre_score(monkeypatch):
+    values = {name: ("available", 1.0, "teste") for name in scoring.WEIGHTS}
+    for contradiction, expected_confidence in (
+        (0.49, "high"),
+        (0.50, "medium"),
+        (0.51, "medium"),
+    ):
+        score, coverage, confidence, _ = scoring.score_features(
+            values, contradiction=contradiction
+        )
+        assert score >= 80.0
+        assert coverage == 1.0
+        assert confidence == expected_confidence
+
     status = _evaluation_status(
         monkeypatch,
         score=100,
@@ -265,17 +278,24 @@ def test_e2_limite_de_500_hipoteses_geradas(monkeypatch):
         return 100.0, 1.0, "high", ()
 
     monkeypatch.setattr("argus_processing.rules.score_features", maximum_score)
-    hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
-        candidates,
-        tuple(anomalies),
-        _quality(),
-        Catalog(),
-    )
-    assert prefiltered == 501
-    assert evaluated == 501
-    assert sum(item.evaluation_status == "generated" for item in hypotheses) == 500
-    assert sum(item.evaluation_status == "discarded" for item in hypotheses) == 1
-    assert truncated == 1
+    for quantity, expected_generated, expected_truncated in (
+        (499, 499, 0),
+        (500, 500, 0),
+        (501, 500, 1),
+    ):
+        hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
+            candidates[:quantity],
+            tuple(anomalies[:quantity]),
+            _quality(),
+            Catalog(),
+        )
+        assert prefiltered == quantity
+        assert evaluated == quantity
+        assert (
+            sum(item.evaluation_status == "generated" for item in hypotheses)
+            == expected_generated
+        )
+        assert truncated == expected_truncated
 
 
 def test_e2_tetos_documentados_sao_os_defaults_do_motor():
@@ -285,7 +305,7 @@ def test_e2_tetos_documentados_sao_os_defaults_do_motor():
     assert parameters["max_generated"].default == 500
 
 
-def test_e1_catalogo_invalido_interrompe_o_motor(monkeypatch, tmp_path):
+def test_e1_catalogo_invalido_interrompe_o_motor(monkeypatch, tmp_path, db):
     catalogs = tmp_path / "catalogs"
     catalogs.mkdir()
     (catalogs / "sources.json").write_text("{invalido", encoding="utf-8")
@@ -295,6 +315,13 @@ def test_e1_catalogo_invalido_interrompe_o_motor(monkeypatch, tmp_path):
 
     with pytest.raises(json.JSONDecodeError):
         Catalog()
+
+    assert db.fetch_one("SELECT count(*) AS n FROM detect.run")["n"] == 0
+    assert db.fetch_one("SELECT count(*) AS n FROM detect.manifest")["n"] == 0
+    assert (
+        db.fetch_one("SELECT count(*) AS n FROM gold.manifest_publication_event")["n"]
+        == 0
+    )
 
 
 def test_pos_condicao_gerada_nao_significa_causa_confirmada(monkeypatch):
