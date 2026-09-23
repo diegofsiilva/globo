@@ -5,15 +5,26 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import json
+import logging
+import os
+import subprocess
+import sys
+from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
+from argus_common import Metrics
+from psycopg.errors import CheckViolation
 
-from argus_processing import scoring
+from argus_processing import __main__ as processing_main
+from argus_processing import etl, scoring
 from argus_processing.analysis_repository import (
     claim_and_capture,
     persist_result,
+    promote_manifest,
     register_manifest,
 )
+from argus_processing.analysisctl import FAMILIES
 from argus_processing.catalog import Catalog
 from argus_processing.domain import (
     AnalysisResult,
@@ -254,6 +265,208 @@ def test_a3_contradicao_determinante_prevalece_sobre_score(monkeypatch):
     assert status == "discarded"
 
 
+@pytest.fixture
+def uc03_execution(db, inserir_change):
+    """Captura um fato persistido para testar a passagem da avaliacao ao banco."""
+    event_at = db.sim_now() - dt.timedelta(hours=3)
+    with db.connection() as conn:
+        inserir_change(
+            conn,
+            "signal_bucket",
+            {
+                "bts": int(event_at.timestamp() * 1000),
+                "source": "newrelic",
+                "entity": "playback",
+                "metric": "error_rate_pct",
+                "value": 5.0,
+            },
+        )
+        conn.execute("SELECT bronze.merge_todas()")
+    assert etl.executar_bronze_silver(db, batch_size=100)["status"] == "sucesso"
+    assert (
+        etl.executar_silver_gold(db, janela_max_segundos=999_999_999)["status"]
+        == "sucesso"
+    )
+    catalog = Catalog("test")
+    register_manifest(db, catalog.manifest_hash, catalog.manifest_payload, "test")
+    captured = claim_and_capture(
+        db, worker_id="worker-uc03", manifest_hash=catalog.manifest_hash
+    )
+    assert captured is not None
+    assert iniciar_trabalho(db, captured.claim)
+    assert len(captured.facts) == 1
+    fact = captured.facts[0]
+    candidate, _ = _candidate()
+    candidate = replace(candidate, subject=fact, scope={"service": fact.entity})
+    quality = (replace(_quality()[0], last_observation_at=fact.available_at),)
+    return catalog, captured, candidate, _anomaly(fact), quality
+
+
+def _evaluated_result(candidate, anomaly, quality, catalog):
+    """Usa o avaliador real e conserva suas estatisticas para a persistencia."""
+    hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
+        (candidate,), (anomaly,), quality, catalog
+    )
+    return AnalysisResult(
+        anomalies=(anomaly,),
+        finding_anomalies=(anomaly,),
+        baseline_updates={},
+        quality=quality,
+        hypotheses=hypotheses,
+        candidates_prefiltered=prefiltered,
+        candidates_evaluated=evaluated,
+        candidates_truncated=truncated,
+    )
+
+
+def test_a3_descarte_preserva_justificativa_no_banco(db, uc03_execution):
+    catalog, captured, candidate, anomaly, quality = uc03_execution
+    contrary = Evidence(
+        role="optional",
+        polarity="contrary",
+        explanation="contradicao determinante do cenario sintetico",
+        strength=0.80,
+    )
+    candidate = replace(candidate, contrary=(contrary,))
+    result = _evaluated_result(candidate, anomaly, quality, catalog)
+    hypothesis = result.hypotheses[0]
+    assert hypothesis.score >= 40
+    assert hypothesis.coverage >= 0.50
+    assert hypothesis.evaluation_status == "discarded"
+    assert hypothesis.contradiction_strength == 0.80
+    assert contrary in hypothesis.evidence
+
+    persist_result(db, captured, result, duration_ms=1)
+    persisted = db.fetch_all(
+        """
+        SELECT h.evaluation_status, h.contradiction_strength,
+               e.role, e.polarity, e.strength, e.explanation
+          FROM gold.hypothesis h
+          JOIN gold.hypothesis_evidence e ON e.hypothesis_id = h.hypothesis_id
+         WHERE h.run_id = %s AND e.polarity = 'contrary'
+        """,
+        (captured.claim.run_id,),
+    )
+    assert persisted == [
+        {
+            "evaluation_status": "discarded",
+            "contradiction_strength": 0.80,
+            "role": "optional",
+            "polarity": "contrary",
+            "strength": 0.80,
+            "explanation": contrary.explanation,
+        }
+    ]
+
+
+def test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto(db, uc03_execution):
+    catalog, captured, candidate, anomaly, quality = uc03_execution
+    result = _evaluated_result(candidate, anomaly, quality, catalog)
+    assert result.hypotheses[0].evaluation_status == "generated"
+    persist_result(db, captured, result, duration_ms=1)
+    run_id = captured.claim.run_id
+    hypothesis = db.fetch_one(
+        "SELECT hypothesis_id FROM gold.hypothesis WHERE run_id = %s", (run_id,)
+    )
+    assert hypothesis is not None
+    assert (
+        db.fetch_all(
+            "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
+        )
+        == []
+    )
+    assert (
+        db.fetch_all(
+            "SELECT action FROM gold.manifest_publication_event WHERE manifest_hash = %s",
+            (catalog.manifest_hash,),
+        )
+        == []
+    )
+
+    # A promocao e explicita: este teste nao avalia os criterios da CLI do portao.
+    promote_manifest(db, catalog.manifest_hash, {"test": True})
+    assert db.fetch_all(
+        "SELECT action FROM gold.manifest_publication_event WHERE manifest_hash = %s",
+        (catalog.manifest_hash,),
+    ) == [{"action": "published"}]
+    assert db.fetch_all(
+        "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
+    ) == [hypothesis]
+
+
+@pytest.mark.parametrize("published", [False, True], ids=["sombra", "publicado"])
+def test_e4_falha_na_persistencia_nao_expoe_hipotese_parcial(
+    db, uc03_execution, published
+):
+    catalog, captured, candidate, anomaly, quality = uc03_execution
+    if published:
+        promote_manifest(db, catalog.manifest_hash, {"test": True})
+    events_before = db.fetch_all(
+        """
+        SELECT publication_event_id, action FROM gold.manifest_publication_event
+         WHERE manifest_hash = %s ORDER BY publication_event_id
+        """,
+        (catalog.manifest_hash,),
+    )
+    result = _evaluated_result(candidate, anomaly, quality, catalog)
+    assert result.hypotheses[0].evaluation_status == "generated"
+    # A estatistica e gravada depois de anomalias, hipoteses, fatores e evidencias.
+    # Sua restricao provoca uma falha real de SQL no fim da mesma transacao.
+    with pytest.raises(CheckViolation) as error:
+        persist_result(
+            db, captured, replace(result, candidates_evaluated=-1), duration_ms=1
+        )
+    assert error.value.diag.table_name == "hypothesis_run_stats"
+    run_id = captured.claim.run_id
+    assert db.fetch_one(
+        "SELECT status, finished_at FROM detect.run WHERE run_id = %s", (run_id,)
+    ) == {"status": "running", "finished_at": None}
+    assert (
+        db.fetch_one(
+            "SELECT count(*) AS n FROM detect.anomaly WHERE run_id = %s", (run_id,)
+        )["n"]
+        == 0
+    )
+    assert (
+        db.fetch_one(
+            "SELECT count(*) AS n FROM gold.hypothesis WHERE run_id = %s", (run_id,)
+        )["n"]
+        == 0
+    )
+    assert db.fetch_one("SELECT count(*) AS n FROM gold.hypothesis_feature")["n"] == 0
+    assert db.fetch_one("SELECT count(*) AS n FROM gold.hypothesis_evidence")["n"] == 0
+    assert (
+        db.fetch_one(
+            "SELECT count(*) AS n FROM gold.hypothesis_run_stats WHERE run_id = %s",
+            (run_id,),
+        )["n"]
+        == 0
+    )
+    assert (
+        db.fetch_all(
+            "SELECT run_id FROM gold.v_hypothesis_run WHERE run_id = %s", (run_id,)
+        )
+        == []
+    )
+    assert (
+        db.fetch_all(
+            "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
+        )
+        == []
+    )
+    assert (
+        db.fetch_all(
+            """
+            SELECT publication_event_id, action FROM gold.manifest_publication_event
+             WHERE manifest_hash = %s ORDER BY publication_event_id
+            """,
+            (catalog.manifest_hash,),
+        )
+        == events_before
+    )
+    assert len(events_before) == int(published)
+
+
 def test_e2_limite_de_500_hipoteses_geradas(monkeypatch):
     candidates: list[Candidate] = []
     anomalies: list[Anomaly] = []
@@ -305,16 +518,184 @@ def test_e2_tetos_documentados_sao_os_defaults_do_motor():
     assert parameters["max_generated"].default == 500
 
 
-def test_e1_catalogo_invalido_interrompe_o_motor(monkeypatch, tmp_path, db):
+@pytest.mark.parametrize("quantity", [500, 501], ids=["no-limite", "acima"])
+def test_e2_motor_persiste_truncamento_e_cli_decide_promocao(
+    db, database_url, uc03_execution, quantity
+):
+    catalog, captured, candidate, anomaly, quality = uc03_execution
+    families = sorted(FAMILIES)
+    # Escopos sinteticos distintos evitam deduplicacao. As onze familias estao
+    # presentes para que somente o truncamento possa reprovar o portao.
+    candidates = tuple(
+        replace(
+            candidate,
+            family=families[index % len(families)],
+            kind="data_quality"
+            if families[index % len(families)] == "source_data_delay"
+            else "context"
+            if families[index % len(families)] == "expected_live_peak"
+            else "operational",
+            scope={"source": "newrelic", "service": "playback", "cenario": index},
+        )
+        for index in range(quantity)
+    )
+    hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
+        candidates, (anomaly,), quality, catalog
+    )
+    assert prefiltered == evaluated == quantity
+    assert len(hypotheses) == quantity
+    assert sum(item.evaluation_status == "generated" for item in hypotheses) == 500
+    assert truncated == quantity - 500
+    result = AnalysisResult(
+        anomalies=(anomaly,),
+        finding_anomalies=(anomaly,),
+        baseline_updates={},
+        quality=quality,
+        hypotheses=hypotheses,
+        candidates_prefiltered=prefiltered,
+        candidates_evaluated=evaluated,
+        candidates_truncated=truncated,
+    )
+    persist_result(db, captured, result, duration_ms=1)
+    assert db.fetch_one(
+        """
+        SELECT candidates_evaluated, candidates_truncated, generated, discarded,
+               truncated
+          FROM gold.hypothesis_run_stats WHERE run_id = %s
+        """,
+        (captured.claim.run_id,),
+    ) == {
+        "candidates_evaluated": quantity,
+        "candidates_truncated": quantity - 500,
+        "generated": 500,
+        "discarded": quantity - 500,
+        "truncated": quantity > 500,
+    }
+    assert db.fetch_all("SELECT action FROM gold.manifest_publication_event") == []
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "argus_processing.analysisctl",
+            "evaluate-and-promote",
+            "--precision-at-5",
+            "0.70",
+            "--api-p95-ms",
+            "900",
+            "--api-max-ms",
+            "2500",
+            "--checkpoint-sla-ok",
+            "--suite-ok",
+        ],
+        env={**os.environ, "DATABASE_URL": database_url, "IMAGE_TAG": "test"},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert completed.stderr == ""
+    metrics = json.loads(completed.stdout)
+    assert metrics["families_observed"] == families
+    assert metrics["completed_runs"] == 1
+    assert metrics["truncated_runs"] == int(quantity > 500)
+    assert metrics["failures"] == (["ha runs truncados"] if quantity > 500 else [])
+    assert completed.returncode == (2 if quantity > 500 else 0)
+    events = db.fetch_all(
+        """
+        SELECT action, gate_metrics FROM gold.manifest_publication_event
+         WHERE manifest_hash = %s
+        """,
+        (catalog.manifest_hash,),
+    )
+    assert events == (
+        [] if quantity > 500 else [{"action": "published", "gate_metrics": metrics}]
+    )
+    assert db.fetch_one(
+        "SELECT count(*) AS n FROM gold.v_hypothesis WHERE run_id = %s",
+        (captured.claim.run_id,),
+    )["n"] == (0 if quantity > 500 else 500)
+
+
+def test_e1_catalogo_invalido_registra_erro_sem_publicar(tmp_path, db, database_url):
     catalogs = tmp_path / "catalogs"
     catalogs.mkdir()
     (catalogs / "sources.json").write_text("{invalido", encoding="utf-8")
-    monkeypatch.setattr(
-        "argus_processing.catalog.importlib.resources.files", lambda _: tmp_path
+    # O subprocesso conserva os logs e sinais reais sem alterar o pytest.
+    # Somente o diretorio de entrada do catalogo e substituido.
+    startup = """
+import sys
+from pathlib import Path
+from unittest.mock import patch
+from argus_processing.__main__ import main
+
+with patch("argus_processing.catalog.importlib.resources.files",
+           return_value=Path(sys.argv[1])):
+    raise SystemExit(main())
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", startup, str(tmp_path)],
+        env={
+            **os.environ,
+            "DATABASE_URL": database_url,
+            "ANALYSIS_ENABLED": "true",
+            "LOG_LEVEL": "INFO",
+            "SERVICE_NAME": "argus-processing-uc03",
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert completed.returncode == 1
+    assert completed.stderr == ""
+    records = [json.loads(line) for line in completed.stdout.splitlines()]
+    errors = [record for record in records if record["level"] == "ERROR"]
+    assert len(errors) == 1
+    assert errors[0]["logger"] == "argus-processing-uc03"
+    assert errors[0]["message"] == "processamento abortou"
+    assert "JSONDecodeError" in errors[0]["exception"]
+    assert "Expecting property name enclosed in double quotes" in errors[0]["exception"]
+    assert not any("worker" in record["message"] for record in records)
+
+    assert db.fetch_one("SELECT count(*) AS n FROM detect.run")["n"] == 0
+    assert db.fetch_one("SELECT count(*) AS n FROM detect.manifest")["n"] == 0
+    assert (
+        db.fetch_one("SELECT count(*) AS n FROM gold.manifest_publication_event")["n"]
+        == 0
     )
 
-    with pytest.raises(json.JSONDecodeError):
-        Catalog()
+
+def test_e1_manifesto_invalido_registra_erro_sem_publicar(db, checkpoint, caplog):
+    catalog = Catalog("test")
+    catalog.manifest_hash = "0" * 64
+    shutdown = SimpleNamespace(running=True)
+
+    def stop_after_cycle(_seconds):
+        shutdown.running = False
+
+    # Controla apenas a duracao do laco, mantendo analise, banco e logging reais.
+    shutdown.sleep = stop_after_cycle
+    with caplog.at_level(logging.ERROR, logger="argus_processing.__main__"):
+        processing_main._laco_analise(
+            db,
+            shutdown,
+            Metrics("Argus/Test", "analysis"),
+            catalog,
+            worker_id="worker-manifesto-invalido",
+            intervalo_segundos=0,
+            lease_segundos=120,
+            heartbeat_segundos=30,
+            max_input_rows=250_000,
+            max_candidates=10_000,
+            max_candidates_family=2_000,
+            max_generated=500,
+            code_version="test",
+        )
+    errors = [record for record in caplog.records if record.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert errors[0].getMessage() == "worker de analise: erro no ciclo"
+    assert errors[0].exc_info[0] is ValueError
+    assert str(errors[0].exc_info[1]) == (
+        "manifest_hash does not match the canonical payload"
+    )
 
     assert db.fetch_one("SELECT count(*) AS n FROM detect.run")["n"] == 0
     assert db.fetch_one("SELECT count(*) AS n FROM detect.manifest")["n"] == 0
