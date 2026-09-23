@@ -1,5 +1,15 @@
 # Arquitetura final da aplicação
 
+## 1. Diagrama de implantação
+
+> Inserir o diagrama de implantação da arquitetura distribuída, indicando os componentes, os ambientes de execução e as conexões entre eles.
+
+
+### 1.1 Componentes e justificativas
+
+> Listar os principais componentes do diagrama, suas responsabilidades, tecnologias utilizadas e justificativas para as escolhas arquiteturais.
+
+
 ## 2. Inventário de contêineres, Docker e Kubernetes
 
 Este inventário descreve os arquivos do commit `263b7d3` na branch
