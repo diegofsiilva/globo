@@ -6,6 +6,7 @@ import datetime as dt
 import inspect
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -36,7 +37,7 @@ from argus_processing.domain import (
     SourceQuality,
 )
 from argus_processing.orchestration import iniciar_trabalho
-from argus_processing.rules import Candidate, evaluate_candidates
+from argus_processing.rules import Candidate, build_candidates, evaluate_candidates
 
 NOW = dt.datetime(2026, 7, 12, 15, tzinfo=dt.UTC)
 
@@ -263,6 +264,348 @@ def test_a3_contradicao_determinante_prevalece_sobre_score(monkeypatch):
         contradiction=0.80,
     )
     assert status == "discarded"
+
+
+@pytest.mark.parametrize(
+    ("contradiction", "expected"),
+    [
+        pytest.param(0.79, "generated", id="abaixo"),
+        pytest.param(0.80, "discarded", id="no-limite"),
+        pytest.param(0.81, "discarded", id="acima"),
+    ],
+)
+def test_a3_limite_de_contradicao_determinante(contradiction, expected):
+    candidate, anomaly = _candidate(contradiction=contradiction)
+    hypotheses, _, evaluated, truncated = evaluate_candidates(
+        (candidate,), (anomaly,), _quality(), Catalog()
+    )
+    hypothesis = hypotheses[0]
+    # O score e real e permanece suficiente nos tres casos: apenas a guarda
+    # de contradicao pode causar o descarte, nao score, cobertura ou budget.
+    assert hypothesis.score >= 40
+    assert hypothesis.coverage >= 0.50
+    assert hypothesis.contradiction_strength == contradiction
+    penalty = next(feature for feature in hypothesis.features if feature.name == "X")
+    assert penalty.contribution == pytest.approx(-30 * contradiction)
+    assert hypothesis.evaluation_status == expected
+    assert (evaluated, truncated) == (1, 0)
+
+
+@pytest.mark.parametrize(
+    ("quantity", "expected_evaluated", "expected_truncated"),
+    [(1999, 1999, 0), (2000, 2000, 0), (2001, 2000, 1)],
+    ids=["abaixo", "no-limite", "acima"],
+)
+def test_e2_limite_real_de_2000_candidatas_por_familia(
+    quantity, expected_evaluated, expected_truncated
+):
+    candidate, anomaly = _candidate(required_missing=("evidencia controlada ausente",))
+    candidates = tuple(
+        replace(candidate, scope={"cenario": index}) for index in range(quantity)
+    )
+    # A ausencia obrigatoria impede geracao e isola o corte por familia do teto
+    # de 500 geradas. Nenhum limite ou calculo do motor e substituido.
+    hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
+        candidates, (anomaly,), _quality(), Catalog()
+    )
+    assert (prefiltered, evaluated, truncated) == (
+        quantity,
+        expected_evaluated,
+        expected_truncated,
+    )
+    assert len(hypotheses) == expected_evaluated
+    assert len({item.dedup_key for item in hypotheses}) == expected_evaluated
+    assert all(item.evaluation_status == "insufficient_evidence" for item in hypotheses)
+
+
+@pytest.mark.parametrize(
+    ("quantity", "expected_evaluated", "expected_truncated"),
+    [(9999, 9999, 0), (10000, 10000, 0), (10001, 10000, 1)],
+    ids=["abaixo", "no-limite", "acima"],
+)
+def test_e2_limite_real_de_10000_candidatas_totais(
+    quantity, expected_evaluated, expected_truncated
+):
+    candidate, anomaly = _candidate(required_missing=("evidencia controlada ausente",))
+    families = sorted(FAMILIES)
+    candidates = tuple(
+        replace(
+            candidate, family=families[index % len(families)], scope={"cenario": index}
+        )
+        for index in range(quantity)
+    )
+    assert (
+        max(sum(item.family == family for item in candidates) for family in families)
+        < 2000
+    )
+    # As candidatas sao entradas sinteticas do avaliador. Distribui-las entre
+    # familias isola o teto total; required_missing isola o teto de geradas.
+    hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
+        candidates, (anomaly,), _quality(), Catalog()
+    )
+    assert (prefiltered, evaluated, truncated) == (
+        quantity,
+        expected_evaluated,
+        expected_truncated,
+    )
+    assert len(hypotheses) == expected_evaluated
+    assert len({item.dedup_key for item in hypotheses}) == expected_evaluated
+    assert all(item.evaluation_status == "insufficient_evidence" for item in hypotheses)
+
+
+def test_fluxo_principal_oito_passos_com_persistencia(db, inserir_change):
+    # Passo 1: fotografia real; anomalias e qualidade sao entradas controladas
+    # do UC02. Detector e canario ficam fora do escopo deste teste do UC03.
+    event_at = db.sim_now() - dt.timedelta(hours=3)
+    with db.connection() as conn:
+        for source, entity, minutes in (
+            ("newrelic", "playback", 0),
+            ("apollo", "playback", -2),
+            ("prometheus", "playback", -60),
+            ("newrelic", "billing", 0),
+        ):
+            inserir_change(
+                conn,
+                "signal_bucket",
+                {
+                    "bts": int(
+                        (event_at + dt.timedelta(minutes=minutes)).timestamp() * 1000
+                    ),
+                    "source": source,
+                    "entity": entity,
+                    "metric": "error_rate_pct",
+                    "value": 5,
+                },
+            )
+        inserir_change(
+            conn,
+            "rpaas_bucket",
+            {
+                "bucket_ts_ms": int(event_at.timestamp() * 1000),
+                "region": "sudeste",
+                "vhost": "playback.video.globo.com",
+                "requests_total": 50,
+                "requests_4xx": 5,
+                "requests_5xx": 0,
+            },
+        )
+        inserir_change(
+            conn,
+            "tsuru_event",
+            {
+                "start_time_ms": int(
+                    (event_at - dt.timedelta(minutes=5)).timestamp() * 1000
+                ),
+                "uniqueid": "uc03-deploy",
+                "target_type": "app",
+                "target_value": "playback-api",
+                "kind": "app.deploy",
+            },
+        )
+        conn.execute("SELECT bronze.merge_todas()")
+    assert etl.executar_bronze_silver(db, batch_size=100)["status"] == "sucesso"
+    assert (
+        etl.executar_silver_gold(db, janela_max_segundos=999_999_999)["status"]
+        == "sucesso"
+    )
+    catalog = Catalog("test")
+    register_manifest(db, catalog.manifest_hash, catalog.manifest_payload, "test")
+    captured = claim_and_capture(
+        db, worker_id="uc03-fluxo", manifest_hash=catalog.manifest_hash
+    )
+    assert captured is not None
+    assert iniciar_trabalho(db, captured.claim)
+    assert len(captured.facts) == 8
+    assert all(fact.available_at <= captured.claim.sim_now for fact in captured.facts)
+    facts = {(fact.source, fact.entity, fact.metric): fact for fact in captured.facts}
+    subject = facts["newrelic", "playback", "error_rate_pct"]
+    support = facts["apollo", "playback", "error_rate_pct"]
+    rpaas = facts["rpaas", "playback.video.globo.com", "4xx_rate_pct"]
+    deploy = facts["tsuru", "playback-api", "app.deploy"]
+    anomalies = tuple(
+        replace(
+            _anomaly(fact),
+            strength=strength,
+            observed=fact.value,
+            deviation=fact.value - 1,
+        )
+        for fact, strength in ((subject, 0.9), (support, 0.6), (rpaas, 0.7))
+    )
+    quality = tuple(
+        replace(_quality()[0], source=source, last_observation_at=event_at)
+        for source in sorted({fact.source for fact in captured.facts})
+    )
+
+    # Passos 2 e 3: a mesma anomalia participa de mais de uma explicacao;
+    # candidatas e associacoes sao formadas pelas regras reais.
+    candidates = build_candidates(anomalies, captured.facts, quality, catalog)
+    assert len(candidates) == 7
+    assert {item.family for item in candidates} == {
+        "backend_internal",
+        "deploy_regression",
+        "playback_authorization",
+    }
+    assert {item.family for item in candidates if item.anomaly_index == 0} == {
+        "backend_internal",
+        "deploy_regression",
+    }
+    hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
+        candidates, anomalies, quality, catalog
+    )
+    assert (prefiltered, evaluated, truncated) == (7, 7, 0)
+    by_subject = {(item.family, item.anomaly_indexes[0]): item for item in hypotheses}
+    backend = by_subject["backend_internal", 0]
+    regression = by_subject["deploy_regression", 0]
+    contrary = by_subject["backend_internal", 2]
+    missing = by_subject["playback_authorization", 2]
+    assert set(backend.anomaly_indexes) == {0, 1, 2}
+
+    # Passo 4: fontes relacionadas corroboram; billing e o sinal de uma hora
+    # antes nao entram. A contraria e a ausencia conservam polaridades distintas.
+    assert {e.fact.fact_key for e in backend.evidence if e.fact} == {
+        subject.fact_key,
+        support.fact_key,
+        rpaas.fact_key,
+        facts["rpaas", "playback.video.globo.com", "5xx_rate_pct"].fact_key,
+    }
+    assert any(e.fact == deploy for e in regression.evidence)
+    assert any(e.polarity == "contrary" and e.strength == 0.9 for e in contrary.evidence)
+    assert any(
+        e.polarity == "missing" and "100" in e.explanation for e in missing.evidence
+    )
+    assert missing.contradiction_strength == 0
+
+    # Passo 5: oraculos numericos independentes para os seis fatores.
+    factors = {feature.name: feature for feature in backend.features}
+    assert set(factors) == {"A", "T", "C", "E", "I", "Q", "X"}
+    assert factors["A"].value == 0.9
+    assert factors["T"].applicability == "not_applicable"
+    assert factors["C"].value == pytest.approx(0.856)
+    assert factors["E"].value == 1
+    assert factors["I"].applicability == "unavailable"
+    assert factors["Q"].value == 1
+    temporal = next(f for f in regression.features if f.name == "T")
+    assert temporal.value == pytest.approx(2 ** (-5 / 15))
+    impact = next(f for f in contrary.features if f.name == "I")
+    assert impact.value == pytest.approx(math.log1p(50) / math.log1p(10000))
+
+    # Passos 6 e 7: contribuições, penalidade, cobertura e classificacao real.
+    assert factors["C"].contribution == pytest.approx(0.1712)
+    assert backend.score == pytest.approx(100 * 0.5962 / 0.65)
+    assert backend.coverage == pytest.approx(0.8125)
+    assert backend.confidence == "high"
+    penalty = next(f for f in contrary.features if f.name == "X")
+    assert penalty.contribution == -27
+    assert backend.evaluation_status == regression.evaluation_status == "generated"
+    assert contrary.evaluation_status == "discarded"
+    assert missing.evaluation_status == "insufficient_evidence"
+
+    # Passo 8: prioridade por forca (0.9, 0.7, 0.6) e desempate estavel;
+    # inverter a entrada nao altera a ordem, os scores ou as evidencias.
+    assert [item.anomaly_indexes[0] for item in hypotheses] == [0, 0, 2, 2, 2, 1, 1]
+    reversed_hypotheses, *_ = evaluate_candidates(
+        tuple(reversed(candidates)), anomalies, quality, catalog
+    )
+    assert reversed_hypotheses == hypotheses
+    result = AnalysisResult(
+        anomalies=anomalies,
+        finding_anomalies=anomalies,
+        baseline_updates={},
+        quality=quality,
+        hypotheses=hypotheses,
+        candidates_prefiltered=prefiltered,
+        candidates_evaluated=evaluated,
+        candidates_truncated=truncated,
+    )
+    persist_result(db, captured, result, duration_ms=1)
+    run_id = captured.claim.run_id
+    rows = db.fetch_all(
+        """SELECT hypothesis_id, dedup_key, evaluation_status, score, coverage, confidence
+             FROM gold.hypothesis WHERE run_id = %s""",
+        (run_id,),
+    )
+    assert len(rows) == 7
+    persisted = {row["dedup_key"]: row for row in rows}
+    for hypothesis in hypotheses:
+        row = persisted[hypothesis.dedup_key]
+        assert (
+            row["evaluation_status"],
+            row["score"],
+            row["coverage"],
+            row["confidence"],
+        ) == (
+            hypothesis.evaluation_status,
+            hypothesis.score,
+            hypothesis.coverage,
+            hypothesis.confidence,
+        )
+        saved_features = db.fetch_all(
+            """SELECT feature, applicability, value, weight, contribution, explanation
+                 FROM gold.hypothesis_feature
+                WHERE hypothesis_id = %s ORDER BY feature""",
+            (row["hypothesis_id"],),
+        )
+        assert saved_features == [
+            {
+                "feature": f.name,
+                "applicability": f.applicability,
+                "value": f.value,
+                "weight": f.weight,
+                "contribution": f.contribution,
+                "explanation": f.explanation,
+            }
+            for f in sorted(hypothesis.features, key=lambda f: f.name)
+        ]
+        saved_evidence = db.fetch_all(
+            """SELECT role, polarity, explanation, fact_key FROM gold.hypothesis_evidence
+                WHERE hypothesis_id = %s ORDER BY evidence_id""",
+            (row["hypothesis_id"],),
+        )
+        assert saved_evidence == [
+            {
+                "role": e.role,
+                "polarity": e.polarity,
+                "explanation": e.explanation,
+                "fact_key": e.fact.fact_key if e.fact else None,
+            }
+            for e in hypothesis.evidence
+        ]
+    assert (
+        db.fetch_one(
+            """SELECT count(DISTINCT m.group_id) AS groups
+             FROM gold.finding_group_member m
+             JOIN detect.anomaly a ON a.anomaly_id = m.finding_id
+            WHERE m.finding_kind = 'anomaly' AND a.run_id = %s AND a.fact_key = %s""",
+            (run_id, subject.fact_key),
+        )["groups"]
+        >= 2
+    )
+    assert db.fetch_one(
+        """SELECT candidates_prefiltered, candidates_evaluated, candidates_truncated,
+                  generated, discarded, insufficient_evidence
+             FROM gold.hypothesis_run_stats WHERE run_id = %s""",
+        (run_id,),
+    ) == {
+        "candidates_prefiltered": 7,
+        "candidates_evaluated": 7,
+        "candidates_truncated": 0,
+        "generated": 5,
+        "discarded": 1,
+        "insufficient_evidence": 1,
+    }
+    assert db.fetch_one(
+        "SELECT status, manifest_hash FROM detect.run WHERE run_id = %s", (run_id,)
+    ) == {"status": "completed", "manifest_hash": catalog.manifest_hash}
+    assert db.fetch_one("SELECT count(*) AS n FROM gold.hypothesis_feedback")["n"] == 0
+    assert (
+        db.fetch_all(
+            "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
+        )
+        == []
+    )
+    # O fluxo basico termina com candidatos persistidos e prontos para publicar.
+    # Publicacao e filtragem da view sao exercitadas separadamente por CT29.
+    assert db.fetch_all("SELECT action FROM gold.manifest_publication_event") == []
 
 
 @pytest.fixture
