@@ -68,3 +68,25 @@ referenciam versões do lote, uma de Prometheus e outra de Apollo. A view
 `gold.v_hypothesis` permaneceu vazia e não houve evento de publicação,
 conforme o modo sombra. O payload, o manifesto, o recibo e a verificação
 ficam em `projeto/evidencias/hipoteses/`, fora do repositório.
+
+## Visualizar uma hipótese no frontend do lab
+
+A migration `031_lab_hypothesis_preview.sql` acrescenta um evento `preview`:
+ele torna visível apenas a hipótese indicada e seu run. Isso registra a
+inspeção sem afirmar que as onze famílias e os SLOs passaram no portão de
+promoção. Para a hipótese deste teste:
+
+```bash
+make -C apps/basica hypothesis-preview HYPOTHESIS_ID=2951
+make -C apps/basica frontend-deploy NEXT_BUILD_ARGS=--webpack
+```
+
+O frontend precisa estar configurado com `HYPOTHESES_SOURCE=api` no `.env`
+local ignorado pelo Git. Na tela `/hipoteses`, selecione **3 h** no período:
+o evento de teste ocorreu mais de 30 minutos antes da publicação da prévia.
+O detalhe apresenta o score, os fatores e as evidências de Apollo e
+Prometheus. Para voltar ao modo sombra:
+
+```bash
+make -C apps/basica hypothesis-preview-withdraw HYPOTHESIS_ID=2951
+```

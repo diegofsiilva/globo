@@ -7,6 +7,7 @@ import json
 import os
 
 from argus_common import Database
+from psycopg.types.json import Jsonb
 
 from argus_processing.analysis_repository import promote_manifest
 from argus_processing.catalog import Catalog
@@ -24,6 +25,81 @@ FAMILIES = {
     "expected_live_peak",
     "source_data_delay",
 }
+
+
+def preview_hypothesis(
+    db: Database, hypothesis_id: int, *, withdraw: bool = False
+) -> bool:
+    """Mostra só uma hipótese no lab ou retira essa visualização.
+
+    Esta ação é registrada como ``preview`` e não afirma que o manifesto
+    passou no portão de promoção. O evento ``withdrawn`` restaura o modo
+    sombra para esse manifesto.
+
+    Args:
+        db (Database): Conexão com o banco.
+        hypothesis_id (int): Hipótese gerada e concluída.
+        withdraw (bool): Retira uma prévia ativa desse mesmo identificador.
+
+    Returns:
+        bool: ``True`` quando o evento foi registrado.
+    """
+    with db.connection() as conn:
+        row = conn.execute(
+            """
+            SELECT r.manifest_hash, r.status, h.evaluation_status,
+                   COALESCE(s.truncated, true), h.effect_start, r.sim_now
+              FROM gold.hypothesis h
+              JOIN detect.run r ON r.run_id = h.run_id
+              LEFT JOIN gold.hypothesis_run_stats s ON s.run_id = r.run_id
+             WHERE h.hypothesis_id = %s
+            """,
+            (hypothesis_id,),
+        ).fetchone()
+        if row is None:
+            return False
+        manifest_hash, run_status, evaluation_status, truncated, effect_start, sim_now = (
+            row
+        )
+        latest = conn.execute(
+            """
+            SELECT action, gate_metrics->>'hypothesis_id'
+              FROM gold.manifest_publication_event
+             WHERE manifest_hash = %s
+             ORDER BY publication_event_id DESC LIMIT 1
+            """,
+            (manifest_hash,),
+        ).fetchone()
+        if withdraw:
+            if latest != ("preview", str(hypothesis_id)):
+                return False
+            action = "withdrawn"
+        else:
+            if (
+                run_status != "completed"
+                or evaluation_status != "generated"
+                or truncated
+                or effect_start > sim_now
+                or latest is not None
+                and latest[0] == "published"
+            ):
+                return False
+            action = "preview"
+        conn.execute(
+            """
+            INSERT INTO gold.manifest_publication_event
+              (manifest_hash, action, gate_metrics)
+            VALUES (%s, %s, %s)
+            """,
+            (
+                manifest_hash,
+                action,
+                Jsonb(
+                    {"hypothesis_id": hypothesis_id, "reason": "lab_visual_inspection"}
+                ),
+            ),
+        )
+    return True
 
 
 def evaluate(db: Database, catalog: Catalog, args: argparse.Namespace) -> dict:
@@ -133,6 +209,10 @@ def parser() -> argparse.ArgumentParser:
     promote.add_argument("--checkpoint-sla-ok", action="store_true")
     promote.add_argument("--suite-ok", action="store_true")
     sub.add_parser("withdraw")
+    preview = sub.add_parser("preview")
+    preview.add_argument("--hypothesis-id", type=int, required=True)
+    withdraw_preview = sub.add_parser("withdraw-preview")
+    withdraw_preview.add_argument("--hypothesis-id", type=int, required=True)
     sub.add_parser("manifest")
     return root
 
@@ -152,6 +232,12 @@ def main() -> int:
         return 0
     db = Database.from_env(min_size=1, max_size=2, application_name="analysisctl")
     try:
+        if args.command in ("preview", "withdraw-preview"):
+            success = preview_hypothesis(
+                db, args.hypothesis_id, withdraw=args.command == "withdraw-preview"
+            )
+            print(json.dumps({"hypothesis_id": args.hypothesis_id, "success": success}))
+            return 0 if success else 2
         if args.command == "withdraw":
             promote_manifest(
                 db, catalog.manifest_hash, {"reason": "operator"}, withdraw=True

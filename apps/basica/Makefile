@@ -34,6 +34,7 @@ OBSERVABILITY_COMPOSE := docker compose -p carga -f $(OBSERVABILITY)/docker-comp
 # A API de hipóteses faz parte da API de leitura. O mock continua disponível
 # para desenvolvimento visual explícito, mas nunca é o padrão de um build.
 HYPOTHESES_SOURCE ?= api
+NEXT_BUILD_ARGS ?=
 
 # Pasta com os CSVs de evento exportados do BI.
 EVENTS_SRC ?= $(HOME)/Downloads/Events
@@ -726,7 +727,7 @@ frontend-build: frontend-build-info ## Gera o site estatico do dashboard
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
-	  npm run build
+	  npm run build -- $(NEXT_BUILD_ARGS)
 
 .PHONY: frontend-deploy
 frontend-deploy: frontend-build ## Publica o dashboard no website S3
@@ -890,6 +891,19 @@ hypothesis-batch-verify: ## Mostra Bronze, Silver, Gold e hipotese do lote
 	@$(call require_env,DATABASE_URL)
 	@test -n "$(BATCH_FILE)" || { echo "defina BATCH_FILE" >&2; exit 1; }
 	cd $(TOOLS) && $(UV) python hypothesis_batch.py verify --input "$(BATCH_FILE)"
+
+.PHONY: hypothesis-preview hypothesis-preview-withdraw
+hypothesis-preview: ## Mostra uma hipotese gerada no frontend do lab (HYPOTHESIS_ID=...)
+	@$(call require_env,DATABASE_URL)
+	@test -n "$(HYPOTHESIS_ID)" || { echo "defina HYPOTHESIS_ID" >&2; exit 1; }
+	cd $(PROCESSING) && $(UV) python -m argus_processing.analysisctl \
+	  preview --hypothesis-id "$(HYPOTHESIS_ID)"
+
+hypothesis-preview-withdraw: ## Retira a visualizacao da hipotese no lab
+	@$(call require_env,DATABASE_URL)
+	@test -n "$(HYPOTHESIS_ID)" || { echo "defina HYPOTHESIS_ID" >&2; exit 1; }
+	cd $(PROCESSING) && $(UV) python -m argus_processing.analysisctl \
+	  withdraw-preview --hypothesis-id "$(HYPOTHESIS_ID)"
 
 .PHONY: observabilidade-up
 observabilidade-up: ## Sobe Prometheus e Grafana locais (dashboards de resiliencia RNF04/05/11 e de carga RNF01/02/03)
