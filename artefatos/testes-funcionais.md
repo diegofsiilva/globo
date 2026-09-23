@@ -74,18 +74,18 @@ casos entre válidos, de erro e de fronteira.
 
 | Serviço | Arquivo de teste | Unidades principais | Tipo de unidade | Casos |
 |---|---|---|---|---:|
-| Backend | [`test_normalization.py`](../apps/basica/backend/tests/unit/test_normalization.py) | `parse_datetime`, `parse_json_object`, conversões, chaves e UUID | Funções | 20 |
-| Backend | [`test_redaction.py`](../apps/basica/backend/tests/unit/test_redaction.py) | `hash_user_id`, `sanitize_url`, `redact_headers`, `redact_attributes` | Funções | 15 |
-| Backend | [`test_signals.py`](../apps/basica/backend/tests/unit/test_signals.py) | `_severidade`, `_signal_id`, `GenerateSignals.execute` | Funções e método de caso de uso | 11 |
-| Backend | [`test_timeline.py`](../apps/basica/backend/tests/unit/test_timeline.py) | `amostrar_raia` | Função | 6 |
-| Backend | [`test_use_cases_logic.py`](../apps/basica/backend/tests/unit/test_use_cases_logic.py) | resumo, janelas, cursores e autenticação | Funções | 11 |
-| Worker | [`test_changes.py`](../apps/basica/worker/tests/test_changes.py) | `ChangeEvent`, `parse_change` | Classe/modelo e função | 7 |
-| Worker | [`test_check_size.py`](../apps/basica/worker/tests/test_check_size.py) | `check_size` | Função | 4 |
-| Worker | [`test_config.py`](../apps/basica/worker/tests/test_config.py) | `_env_int`, `Config.from_env` | Função e método de classe | 8 |
-| Worker | [`test_extract.py`](../apps/basica/worker/tests/test_extract.py) | `_extract`, `_registro_recusado`, `_serializavel` | Funções | 14 |
-| Simulador | [`test_emitter.py`](../apps/basica/simulator/tests/test_emitter.py) | `_blocos` | Função | 5 |
-| Simulador | [`test_faults.py`](../apps/basica/simulator/tests/test_faults.py) | `Falha.alcanca`, `Falha.aplicar`, `sortear`, `_params` | Métodos de instância e funções | 15 |
-| Processamento | [`test_detector_logic.py`](../apps/basica/processing/tests/test_detector_logic.py) | transformações, materialidade, direção, qualidade e scoring | Funções | 17 |
+| Backend | [`test_normalization.py`](../apps/fullstack/backend/tests/unit/test_normalization.py) | `parse_datetime`, `parse_json_object`, conversões, chaves e UUID | Funções | 20 |
+| Backend | [`test_redaction.py`](../apps/fullstack/backend/tests/unit/test_redaction.py) | `hash_user_id`, `sanitize_url`, `redact_headers`, `redact_attributes` | Funções | 15 |
+| Backend | [`test_signals.py`](../apps/fullstack/backend/tests/unit/test_signals.py) | `_severidade`, `_signal_id`, `GenerateSignals.execute` | Funções e método de caso de uso | 11 |
+| Backend | [`test_timeline.py`](../apps/fullstack/backend/tests/unit/test_timeline.py) | `amostrar_raia` | Função | 6 |
+| Backend | [`test_use_cases_logic.py`](../apps/fullstack/backend/tests/unit/test_use_cases_logic.py) | resumo, janelas, cursores e autenticação | Funções | 11 |
+| Worker | [`test_changes.py`](../apps/fullstack/worker/tests/test_changes.py) | `ChangeEvent`, `parse_change` | Classe/modelo e função | 7 |
+| Worker | [`test_check_size.py`](../apps/fullstack/worker/tests/test_check_size.py) | `check_size` | Função | 4 |
+| Worker | [`test_config.py`](../apps/fullstack/worker/tests/test_config.py) | `_env_int`, `Config.from_env` | Função e método de classe | 8 |
+| Worker | [`test_extract.py`](../apps/fullstack/worker/tests/test_extract.py) | `_extract`, `_registro_recusado`, `_serializavel` | Funções | 14 |
+| Simulador | [`test_emitter.py`](../apps/fullstack/simulator/tests/test_emitter.py) | `_blocos` | Função | 5 |
+| Simulador | [`test_faults.py`](../apps/fullstack/simulator/tests/test_faults.py) | `Falha.alcanca`, `Falha.aplicar`, `sortear`, `_params` | Métodos de instância e funções | 15 |
+| Processamento | [`test_detector_logic.py`](../apps/fullstack/processing/tests/test_detector_logic.py) | transformações, materialidade, direção, qualidade e scoring | Funções | 17 |
 | **Total** | **12 arquivos** | **conjunto de unidades isoladas** | **Funções, métodos e classe/modelo** | **133 casos** |
 
 &emsp; Os arquivos-fonte exercitados ficam nos diretórios `src/telemetry`,
@@ -126,7 +126,7 @@ implementação: o próprio teste calcula o SHA-256 esperado e confronta o resul
 | Identificador | TU-01 |
 | Objetivo | Verificar que `hash_user_id` transforma um identificador em um hash estável sem expor o valor original |
 | Requisito | RNF10, proteção dos dados coletados |
-| Unidade testada | Função `hash_user_id`, em [`redaction.py`](../apps/basica/backend/src/telemetry/application/redaction.py) |
+| Unidade testada | Função `hash_user_id`, em [`redaction.py`](../apps/fullstack/backend/src/telemetry/application/redaction.py) |
 | Pré-condições | Ambiente do backend instalado pelo `uv`; nenhuma conexão externa necessária |
 | Dados de entrada | `user_id="usuario-123"` e `salt="meu-salt-secreto"` |
 | Procedimento | Executar o nó pytest do caso; o teste calcula independentemente o SHA-256 de `salt:user_id`, recorta os 32 primeiros caracteres e compara valor, tamanho e alfabeto |
@@ -140,7 +140,7 @@ implementação: o próprio teste calcula o SHA-256 esperado e confronta o resul
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/backend
+cd apps/fullstack/backend
 uv run pytest tests/unit/test_redaction.py::TestHashUserId::test_deve_gerar_hash_deterministico_de_32_hex -v
 ```
 
@@ -155,7 +155,7 @@ horário incorreto ou avançar silenciosamente pelo pipeline.
 | Identificador | TU-02 |
 | Objetivo | Garantir que uma data não interpretável seja rejeitada durante a normalização da telemetria |
 | Requisitos | RF01/RF03, receber telemetria sem aceitar data inválida |
-| Unidade testada | Função `parse_datetime`, em [`normalization.py`](../apps/basica/backend/src/telemetry/application/normalization.py) |
+| Unidade testada | Função `parse_datetime`, em [`normalization.py`](../apps/fullstack/backend/src/telemetry/application/normalization.py) |
 | Pré-condições | Ambiente do backend instalado; nenhuma dependência externa |
 | Dados de entrada | String `"nao-e-uma-data"` |
 | Procedimento | Chamar `parse_datetime` dentro de `pytest.raises` e verificar a classe da exceção e a presença de `invalido` na mensagem |
@@ -169,7 +169,7 @@ horário incorreto ou avançar silenciosamente pelo pipeline.
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/backend
+cd apps/fullstack/backend
 uv run pytest tests/unit/test_normalization.py::TestParseDatetime::test_deve_levantar_erro_para_formato_desconhecido -v
 ```
 
@@ -184,7 +184,7 @@ para que a Timeline não apresente uma janela diferente daquela consultada.
 | Identificador | TU-03 |
 | Objetivo | Confirmar que `amostrar_raia` reduz uma série que ultrapassa o limite sem perder as extremidades temporais |
 | Requisito | RF12, apresentar gráficos e indicadores |
-| Unidade testada | Função `amostrar_raia`, em [`timeline.py`](../apps/basica/backend/src/telemetry/application/timeline.py) |
+| Unidade testada | Função `amostrar_raia`, em [`timeline.py`](../apps/fullstack/backend/src/telemetry/application/timeline.py) |
 | Pré-condições | Lista ordenada criada em memória; nenhuma conexão externa |
 | Dados de entrada | 101 pontos sequenciais e `limite=100` |
 | Procedimento | Executar a função e verificar o indicador de truncamento, a quantidade retornada e a preservação do primeiro e do último ponto |
@@ -198,7 +198,7 @@ para que a Timeline não apresente uma janela diferente daquela consultada.
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/backend
+cd apps/fullstack/backend
 uv run pytest tests/unit/test_timeline.py::TestAmostrarRaia::test_serie_um_acima_do_limite_e_truncada -v
 ```
 
@@ -213,7 +213,7 @@ de apresentar ou descartar o sinal.
 | Identificador | TU-04 |
 | Objetivo | Verificar que o backend não apresenta como ativo um sinal cujo bucket mais recente voltou à faixa estável |
 | Requisito | RF13, destacar falhas de maior impacto |
-| Unidade testada | Método `GenerateSignals.execute`, em [`signals.py`](../apps/basica/backend/src/telemetry/application/signals.py) |
+| Unidade testada | Método `GenerateSignals.execute`, em [`signals.py`](../apps/fullstack/backend/src/telemetry/application/signals.py) |
 | Pré-condições | Repositório fake em memória retornando dois buckets; nenhuma conexão externa |
 | Dados de entrada | Bucket anterior com `z=3.0` e bucket mais recente com `z=1.5`, abaixo do limiar de sinal `2.0` |
 | Procedimento | Instanciar `GenerateSignals` com o fake, executar o caso de uso no intervalo dos buckets e inspecionar `count` e `items` |
@@ -227,7 +227,7 @@ de apresentar ou descartar o sinal.
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/backend
+cd apps/fullstack/backend
 uv run pytest tests/unit/test_signals.py::TestGenerateSignals::test_deve_ignorar_grupo_cujo_ultimo_bucket_esta_abaixo_do_limiar -v
 ```
 
@@ -242,7 +242,7 @@ de falha reproduzível.
 | Identificador | TU-05 |
 | Objetivo | Confirmar que o worker recusa um corpo JSON corrompido antes da persistência |
 | Requisitos | RNF04/RNF11, isolar a entrada inválida e identificar a falha |
-| Unidade testada | Função `_extract`, em [`consumer.py`](../apps/basica/worker/src/argus_worker/consumer.py) |
+| Unidade testada | Função `_extract`, em [`consumer.py`](../apps/fullstack/worker/src/argus_worker/consumer.py) |
 | Pré-condições | Ambiente do worker instalado; nenhuma fila SQS ou banco necessário |
 | Dados de entrada | Corpo `"{ chave_sem_fechar: "` e chave `"events"` |
 | Procedimento | Chamar `_extract` dentro de `pytest.raises` e comparar a mensagem da exceção com `JSON invalido` |
@@ -256,7 +256,7 @@ de falha reproduzível.
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/worker
+cd apps/fullstack/worker
 uv run pytest tests/test_extract.py::TestConsumerExtract::test_deve_lancar_erro_quando_json_invalido -v
 ```
 
@@ -270,7 +270,7 @@ a guarda não rejeita um change event que ainda pertence ao contrato aceito.
 | Identificador | TU-06 |
 | Objetivo | Verificar que a guarda de tamanho aceita um payload exatamente no limite |
 | Requisito | RNF04, impedir que payload inválido comprometa o fluxo |
-| Unidade testada | Função `check_size`, em [`repository.py`](../apps/basica/worker/src/argus_worker/repository.py) |
+| Unidade testada | Função `check_size`, em [`repository.py`](../apps/fullstack/worker/src/argus_worker/repository.py) |
 | Pré-condições | `MAX_CHANGE_BYTES=4.000.000`; uso da mesma serialização da implementação |
 | Dados de entrada | Dicionário cujo JSON serializado possui exatamente `4.000.000` bytes |
 | Procedimento | Confirmar o tamanho serializado e chamar `check_size` diretamente |
@@ -284,7 +284,7 @@ a guarda não rejeita um change event que ainda pertence ao contrato aceito.
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/worker
+cd apps/fullstack/worker
 uv run pytest tests/test_check_size.py::TestCheckSize::test_deve_permitir_payload_exatamente_no_limite -v
 ```
 
@@ -298,7 +298,7 @@ fronteira, ele comprova que a comparação de tamanho não possui erro de inclus
 | Identificador | TU-07 |
 | Objetivo | Comprovar que a guarda rejeita o primeiro valor acima do limite permitido |
 | Requisito | RNF04, rejeitar payload irrecuperável sem comprometer os demais |
-| Unidade testada | Função `check_size`, em [`repository.py`](../apps/basica/worker/src/argus_worker/repository.py) |
+| Unidade testada | Função `check_size`, em [`repository.py`](../apps/fullstack/worker/src/argus_worker/repository.py) |
 | Pré-condições | Iguais às do TU-06 |
 | Dados de entrada | Dicionário cujo JSON serializado possui exatamente `4.000.001` bytes |
 | Procedimento | Confirmar o tamanho e chamar `check_size` dentro de `pytest.raises` |
@@ -312,7 +312,7 @@ fronteira, ele comprova que a comparação de tamanho não possui erro de inclus
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/worker
+cd apps/fullstack/worker
 uv run pytest tests/test_check_size.py::TestCheckSize::test_deve_rejeitar_payload_um_byte_acima_do_limite -v
 ```
 
@@ -327,7 +327,7 @@ relativo definidos pela política.
 | Identificador | TU-08 |
 | Objetivo | Verificar que uma evidência é material quando atende simultaneamente aos limites absoluto e relativo |
 | Requisitos | RF17/RNF08, hipóteses apoiadas por evidências relevantes |
-| Unidade testada | Função `_material`, em [`detector.py`](../apps/basica/processing/src/argus_processing/detector.py) |
+| Unidade testada | Função `_material`, em [`detector.py`](../apps/fullstack/processing/src/argus_processing/detector.py) |
 | Pré-condições | Política com limite absoluto `10.0` e relativo `0.20` |
 | Dados de entrada | Valor observado `125.0` e esperado `100.0`, diferença absoluta `25.0` e relativa `25%` |
 | Procedimento | Executar `_material` com os valores e a política indicados e comparar o retorno booleano |
@@ -341,7 +341,7 @@ relativo definidos pela política.
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/processing
+cd apps/fullstack/processing
 uv run pytest tests/test_detector_logic.py::TestDetectorMaterialAndDirection::test_material_aprova_quando_atende_ambos_limiares -v
 ```
 
@@ -356,7 +356,7 @@ token Bearer válido.
 | Identificador | TU-09 |
 | Objetivo | Garantir que cabeçalhos ausentes ou fora do formato Bearer não sejam interpretados como credenciais |
 | Requisito | RNF09, acesso apenas com credencial autorizada |
-| Unidade testada | Função `_token_do_cabecalho`, em [`auth.py`](../apps/basica/backend/src/telemetry/interfaces/auth.py) |
+| Unidade testada | Função `_token_do_cabecalho`, em [`auth.py`](../apps/fullstack/backend/src/telemetry/interfaces/auth.py) |
 | Pré-condições | Nenhuma; função pura executada em memória |
 | Dados de entrada | `None`, string vazia, `"Basic dXNlcjpwYXNz"`, `"Bearer"` e `"Bearer    "` |
 | Procedimento | Executar a função para cada entrada e comparar todos os retornos com `None` |
@@ -370,7 +370,7 @@ token Bearer válido.
 &emsp; Para reproduzir apenas este caso:
 
 ```bash
-cd apps/basica/backend
+cd apps/fullstack/backend
 uv run pytest tests/unit/test_use_cases_logic.py::TestAuthHelpers::test_token_do_cabecalho_rejeita_formatos_invalidos -v
 ```
 
@@ -409,7 +409,7 @@ cada `pyproject.toml`:
 
 ```bash
 # Backend: 63 testes unitários
-cd apps/basica/backend
+cd apps/fullstack/backend
 uv run --quiet pytest tests/unit --tb=no
 
 # Worker: 33 testes unitários selecionados
@@ -549,22 +549,22 @@ comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 
 | Caminho | Papel |
 |---|---|
-| [`apps/basica/frontend/tests/e2e/integracao-camadas.spec.ts`](../apps/basica/frontend/tests/e2e/integracao-camadas.spec.ts) | Código do TI-01 |
-| [`apps/basica/frontend/tests/e2e/fixture.sql`](../apps/basica/frontend/tests/e2e/fixture.sql) | Dados de entrada do TI-01, carregados no PostgreSQL |
-| [`apps/basica/frontend/playwright.config.ts`](../apps/basica/frontend/playwright.config.ts) | Sobe o Flask e o site estático que o TI-01 usa |
-| [`apps/basica/backend/tests/integration/test_api_postgres.py`](../apps/basica/backend/tests/integration/test_api_postgres.py) | Código do TI-02 |
-| [`apps/basica/backend/tests/conftest.py`](../apps/basica/backend/tests/conftest.py) | Fixtures do TI-02: banco migrado, relógio virtual congelado e aplicação Flask |
-| [`apps/basica/worker/tests/integration/test_fila_banco.py`](../apps/basica/worker/tests/integration/test_fila_banco.py) | Código do TI-03 |
-| [`apps/basica/worker/tests/conftest.py`](../apps/basica/worker/tests/conftest.py) | Fixtures do TI-03: filas SQS em memória e os dois consumidores |
-| [`apps/basica/worker/tests/fixtures/*.json`](../apps/basica/worker/tests/fixtures/) | Dados de entrada do TI-03: os seis eventos reais exportados do BI |
-| [`apps/basica/processing/tests/integration/test_camadas_medalhao.py`](../apps/basica/processing/tests/integration/test_camadas_medalhao.py) | Código do TI-04 |
-| [`apps/basica/processing/tests/conftest.py`](../apps/basica/processing/tests/conftest.py) | Fixtures do TI-04: banco limpo, marcadores reiniciados e relógio virtual |
-| [`apps/basica/backend/tests/integration/test_implantacao.py`](../apps/basica/backend/tests/integration/test_implantacao.py) | Código do TI-05 |
-| [`apps/basica/.env.example`](../apps/basica/.env.example) | Nomes das variáveis que o TI-05 lê do ambiente; URLs e tokens reais ficam no `.env`, que não é versionado |
-| [`apps/basica/db/migrations/030_indice_lsn_em_evento.sql`](../apps/basica/db/migrations/030_indice_lsn_em_evento.sql) | Correção de schema nascida do diagnóstico do TI-05 |
-| [`apps/basica/processing/tests/test_plano_da_etl.py`](../apps/basica/processing/tests/test_plano_da_etl.py) | Teste que sustenta essa correção |
-| [`apps/basica/Makefile`](../apps/basica/Makefile) | Alvos `db-local`, `env`, `auth-show-ingest`, `test-backend`, `test-worker`, `test-processing`, `test-frontend-e2e` e `k8s-validate` |
-| [`apps/basica/k8s/`](../apps/basica/k8s/) | Manifests do caminho síncrono, renderizados pelo `k8s-validate` |
+| [`apps/fullstack/frontend/tests/e2e/integracao-camadas.spec.ts`](../apps/fullstack/frontend/tests/e2e/integracao-camadas.spec.ts) | Código do TI-01 |
+| [`apps/fullstack/frontend/tests/e2e/fixture.sql`](../apps/fullstack/frontend/tests/e2e/fixture.sql) | Dados de entrada do TI-01, carregados no PostgreSQL |
+| [`apps/fullstack/frontend/playwright.config.ts`](../apps/fullstack/frontend/playwright.config.ts) | Sobe o Flask e o site estático que o TI-01 usa |
+| [`apps/fullstack/backend/tests/integration/test_api_postgres.py`](../apps/fullstack/backend/tests/integration/test_api_postgres.py) | Código do TI-02 |
+| [`apps/fullstack/backend/tests/conftest.py`](../apps/fullstack/backend/tests/conftest.py) | Fixtures do TI-02: banco migrado, relógio virtual congelado e aplicação Flask |
+| [`apps/fullstack/worker/tests/integration/test_fila_banco.py`](../apps/fullstack/worker/tests/integration/test_fila_banco.py) | Código do TI-03 |
+| [`apps/fullstack/worker/tests/conftest.py`](../apps/fullstack/worker/tests/conftest.py) | Fixtures do TI-03: filas SQS em memória e os dois consumidores |
+| [`apps/fullstack/worker/tests/fixtures/*.json`](../apps/fullstack/worker/tests/fixtures/) | Dados de entrada do TI-03: os seis eventos reais exportados do BI |
+| [`apps/fullstack/processing/tests/integration/test_camadas_medalhao.py`](../apps/fullstack/processing/tests/integration/test_camadas_medalhao.py) | Código do TI-04 |
+| [`apps/fullstack/processing/tests/conftest.py`](../apps/fullstack/processing/tests/conftest.py) | Fixtures do TI-04: banco limpo, marcadores reiniciados e relógio virtual |
+| [`apps/fullstack/backend/tests/integration/test_implantacao.py`](../apps/fullstack/backend/tests/integration/test_implantacao.py) | Código do TI-05 |
+| [`apps/fullstack/.env.example`](../apps/fullstack/.env.example) | Nomes das variáveis que o TI-05 lê do ambiente; URLs e tokens reais ficam no `.env`, que não é versionado |
+| [`apps/fullstack/db/migrations/030_indice_lsn_em_evento.sql`](../apps/fullstack/db/migrations/030_indice_lsn_em_evento.sql) | Correção de schema nascida do diagnóstico do TI-05 |
+| [`apps/fullstack/processing/tests/test_plano_da_etl.py`](../apps/fullstack/processing/tests/test_plano_da_etl.py) | Teste que sustenta essa correção |
+| [`apps/fullstack/Makefile`](../apps/fullstack/Makefile) | Alvos `db-local`, `env`, `auth-show-ingest`, `test-backend`, `test-worker`, `test-processing`, `test-frontend-e2e` e `k8s-validate` |
+| [`apps/fullstack/k8s/`](../apps/fullstack/k8s/) | Manifests do caminho síncrono, renderizados pelo `k8s-validate` |
 | [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) | Saída bruta da execução dos cinco testes |
 | [`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt) | Saída da renderização dos cinco conjuntos de manifests |
 
@@ -573,7 +573,7 @@ comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 &emsp; Os quatro testes locais exigem o PostgreSQL no ar, com as migrations aplicadas:
 
 ```bash
-make -C apps/basica db-local
+make -C apps/fullstack db-local
 ```
 
 &emsp; O comando sobe o contêiner `argus-pg` na porta 55432, e não na 5432, para não
@@ -602,8 +602,8 @@ nenhuma mudança de código.
 | Caso de uso | O operador investiga onde um sinal se concentra, trocando agrupamento e filtro na tela Explorar |
 | Componentes envolvidos | Navegador Chromium, site estático Next.js em 127.0.0.1:3100, HTTP, API Flask em 127.0.0.1:5100 e PostgreSQL da base `argus_test` |
 | Pré-condições | Banco no ar com migrations aplicadas e `fixture.sql` carregado; site construído com `NEXT_PUBLIC_API_URL` apontando para o Flask local; Chromium do Playwright instalado |
-| Dados de entrada | [`fixture.sql`](../apps/basica/frontend/tests/e2e/fixture.sql): 21 linhas em `gold.feature_bucket` nas fontes `prometheus`, `youbora_device`, `npaw`, `newrelic` e `apollo`, mais 3 eventos de sessão em `silver.session_event` |
-| Procedimento | `make -C apps/basica test-frontend-e2e`, que recarrega o `fixture.sql`, constrói o site, sobe o Flask e o servidor do site, e executa o Playwright |
+| Dados de entrada | [`fixture.sql`](../apps/fullstack/frontend/tests/e2e/fixture.sql): 21 linhas em `gold.feature_bucket` nas fontes `prometheus`, `youbora_device`, `npaw`, `newrelic` e `apollo`, mais 3 eventos de sessão em `silver.session_event` |
+| Procedimento | `make -C apps/fullstack test-frontend-e2e`, que recarrega o `fixture.sql`, constrói o site, sobe o Flask e o servidor do site, e executa o Playwright |
 | Situação | Aprovado nos 3 casos |
 | Evidência | Bloco TI-01 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) |
 
@@ -632,13 +632,13 @@ valendo. O que o teste deixou de reproduzir é o fio exato que vai para o ar.
 &emsp; Para reproduzir:
 
 ```bash
-make -C apps/basica db-local          # se o banco ainda não estiver no ar
-make -C apps/basica test-frontend-e2e
+make -C apps/fullstack db-local          # se o banco ainda não estiver no ar
+make -C apps/fullstack test-frontend-e2e
 ```
 
 &emsp; O alvo pula sozinho, sem falhar, quando o PostgreSQL ou o Chromium do
 Playwright não estão disponíveis. Para instalar o navegador, o comando é
-`cd apps/basica/frontend && npx playwright install chromium`.
+`cd apps/fullstack/frontend && npx playwright install chromium`.
 
 
 ### TI-02: aplicação Flask e PostgreSQL
@@ -664,7 +664,7 @@ divirjam em silêncio sobre o formato da linha. Um `INSERT` próprio testaria o
 | Componentes envolvidos | `telemetry.interfaces`, `telemetry.application.use_cases`, `telemetry.ports`, `telemetry.infrastructure.postgres.PostgresEventRepository` e a tabela `silver.session_event` |
 | Pré-condições | Banco no ar com migrations aplicadas; tabelas truncadas antes de cada caso; relógio da simulação congelado em 2026-07-14T12:00Z |
 | Dados de entrada | Um evento de erro sintético na sessão `sessao-ti02`, dispositivo `device-ti02`, usuário `usuario-ti02`, sistema `NetRange`, fabricante `Philco`, gravado por `argus_worker.keys.build_row` |
-| Procedimento | `cd apps/basica/backend && TEST_DATABASE_URL=... uv run pytest tests/integration -v` |
+| Procedimento | `cd apps/fullstack/backend && TEST_DATABASE_URL=... uv run pytest tests/integration -v` |
 | Situação | Aprovado nos 3 casos, em 4,64 s |
 | Evidência | Bloco TI-02 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) |
 
@@ -681,13 +681,13 @@ despercebida.
 &emsp; Para reproduzir:
 
 ```bash
-make -C apps/basica db-local
-cd apps/basica/backend
+make -C apps/fullstack db-local
+cd apps/fullstack/backend
 TEST_DATABASE_URL=postgresql://argus:argus@localhost:55432/argus_test \
   uv run pytest tests/integration -v
 ```
 
-&emsp; O alvo `make -C apps/basica test-backend` executa esta suíte junto com as
+&emsp; O alvo `make -C apps/fullstack test-backend` executa esta suíte junto com as
 demais do backend.
 
 
@@ -713,7 +713,7 @@ ordem inversa não perceberia.
 | Componentes envolvidos | Fila `argus-events`, `argus_worker.consumer.EventConsumer`, `argus_worker.repository.EventRepository`, tabela `bronze.event` e a fila de descarte `argus-events-dlq` |
 | Pré-condições | Banco no ar com migrations aplicadas; tabelas da camada bronze truncadas; filas SQS criadas em memória pelo `moto`; credenciais AWS falsas injetadas, para que nenhum teste alcance a nuvem real |
 | Dados de entrada | Evento válido: a fixture `error.json`, exportada do BI do parceiro. Evento inválido: `{"event_name": "request"}`, sem `timestamp`, `session_id` nem `device_id` |
-| Procedimento | `cd apps/basica/worker && TEST_DATABASE_URL=... uv run pytest tests/integration -v` |
+| Procedimento | `cd apps/fullstack/worker && TEST_DATABASE_URL=... uv run pytest tests/integration -v` |
 | Situação | Aprovado nos 2 casos, em 2,57 s |
 | Evidência | Bloco TI-03 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) |
 
@@ -725,13 +725,13 @@ ordem inversa não perceberia.
 &emsp; Para reproduzir:
 
 ```bash
-make -C apps/basica db-local
-cd apps/basica/worker
+make -C apps/fullstack db-local
+cd apps/fullstack/worker
 TEST_DATABASE_URL=postgresql://argus:argus@localhost:55432/argus_test \
   uv run pytest tests/integration -v
 ```
 
-&emsp; O alvo `make -C apps/basica test-worker` executa esta suíte junto com as demais
+&emsp; O alvo `make -C apps/fullstack test-worker` executa esta suíte junto com as demais
 do worker.
 
 
@@ -756,7 +756,7 @@ uma asserção sobre um valor comum como zero ou cem não conseguiria garantir.
 | Componentes envolvidos | `bronze.change_log`, a função `bronze.merge_todas()`, `etl.executar_bronze_silver`, `etl.executar_silver_gold`, `silver.signal_bucket`, `gold.feature_bucket` e os marcadores `etl.watermark_bronze_silver` e `etl.watermark_silver_gold` |
 | Pré-condições | Banco no ar com migrations aplicadas; camadas bronze, silver, gold e etl truncadas; marcadores reiniciados para o estado semeado pela migration 015; relógio da simulação em 2026-07-12T12:00Z |
 | Dados de entrada | Uma mudança em `bronze.change_log` descrevendo a inserção de um bucket de sinal da fonte `prometheus`, entidade `cdn-ti04`, métrica `p95_ms` e valor 412,5 |
-| Procedimento | `cd apps/basica/processing && TEST_DATABASE_URL=... uv run pytest tests/integration -v` |
+| Procedimento | `cd apps/fullstack/processing && TEST_DATABASE_URL=... uv run pytest tests/integration -v` |
 | Situação | Aprovado nos 3 casos, em 7,63 s |
 | Evidência | Bloco TI-04 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) |
 
@@ -778,13 +778,13 @@ dashboard mostraria o dobro do que aconteceu.
 &emsp; Para reproduzir:
 
 ```bash
-make -C apps/basica db-local
-cd apps/basica/processing
+make -C apps/fullstack db-local
+cd apps/fullstack/processing
 TEST_DATABASE_URL=postgresql://argus:argus@localhost:55432/argus_test \
   uv run pytest tests/integration -v
 ```
 
-&emsp; O alvo `make -C apps/basica test-processing` executa esta suíte junto com as
+&emsp; O alvo `make -C apps/fullstack test-processing` executa esta suíte junto com as
 demais do processamento.
 
 
@@ -814,7 +814,7 @@ que nada estivesse errado no sistema.
 | Componentes envolvidos | Rota `POST /v1/events` no API Gateway, Lambda authorizer, fila SQS `argus-events`, event-worker no ECS Fargate, tabela `bronze.event` no RDS, ETL de bronze para silver, tabela `silver.session_event` e a rota `GET /api/v1/events` em Lambda |
 | Pré-condições | Pilha publicada e no ar; `ARGUS_INGEST_URL`, `ARGUS_API_URL`, `ARGUS_INGEST_TOKEN` e `ARGUS_READ_TOKEN` no ambiente; event-worker e ETL em execução. Faltando qualquer uma, o teste é pulado, e não quebrado |
 | Dados de entrada | Um evento de erro único por execução, na sessão `ti05-` seguida de identificador aleatório, carimbado um minuto atrás do instante virtual lido em `GET /api/v1/clock` |
-| Procedimento | `cd apps/basica/backend && uv run pytest tests/integration/test_implantacao.py -v -rs`, com o `.env` carregado no ambiente |
+| Procedimento | `cd apps/fullstack/backend && uv run pytest tests/integration/test_implantacao.py -v -rs`, com o `.env` carregado no ambiente |
 | Situação | 1 caso aprovado e 1 reprovado, em 310 s |
 | Evidência | Bloco TI-05 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt), com a saída do pytest e as medições de cada fronteira |
 
@@ -897,10 +897,10 @@ poda de partição seguida de leitura por índice.
 &emsp; Mais importante que o ganho de quatro vezes nesse volume é o que acontece com
 a forma do custo: a varredura cresce com a tabela, e a leitura por índice
 cresce com o que se pede. A correção está na migration
-[`030_indice_lsn_em_evento.sql`](../apps/basica/db/migrations/030_indice_lsn_em_evento.sql).
+[`030_indice_lsn_em_evento.sql`](../apps/fullstack/db/migrations/030_indice_lsn_em_evento.sql).
 
 &emsp; Ela vem acompanhada do teste
-[`test_plano_da_etl.py`](../apps/basica/processing/tests/test_plano_da_etl.py), que
+[`test_plano_da_etl.py`](../apps/fullstack/processing/tests/test_plano_da_etl.py), que
 verifica o plano de execução, deixando o tempo de relógio de fora. Medir tempo em
 teste produz
 um portão instável, que reprova consulta correta em máquina carregada e acaba
@@ -958,15 +958,15 @@ volta com `make auth-show-ingest`.
 
 ```bash
 # 1. renovar a sessão do Learner Lab e atualizar ~/.aws/credentials (profile g4)
-make -C apps/basica env               # reescreve as URLs a partir do Terraform
-make -C apps/basica auth-show-ingest  # recupera o token de ingestão
+make -C apps/fullstack env               # reescreve as URLs a partir do Terraform
+make -C apps/fullstack auth-show-ingest  # recupera o token de ingestão
 
 # 2. exportar os dois tokens (o de leitura é o que se cola no painel)
 export ARGUS_INGEST_TOKEN=...
 export ARGUS_READ_TOKEN=...
 
 # 3. rodar
-cd apps/basica/backend
+cd apps/fullstack/backend
 set -a && . ../.env && set +a
 uv run pytest tests/integration/test_implantacao.py -v -rs
 ```
@@ -979,15 +979,15 @@ mesma sessão de trabalho.
 
 | Suíte | Comando | Resultado |
 |---|---|---|
-| Worker de ingestão | `make -C apps/basica test-worker` | 77 aprovados |
-| Simulador | `make -C apps/basica test-simulator` | 2 aprovados |
-| Processamento e ETL | `make -C apps/basica test-processing` | 72 aprovados |
-| API de leitura | `make -C apps/basica test-backend` | 227 aprovados, 2 pulados |
-| Autorizador | `make -C apps/basica test-authorizer` | 18 aprovados |
-| Frontend, contratos e componentes | `make -C apps/basica test-frontend` | 24 aprovados |
-| Frontend integrado, com Playwright | `make -C apps/basica test-frontend-e2e` | 12 aprovados |
+| Worker de ingestão | `make -C apps/fullstack test-worker` | 77 aprovados |
+| Simulador | `make -C apps/fullstack test-simulator` | 2 aprovados |
+| Processamento e ETL | `make -C apps/fullstack test-processing` | 72 aprovados |
+| API de leitura | `make -C apps/fullstack test-backend` | 227 aprovados, 2 pulados |
+| Autorizador | `make -C apps/fullstack test-authorizer` | 18 aprovados |
+| Frontend, contratos e componentes | `make -C apps/fullstack test-frontend` | 24 aprovados |
+| Frontend integrado, com Playwright | `make -C apps/fullstack test-frontend-e2e` | 12 aprovados |
 | Pilha publicada, o TI-05 | `uv run pytest tests/integration/test_implantacao.py` | 1 aprovado, 1 reprovado |
-| Manifests do Kubernetes | `make -C apps/basica k8s-validate` | 5 conjuntos renderizados sem erro |
+| Manifests do Kubernetes | `make -C apps/fullstack k8s-validate` | 5 conjuntos renderizados sem erro |
 
 &emsp; São 432 testes aprovados nas suítes que rodam sem credencial de nuvem, mais o
 TI-05, que executado com credencial aprovou um caso e reprovou outro. Os 227 do
@@ -1017,8 +1017,8 @@ está no `.gitignore` por ser credencial, ainda que de um banco descartável, e
 precisa ser criado antes:
 
 ```bash
-cp apps/basica/k8s/overlays/kind/secret.env.example \
-   apps/basica/k8s/overlays/kind/secret.env
+cp apps/fullstack/k8s/overlays/kind/secret.env.example \
+   apps/fullstack/k8s/overlays/kind/secret.env
 ```
 
 &emsp; Com o arquivo no lugar, os cinco conjuntos renderizam. Sem ele, o alvo para no
@@ -1068,7 +1068,7 @@ contra o Auto Mode, e a comparação com os 300 s do `health_check_grace_period`
 grupo de auto scaling carrega essa ressalva.
 
 &emsp; Nada disso torna a rodada original obsoleta. O `create_eks` é `false` por padrão
-no [`variables.tf`](../apps/basica/infra/variables.tf), porque o cluster cobra por
+no [`variables.tf`](../apps/fullstack/infra/variables.tf), porque o cluster cobra por
 hora existindo, e o `terraform.tfvars` do repositório mantém o grupo de auto scaling
 em duas instâncias: esse continua sendo o caminho que sobe por padrão. A rodada de
 21 de setembro fechou a comparação de desempenho contra o Ingress. O que permanece
@@ -1134,10 +1134,10 @@ que o balanceador tenta enviar por ela falha com 502.
 | Item | Valor |
 |---|---|
 | Ferramenta | k6 0.54.0. Na rodada oficial, o binário Linux arm64 instalado numa EC2 descartável; na primeira rodada, a imagem `grafana/k6:0.54.0` em Docker na máquina de desenvolvimento |
-| Roteiro | [`apps/basica/tests/carga/carga_ui.js`](../apps/basica/tests/carga/carga_ui.js) |
+| Roteiro | [`apps/fullstack/tests/carga/carga_ui.js`](../apps/fullstack/tests/carga/carga_ui.js) |
 | Modelo de usuário | Cada iteração abre uma tela: dispara em paralelo, como o navegador, as rotas que aquela tela consome, espera todas, registra o tempo total da tela, e pausa 2 s. As seis telas se alternam em rodízio |
 | Janelas de tempo | Relativas ao relógio virtual `sim_now`, lido em `GET /api/v1/clock` no início do teste, como o frontend faz; janelas de 3 h para Timeline, Comparar e Hipóteses e de 24 h para Explorar, que são os períodos padrão das telas |
-| Gerador de carga | EC2 `t4g.small` na sub-rede pública da VPC do projeto, criada por [`gerador_ec2.sh`](../apps/basica/tests/carga/gerador_ec2.sh) só para a rodada e encerrada ao fim dela |
+| Gerador de carga | EC2 `t4g.small` na sub-rede pública da VPC do projeto, criada por [`gerador_ec2.sh`](../apps/fullstack/tests/carga/gerador_ec2.sh) só para a rodada e encerrada ao fim dela |
 | Data da rodada oficial | 18 de setembro de 2026, das 17:50 às 17:57 UTC |
 | Identificador | `carga-ui-ec2-20260918T174857Z` |
 
@@ -1308,7 +1308,7 @@ cenário e recomenda que o servidor mantenha a conexão por mais tempo que o
 balanceador.
 
 &emsp; A correção é uma linha no comando do gunicorn, `--keep-alive 75`, no
-[`Dockerfile`](../apps/basica/backend/Dockerfile) do backend. Ela foi publicada como a
+[`Dockerfile`](../apps/fullstack/backend/Dockerfile) do backend. Ela foi publicada como a
 imagem `08a827b72de8` e implantada no grupo de auto scaling substituindo as
 instâncias, sempre com duas saudáveis no balanceador. A substituição foi manual,
 subindo a capacidade desejada para quatro e encerrando as duas antigas depois, e
@@ -1361,7 +1361,7 @@ setembro, contra o cluster, e o resultado está na seção
 &emsp; Não há captura de painel. Todos os números desta seção vêm do resumo do k6
 e de leituras do CloudWatch transcritas em texto. O repositório versiona um painel
 feito exatamente para esta medição,
-[`observability/grafana/dashboards/argus-k6.json`](../apps/basica/observability/grafana/dashboards/argus-k6.json),
+[`observability/grafana/dashboards/argus-k6.json`](../apps/fullstack/observability/grafana/dashboards/argus-k6.json),
 servido por `make observabilidade-up`, e ele não foi usado. As duas formas de
 evidência cumprem papéis distintos: o número transcrito pode ser conferido contra a
 saída bruta, enquanto a imagem do painel mostra a forma da curva, que é o que
@@ -1412,7 +1412,7 @@ não existe naquele cluster. Sem servidor de métricas não há métrica de CPU,
 métrica de CPU o HPA não calcula réplica, e as duas réplicas iniciais atenderam
 sozinhas os 900 usuários do último degrau.
 
-&emsp; Isso contradiz o que o runbook afirma. O [`k8s/README.md`](../apps/basica/k8s/README.md)
+&emsp; Isso contradiz o que o runbook afirma. O [`k8s/README.md`](../apps/fullstack/k8s/README.md)
 diz que o `metrics-server` já vem no Auto Mode, diferente do `kind`, que precisa
 instalá-lo. A observação em cluster mostra o contrário: o Auto Mode gerencia a
 capacidade de nós, e não instala o servidor de métricas, que continua sendo um
@@ -1443,26 +1443,26 @@ identificador de conta e token foram substituídos antes de versionar.
 
 | Caminho | Papel |
 |---|---|
-| [`apps/basica/tests/carga/carga_ui.js`](../apps/basica/tests/carga/carga_ui.js) | Roteiro do k6: rotas por tela, três níveis, limiares e resumo por nível |
-| [`apps/basica/tests/carga/gerador_ec2.sh`](../apps/basica/tests/carga/gerador_ec2.sh) | Cria a EC2 geradora, roda o cenário nela, traz os resultados e apaga o que criou |
-| [`apps/basica/tests/carga/executar_testes.sh`](../apps/basica/tests/carga/executar_testes.sh) | Executor local da suíte, com o cenário `carga-ui`; usa o k6 local ou a imagem Docker |
-| [`apps/basica/backend/Dockerfile`](../apps/basica/backend/Dockerfile) | A correção do keep-alive |
-| [`apps/basica/Makefile`](../apps/basica/Makefile) | Alvos `teste-carga-ui` e `teste-carga-ui-ec2` |
+| [`apps/fullstack/tests/carga/carga_ui.js`](../apps/fullstack/tests/carga/carga_ui.js) | Roteiro do k6: rotas por tela, três níveis, limiares e resumo por nível |
+| [`apps/fullstack/tests/carga/gerador_ec2.sh`](../apps/fullstack/tests/carga/gerador_ec2.sh) | Cria a EC2 geradora, roda o cenário nela, traz os resultados e apaga o que criou |
+| [`apps/fullstack/tests/carga/executar_testes.sh`](../apps/fullstack/tests/carga/executar_testes.sh) | Executor local da suíte, com o cenário `carga-ui`; usa o k6 local ou a imagem Docker |
+| [`apps/fullstack/backend/Dockerfile`](../apps/fullstack/backend/Dockerfile) | A correção do keep-alive |
+| [`apps/fullstack/Makefile`](../apps/fullstack/Makefile) | Alvos `teste-carga-ui` e `teste-carga-ui-ec2` |
 | [`evidencias/testes-carga.txt`](evidencias/testes-carga.txt) | Saída completa do k6 das duas rodadas, sem as linhas de progresso, e as leituras do CloudWatch de cada janela |
 
 ```bash
-# 1. renovar a sessão do Learner Lab e garantir o .env (make -C apps/basica env)
+# 1. renovar a sessão do Learner Lab e garantir o .env (make -C apps/fullstack env)
 # 2. exportar o token de leitura no terminal e chamar o gerador direto: o Makefile
 #    lê o .env e sobrescreve o que estiver exportado, então o alvo do make só
 #    funciona com o token preenchido no .env
 export ARGUS_READ_TOKEN=...
-apps/basica/tests/carga/gerador_ec2.sh carga-ui
+apps/fullstack/tests/carga/gerador_ec2.sh carga-ui
 
 # níveis, duração e pausa são ajustáveis por variável de ambiente:
-CARGA_UI_VUS_3=200 CARGA_UI_DURACAO=10m apps/basica/tests/carga/gerador_ec2.sh carga-ui
+CARGA_UI_VUS_3=200 CARGA_UI_DURACAO=10m apps/fullstack/tests/carga/gerador_ec2.sh carga-ui
 
 # a variante local, para preflight sem criar instância:
-apps/basica/tests/carga/executar_testes.sh carga-ui
+apps/fullstack/tests/carga/executar_testes.sh carga-ui
 ```
 
 &emsp; Como nas seções anteriores, nenhum endpoint, identificador de conta ou token

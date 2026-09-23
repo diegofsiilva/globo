@@ -84,7 +84,7 @@
   "frescor_ponta_a_ponta": {
     "estado": "nao_comprovado_no_ambiente_remoto",
     "motivo": "A implantacao ativa nao continha a migration 029, que inclui bronze.event no avanco do watermark bronze-silver.",
-    "correcao": "apps/basica/db/migrations/029_watermark_inclui_eventos.sql",
+    "correcao": "apps/fullstack/db/migrations/029_watermark_inclui_eventos.sql",
     "validacao_local": "66 testes de processamento aprovados, incluindo regressao de evento sem change_log posterior",
     "proximo_passo": "Aplicar a migration em janela autorizada e repetir a consulta de frescor por test_id."
   },

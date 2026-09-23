@@ -1,0 +1,15 @@
+# O backend usa backend/ como contexto, portanto o .dockerignore de
+# apps/fullstack/ nao se aplica aqui.
+.env
+.env.*
+!.env.example
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+*.py[cod]
+tests/
+dist/
+instance/
+src/*.egg-info/
+*.log

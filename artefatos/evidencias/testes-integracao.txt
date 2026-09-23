@@ -5,12 +5,12 @@ Banco de teste: postgresql://argus:argus@localhost:55432/argus_test (container a
 
 ================================================================================
 TI-02  API Flask <-> PostgreSQL
-  cd apps/basica/backend
+  cd apps/fullstack/backend
   TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
 ================================================================================
 ============================= test session starts ==============================
 platform linux -- Python 3.13.12, pytest-8.4.2, pluggy-1.6.0
-rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/backend
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/fullstack/backend
 configfile: pyproject.toml
 plugins: cov-6.3.0
 collected 3 items
@@ -21,12 +21,12 @@ tests/integration/test_api_postgres.py ...                               [100%]
 
 ================================================================================
 TI-03  Worker <-> SQS (moto) <-> PostgreSQL
-  cd apps/basica/worker
+  cd apps/fullstack/worker
   TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
 ================================================================================
 ============================= test session starts ==============================
 platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
-rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/worker
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/fullstack/worker
 configfile: pyproject.toml
 plugins: cov-7.1.0
 collected 2 items
@@ -37,12 +37,12 @@ tests/integration/test_fila_banco.py ..                                  [100%]
 
 ================================================================================
 TI-04  ETL bronze -> silver -> gold <-> PostgreSQL
-  cd apps/basica/processing
+  cd apps/fullstack/processing
   TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
 ================================================================================
 ============================= test session starts ==============================
 platform linux -- Python 3.13.12, pytest-9.1.1, pluggy-1.6.0
-rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/processing
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/fullstack/processing
 configfile: pyproject.toml
 collected 3 items
 
@@ -52,7 +52,7 @@ tests/integration/test_camadas_medalhao.py ...                           [100%]
 
 ================================================================================
 TI-01  Dashboard Next.js, API Flask e PostgreSQL (Playwright)
-  make -C apps/basica test-frontend-e2e
+  make -C apps/fullstack test-frontend-e2e
   (linhas [WebServer] do log do Flask omitidas por volume)
 ================================================================================
 cd tools && uv run --quiet python migrate.py aplicar
@@ -155,7 +155,7 @@ Running 12 tests using 1 worker
 ================================================================================
 TI-05  Pilha implantada na AWS (API Gateway -> authorizer -> SQS -> worker
        -> RDS -> ETL -> API de leitura)
-  cd apps/basica/backend
+  cd apps/fullstack/backend
   set -a && . ../.env && set +a
   export ARGUS_READ_TOKEN=... ARGUS_INGEST_TOKEN=...   (valores fora do arquivo)
   TI05_TIMEOUT_SECONDS=300 uv run pytest tests/integration/test_implantacao.py -v -rs
@@ -174,7 +174,7 @@ Servicos ECS no momento da execucao (aws ecs describe-services):
 
 ============================= test session starts ==============================
 platform linux -- Python 3.13.12, pytest-8.4.2, pluggy-1.6.0
-rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/backend
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/fullstack/backend
 configfile: pyproject.toml
 plugins: cov-6.3.0
 collected 2 items

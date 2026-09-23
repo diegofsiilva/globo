@@ -1,0 +1,20 @@
+# Este arquivo vale para os quatro builds cujo contexto e apps/fullstack/.
+# Os Dockerfiles copiam somente common/, o proprio servico e alguns arquivos
+# de migration; nada abaixo e necessario no contexto enviado ao builder.
+**/.env
+**/.env.*
+!**/.env.example
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/*.py[cod]
+**/node_modules
+**/.next
+**/out
+infra/.terraform
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfvars
+data/
+*.log

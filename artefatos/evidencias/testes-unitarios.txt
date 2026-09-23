@@ -4,22 +4,22 @@ Ambiente: Linux, Python 3.12.3
 
 1. SUÍTES UNITÁRIAS SELECIONADAS
 
-$ cd apps/basica/backend
+$ cd apps/fullstack/backend
 $ uv run --quiet pytest tests/unit --tb=no
 ...............................................................          [100%]
 63 passed in 0.04s
 
-$ cd apps/basica/worker
+$ cd apps/fullstack/worker
 $ uv run --quiet pytest tests/test_changes.py tests/test_check_size.py tests/test_config.py tests/test_extract.py --tb=no
 .................................                                        [100%]
 33 passed in 0.23s
 
-$ cd apps/basica/simulator
+$ cd apps/fullstack/simulator
 $ uv run --quiet pytest tests/test_emitter.py tests/test_faults.py --tb=no
 ....................                                                     [100%]
 20 passed in 0.04s
 
-$ cd apps/basica/processing
+$ cd apps/fullstack/processing
 $ uv run --quiet pytest tests/test_detector_logic.py --tb=no
 .................                                                        [100%]
 17 passed in 0.02s
