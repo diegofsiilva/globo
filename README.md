@@ -155,47 +155,83 @@ Para a implantação na AWS, também são necessários Terraform 1.x, AWS CLI e
 credenciais do Learner Lab no profile `g4` (`aws sts get-caller-identity --profile g4`
 deve responder). A execução local abaixo não depende de credenciais AWS.
 
-No VS Code ou Codespaces, instale os pré-requisitos no ambiente em que os comandos
-serão executados. As configurações específicas do backend ficam em
-[`apps/fullstack/backend/.vscode`](apps/fullstack/backend/.vscode) e
-[`apps/fullstack/backend/.devcontainer`](apps/fullstack/backend/.devcontainer).
+Quem prefere não instalar nada na máquina usa o devcontainer em
+[`apps/fullstack/.devcontainer`](apps/fullstack/.devcontainer), que já traz Python 3.12,
+uv, Node 20, Docker e make: no VS Code, **Dev Containers: Open Folder in Container…**
+apontando para a pasta `apps/fullstack`. Ele não pode ficar na raiz porque a raiz do
+repositório é fixa — e por isso o Codespaces, que só procura `.devcontainer` na raiz,
+não o encontra. Com `apps/fullstack` aberto como pasta do workspace,
+[`apps/fullstack/.vscode`](apps/fullstack/.vscode) traz a task padrão de build
+**Argus: subir tudo** (`make dev`) e as configurações **Run and Debug → Backend Flask**
+e **Dashboard (Next dev)**.
 
 ### Passos
+
+O caminho principal são três passos: clonar, `make dev` e abrir o dashboard.
 
 ```bash
 # 1. clonar o repositório
 git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
 cd g04
 
-# 2. instalar as dependências dos serviços e do dashboard
+# 2. subir tudo no mesmo terminal: PostgreSQL local já migrado, API de leitura
+#    e dashboard. Ctrl-C derruba os três.
+make -C apps/fullstack dev
+
+# 3. abrir http://localhost:3000 e colar, na tela de acesso, o token local de
+#    64 zeros — o próprio `make dev` imprime URL e token quando os dois respondem.
+```
+
+`make dev` instala o que falta (`uv` monta os ambientes Python na primeira execução;
+`npm ci` roda se `frontend/node_modules` não existir), reaproveita o container
+`argus-pg` quando ele já existe (só aplica as migrations pendentes) e imprime, ao
+final, a URL do dashboard e o token. As portas são variáveis:
+`make -C apps/fullstack dev API_PORT=5001` quando a 5000 estiver ocupada (no macOS, o
+AirPlay Receiver escuta nela) e `WEB_PORT=3001` para o dashboard.
+
+No ambiente local a API sobe com `AUTH_REQUIRED=0` e ignora o token; a tela de acesso
+do dashboard só exige o **formato** de 64 caracteres hexadecimais, daí os 64 zeros:
+`0000000000000000000000000000000000000000000000000000000000000000`. Para usar a API
+publicada, gere o `.env` com `make -C apps/fullstack env` após a implantação na AWS e
+use o token de leitura desse ambiente.
+
+**O banco nasce vazio.** O dataset é do parceiro (4 GB, não redistribuível) e não vem
+no clone; as telas abrem, mas sem dados. Quem tem o dump gera o Parquet uma vez
+(`make -C apps/fullstack parquet`) e carrega a amostra com
+`make -C apps/fullstack dev-seed`, que roda a carga local, reconstrói silver e gold e
+posiciona o relógio virtual no último evento. Sem a pasta `data/parquet`, `dev-seed`
+apenas avisa. `make replay` não substitui isso: ele reenvia os seis eventos de exemplo
+à API de **ingestão publicada** (API Gateway → SQS → worker), que não existe no
+ambiente local.
+
+#### Passo a passo, um serviço por terminal
+
+Os mesmos passos que o `make dev` encadeia, para quem quer cada serviço num terminal:
+
+```bash
+# instalar as dependências dos serviços e do dashboard
 make -C apps/fullstack install
 make -C apps/fullstack frontend-install
 
-# 3. subir um PostgreSQL 16 local e aplicar as 29 migrations
+# subir um PostgreSQL 16 local e aplicar as migrations
 make -C apps/fullstack db-local
 
-# 4. rodar a suíte de testes
+# rodar a suíte de testes
 make -C apps/fullstack test
 
-# 5. subir a API de leitura local e manter este terminal aberto
+# subir a API de leitura local e manter este terminal aberto
 make -C apps/fullstack api DATABASE_URL=postgresql://argus:argus@localhost:55432/argus
 
-# 6. em outro terminal, a partir da raiz do repositório, subir o dashboard
+# em outro terminal, a partir da raiz do repositório, subir o dashboard
 make -C apps/fullstack frontend-dev ARGUS_API_URL=http://localhost:5000
 ```
 
-O `db-local` sobe o container `argus-pg` na porta **55432** (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations. `make -C apps/fullstack db-stop` derruba, `make -C apps/fullstack db-psql` abre um `psql` dentro dele.
-
-No ambiente local padrão, a API usa `AUTH_REQUIRED=0`; a tela de acesso do dashboard
-exige o formato de 64 caracteres hexadecimais. Nesse ambiente local, use 64 zeros:
-`0000000000000000000000000000000000000000000000000000000000000000`.
-O banco começa sem o dataset do parceiro, portanto as telas podem ficar sem dados.
-Para usar a API publicada,
-gere o `.env` com `make -C apps/fullstack env` após a implantação na AWS e use o
-token de leitura desse ambiente.
+O `db-local` sobe o container `argus-pg` na porta **55432** (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations — sempre do zero. `make -C apps/fullstack db-ensure` é a versão idempotente que o `make dev` usa: reaproveita o container existente e só aplica o que falta. `make -C apps/fullstack db-stop` derruba, `make -C apps/fullstack db-psql` abre um `psql` dentro dele.
 
 | Serviço | Porta local | Como subir |
 |---------|-------------|------------|
+| Tudo (banco + API + dashboard) | 55432 / 5000 / 3000 | `make -C apps/fullstack dev` |
+| PostgreSQL local | 55432 | `make -C apps/fullstack db-ensure` (`db-local` recria do zero) |
 | API de leitura | 5000 | `make -C apps/fullstack api` |
 | Dashboard | 3000 | `make -C apps/fullstack frontend-dev ARGUS_API_URL=http://localhost:5000` |
 
@@ -213,11 +249,9 @@ $env:DATABASE_URL = "postgresql://argus:argus@localhost:55432/argus"
 & ./apps/fullstack/backend/scripts/dev.ps1
 ```
 
-Os scripts criam o `.venv`, instalam as dependências e executam `run.py`. No VS Code,
-abra `apps/fullstack/backend` como workspace, selecione o interpretador desse
-`.venv`, configure `DATABASE_URL` no ambiente ou em `apps/fullstack/.env` e execute
-**Run and Debug → Backend Flask**. Para apenas instalar, testar e analisar o código,
-não é necessário gerar o `.env` nem possuir credenciais AWS.
+Os scripts criam o `.venv`, instalam as dependências e executam `run.py`. Para apenas
+instalar, testar e analisar o código, não é necessário gerar o `.env` nem possuir
+credenciais AWS.
 
 Os workers não são executados localmente contra a fila real: use `make -C apps/fullstack images` para construir as quatro imagens e `make -C apps/fullstack replay` para reenviar os eventos de exemplo à API de ingestão publicada.
 
