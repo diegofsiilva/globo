@@ -16,10 +16,11 @@ entre arquivos diferentes, e cada um ja custou uma sessao de depuracao:
    imagem `processing`, que e a do `Job` de migration: ela rodava no `kind` (amd64 na
    maquina do dev) e nao poderia rodar no EKS.
 
-3. **Chaves do Secret.** O Deployment le `DATABASE_URL` (usuario de leitura) e o `Job`
-   le `DATABASE_URL_MASTER` (usuario mestre). Trocar as duas falha no meio da
-   migration com `permission denied for schema`, deixando o banco parcialmente
-   migrado. Uma chave que o pod pede e o Makefile nao cria vira `CreateContainerConfigError`.
+3. **Chaves do Secret.** O Deployment le `DATABASE_URL` (usuario de leitura) e os dois
+   `Job`s (migration e login de leitura) leem `DATABASE_URL_MASTER` (usuario mestre).
+   Trocar as duas falha no meio da migration com `permission denied for schema`,
+   deixando o banco parcialmente migrado. Uma chave que o pod pede e o Makefile nao
+   cria vira `CreateContainerConfigError`.
 
 Roda offline: nao contacta cluster nenhum, nao precisa de credencial da AWS. E
 chamado por `make k8s-validate`, que por sua vez e portao do `make check`.
