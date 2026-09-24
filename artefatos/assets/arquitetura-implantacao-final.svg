@@ -1,0 +1,403 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="3600" height="2320" viewBox="0 0 3600 2320" role="img" aria-labelledby="title desc">
+  <title id="title">Diagrama de implantação da arquitetura distribuída do Argus</title>
+  <desc id="desc">Arquitetura híbrida na AWS com ingestão assíncrona em API Gateway, SQS e ECS Fargate, caminho síncrono no Amazon EKS Auto Mode com instâncias EC2 gerenciadas como nós, persistência em RDS PostgreSQL dentro de uma VPC distribuída em duas zonas de disponibilidade e integração opcional com um Ollama remoto somente para refinar a resposta final ao usuário.</desc>
+
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="125%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#102a43" flood-opacity="0.09"/>
+    </filter>
+    <style>
+      text { font-family: Inter, Arial, sans-serif; fill: #102a43; }
+      .title { font-size: 50px; font-weight: 750; letter-spacing: -0.5px; }
+      .subtitle { font-size: 27px; fill: #486581; }
+      .boundary { fill: #fbfcfe; stroke: #9fb3c8; stroke-width: 3; }
+      .az { fill: none; stroke: #b5c5d4; stroke-width: 2; stroke-dasharray: 14 11; }
+      .private { fill: #f5f9fc; stroke: #b9cad9; stroke-width: 2; }
+      .public { fill: #f7faf3; stroke: #b7cba4; stroke-width: 2; }
+      .group { fill: rgba(246,249,255,0.78); stroke: #326ce5; stroke-width: 3; stroke-dasharray: 16 11; }
+      .ops { fill: #fcfdff; stroke: #c1cfdd; stroke-width: 2; stroke-dasharray: 12 10; }
+      .node { fill: #edf3f8; stroke: #526d82; stroke-width: 2.5; rx: 12; }
+      .node-async { fill: #fff8ed; stroke: #d97706; stroke-width: 3; rx: 12; }
+      .node-k8s { fill: #f1f5ff; stroke: #326ce5; stroke-width: 2.5; rx: 12; }
+      .node-public { fill: #f2f8eb; stroke: #6f914c; stroke-width: 2.5; rx: 12; }
+      .artifact { fill: #ffffff; stroke: #9cb2c7; stroke-width: 2; rx: 9; }
+      .artifact-async { fill: #ffffff; stroke: #e0a14d; stroke-width: 2; rx: 9; }
+      .artifact-k8s { fill: #ffffff; stroke: #8eb1ef; stroke-width: 2; rx: 9; }
+      .node-title { font-size: 29px; font-weight: 750; text-anchor: middle; }
+      .node-subtitle { font-size: 23px; fill: #405f78; text-anchor: middle; }
+      .stereo { font-size: 19px; font-style: italic; fill: #5e7890; text-anchor: middle; }
+      .artifact-title { font-size: 23px; font-weight: 700; text-anchor: middle; }
+      .artifact-text { font-size: 21px; fill: #294761; text-anchor: middle; }
+      .section-title { font-size: 28px; font-weight: 750; fill: #334e68; }
+      .section-note { font-size: 21px; font-style: italic; fill: #5b748b; }
+      .flow { fill: none; stroke: #334e68; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+      .flow-sync { fill: none; stroke: #326ce5; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .flow-async { fill: none; stroke: #d97706; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .flow-support { fill: none; stroke: #7890a6; stroke-width: 2.5; stroke-dasharray: 10 9; stroke-linecap: round; stroke-linejoin: round; }
+      .label-bg { fill: #ffffff; stroke: #e3eaf0; stroke-width: 1; opacity: 0.97; rx: 6; }
+      .flow-label { font-size: 20px; font-weight: 650; fill: #294761; text-anchor: middle; }
+      .legend { font-size: 20px; fill: #334e68; }
+      .tiny { font-size: 19px; fill: #405f78; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <rect width="3600" height="2400" fill="#ffffff"/>
+  <text x="1800" y="64" class="title" text-anchor="middle">Diagrama de implantação do Argus — arquitetura final</text>
+  <text x="1800" y="103" class="subtitle" text-anchor="middle">AWS us-east-1 · VPC em duas AZs · ECS Fargate no caminho assíncrono · EKS Auto Mode com nós EC2 no caminho síncrono</text>
+
+  <!-- Legenda -->
+  <g transform="translate(2880,26)">
+    <rect x="0" y="0" width="650" height="112" fill="#ffffff" stroke="#bcccdc" stroke-width="2" rx="8"/>
+    <text x="18" y="28" class="legend" font-weight="700">Legenda</text>
+    <line x1="20" y1="55" x2="82" y2="55" class="flow-async"/><text x="98" y="61" class="legend">conexão assíncrona</text>
+    <line x1="255" y1="55" x2="317" y2="55" class="flow-sync"/><text x="333" y="61" class="legend">conexão síncrona</text>
+    <rect x="20" y="76" width="62" height="20" class="node"/><text x="98" y="94" class="legend">nó/serviço</text>
+    <rect x="255" y="76" width="62" height="20" class="group"/><text x="333" y="94" class="legend">agrupamento lógico</text>
+  </g>
+
+  <!-- Limites de rede -->
+  <rect x="560" y="165" width="2410" height="1705" class="boundary"/>
+  <text x="590" y="205" class="section-title">VPC dedicada — 10.0.0.0/16</text>
+  <text x="590" y="237" class="section-note">workloads e banco sem IP público · saída controlada por NAT · regras por security group</text>
+
+  <rect x="590" y="275" width="2350" height="735" class="az"/>
+  <text x="620" y="310" class="section-title">Zona de disponibilidade us-east-1a</text>
+  <rect x="620" y="335" width="1700" height="630" class="private"/>
+  <text x="645" y="370" class="section-title">Sub-rede privada — 10.0.10.0/24</text>
+  <rect x="2350" y="335" width="560" height="630" class="public"/>
+  <text x="2375" y="370" class="section-title">Sub-rede pública — 10.0.0.0/24</text>
+
+  <rect x="590" y="1045" width="2350" height="755" class="az"/>
+  <text x="620" y="1080" class="section-title">Zona de disponibilidade us-east-1b</text>
+  <rect x="620" y="1105" width="1700" height="645" class="private"/>
+  <text x="645" y="1140" class="section-title">Sub-rede privada — 10.0.11.0/24</text>
+  <rect x="2350" y="1105" width="560" height="645" class="public"/>
+  <text x="2375" y="1140" class="section-title">Sub-rede pública — 10.0.1.0/24</text>
+
+  <!-- Conexões transversais em segundo plano para não competir com os cards -->
+  <path d="M360 1945 L360 1885 L940 1885 L940 900" class="flow-support"/>
+  <path d="M360 1885 L1850 1885 L1850 1675" class="flow-support"/>
+  <path d="M1480 1945 L1480 1815" class="flow-support"/>
+  <path d="M1020 1575 L1020 1815 L2020 1815 L2020 1675" class="flow-support"/>
+  <path d="M1320 900 L1420 900 L1420 1815" class="flow-support"/>
+  <path d="M2040 1945 L2040 1915 L520 1915 L520 760 L400 760 L400 735" class="flow-support"/>
+  <path d="M2600 1945 L2600 1850 L2050 1850 L2050 1005" class="flow-support"/>
+  <path d="M2600 1850 L1250 1850 L1250 900" class="flow-support"/>
+
+  <!-- Fontes externas -->
+  <g filter="url(#shadow)">
+    <rect x="55" y="230" width="430" height="190" class="node"/>
+    <text x="270" y="267" class="stereo">«device»</text>
+    <text x="270" y="304" class="node-title">Aplicações cliente</text>
+    <rect x="85" y="330" width="370" height="65" class="artifact"/>
+    <text x="270" y="356" class="artifact-title">SDK de telemetria</text>
+    <text x="270" y="381" class="artifact-text">player · backend · CDN · identidade</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="55" y="505" width="430" height="230" class="node"/>
+    <text x="270" y="542" class="stereo">«edge service»</text>
+    <text x="270" y="579" class="node-title">Amazon API Gateway</text>
+    <text x="270" y="608" class="node-subtitle">HTTP API de ingestão</text>
+    <rect x="85" y="632" width="370" height="78" class="artifact"/>
+    <text x="270" y="660" class="artifact-title">POST /v1/events · /v1/changes</text>
+    <text x="270" y="687" class="artifact-text">integração SQS · authorizer Bearer</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="55" y="820" width="430" height="245" class="node"/>
+    <text x="270" y="857" class="stereo">«message queue»</text>
+    <text x="270" y="894" class="node-title">Amazon SQS</text>
+    <rect x="85" y="920" width="370" height="52" class="artifact"/>
+    <text x="270" y="952" class="artifact-title">events + DLQ</text>
+    <rect x="85" y="985" width="370" height="52" class="artifact"/>
+    <text x="270" y="1017" class="artifact-title">changes + DLQ</text>
+    <text x="270" y="1054" class="tiny">redrive após 5 tentativas</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="55" y="1250" width="430" height="205" class="node"/>
+    <text x="270" y="1287" class="stereo">«object storage»</text>
+    <text x="270" y="1324" class="node-title">Amazon S3</text>
+    <text x="270" y="1353" class="node-subtitle">origem · logs de infraestrutura</text>
+    <rect x="85" y="1373" width="370" height="58" class="artifact"/>
+    <text x="270" y="1398" class="artifact-title">Parquet · 33 tabelas</text>
+    <text x="270" y="1422" class="artifact-text">manifesto · logs do ALB e da VPC</text>
+  </g>
+
+  <!-- ECS/Fargate: caminho assíncrono -->
+  <g filter="url(#shadow)">
+    <rect x="680" y="415" width="680" height="485" class="node-async"/>
+    <text x="1020" y="454" class="stereo">«execution environment»</text>
+    <text x="1020" y="493" class="node-title">Amazon ECS Fargate</text>
+    <text x="1020" y="524" class="node-subtitle">serviços e tasks do caminho assíncrono</text>
+    <rect x="715" y="552" width="610" height="82" class="artifact-async"/>
+    <text x="1020" y="580" class="artifact-title">event_worker · merge_worker</text>
+    <text x="1020" y="608" class="artifact-text">long polling · append e MERGE por LSN</text>
+    <rect x="715" y="650" width="610" height="82" class="artifact-async"/>
+    <text x="1020" y="678" class="artifact-title">processing · simulator</text>
+    <text x="1020" y="706" class="artifact-text">ETL · hipóteses · relógio virtual</text>
+    <rect x="715" y="748" width="610" height="82" class="artifact-async"/>
+    <text x="1020" y="776" class="artifact-title">loader (task avulsa)</text>
+    <text x="1020" y="804" class="artifact-text">S3 GetObject → COPY em lote</text>
+    <text x="1020" y="862" class="tiny">ARM64 · IAM por task · logs no CloudWatch</text>
+  </g>
+
+  <!-- RDS -->
+  <g filter="url(#shadow)">
+    <rect x="680" y="1210" width="680" height="365" class="node"/>
+    <text x="1020" y="1249" class="stereo">«database»</text>
+    <text x="1020" y="1288" class="node-title">Amazon RDS PostgreSQL 16</text>
+    <text x="1020" y="1319" class="node-subtitle">DB subnet group privado nas duas AZs</text>
+    <rect x="715" y="1350" width="610" height="80" class="artifact"/>
+    <text x="1020" y="1378" class="artifact-title">bronze · silver · gold · etl · detect</text>
+    <text x="1020" y="1406" class="artifact-text">views v_* · relógio sim.now()</text>
+    <rect x="715" y="1446" width="610" height="78" class="artifact"/>
+    <text x="1020" y="1474" class="artifact-title">porta 5432 restrita por SG</text>
+    <text x="1020" y="1502" class="artifact-text">Multi-AZ configurável; desativado no laboratório</text>
+  </g>
+
+  <!-- EKS Auto Mode -->
+  <rect x="1455" y="390" width="825" height="1285" class="group"/>
+  <text x="1490" y="430" class="section-title" fill="#245bb8">Amazon EKS Auto Mode · modalidade Kubernetes</text>
+  <text x="1490" y="458" class="section-note">control plane gerenciado; EC2 como nós nas sub-redes privadas</text>
+  <text x="1490" y="482" class="section-note">Auto Mode cria e remove nós conforme a demanda dos pods</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1505" y="495" width="725" height="150" class="node-k8s"/>
+    <text x="1867" y="528" class="stereo">«ingress»</text>
+    <text x="1867" y="562" class="node-title">Ingress argus</text>
+    <rect x="1535" y="580" width="665" height="42" class="artifact-k8s"/>
+    <text x="1867" y="607" class="artifact-text">/ → frontend · /api e /health → backend</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1505" y="690" width="330" height="315" class="node-k8s"/>
+    <text x="1670" y="723" class="stereo">«service»</text>
+    <text x="1670" y="756" class="node-title">argus-frontend</text>
+    <text x="1670" y="784" class="node-subtitle">ClusterIP 80 → 8080</text>
+    <rect x="1530" y="810" width="280" height="116" class="artifact-k8s"/>
+    <text x="1670" y="839" class="artifact-title">Deployment</text>
+    <text x="1670" y="867" class="artifact-text">nginx + Next.js estático</text>
+    <text x="1670" y="894" class="artifact-text">2–4 pods · HPA 70% CPU</text>
+    <text x="1670" y="958" class="tiny">probes · PDB · rolling update</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1875" y="690" width="330" height="315" class="node-k8s"/>
+    <text x="2040" y="723" class="stereo">«service»</text>
+    <text x="2040" y="756" class="node-title">argus-backend</text>
+    <text x="2040" y="784" class="node-subtitle">ClusterIP 5000</text>
+    <rect x="1900" y="810" width="280" height="116" class="artifact-k8s"/>
+    <text x="2040" y="839" class="artifact-title">Deployment</text>
+    <text x="2040" y="867" class="artifact-text">Flask + gunicorn</text>
+    <text x="2040" y="894" class="artifact-text">2–6 pods · HPA 60% CPU</text>
+    <text x="2040" y="958" class="tiny">startup · liveness · readiness</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1505" y="1190" width="700" height="205" class="node-k8s"/>
+    <text x="1855" y="1225" class="stereo">«job»</text>
+    <text x="1855" y="1261" class="node-title">argus-db-migrate</text>
+    <text x="1855" y="1292" class="node-subtitle">imagem processing · execução avulsa</text>
+    <rect x="1540" y="1315" width="630" height="55" class="artifact-k8s"/>
+    <text x="1855" y="1350" class="artifact-text">aplica migrations e cria/atualiza o usuário de leitura</text>
+  </g>
+
+  <g>
+    <rect x="1510" y="1460" width="320" height="150" fill="#f7faff" stroke="#8fb4ef" stroke-width="2" rx="8"/>
+    <text x="1670" y="1488" class="stereo">«managed worker nodes»</text>
+    <text x="1670" y="1520" class="artifact-title">Nós EC2 gerenciados</text>
+    <text x="1670" y="1551" class="artifact-text">AZ 1a · criados sob demanda</text>
+    <text x="1670" y="1580" class="artifact-text">hospedam os pods do cluster</text>
+    <rect x="1880" y="1460" width="320" height="150" fill="#f7faff" stroke="#8fb4ef" stroke-width="2" rx="8"/>
+    <text x="2040" y="1488" class="stereo">«managed worker nodes»</text>
+    <text x="2040" y="1520" class="artifact-title">Nós EC2 gerenciados</text>
+    <text x="2040" y="1551" class="artifact-text">AZ 1b · criados sob demanda</text>
+    <text x="2040" y="1580" class="artifact-text">hospedam os pods do cluster</text>
+  </g>
+
+  <!-- Recursos públicos -->
+  <g filter="url(#shadow)">
+    <rect x="2390" y="420" width="480" height="220" class="node-public"/>
+    <text x="2630" y="456" class="stereo">«load balancer»</text>
+    <text x="2630" y="493" class="node-title">Application Load Balancer</text>
+    <text x="2630" y="522" class="node-subtitle">Ingress · nó na AZ 1a</text>
+    <rect x="2420" y="548" width="420" height="65" class="artifact"/>
+    <text x="2630" y="574" class="artifact-title">listener HTTP 80</text>
+    <text x="2630" y="599" class="artifact-text">target type IP · health /health/live</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="2390" y="1175" width="480" height="220" class="node-public"/>
+    <text x="2630" y="1211" class="stereo">«load balancer»</text>
+    <text x="2630" y="1248" class="node-title">Application Load Balancer</text>
+    <text x="2630" y="1277" class="node-subtitle">Ingress · nó na AZ 1b</text>
+    <rect x="2420" y="1303" width="420" height="65" class="artifact"/>
+    <text x="2630" y="1329" class="artifact-title">mesmo balanceador lógico</text>
+    <text x="2630" y="1354" class="artifact-text">um endereço para dashboard e API</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="2390" y="690" width="225" height="190" class="node-public"/>
+    <text x="2502" y="724" class="stereo">«gateway»</text>
+    <text x="2502" y="758" class="node-title">NAT</text>
+    <text x="2502" y="789" class="node-subtitle">saída privada</text>
+    <rect x="2415" y="815" width="175" height="40" class="artifact"/>
+    <text x="2502" y="841" class="artifact-text">HTTPS 443</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="2645" y="690" width="225" height="190" class="node-public"/>
+    <text x="2757" y="724" class="stereo">«host»</text>
+    <text x="2757" y="758" class="node-title">Bastion</text>
+    <text x="2757" y="789" class="node-subtitle">EC2 t4g.micro</text>
+    <rect x="2670" y="815" width="175" height="40" class="artifact"/>
+    <text x="2757" y="841" class="artifact-text">SSH 22 restrito</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="2365" y="1570" width="510" height="125" class="node-public"/>
+    <text x="2620" y="1605" class="stereo">«internet gateway»</text>
+    <text x="2620" y="1642" class="node-title">Internet Gateway</text>
+    <text x="2620" y="1673" class="node-subtitle">rota 0.0.0.0/0 das sub-redes públicas</text>
+  </g>
+
+  <!-- Usuários externos -->
+  <g filter="url(#shadow)">
+    <rect x="3090" y="420" width="430" height="200" class="node"/>
+    <text x="3305" y="457" class="stereo">«device»</text>
+    <text x="3305" y="494" class="node-title">Navegador do usuário</text>
+    <rect x="3120" y="523" width="370" height="70" class="artifact"/>
+    <text x="3305" y="551" class="artifact-title">dashboard + API</text>
+    <text x="3305" y="578" class="artifact-text">uma origem · token Bearer</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="3090" y="790" width="430" height="270" class="node-k8s"/>
+    <text x="3305" y="827" class="stereo">«external AI service»</text>
+    <text x="3305" y="864" class="node-title">Ollama remoto</text>
+    <text x="3305" y="895" class="node-subtitle">opcional · fora da VPC</text>
+    <rect x="3120" y="920" width="370" height="110" class="artifact-k8s"/>
+    <text x="3305" y="949" class="artifact-title">refinamento da resposta final</text>
+    <text x="3305" y="978" class="artifact-text">somente hipótese + evidências</text>
+    <text x="3305" y="1007" class="artifact-text">fontes validadas pelo backend</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="3090" y="1370" width="430" height="190" class="node"/>
+    <text x="3305" y="1407" class="stereo">«device»</text>
+    <text x="3305" y="1444" class="node-title">Estação administrativa</text>
+    <rect x="3120" y="1472" width="370" height="62" class="artifact"/>
+    <text x="3305" y="1498" class="artifact-title">kubectl · Terraform · SSH</text>
+    <text x="3305" y="1523" class="artifact-text">CIDR autorizado</text>
+  </g>
+
+  <!-- Fluxos principais -->
+  <path d="M270 420 L270 505" class="flow-async"/>
+  <rect x="292" y="447" width="150" height="30" class="label-bg"/><text x="367" y="468" class="flow-label">HTTPS · Bearer</text>
+  <path d="M270 735 L270 820" class="flow-async"/>
+  <rect x="292" y="762" width="170" height="30" class="label-bg"/><text x="377" y="783" class="flow-label">SQS SendMessage</text>
+  <path d="M485 940 L650 940 L650 585 L680 585" class="flow-async"/>
+  <rect x="525" y="897" width="138" height="30" class="label-bg"/><text x="594" y="918" class="flow-label">long polling</text>
+  <path d="M485 620 L620 620 L620 705 L680 705" class="flow-async"/>
+  <path d="M650 687 L650 723" fill="none" stroke="#f5f9fc" stroke-width="15"/>
+  <path d="M650 687 L650 723" class="flow-async"/>
+  <rect x="540" y="662" width="160" height="30" class="label-bg"/><text x="620" y="683" class="flow-label">changes HTTPS</text>
+  <path d="M485 1355 L680 1355" class="flow-async"/>
+  <rect x="500" y="1310" width="165" height="30" class="label-bg"/><text x="582" y="1331" class="flow-label">carga inicial</text>
+  <path d="M1020 900 L1020 1210" class="flow-async"/>
+  <rect x="1040" y="1032" width="210" height="30" class="label-bg"/><text x="1145" y="1053" class="flow-label">INSERT · MERGE · COPY</text>
+
+  <path d="M3090 520 L2870 520" class="flow-sync"/>
+  <rect x="2910" y="475" width="155" height="30" class="label-bg"/><text x="2987" y="496" class="flow-label">HTTP 80</text>
+  <path d="M2390 545 L2230 545" class="flow-sync"/>
+  <path d="M2390 1275 L2325 1275 L2325 595 L2230 595" class="flow-sync"/>
+  <rect x="2238" y="505" width="152" height="30" class="label-bg"/><text x="2314" y="526" class="flow-label">Ingress ALB</text>
+  <path d="M1680 645 L1680 690" class="flow-sync"/>
+  <path d="M2040 645 L2040 690" class="flow-sync"/>
+  <path d="M2040 1005 L2040 1090 L1340 1090 L1340 1210" class="flow-sync"/>
+  <rect x="1510" y="1045" width="220" height="30" class="label-bg"/><text x="1620" y="1066" class="flow-label">SELECT views v_* · 5432</text>
+  <path d="M2205 930 L3090 930" class="flow-sync"/>
+  <rect x="2350" y="885" width="300" height="30" class="label-bg"/><text x="2500" y="906" class="flow-label">SSH 22 · refinamento final</text>
+  <path d="M1505 1290 L1360 1290" class="flow-sync"/>
+  <rect x="1380" y="1245" width="125" height="30" class="label-bg"/><text x="1442" y="1266" class="flow-label">migrations</text>
+
+  <path d="M3090 1465 L3000 1465 L3000 1120 L2870 1120 L2870 785" class="flow"/>
+  <rect x="2915" y="1418" width="170" height="30" class="label-bg"/><text x="3000" y="1439" class="flow-label">SSH 22 restrito</text>
+  <path d="M2757 880 L2757 1090 L2260 1090 L2260 1160 L1400 1160 L1400 1390 L1360 1390" class="flow"/>
+  <rect x="2181" y="1122" width="158" height="30" class="label-bg"/><text x="2260" y="1143" class="flow-label">conexão PostgreSQL</text>
+  <path d="M2502 880 L2502 1025 L2365 1025 L2365 1525 L2620 1525 L2620 1570" class="flow"/>
+
+  <rect x="550" y="1847" width="200" height="30" class="label-bg"/><text x="650" y="1868" class="flow-label">pull de imagens</text>
+  <rect x="1540" y="1775" width="240" height="30" class="label-bg"/><text x="1660" y="1797" class="flow-label">logs e métricas</text>
+
+  <!-- Operação e serviços transversais -->
+  <rect x="55" y="1945" width="3470" height="335" class="ops"/>
+  <text x="85" y="1985" class="section-title">Operação, segurança e observabilidade — transversal ao ECS, ao EKS e ao RDS</text>
+  <path d="M360 2025 L360 1945" class="flow-support"/>
+  <path d="M1480 2025 L1480 1945" class="flow-support"/>
+  <path d="M2040 2025 L2040 1945" class="flow-support"/>
+  <path d="M2600 2025 L2600 1945" class="flow-support"/>
+
+  <g filter="url(#shadow)">
+    <rect x="100" y="2025" width="520" height="220" class="node"/>
+    <text x="360" y="2058" class="stereo">«container registry»</text>
+    <text x="360" y="2093" class="node-title">Amazon ECR</text>
+    <rect x="130" y="2115" width="460" height="95" class="artifact"/>
+    <text x="360" y="2144" class="artifact-title">6 repositórios · imagens por SHA</text>
+    <text x="360" y="2172" class="artifact-text">backend · frontend · worker · simulator</text>
+    <text x="360" y="2200" class="artifact-text">processing · loader</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="660" y="2025" width="520" height="220" class="node"/>
+    <text x="920" y="2058" class="stereo">«security service»</text>
+    <text x="920" y="2093" class="node-title">AWS IAM</text>
+    <rect x="690" y="2115" width="460" height="95" class="artifact"/>
+    <text x="920" y="2144" class="artifact-title">roles de execução</text>
+    <text x="920" y="2172" class="artifact-text">IAM por task no Fargate</text>
+    <text x="920" y="2200" class="artifact-text">LabEks roles no cluster</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1220" y="2025" width="520" height="220" class="node"/>
+    <text x="1480" y="2058" class="stereo">«observability»</text>
+    <text x="1480" y="2093" class="node-title">Amazon CloudWatch + SNS</text>
+    <rect x="1250" y="2115" width="460" height="95" class="artifact"/>
+    <text x="1480" y="2144" class="artifact-title">logs · métricas · alarmes</text>
+    <text x="1480" y="2172" class="artifact-text">VPC Flow Logs em S3 · SNS condicional</text>
+    <text x="1480" y="2200" class="artifact-text">EKS sem coleta central automática</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1780" y="2025" width="520" height="220" class="node"/>
+    <text x="2040" y="2058" class="stereo">«serverless function»</text>
+    <text x="2040" y="2093" class="node-title">Lambdas de API</text>
+    <rect x="1810" y="2115" width="460" height="95" class="artifact"/>
+    <text x="2040" y="2144" class="artifact-title">authorizer + API de leitura</text>
+    <text x="2040" y="2172" class="artifact-text">ingestão e dashboard compatíveis</text>
+    <text x="2040" y="2200" class="artifact-text">cache de 5 min · falha fechada</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="2340" y="2025" width="520" height="220" class="node"/>
+    <text x="2600" y="2058" class="stereo">«secrets manager»</text>
+    <text x="2600" y="2093" class="node-title">AWS Secrets Manager</text>
+    <rect x="2370" y="2115" width="460" height="95" class="artifact"/>
+    <text x="2600" y="2144" class="artifact-title">senha do RDS · hashes</text>
+    <text x="2600" y="2172" class="artifact-text">Secret do Kubernetes injetado</text>
+    <text x="2600" y="2200" class="artifact-text">por make k8s-secret, sem arquivo</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="2900" y="2025" width="520" height="220" class="node"/>
+    <text x="3160" y="2058" class="stereo">«infrastructure as code»</text>
+    <text x="3160" y="2093" class="node-title">Terraform + Kustomize</text>
+    <rect x="2930" y="2115" width="460" height="95" class="artifact"/>
+    <text x="3160" y="2144" class="artifact-title">infra/ · k8s/base/ · overlays/</text>
+    <text x="3160" y="2172" class="artifact-text">AWS e kind · imagens imutáveis</text>
+    <text x="3160" y="2200" class="artifact-text">EKS Auto Mode · aplicação por Kustomize</text>
+  </g>
+</svg>
