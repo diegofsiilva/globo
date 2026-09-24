@@ -58,6 +58,32 @@ Quando só uma área mudou, o alvo específico basta: `test-backend`,
 `make -C apps/fullstack tf-init` uma vez. O frontend valida com
 `cd apps/fullstack/frontend && npm run lint` e `npm run build`.
 
+## CI
+
+O pipeline do GitLab está em `apps/fullstack/.gitlab-ci.yml` e é o mesmo
+`make check`, repartido em três estágios:
+
+| Estágio | Jobs |
+|---|---|
+| `lint` | ruff em cada app Python (mesmas linhas do alvo `lint`), eslint + `tsc --noEmit` no dashboard, `terraform fmt -check` |
+| `test` | uma suíte pytest por app (`backend`, `worker`, `processing`, `simulator`, `authorizer`, `tools`) com JUnit; PostgreSQL 16 de serviço onde o conftest pede `TEST_DATABASE_URL`; cobertura no backend; vitest no dashboard; checagem estática da observabilidade |
+| `build` | `kubectl kustomize` + `verifica_manifests.py`, `terraform validate` e `terraform test` sem backend nem AWS, `next build` com URL de placeholder, build das imagens Docker (manual) |
+
+O arquivo não fica na raiz do repositório, que é fixa. Por isso o projeto no
+GitLab precisa apontar para ele em **Settings → CI/CD → General pipelines →
+CI/CD configuration file** = `apps/fullstack/.gitlab-ci.yml`; sem isso nenhum
+pipeline roda. Ele dispara nos pedidos de integração e a cada integração nas
+duas linhas principais do repositório (ver `workflow.rules`).
+
+Três diferenças em relação ao `make check`: o teste E2E do Playwright não roda
+no pipeline (precisa de Docker e Chromium; o alvo já se pula sem eles); o
+overlay `kind` é renderizado com o `secret.env` copiado do `.example`; e
+`terraform test` está com `allow_failure` até o `rede.tftest.hcl` cobrir as
+policy documents que os `aws_iam_role` do plano leem (o comentário do job
+explica quais). Para reproduzir um job localmente, rode o alvo do Makefile que
+ele espelha (`lint`, `test-<app>`, `k8s-validate`, `tf-validate`, `tf-test`,
+`frontend-build-check`).
+
 ## Mapa
 
 | Caminho | O que é |
