@@ -60,9 +60,9 @@ read_api_db_user     = "argus_api"
 read_api_db_password = "outra-senha-longa-so-para-leitura"
 
 # --- Rede -------------------------------------------------------------------
-# VPC dedicada: sub-redes publica e privada em duas AZs, NAT Gateway, bastion,
-# ALB e Auto Scaling Group. `false` volta ao comportamento anterior (VPC default
-# da conta, IP publico nas tasks).
+# VPC dedicada: sub-redes publica e privada em duas AZs, NAT Gateway e bastion;
+# o cluster EKS (create_eks) tambem depende dela. `false` volta ao comportamento
+# anterior (VPC default da conta, IP publico nas tasks).
 #
 # CUIDADO ao trocar para `false` num ambiente ja aplicado: o RDS nao muda de VPC,
 # e mover o subnet group forca a SUBSTITUICAO da instancia -- o que apaga o banco.
@@ -110,21 +110,11 @@ flow_logs_destination = "s3"
 # A validacao recusa 0.0.0.0/0 de proposito.
 # bastion_allowed_cidr = "203.0.113.10/32"
 
-# --- Auto Scaling Group e ALB -----------------------------------------------
-# Instancias Graviton (arm64): TODAS as imagens deste repositorio sao arm64.
-# Trocar por familia x86 (t3/t2) exige trocar a AMI em bastion.tf tambem.
-app_instance_type = "t4g.small"
-
-asg_min_size         = 2
-asg_max_size         = 6
-asg_desired_capacity = 2
-
-# Requisicoes por instancia por minuto. Acima disso o grupo cresce.
-asg_target_requests_per_target = 60
-
-# No Learner Lab o profile ja existe e vem anexado a LabRole -- pelo mesmo
-# motivo de existing_role_arn: o papel voclabs recusa iam:CreateRole.
-instance_profile_name = "LabInstanceProfile"
+# --- Camada de aplicacao ----------------------------------------------------
+# O caminho EC2 da Sprint 3 (Auto Scaling Group + ALB; variaveis asg_*,
+# app_instance_type e instance_profile_name) foi removido na Sprint 4. A
+# leitura publica vem do Ingress do cluster EKS (create_eks, abaixo) e, como
+# contingencia, da Lambda (`terraform output read_api_url`).
 
 # --- Servicos ---------------------------------------------------------------
 worker_desired_count = 1
@@ -158,11 +148,6 @@ user_id_hash_salt = "troque-este-valor"
 # do Learner Lab e finito. Depois da entrega, voltar para false e aplicar
 # derruba o cluster inteiro sem tocar no resto do stack.
 create_eks = false
-
-# Quando create_eks = true, zere o Auto Scaling Group: foi ele que o cluster
-# substituiu, e deixar os dois de pe paga duas vezes pela mesma API.
-# asg_min_size         = 0
-# asg_desired_capacity = 0
 
 # Os papeis do EKS ja existem na conta do lab e sao descobertos por regex
 # (iam:CreateRole e negado, e o prefixo do nome muda a cada sessao). Preencha

@@ -1,6 +1,7 @@
 # Escala horizontal da API de leitura.
 #
-# Substitui a politica de target tracking do ASG (infra/asg.tf), que perseguia
+# Substitui a politica de target tracking do ASG da Sprint 3 (removido na
+# Sprint 4), que perseguia
 # ALBRequestCountPerTarget = 60. O equivalente exato aqui exigiria KEDA ou o
 # adapter de metricas externas lendo o CloudWatch; a metrica nativa e CPU. A
 # troca esta registrada na tabela de decisoes do artefato para que o relatorio
@@ -20,8 +21,8 @@ spec:
     kind: Deployment
     name: argus-backend
 
-  # Espelham asg_min_size e asg_max_size, para que a comparacao entre as duas
-  # plataformas isole o orquestrador e nao o dimensionamento.
+  # Espelham o min 2 / max 6 do ASG da Sprint 3, para que a comparacao entre as
+  # duas plataformas isole o orquestrador e nao o dimensionamento.
   minReplicas: 2
   maxReplicas: 6
 

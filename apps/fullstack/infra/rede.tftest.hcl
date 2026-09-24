@@ -75,7 +75,7 @@ run "topologia" {
   }
   assert {
     condition     = aws_subnet.public[0].availability_zone != aws_subnet.public[1].availability_zone
-    error_message = "publicas em AZs distintas (exigencia do ALB)"
+    error_message = "publicas em AZs distintas (exigencia do ALB do Ingress)"
   }
   assert {
     condition     = aws_subnet.private[0].availability_zone != aws_subnet.private[1].availability_zone

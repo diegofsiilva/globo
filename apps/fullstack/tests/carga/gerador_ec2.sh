@@ -61,8 +61,10 @@ tf_out() { (cd "$INFRA" && terraform output -raw "$1"); }
 BUCKET="$(tf_out origem_bucket)"
 VPC_ID="$(tf_out vpc_id)"
 SUBNET_ID="$(cd "$INFRA" && terraform output -json public_subnet_ids | python3 -c 'import json,sys; print(json.load(sys.stdin)[0])')"
-PERFIL_INSTANCIA="$(grep -E '^instance_profile_name' "$INFRA/terraform.tfvars" | sed -E 's/.*= *"([^"]*)".*/\1/')"
-: "${PERFIL_INSTANCIA:=LabInstanceProfile}"
+# Instance profile da EC2 descartavel. No Learner Lab e o LabInstanceProfile,
+# que ja existe na conta (iam:CreateRole e negado); fora dele, exporte
+# CARGA_EC2_PERFIL com um profile que leia o bucket e o parametro SSM.
+PERFIL_INSTANCIA="${CARGA_EC2_PERFIL:-LabInstanceProfile}"
 
 PREFIXO="carga/$TEST_ID"
 PARAMETRO="/argus/carga/$TEST_ID/read-token"

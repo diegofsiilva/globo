@@ -106,8 +106,8 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Privadas: instancias do Auto Scaling Group, tasks Fargate e o subnet group do
-# RDS. Nada aqui tem endereco publico.
+# Privadas: nos do cluster EKS, tasks Fargate e o subnet group do RDS. Nada
+# aqui tem endereco publico.
 resource "aws_subnet" "private" {
   count = var.create_network ? length(local.azs) : 0
 
@@ -163,10 +163,10 @@ resource "aws_eip" "nat" {
 # nao comporta dois.
 #
 # A consequencia esta assumida e documentada (infraestrutura-integracao.md,
-# secao 5.1): se a AZ do NAT cair, as instancias da OUTRA zona continuam
-# servindo trafego pelo ALB -- o caminho de leitura nao passa pelo NAT -- mas
+# secao 5.1): se a AZ do NAT cair, os nos da OUTRA zona continuam servindo
+# trafego pelo ALB do Ingress -- o caminho de leitura nao passa pelo NAT -- mas
 # perdem a saida para a internet, entao nao conseguem puxar imagem nova nem
-# renovar credencial. O ASG nao consegue subir instancia nova ali ate a zona
+# renovar credencial. O cluster nao consegue subir no novo ali ate a zona
 # voltar.
 resource "aws_nat_gateway" "main" {
   count = var.create_network ? 1 : 0

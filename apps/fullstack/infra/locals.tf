@@ -8,7 +8,7 @@ locals {
   #   2. `vpc_id` / `subnet_ids` preenchidos -- rede pre-existente injetada.
   #   3. Nenhum dos dois -- a VPC default da conta, comportamento anterior.
   #
-  # As cargas (tasks Fargate, instancias do ASG, RDS) vao para as sub-redes
+  # As cargas (tasks Fargate, nos do EKS, RDS) vao para as sub-redes
   # PRIVADAS quando a rede dedicada existe. Antes iam para as default, que sao
   # todas publicas -- e era por isso que `assign_public_ip = true` era
   # necessario para elas terem saida.
@@ -42,7 +42,7 @@ locals {
     "simulator",  # relogio virtual, injecao de falhas, emissor de changes
     "processing", # detector / canario / ETL -- no-op por ora (decisao 7)
     "loader",     # carga inicial one-shot: Parquet -> COPY -> bronze
-    "backend",    # API de leitura -- passou de zip de Lambda a imagem no EC2
+    "backend",    # API de leitura -- imagem que roda no cluster (k8s/)
     "frontend",   # dashboard servido por nginx dentro do cluster (k8s/)
   ])
 
@@ -71,15 +71,6 @@ locals {
     ? aws_iam_role.flow_log[0].arn
     : var.existing_role_arn
   )
-
-  # Imagem que as instancias do ASG puxam. `backend_image_tag` vazio segue a
-  # mesma tag dos workers, para que um `make rollout` deixe todo o stack no
-  # mesmo commit -- e para que so exista uma tag a conferir num diagnostico.
-  backend_image_uri = join("", [
-    aws_ecr_repository.images["backend"].repository_url,
-    ":",
-    var.backend_image_tag != "" ? var.backend_image_tag : var.worker_image_tag,
-  ])
 
   db_password = (
     var.db_password_from_secrets_manager
