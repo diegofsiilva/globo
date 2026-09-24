@@ -49,6 +49,19 @@ PG_PORT      ?= 55432
 PG_URL       := postgresql://argus:argus@localhost:$(PG_PORT)/argus
 PG_TEST_URL  := postgresql://argus:argus@localhost:$(PG_PORT)/argus_test
 
+# Portas do `make dev`. Variaveis, e nao numeros fixos nas receitas, porque no
+# macOS o AirPlay Receiver escuta em 5000 e responde 403 no lugar da API -- o
+# sintoma parece "a API subiu mas o dashboard nao autentica". `make dev
+# API_PORT=5001` resolve sem tocar em arquivo nenhum.
+API_PORT ?= 5000
+WEB_PORT ?= 3000
+
+# Token da tela de acesso no ambiente LOCAL. A API local sobe com
+# AUTH_REQUIRED=0 e ignora o valor; a tela do dashboard so exige o FORMATO de
+# 64 hexadecimais (lib/api/session.ts). Nao e segredo: e o que qualquer clone
+# usa, e nunca vale contra a API publicada.
+DEV_TOKEN := 0000000000000000000000000000000000000000000000000000000000000000
+
 # `uv run` monta o ambiente sozinho a partir do pyproject de cada app.
 UV := uv run --quiet
 
@@ -190,6 +203,27 @@ db-local: ## Sobe um PostgreSQL 16 local e aplica as migrations
 .PHONY: db-stop
 db-stop: ## Derruba o PostgreSQL local
 	docker rm -f $(PG_CONTAINER) >/dev/null 2>&1 || true
+
+# `db-local` recria o container do zero (`docker rm -f`), e com ele vai embora
+# o que `dev-seed` levou minutos para carregar. `db-ensure` e o que `make dev`
+# chama: cria so quando nao existe, religa quando esta parado (reboot da
+# maquina) e, em qualquer caso, aplica as migrations pendentes -- que e a parte
+# idempotente por construcao (tools/migrate.py registra o que ja rodou).
+#
+# Receita em linhas separadas de proposito: a primeira e a ultima contem
+# $(MAKE) e por isso EXECUTAM sob `make -n`; as do meio (docker start, espera)
+# tem efeito colateral e ficam fora delas para que o dry-run continue seco.
+.PHONY: db-ensure
+db-ensure: ## Garante o PostgreSQL local no ar e migrado, sem recriar o que ja existe
+	@docker container inspect $(PG_CONTAINER) >/dev/null 2>&1 || $(MAKE) --no-print-directory db-local
+	@docker start $(PG_CONTAINER) >/dev/null
+	@for i in $$(seq 1 60); do \
+	  docker exec $(PG_CONTAINER) psql -h 127.0.0.1 -U argus -d argus -qc "SELECT 1" >/dev/null 2>&1 && break; \
+	  sleep 1; \
+	done
+	@docker exec $(PG_CONTAINER) psql -h 127.0.0.1 -U argus -d argus -qc "SELECT 1" >/dev/null 2>&1 \
+	  || { echo "o container $(PG_CONTAINER) existe mas nao responde; 'make db-local' recria do zero"; exit 1; }
+	@$(MAKE) --no-print-directory migrate DATABASE_URL=$(PG_URL)
 
 .PHONY: db-psql
 db-psql: ## Abre um psql no banco local
@@ -377,8 +411,58 @@ frontend-build-check: ## Compila o dashboard com URL de placeholder (portao de C
 # --------------------------------------------------------------------------- #
 
 .PHONY: api
-api: ## Sobe a API de leitura local contra o banco local
-	cd $(BACKEND) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} $(UV) python lambda_handler.py
+api: ## Sobe a API de leitura local contra o banco local (porta API_PORT)
+	cd $(BACKEND) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} PORT=$(API_PORT) $(UV) python lambda_handler.py
+
+# `dev` e o caminho de UM comando: banco, API e dashboard no mesmo terminal, e
+# Ctrl-C derruba os tres. A orquestracao (subir em paralelo, esperar a API
+# responder antes do dashboard, matar a ARVORE de processos na saida) vive em
+# scripts/dev.sh, que so encadeia alvos deste Makefile -- nenhum passo e
+# reproduzido la. Nao usa `make -j2 api frontend-dev` porque o -j nao espera a
+# API antes de subir o Next, nao imprime URL nem token no fim, e ao morrer
+# deixa python e node orfaos presos nas portas.
+#
+# O banco e SEMPRE o local: `dev` passa DATABASE_URL explicitamente, para que
+# um .env com a URL do RDS nao faca a API local apontar para a nuvem em
+# silencio. Quem quer a API publicada usa `frontend-dev` com ARGUS_API_URL.
+#
+# Sem $(MAKE) nesta linha, de proposito: o GNU Make executa de verdade qualquer
+# linha de receita que o contenha, mesmo sob `make -n` -- e o dry-run subiria
+# tudo. O script chama `make` pelo PATH.
+.PHONY: dev
+dev: ## Sobe banco local, API e dashboard juntos; Ctrl-C derruba tudo
+	@API_PORT=$(API_PORT) WEB_PORT=$(WEB_PORT) \
+	  PG_CONTAINER=$(PG_CONTAINER) PG_URL=$(PG_URL) DEV_TOKEN=$(DEV_TOKEN) \
+	  DEV_API_URL="$(DEV_API_URL)" scripts/dev.sh
+
+# Amostra para as telas nao abrirem vazias. O unico dado real e o do parceiro
+# (4 GB, nao redistribuivel -- AGENTS.md regra 9), que nao vem no clone: quem
+# tem o dump gera o Parquet uma vez (`make parquet`) e este alvo o carrega no
+# banco local, reconstroi silver e gold e posiciona o relogio virtual no ultimo
+# evento -- toda view filtra `available_at <= sim.now()`, e com o relogio no
+# inicio do dump as telas continuariam vazias mesmo com o banco cheio.
+#
+# `make replay` NAO serve aqui: ele reenvia os seis eventos de exemplo a API de
+# ingestao PUBLICADA (API Gateway -> SQS -> worker), que nao existe localmente.
+#
+# Condicional de make, e nao `if` de shell: a guarda e a carga precisam ficar
+# em linhas separadas (uma so linha com $(MAKE) executaria o psql sob -n), e
+# um `exit 0` na linha da guarda nao impediria as seguintes de rodar.
+.PHONY: dev-seed
+dev-seed: ## Carrega a amostra do parceiro no banco local (precisa de ../../data/parquet)
+ifeq (,$(wildcard $(PARQUET_DIR)/*.parquet))
+	@echo "sem amostra: $(PARQUET_DIR) nao existe neste clone, entao o banco segue vazio."
+	@echo "  O dado e do parceiro (4 GB, nao redistribuivel). Quem tem o dump gera o Parquet"
+	@echo "  com 'make parquet' e roda 'make dev-seed' de novo. 'make replay' nao substitui"
+	@echo "  isto: ele fala com a API de ingestao publicada, que nao existe localmente."
+else
+	@$(MAKE) --no-print-directory load-local DATABASE_URL=$(PG_URL)
+	@echo "reconstruindo silver e gold a partir da bronze..."
+	@docker exec $(PG_CONTAINER) psql -U argus -d argus -qc "SELECT * FROM gold.rebuild_tudo();"
+	@docker exec $(PG_CONTAINER) psql -U argus -d argus -qc \
+	  "SELECT sim.set_clock(COALESCE((SELECT max(ts) FROM silver.session_event), sim.now()));"
+	@echo "amostra carregada; relogio virtual posicionado no ultimo evento."
+endif
 
 .PHONY: docs
 docs: ## Abre a documentacao Swagger da API publicada
@@ -738,12 +822,12 @@ frontend-deploy: frontend-build ## Publica o dashboard no website S3
 	@echo "Dashboard no ar: $$(cd $(INFRA) && terraform output -raw frontend_url)"
 
 .PHONY: frontend-dev
-frontend-dev: ## Sobe o dashboard local contra a API publicada
+frontend-dev: ## Sobe o dashboard local contra a API de ARGUS_API_URL (porta WEB_PORT)
 	@$(call require_env,ARGUS_API_URL)
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
-	  npm run dev
+	  npm run dev -- --port $(WEB_PORT)
 
 # --------------------------------------------------------------------------- #
 # Testes de API (Postman)
