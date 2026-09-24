@@ -1,0 +1,274 @@
+================================================================
+ENSAIO 2 -- DEPLOY SEM QUEDA, DEPLOY DEFEITUOSO E ROLLBACK (kind, local)
+================================================================
+data/hora (local)  : 2026-09-24 20:44:57 -03
+data/hora (UTC)    : 2026-09-24T23:44:57Z
+commit             : 0ff97f4b013020992da4e58a2ec76a25b5444ba6
+ambiente           : kind (local, Docker via colima), NAO e o EKS
+contexto kubectl   : kind-argus   namespace: argus
+kind               : kind v0.33.0 go1.27.0 darwin/arm64
+kubectl/k8s        : Client Version: v1.37.0 Kustomize Version: v5.8.1 Server Version: v1.37.0 
+no                 : argus-control-plane v1.37.0 arm64 containerd://2.3.4
+colima             : default Running aarch64 6 6GiB 100GiB docker 
+k6                 : k6 v2.3.0 (commit/devel, go1.27.1, darwin/arm64)
+imagens (spec)     :
+  argus-backend -> argus-backend:dev
+  argus-frontend -> argus-frontend:dev
+  argus-postgres -> postgres:16
+imagens (imageID nos pods, digest local do containerd):
+  argus-backend-7fcbd46bb4-krsvk -> docker.io/library/import-2026-09-24@sha256:b944d683393f66949bd20fc48330e1d3747051a0227eeff8edb1332bf8401a53
+  argus-db-migrate-ljbjg -> sha256:22b3c27e4c08f7175373c9c1ac2a9802705e5f3eef7d7f70442b2ff50fd417fe
+  argus-frontend-7fdb5d98-6wfj2 -> sha256:c9881d4057ca694872bca55c9cebe449c1593dc7c1b657f9321da7a9f9f2f779
+  argus-postgres-68fff74b7b-nf4fv -> docker.io/library/postgres@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+digests no docker da maquina:
+backend: strategy/probes (do Deployment aplicado):
+  replicas=1 minReadySeconds=10 maxUnavailable=0 maxSurge=1 readiness=/health/ready/5s liveness=/health/live/10s startup=/health/live/3s preStop=["sleep","10"]
+hpa:
+  argus-backend min=1 max=2
+  argus-frontend min=1 max=2
+estado inicial:
+  NAME                              READY   STATUS      RESTARTS        AGE    IP            NODE                  NOMINATED NODE   READINESS GATES
+  argus-backend-7fcbd46bb4-krsvk    1/1     Running     0               136m   10.244.0.23   argus-control-plane   <none>           <none>
+  argus-db-migrate-ljbjg            0/1     Completed   0               174m   10.244.0.15   argus-control-plane   <none>           <none>
+  argus-frontend-7fdb5d98-6wfj2     1/1     Running     0               175m   10.244.0.14   argus-control-plane   <none>           <none>
+  argus-postgres-68fff74b7b-nf4fv   1/1     Running     1 (3h25m ago)   7d1h   10.244.0.6    argus-control-plane   <none>           <none>
+scripts             : artefatos/evidencias/resiliencia-kind/ (este ensaio: ensaio-02-rollout-e-undo.sh)
+================================================================
+
+[20:45:02.134] imagem em producao no cluster: argus-backend:dev
+[20:45:02.152] $ kubectl --context kind-argus -n argus rollout history deploy/argus-backend
+deployment.apps/argus-backend 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+3         <none>
+
+[20:45:02.792] k6: 5 VUs por 150s contra http://localhost:8080 (/api/v1/clock + /api/v1/hypotheses), resumo em k6-02.summary.json
+[20:45:02.801] aguardando 8 s de carga estavel
+[20:45:10.825] =============== 1. ROLLOUT RESTART (sem mudar a imagem) ===============
+[20:45:10.842] $ kubectl --context kind-argus -n argus rollout restart deploy/argus-backend
+deployment.apps/argus-backend restarted
+[20:45:11.625] $ kubectl --context kind-argus -n argus rollout status deploy/argus-backend --timeout=180s
+Waiting for deployment spec update to be observed...
+Waiting for deployment spec update to be observed...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "argus-backend" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "argus-backend" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "argus-backend" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "argus-backend" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "argus-backend" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "argus-backend" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "argus-backend" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "argus-backend" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "argus-backend" rollout to finish: 1 old replicas are pending termination...
+deployment "argus-backend" successfully rolled out
+[20:46:11.186] RESULTADO restart: rollout status concluido em 60.3 s
+argus-backend-7fcbd46bb4-krsvk   True   Running   0     10.244.0.23   2026-09-24T21:28:40Z   2026-09-24T23:46:53Z
+argus-backend-88576b4db-8kl5x    True   Running   0     10.244.0.24   2026-09-24T23:45:19Z   <none>
+argus-backend-88576b4db-zlsj7    True   Running   0     10.244.0.25   2026-09-24T23:45:51Z   <none>
+[20:46:13.387] $ kubectl --context kind-argus -n argus rollout history deploy/argus-backend
+deployment.apps/argus-backend 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+3         <none>
+4         <none>
+
+[20:46:13.732] falhas do k6 acumuladas ate aqui: 5
+[20:46:21.752] =============== 2. DEPLOY DEFEITUOSO (tag inexistente) ===============
+[20:46:21.771] $ kubectl --context kind-argus -n argus set image deploy/argus-backend backend=argus-backend:nao-existe
+deployment.apps/argus-backend image updated
+[20:46:22.082] observando os pods a cada 2 s ate ver ErrImagePull/ImagePullBackOff (limite 60 s)
+[20:46:22.258] argus-backend-7fcbd46bb4-krsvk   True   <none>   0     argus-backend:dev|argus-backend-88576b4db-8kl5x    True   <none>   0     argus-backend:dev|argus-backend-88576b4db-zlsj7    True   <none>   0     argus-backend:dev|
+[20:46:24.375] argus-backend-88576b4db-8kl5x   True    <none>              0     argus-backend:dev|argus-backend-88576b4db-zlsj7   True    <none>              0     argus-backend:dev|argus-backend-fbfbf8bbb-z4k87   False   ContainerCreating   0     argus-backend:nao-existe|
+[20:46:26.610] argus-backend-88576b4db-8kl5x   True    <none>         0     argus-backend:dev|argus-backend-88576b4db-zlsj7   True    <none>         0     argus-backend:dev|argus-backend-fbfbf8bbb-z4k87   False   ErrImagePull   0     argus-backend:nao-existe|
+[20:46:28.762] argus-backend-88576b4db-8kl5x   True    <none>         0     argus-backend:dev|argus-backend-88576b4db-zlsj7   True    <none>         0     argus-backend:dev|argus-backend-fbfbf8bbb-z4k87   False   ErrImagePull   0     argus-backend:nao-existe|
+[20:46:31.014] argus-backend-88576b4db-8kl5x   True    <none>         0     argus-backend:dev|argus-backend-88576b4db-zlsj7   True    <none>         0     argus-backend:dev|argus-backend-fbfbf8bbb-z4k87   False   ErrImagePull   0     argus-backend:nao-existe|
+[20:46:33.809] argus-backend-88576b4db-8kl5x   True    <none>         0     argus-backend:dev|argus-backend-88576b4db-zlsj7   True    <none>         0     argus-backend:dev|argus-backend-fbfbf8bbb-z4k87   False   ErrImagePull   0     argus-backend:nao-existe|
+[20:46:35.954] argus-backend-88576b4db-8kl5x   True    <none>         0     argus-backend:dev|argus-backend-88576b4db-zlsj7   True    <none>         0     argus-backend:dev|argus-backend-fbfbf8bbb-z4k87   False   ErrImagePull   0     argus-backend:nao-existe|
+[20:46:38.858] argus-backend-88576b4db-8kl5x   True    <none>             0     argus-backend:dev|argus-backend-88576b4db-zlsj7   True    <none>             0     argus-backend:dev|argus-backend-fbfbf8bbb-z4k87   False   ImagePullBackOff   0     argus-backend:nao-existe|
+[20:46:38.927] deploy defeituoso detectado apos 17.1 s do set image
+[20:46:38.937] $ kubectl --context kind-argus -n argus get deploy argus-backend
+NAME            READY   UP-TO-DATE   AVAILABLE   AGE
+argus-backend   2/2     1            2           7d1h
+[20:46:39.113] pod antigo continua Ready (maxUnavailable=0 impede que ele saia antes de um novo ficar Ready):
+argus-backend-88576b4db-8kl5x   True    Running   0     10.244.0.24   2026-09-24T23:45:19Z   <none>
+argus-backend-88576b4db-zlsj7   True    Running   0     10.244.0.25   2026-09-24T23:45:51Z   <none>
+argus-backend-fbfbf8bbb-z4k87   False   Pending   0     10.244.0.26   2026-09-24T23:46:22Z   <none>
+[20:46:39.316] $ kubectl --context kind-argus -n argus rollout status deploy/argus-backend --timeout=10s   (esperado: nao conclui)
+Waiting for deployment "argus-backend" rollout to finish: 1 out of 2 new replicas have been updated...
+error: timed out waiting for the condition
+[20:46:49.560] eventos do pod defeituoso:
+2026-09-24T23:46:05Z   Warning   Unhealthy                      Pod                       argus-postgres-68fff74b7b-nf4fv   Readiness probe failed: command timed out: "psql -U argus -d argus -c SELECT 1" timed out after 1s
+2026-09-24T23:46:08Z   Normal    SuccessfulDelete               ReplicaSet                argus-backend-7fcbd46bb4          Deleted pod: argus-backend-7fcbd46bb4-krsvk
+2026-09-24T23:46:08Z   Normal    ScalingReplicaSet              Deployment                argus-backend                     Scaled down replica set argus-backend-7fcbd46bb4 from 1 to 0
+2026-09-24T23:46:09Z   Normal    Killing                        Pod                       argus-backend-7fcbd46bb4-krsvk    Stopping container backend
+2026-09-24T23:46:21Z   Warning   Unhealthy                      Pod                       argus-backend-7fcbd46bb4-krsvk    Readiness probe failed: Get "http://10.244.0.23:5000/health/ready": read tcp 10.244.0.1:46012->10.244.0.23:5000: read: connection reset by peer
+2026-09-24T23:46:22Z   Normal    SuccessfulCreate               ReplicaSet                argus-backend-fbfbf8bbb           Created pod: argus-backend-fbfbf8bbb-z4k87
+2026-09-24T23:46:22Z   Normal    ScalingReplicaSet              Deployment                argus-backend                     (combined from similar events): Scaled up replica set argus-backend-fbfbf8bbb from 0 to 1
+2026-09-24T23:46:36Z   Normal    Pulling                        Pod                       argus-backend-fbfbf8bbb-z4k87     Pulling image "argus-backend:nao-existe"
+2026-09-24T23:46:37Z   Warning   Failed                         Pod                       argus-backend-fbfbf8bbb-z4k87     Failed to pull image "argus-backend:nao-existe": failed to pull and unpack image "docker.io/library/argus-backend:nao-existe": failed to resolve reference "docker.io/library/argus-backend:nao-existe": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+2026-09-24T23:46:37Z   Warning   Failed                         Pod                       argus-backend-fbfbf8bbb-z4k87     Error: ErrImagePull
+2026-09-24T23:46:48Z   Normal    BackOff                        Pod                       argus-backend-fbfbf8bbb-z4k87     Back-off pulling image "argus-backend:nao-existe"
+2026-09-24T23:46:48Z   Warning   Failed                         Pod                       argus-backend-fbfbf8bbb-z4k87     Error: ImagePullBackOff
+[20:46:51.314] curl http://localhost:8080/api/v1/clock durante o deploy defeituoso -> HTTP 200
+[20:46:51.343] falhas do k6 acumuladas ate aqui: 5
+[20:46:51.353] =============== 3. ROLLBACK (rollout undo) ===============
+[20:46:51.365] $ kubectl --context kind-argus -n argus rollout undo deploy/argus-backend
+Warning: resource deployments/argus-backend was previously managed with 'kubectl apply'. Rolling back will not update the kubectl.kubernetes.io/last-applied-configuration annotation, which may cause unexpected behavior on future 'kubectl apply' operations. Consider using 'kubectl apply' with your previous configuration file instead.
+deployment.apps/argus-backend rolled back
+[20:46:52.105] $ kubectl --context kind-argus -n argus rollout status deploy/argus-backend --timeout=180s
+Waiting for deployment spec update to be observed...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "argus-backend" rollout to finish: 1 old replicas are pending termination...
+deployment "argus-backend" successfully rolled out
+[20:46:55.018] RESULTADO undo: rollout status concluido em 3.0 s; imagem restaurada = argus-backend:dev
+[20:46:55.025] imagem confere com a de antes do ensaio
+argus-backend-88576b4db-8kl5x   True    Running   0     10.244.0.24   2026-09-24T23:45:19Z   <none>
+argus-backend-88576b4db-zlsj7   True    Running   0     10.244.0.25   2026-09-24T23:45:51Z   <none>
+argus-backend-fbfbf8bbb-z4k87   False   Pending   0     10.244.0.26   2026-09-24T23:46:22Z   2026-09-24T23:47:38Z
+[20:46:55.743] $ kubectl --context kind-argus -n argus rollout history deploy/argus-backend
+deployment.apps/argus-backend 
+REVISION  CHANGE-CAUSE
+2         <none>
+3         <none>
+5         <none>
+6         <none>
+
+[20:46:56.176] $ kubectl --context kind-argus -n argus get rs -l app.kubernetes.io/name=argus-backend
+NAME                       DESIRED   CURRENT   READY   AGE
+argus-backend-7d5cd95578   0         0         0       177m
+argus-backend-7fcbd46bb4   0         0         0       138m
+argus-backend-88576b4db    2         2         2       102s
+argus-backend-fbfbf8bbb    0         0         0       34s
+
+---- saida do k6 ----
+time="2026-09-24T20:45:25-03:00" level=warning msg="Request Failed" error="Get \"http://localhost:8080/api/v1/hypotheses\": request timeout"
+time="2026-09-24T20:45:25-03:00" level=warning msg="Request Failed" error="Get \"http://localhost:8080/api/v1/hypotheses\": request timeout"
+time="2026-09-24T20:45:25-03:00" level=warning msg="Request Failed" error="Get \"http://localhost:8080/api/v1/hypotheses\": request timeout"
+time="2026-09-24T20:45:25-03:00" level=warning msg="Request Failed" error="Get \"http://localhost:8080/api/v1/clock\": request timeout"
+time="2026-09-24T20:45:25-03:00" level=warning msg="Request Failed" error="Get \"http://localhost:8080/api/v1/hypotheses\": request timeout"
+time="2026-09-24T20:45:26-03:00" level=info msg="2026-09-24T23:45:26.016Z FALHA vu=3 /api/v1/clock status=0 request timeout" source=console
+time="2026-09-24T20:45:26-03:00" level=info msg="2026-09-24T23:45:26.016Z FALHA vu=4 /api/v1/hypotheses status=0 request timeout" source=console
+time="2026-09-24T20:45:26-03:00" level=info msg="2026-09-24T23:45:26.016Z FALHA vu=2 /api/v1/hypotheses status=0 request timeout" source=console
+time="2026-09-24T20:45:26-03:00" level=info msg="2026-09-24T23:45:26.016Z FALHA vu=1 /api/v1/hypotheses status=0 request timeout" source=console
+time="2026-09-24T20:45:26-03:00" level=info msg="2026-09-24T23:45:26.016Z FALHA vu=5 /api/v1/hypotheses status=0 request timeout" source=console
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 5394   35.956152/s
+    checks_succeeded...: 99.90% 5389 out of 5394
+    checks_failed......: 0.09%  5 out of 5394
+
+    ✗ status 200
+      ↳  99% — ✓ 5389 / ✗ 5
+
+    CUSTOM
+    respostas_200..................: 5389   35.922822/s
+    respostas_nao_200..............: 5      0.03333/s
+
+    HTTP
+    http_req_duration..............: avg=38.39ms  med=10.46ms  p(95)=102.79ms max=5.02s
+      { expected_response:true }...: avg=33.77ms  med=10.45ms  p(95)=100.43ms max=3.11s
+    http_req_failed................: 0.09%  5 out of 5394
+    http_reqs......................: 5394   35.956152/s
+
+    EXECUTION
+    iteration_duration.............: avg=278.06ms med=224.97ms p(95)=411.89ms max=7.1s 
+    iterations.....................: 2697   17.978076/s
+    vus............................: 5      min=5         max=5
+    vus_max........................: 5      min=5         max=5
+
+    NETWORK
+    data_received..................: 2.5 MB 17 kB/s
+    data_sent......................: 456 kB 3.0 kB/s
+
+
+
+---- numeros-chave (de k6-02.summary.json) ----
+http_reqs=5394 http_req_failed=5 (taxa=0.0009269558769002596) respostas_200=5389 respostas_nao_200=5 p95_ms=102.79054999999971 max_ms=5026.52
+---- fim ----
+
+
+---- watch dos pods do backend (kubectl get ... -w --output-watch-events, com timestamp) ----
+[20:45:03.658] EVENT      NAME                             READY   STATUS    RESTARTS   AGE
+[20:45:03.660] ADDED      argus-backend-7fcbd46bb4-krsvk   1/1     Running   0          136m
+[20:45:19.229] ADDED      argus-backend-88576b4db-8kl5x    0/1     Pending   0          0s
+[20:45:19.707] MODIFIED   argus-backend-88576b4db-8kl5x    0/1     Pending   0          1s
+[20:45:20.288] MODIFIED   argus-backend-88576b4db-8kl5x    0/1     ContainerCreating   0          1s
+[20:45:26.227] MODIFIED   argus-backend-88576b4db-8kl5x    0/1     ContainerCreating   0          7s
+[20:45:30.009] MODIFIED   argus-backend-88576b4db-8kl5x    0/1     Running             0          11s
+[20:45:32.006] MODIFIED   argus-backend-88576b4db-8kl5x    0/1     Running             0          13s
+[20:45:46.112] MODIFIED   argus-backend-88576b4db-8kl5x    0/1     Running             0          27s
+[20:45:47.722] MODIFIED   argus-backend-88576b4db-8kl5x    1/1     Running             0          29s
+[20:45:50.626] ADDED      argus-backend-88576b4db-zlsj7    0/1     Pending             0          0s
+[20:45:50.772] MODIFIED   argus-backend-88576b4db-zlsj7    0/1     Pending             0          0s
+[20:45:51.037] MODIFIED   argus-backend-88576b4db-zlsj7    0/1     ContainerCreating   0          0s
+[20:45:52.664] MODIFIED   argus-backend-88576b4db-zlsj7    0/1     ContainerCreating   0          2s
+[20:45:53.685] MODIFIED   argus-backend-88576b4db-zlsj7    0/1     Running             0          3s
+[20:45:55.265] MODIFIED   argus-backend-88576b4db-zlsj7    0/1     Running             0          4s
+[20:45:58.281] MODIFIED   argus-backend-88576b4db-zlsj7    0/1     Running             0          7s
+[20:45:58.453] MODIFIED   argus-backend-88576b4db-zlsj7    1/1     Running             0          7s
+[20:46:08.524] MODIFIED   argus-backend-7fcbd46bb4-krsvk   1/1     Terminating         0          137m
+[20:46:10.209] MODIFIED   argus-backend-7fcbd46bb4-krsvk   1/1     Terminating         0          137m
+[20:46:22.363] ADDED      argus-backend-fbfbf8bbb-z4k87    0/1     Pending             0          0s
+[20:46:22.530] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     Pending             0          0s
+[20:46:22.849] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     ContainerCreating   0          1s
+[20:46:23.768] MODIFIED   argus-backend-7fcbd46bb4-krsvk   0/1     Completed           0          137m
+[20:46:23.988] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     ContainerCreating   0          2s
+[20:46:24.115] MODIFIED   argus-backend-7fcbd46bb4-krsvk   0/1     Completed           0          137m
+[20:46:24.124] DELETED    argus-backend-7fcbd46bb4-krsvk   0/1     Completed           0          137m
+[20:46:25.826] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     ErrImagePull        0          4s
+[20:46:36.196] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     ImagePullBackOff    0          14s
+[20:46:48.623] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     ErrImagePull        0          26s
+[20:46:53.025] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     Terminating         0          31s
+[20:46:53.613] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     Terminating         0          32s
+[20:46:54.562] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     Terminating         0          32s
+[20:46:56.375] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     ContainerStatusUnknown   0          34s
+[20:46:56.479] MODIFIED   argus-backend-fbfbf8bbb-z4k87    0/1     ContainerStatusUnknown   0          34s
+[20:46:56.911] DELETED    argus-backend-fbfbf8bbb-z4k87    0/1     ContainerStatusUnknown   0          35s
+---- fim ----
+
+
+---- watch do Deployment (READY/UP-TO-DATE/AVAILABLE ao longo do tempo) (kubectl get ... -w --output-watch-events, com timestamp) ----
+[20:45:03.658] EVENT      NAME            READY   UP-TO-DATE   AVAILABLE   AGE
+[20:45:03.660] ADDED      argus-backend   1/1     1            1           7d1h
+[20:45:11.731] MODIFIED   argus-backend   1/1     1            1           7d1h
+[20:45:13.713] MODIFIED   argus-backend   1/1     1            1           7d1h
+[20:45:19.220] MODIFIED   argus-backend   1/1     1            1           7d1h
+[20:45:19.871] MODIFIED   argus-backend   1/1     0            1           7d1h
+[20:45:20.250] MODIFIED   argus-backend   1/1     1            1           7d1h
+[20:45:48.887] MODIFIED   argus-backend   2/1     1            1           7d1h
+[20:45:50.214] MODIFIED   argus-backend   2/2     1            1           7d1h
+[20:45:50.637] MODIFIED   argus-backend   2/2     1            1           7d1h
+[20:45:50.793] MODIFIED   argus-backend   2/2     1            1           7d1h
+[20:45:50.893] MODIFIED   argus-backend   2/2     2            1           7d1h
+[20:45:55.758] MODIFIED   argus-backend   2/2     2            2           7d1h
+[20:45:58.833] MODIFIED   argus-backend   3/2     2            2           7d1h
+[20:46:08.754] MODIFIED   argus-backend   3/2     2            3           7d1h
+[20:46:10.936] MODIFIED   argus-backend   2/2     2            2           7d1h
+[20:46:22.090] MODIFIED   argus-backend   2/2     2            2           7d1h
+[20:46:22.340] MODIFIED   argus-backend   2/2     2            2           7d1h
+[20:46:22.599] MODIFIED   argus-backend   2/2     0            2           7d1h
+[20:46:22.808] MODIFIED   argus-backend   2/2     1            2           7d1h
+[20:46:23.963] MODIFIED   argus-backend   2/2     1            2           7d1h
+[20:46:52.215] MODIFIED   argus-backend   2/2     1            2           7d1h
+[20:46:52.779] MODIFIED   argus-backend   2/2     1            2           7d1h
+[20:46:53.583] MODIFIED   argus-backend   2/2     2            2           7d1h
+[20:46:54.315] MODIFIED   argus-backend   2/2     2            2           7d1h
+[20:46:57.913] MODIFIED   argus-backend   2/2     2            2           7d1h
+---- fim ----
+
+
+================================================================
+RESUMO (kind local, 1 replica, commit 0ff97f4b0130)
+RESULTADO restart: rollout status concluido em 60.3 s
+  falhas do k6 durante o restart: 5
+  deploy defeituoso: pod novo em ImagePullBackOff, pod antigo seguiu Ready; falhas do k6 acumuladas ate o undo: 5
+RESULTADO undo: rollout status concluido em 3.0 s; imagem restaurada = argus-backend:dev
+  k6 total: 5394 requisicoes, 5389 respostas 200, 5 falhas (taxa 0.09%), p95 103 ms
+================================================================
+
+NOTA: o RESUMO acima diz "1 replica" porque e o padrao do overlay kind no inicio do ensaio; as 20:45:50 o HPA subiu o Deployment para 2 replicas (evento SuccessfulRescale "New size: 2; reason: cpu resource utilization (percentage of request) above target", CPU acima de 60% da request de 100m sob a carga do k6 mais a subida do pod novo). E por isso que o deploy defeituoso mostra dois pods antigos Ready e o rollout status diz "1 out of 2 new replicas". As 5 falhas do k6 sao timeouts de 5 s emitidos as 20:45:21 e vencidos as 20:45:26, durante o ContainerCreating do pod novo (20:45:20 a 20:45:30), com o pod antigo ainda Ready e unico endpoint: saturacao da VM local, nao troca de endpoint.

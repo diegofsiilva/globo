@@ -174,22 +174,50 @@ migrations concluir, quando voltou sozinho.
 de o antigo sair. O `preStop` de 10 segundos cobre a propagação do descadastramento no
 balanceador; sem ele, cada implantação produz um punhado de erros 502.
 
-&emsp; Medição feita durante um `rollout restart`, com requisições a cada 200 ms contra
-`/api/v1/clock` pelo Ingress:
+&emsp; Medição feita em 24/09 no cluster kind local (um nó, commit `0ff97f4b0130`; não é o
+EKS), com k6 a 5 VUs contra `/api/v1/clock` e `/api/v1/hypotheses` pelo Ingress durante
+150 s que cobriram um `rollout restart`, um deploy com tag de imagem inexistente e o
+`rollout undo`:
 
 ```
-# saída esperada: nenhuma falha
-RESULTADO: 547 respostas 200, 0 falhas
+# saída medida em 24/09 no kind (local) -- ver evidencias/resiliencia-kind-02-rollout-e-undo.txt
+rollout restart   : pod novo Ready antes de o antigo sair; rollout status concluído em 60,3 s
+                    (inclui o preStop de 10 s e o término gracioso do gunicorn)
+deploy defeituoso : set image ...:nao-existe -> pod novo em ImagePullBackOff após 17,1 s,
+                    pods antigos seguiram Ready, Ingress respondendo 200, rollout status não conclui
+rollout undo      : imagem anterior restaurada, rollout status concluído em 3,0 s
+k6 nos 150 s      : 5394 requisições, 5389 respostas 200, 5 falhas (0,09%)
 ```
+
+&emsp; As 5 falhas foram timeouts de 5 s no mesmo instante (20:45:26), durante o
+`ContainerCreating` do pod novo, com o pod antigo ainda `Ready` e único endpoint do
+Service: sintoma de saturação da VM local (o `ContainerCreating` levou 10 s e o pod só
+ficou `Ready` 28 s depois de criado), não de troca de endpoint. Da entrada do pod novo até
+o fim, inclusive na saída do antigo, no deploy defeituoso e no `undo`, foram 0 falhas.
+Durante o ensaio o HPA subiu o Deployment de 1 para 2 réplicas, porque a CPU passou de
+60% da `request` de 100m sob a carga; é o comportamento esperado e não muda a leitura.
+No EKS a medição ainda não foi repetida.
 
 ### 5.3 Autocura
 
-&emsp; Remoção forçada de um pod da API, cronometrada até a condição `Ready`:
+&emsp; Remoção forçada de um pod da API, cronometrada até a condição `Ready`. Medido em
+24/09 no cluster kind local (um nó, commit `0ff97f4b0130`, imagens construídas desse
+mesmo commit; não é o EKS), com k6 a 5 VUs contra `/api/v1/clock` e `/api/v1/hypotheses`
+pelo Ingress durante toda a troca:
 
 ```
-# saída esperada: recuperação em poucos segundos
-recuperado em 4s
+# saída medida em 24/09 no kind (local) -- ver evidencias/resiliencia-kind-01-autocura.txt
+1 réplica (padrão do overlay kind): novo pod Ready 8,3 s após o delete
+   k6: 2470 requisições, 2116 respostas 200, 354 falhas (503, 14,3%) na janela sem pod
+2 réplicas (um dos dois pods removido): novo pod Ready 6,2 s após o delete
+   k6: 2262 requisições, 2262 respostas 200, 0 falhas
 ```
+
+&emsp; Os dois números medem coisas diferentes. O tempo de reposição é do Kubernetes e
+fica em segundos nos dois casos; a interrupção percebida pelo usuário depende de haver
+**outra réplica `Ready`** no momento da falha, que é a condição da meta de
+`arquitetura-final.md` §3.1.1 e o motivo de a base usar duas réplicas. Com uma réplica
+só, os 8 segundos sem pod viram 503 no Ingress.
 
 &emsp; O ASG levava até **300 segundos** para repor uma instância, o valor do
 `health_check_grace_period`, dimensionado para cobrir boot, `dnf install` e `docker

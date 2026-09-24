@@ -639,21 +639,42 @@ A recuperação somente pode ser declarada depois de todos os passos aplicáveis
 ### 3.4 Testes e evidências de recuperação
 
 Os resultados já executados e suas fontes ficam concentrados na seção 4.
-Os exercícios abaixo ainda exigem capturas próprias com ambiente, data,
-revisão do código, digests, horários, eventos, logs, tráfego e reconciliação quando houver
-dados envolvidos. Comparar o tempo de atendimento ao usuário e o tempo de
-recomposição da réplica separadamente com as metas da seção 3.1.1.
+Três dos exercícios abaixo foram executados em 24/09 no cluster kind local
+(um nó, Postgres em `emptyDir`, imagens construídas do commit `0ff97f4b0130`),
+com a saída bruta em `evidencias/resiliencia-kind-0*.txt` e os scripts em
+`evidencias/resiliencia-kind/`. Esse ambiente exercita os mesmos manifestos do
+EKS, mas não a distribuição por zona nem o ALB: os números valem para o
+comportamento do Deployment e das sondas, não para o EKS. Os demais exercícios
+ainda exigem capturas próprias com ambiente, data, revisão do código, digests,
+horários, eventos, logs, tráfego e reconciliação quando houver dados envolvidos.
+Comparar o tempo de atendimento ao usuário e o tempo de recomposição da réplica
+separadamente com as metas da seção 3.1.1.
 
-| Ensaio planejado | Ação | Critério de aceite e registro necessário |
-|---|---|---|
-| Reposição de pod | Excluir uma réplica de frontend e outra de backend sob tráfego controlado. | Medir respostas ao usuário e tempo até `Ready` por aplicação. Guardar eventos, logs e timestamps. |
-| Retirada controlada de nó | Executar `kubectl drain` em nó com réplicas da aplicação. | Verificar que o PDB permite somente a interrupção voluntária segura e medir o reagendamento. |
-| Queda abrupta de nó | Simular perda de nó separadamente do `drain`, em ambiente de ensaio. | Medir respostas e recomposição sem atribuir proteção ao PDB. Confirmar capacidade em outro nó e distribuição por zona. |
-| Deploy defeituoso | Publicar imagem que falha a startup probe e executar o rollback da seção 3.2.3. | Confirmar atendimento pela revisão antiga, ação do operador, digest restaurado e tempo de recuperação. |
-| Perda de readiness | Interromper temporariamente a conexão de um pod de backend com o RDS. | Confirmar retirada dos Endpoints sem ciclo de reinício e recuperação após restaurar a conexão. |
-| Escala por CPU | Disponibilizar `metrics.k8s.io` e gerar carga separada no frontend e backend. | Registrar `ScalingActive=True`, CPU, réplicas, latência e erros em cada etapa. |
-| Entrada e contingência | Simular falha do Ingress e executar a troca S3/Lambda da seção 3.2.3. | Guardar outputs Terraform, autenticação, URLs antes/depois e tempos de troca e retorno. |
-| RDS e filas | Executar a seção 3.3.3 em instância isolada, trocar endpoint e Secret, retomar consumidores e redirigir uma amostra conhecida da DLQ. | Guardar ponto escolhido, backup, endpoint anterior e novo, plano Terraform, horários de restauração e troca, status das migrations, idade das mensagens e conciliação por identificador, incluindo duplicidades. |
+| Ensaio planejado | Ação | Critério de aceite e registro necessário | Estado |
+|---|---|---|---|
+| Reposição de pod | Excluir uma réplica de frontend e outra de backend sob tráfego controlado. | Medir respostas ao usuário e tempo até `Ready` por aplicação. Guardar eventos, logs e timestamps. | Backend executado no kind em 24/09 (abaixo). Frontend pendente. |
+| Retirada controlada de nó | Executar `kubectl drain` em nó com réplicas da aplicação. | Verificar que o PDB permite somente a interrupção voluntária segura e medir o reagendamento. | Pendente: exige mais de um nó. |
+| Queda abrupta de nó | Simular perda de nó separadamente do `drain`, em ambiente de ensaio. | Medir respostas e recomposição sem atribuir proteção ao PDB. Confirmar capacidade em outro nó e distribuição por zona. | Pendente: exige mais de um nó. |
+| Deploy defeituoso | Publicar imagem que falha a startup probe e executar o rollback da seção 3.2.3. | Confirmar atendimento pela revisão antiga, ação do operador, digest restaurado e tempo de recuperação. | Executado no kind em 24/09 com tag inexistente (`ImagePullBackOff`), não com falha de startup probe (abaixo). |
+| Perda de readiness | Interromper temporariamente a conexão de um pod de backend com o RDS. | Confirmar retirada dos Endpoints sem ciclo de reinício e recuperação após restaurar a conexão. | Executado no kind em 24/09 escalando o Postgres local a zero (abaixo). |
+| Escala por CPU | Disponibilizar `metrics.k8s.io` e gerar carga separada no frontend e backend. | Registrar `ScalingActive=True`, CPU, réplicas, latência e erros em cada etapa. | Parcial: sem ensaio dedicado; o HPA do backend subiu de 1 para 2 réplicas durante o ensaio de deploy (abaixo). |
+| Entrada e contingência | Simular falha do Ingress e executar a troca S3/Lambda da seção 3.2.3. | Guardar outputs Terraform, autenticação, URLs antes/depois e tempos de troca e retorno. | Pendente. |
+| RDS e filas | Executar a seção 3.3.3 em instância isolada, trocar endpoint e Secret, retomar consumidores e redirigir uma amostra conhecida da DLQ. | Guardar ponto escolhido, backup, endpoint anterior e novo, plano Terraform, horários de restauração e troca, status das migrations, idade das mensagens e conciliação por identificador, incluindo duplicidades. | Pendente. |
+
+**Ensaios executados em 24/09 no kind local.** Carga com k6 a 5 VUs contra
+`/api/v1/clock` e `/api/v1/hypotheses` pelo Ingress durante toda a ação, com
+timestamp de milissegundo em cada linha e o `kubectl get -w` gravado ao lado.
+
+| Ensaio | Comando-chave | Medição | Leitura frente à meta de 3.1.1 | Evidência |
+|---|---|---|---|---|
+| Reposição de pod (backend) | `kubectl delete pod -l app.kubernetes.io/name=argus-backend` | 1 réplica: novo pod `Ready` em 8,3 s; k6 com 2470 requisições e 354 falhas 503 (14,3%) na janela sem pod. 2 réplicas, um pod removido: novo pod `Ready` em 6,2 s; k6 com 2262 requisições e 0 falhas. | Recomposição em segundos, dentro dos 2 min. "Sem interrupção percebida" só se cumpre com outra réplica `Ready`, que é a condição declarada na meta e o motivo de a base usar duas réplicas. | `evidencias/resiliencia-kind-01-autocura.txt` |
+| Deploy sem queda | `kubectl rollout restart deployment/argus-backend` | `rollout status` concluído em 60,3 s (inclui `preStop` de 10 s e término gracioso). 5 timeouts (0,09% de 5394 requisições) no mesmo instante, durante o `ContainerCreating` do pod novo, com o pod antigo ainda `Ready`; nenhuma falha na troca de endpoint. | Capacidade nunca caiu (`maxUnavailable: 0`). Os timeouts são saturação da VM local, a ser confirmada no EKS. | `evidencias/resiliencia-kind-02-rollout-e-undo.txt` |
+| Deploy defeituoso e rollback | `kubectl set image ... backend=argus-backend:nao-existe`; `kubectl rollout undo` | Pod novo em `ImagePullBackOff` 17,1 s após o `set image`; pods antigos seguiram `Ready`, Ingress respondendo 200 e 0 falhas no k6 nessa fase. `rollout undo` concluído em 3,0 s, imagem anterior restaurada (digest no cabeçalho da evidência). | Dentro dos 10 min. A reversão continua manual: o Deployment não reverte sozinho. | `evidencias/resiliencia-kind-02-rollout-e-undo.txt` |
+| Perda de readiness | `kubectl scale deployment/argus-postgres --replicas=0` e depois `--replicas=1` | Backend `Ready=False` 29,8 s após o scale (3 falhas de readiness a cada 5 s), `RESTARTS=0`, Endpoints vazio, Ingress 503; `/health/live` direto no pod seguiu 200. Postgres de volta em 81,2 s, mas vazio (`emptyDir`): readiness seguiu 503 (`{"status":"unavailable"}`) sem reinício; após o Job de migrations (31,7 s), `Ready` em 2,5 s no mesmo pod, `RESTARTS=0`. | Confirma readiness separada de liveness: o pod saiu do balanceamento e voltou sozinho, sem reinício. Ressalva: o kubelet registrou 2 timeouts de liveness (limiar 3) enquanto a readiness ficava presa no `connect` ao banco; com um worker de gunicorn (patch do kind), a readiness presa pode sufocar `/health/live`. Nos primeiros 30 s o usuário viu timeouts, não 503. | `evidencias/resiliencia-kind-03-perda-do-banco.txt` |
+
+O que ficou fora: reposição de pod do frontend, os dois modos de perda de nó
+(o kind tem um nó só), ensaio dedicado de HPA, contingência de entrada e
+RDS/filas. Nenhum dos ensaios foi repetido no EKS.
 
 Os alvos `resiliencia-fila-cheia`, `resiliencia-timeout`,
 `resiliencia-evento-invalido`, `resiliencia-concorrente` e

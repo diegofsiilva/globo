@@ -1,0 +1,239 @@
+================================================================
+ENSAIO 3 -- PERDA DO BANCO: readiness falha, liveness passa, pod nao reinicia (kind, local)
+================================================================
+data/hora (local)  : 2026-09-24 20:47:40 -03
+data/hora (UTC)    : 2026-09-24T23:47:41Z
+commit             : 0ff97f4b013020992da4e58a2ec76a25b5444ba6
+ambiente           : kind (local, Docker via colima), NAO e o EKS
+contexto kubectl   : kind-argus   namespace: argus
+kind               : kind v0.33.0 go1.27.0 darwin/arm64
+kubectl/k8s        : Client Version: v1.37.0 Kustomize Version: v5.8.1 Server Version: v1.37.0 
+no                 : argus-control-plane v1.37.0 arm64 containerd://2.3.4
+colima             : default Running aarch64 6 6GiB 100GiB docker 
+k6                 : k6 v2.3.0 (commit/devel, go1.27.1, darwin/arm64)
+imagens (spec)     :
+  argus-backend -> argus-backend:dev
+  argus-frontend -> argus-frontend:dev
+  argus-postgres -> postgres:16
+imagens (imageID nos pods, digest local do containerd):
+  argus-backend-88576b4db-8kl5x -> docker.io/library/import-2026-09-24@sha256:b944d683393f66949bd20fc48330e1d3747051a0227eeff8edb1332bf8401a53
+  argus-backend-88576b4db-zlsj7 -> docker.io/library/import-2026-09-24@sha256:b944d683393f66949bd20fc48330e1d3747051a0227eeff8edb1332bf8401a53
+  argus-db-migrate-ljbjg -> sha256:22b3c27e4c08f7175373c9c1ac2a9802705e5f3eef7d7f70442b2ff50fd417fe
+  argus-frontend-7fdb5d98-6wfj2 -> sha256:c9881d4057ca694872bca55c9cebe449c1593dc7c1b657f9321da7a9f9f2f779
+  argus-postgres-68fff74b7b-nf4fv -> docker.io/library/postgres@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+digests no docker da maquina:
+backend: strategy/probes (do Deployment aplicado):
+  replicas=2 minReadySeconds=10 maxUnavailable=0 maxSurge=1 readiness=/health/ready/5s liveness=/health/live/10s startup=/health/live/3s preStop=["sleep","10"]
+hpa:
+  argus-backend min=1 max=2
+  argus-frontend min=1 max=2
+estado inicial:
+  NAME                              READY   STATUS      RESTARTS        AGE     IP            NODE                  NOMINATED NODE   READINESS GATES
+  argus-backend-88576b4db-8kl5x     1/1     Running     0               2m26s   10.244.0.24   argus-control-plane   <none>           <none>
+  argus-backend-88576b4db-zlsj7     1/1     Running     0               114s    10.244.0.25   argus-control-plane   <none>           <none>
+  argus-db-migrate-ljbjg            0/1     Completed   0               177m    10.244.0.15   argus-control-plane   <none>           <none>
+  argus-frontend-7fdb5d98-6wfj2     1/1     Running     0               178m    10.244.0.14   argus-control-plane   <none>           <none>
+  argus-postgres-68fff74b7b-nf4fv   1/1     Running     1 (3h28m ago)   7d1h    10.244.0.6    argus-control-plane   <none>           <none>
+scripts             : artefatos/evidencias/resiliencia-kind/ (este ensaio: ensaio-03-perda-do-banco.sh)
+================================================================
+
+[20:47:45.714] pod do backend: argus-backend-88576b4db-8kl5x  RESTARTS antes: 0
+[20:47:45.718] $ kubectl --context kind-argus -n argus get deploy argus-postgres
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+argus-postgres   1/1     1            1           7d1h
+[20:47:45.827] $ kubectl --context kind-argus -n argus get endpoints argus-backend argus-postgres
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME             ENDPOINTS                           AGE
+argus-backend    10.244.0.24:5000,10.244.0.25:5000   7d1h
+argus-postgres   10.244.0.6:5432                     7d1h
+[20:47:49.661] linha de base: Ready=True RESTARTS=0 | live=200 ready=200 | ingress:/api/v1/clock=200 /health/ready=200
+[20:47:49.686] =============== 1. POSTGRES -> 0 REPLICAS ===============
+[20:47:49.693] $ kubectl --context kind-argus -n argus scale deploy/argus-postgres --replicas=0
+deployment.apps/argus-postgres scaled
+[20:47:51.042] Ready=True RESTARTS=0 | live=200 ready=200 | ingress:/api/v1/clock=200 /health/ready=200 | postgres: argus-postgres-68fff74b7b-nf4fv:Running 
+[20:47:54.434] Ready=True RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=000000 /health/ready=000000 | postgres: argus-postgres-68fff74b7b-nf4fv:Succeeded 
+[20:48:05.798] Ready=True RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=000000 /health/ready=503 | postgres: 
+[20:48:16.233] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503 | postgres: 
+[20:48:19.525] T1: backend saiu de Ready 29.8 s apos o scale (readiness periodSeconds=5, failureThreshold=3)
+[20:48:19.529] continuando a observar por 30 s para comprovar que NAO ha reinicio (liveness em /health/live segue 200)
+[20:48:21.550] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:48:26.932] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:48:32.138] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:48:37.664] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:48:43.946] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:48:50.421] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:48:56.618] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:02.810] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:08.800] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:14.644] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:20.663] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:26.611] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:32.941] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:39.764] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:45.445] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:49:50.369] corpo de /health/ready direto no pod (sem banco):
+
+[20:49:53.456] corpo de /health/live direto no pod:
+{"status":"ok"}
+
+[20:49:56.006] Endpoints do backend (esperado: sem endereco pronto):
+[20:49:56.020] $ kubectl --context kind-argus -n argus get endpoints argus-backend -o wide
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME            ENDPOINTS   AGE
+argus-backend               7d1h
+[20:49:56.846] describe do pod (Conditions e Events):
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Events:
+  Type     Reason     Age                    From               Message
+  ----     ------     ----                   ----               -------
+  Normal   Scheduled  4m37s                  default-scheduler  Successfully assigned argus/argus-backend-88576b4db-8kl5x to argus-control-plane
+  Normal   Pulled     4m31s                  kubelet            spec.containers{backend}: Container image "argus-backend:dev" already present on machine and can be accessed by the pod
+  Normal   Created    4m30s                  kubelet            spec.containers{backend}: Container created
+  Normal   Started    4m27s                  kubelet            spec.containers{backend}: Container started
+  Warning  Unhealthy  4m24s                  kubelet            spec.containers{backend}: Startup probe failed: Get "http://10.244.0.24:5000/health/live": dial tcp 10.244.0.24:5000: connect: connection refused
+  Warning  Unhealthy  4m14s (x3 over 4m20s)  kubelet            spec.containers{backend}: Startup probe failed: Get "http://10.244.0.24:5000/health/live": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  Warning  Unhealthy  103s (x2 over 113s)    kubelet            spec.containers{backend}: Liveness probe failed: Get "http://10.244.0.24:5000/health/live": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  Warning  Unhealthy  31s (x19 over 119s)    kubelet            spec.containers{backend}: Readiness probe failed: Get "http://10.244.0.24:5000/health/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+[20:49:57.678] logs do backend com as sondas (ultimas 12 linhas com /health):
+{"ts": "2026-09-24T23:49:40+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "6a75a0e7-152b-4dcc-a402-5c13311d415f", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.9, "bytes": 16}
+{"ts": "2026-09-24T23:49:41+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "bd190df0-384b-4d97-9b7b-78c6c2d6595c", "route": "/health/ready", "method": "GET", "status": 503, "latency_ms": 10033.6, "bytes": 25}
+{"ts": "2026-09-24T23:49:41+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "a591876b-59f9-4aee-8954-e581cda628a0", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.1, "bytes": 16}
+{"ts": "2026-09-24T23:49:45+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "eee9d34c-5490-4ee5-b7f3-bdd726718e76", "route": "/health/ready", "method": "GET", "status": 503, "latency_ms": 10126.6, "bytes": 25}
+{"ts": "2026-09-24T23:49:46+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "0c9b8676-bd36-4fa7-a1d5-78dd11c47fa9", "route": "/health/ready", "method": "GET", "status": 503, "latency_ms": 10132.3, "bytes": 25}
+{"ts": "2026-09-24T23:49:47+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "3e2373e0-af03-4d26-9a35-5751c4b2108c", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.6, "bytes": 16}
+{"ts": "2026-09-24T23:49:50+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "102c0abc-a8b5-4522-b13d-9f07704bb484", "route": "/health/ready", "method": "GET", "status": 503, "latency_ms": 10066.9, "bytes": 25}
+{"ts": "2026-09-24T23:49:52+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "7120e8c0-816f-4d85-b1dc-aa953279dfde", "route": "/health/ready", "method": "GET", "status": 503, "latency_ms": 10059.0, "bytes": 25}
+{"ts": "2026-09-24T23:49:52+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "43d022d7-f497-4214-8e5b-cf3dbd742aac", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.1, "bytes": 16}
+{"ts": "2026-09-24T23:49:56+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "cda9482e-fbfe-498e-8586-d5cb60e80d38", "route": "/health/ready", "method": "GET", "status": 503, "latency_ms": 10110.7, "bytes": 25}
+{"ts": "2026-09-24T23:49:56+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "862f4f60-f52d-4d1d-8cab-f0d50a6c3676", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.3, "bytes": 16}
+{"ts": "2026-09-24T23:49:57+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "210ce9f7-f654-4754-9a3c-6b0fb5f06de4", "route": "/health/ready", "method": "GET", "status": 503, "latency_ms": 10010.2, "bytes": 25}
+[20:49:58.215] RESULTADO 1: sem banco, pod argus-backend-88576b4db-8kl5x Ready=False, RESTARTS=0 (antes: 0); Ingress responde 503 em /api/v1/clock
+[20:49:58.228] =============== 2. POSTGRES -> 1 REPLICA (emptyDir: banco volta vazio) ===============
+[20:49:58.235] $ kubectl --context kind-argus -n argus scale deploy/argus-postgres --replicas=1
+deployment.apps/argus-postgres scaled
+[20:49:58.568] $ kubectl --context kind-argus -n argus rollout status deploy/argus-postgres --timeout=180s
+Waiting for deployment "argus-postgres" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "argus-postgres" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "argus-postgres" rollout to finish: 0 of 1 updated replicas are available...
+deployment "argus-postgres" successfully rolled out
+[20:51:19.443] postgres Ready 81.2 s apos o scale
+[20:51:19.462] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:51:25.431] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:51:31.394] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:51:37.172] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:51:42.809] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:51:48.224] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:51:54.422] Ready=False RESTARTS=0 | live=200 ready=000000 | ingress:/api/v1/clock=503 /health/ready=503
+[20:51:59.971] Ready=False RESTARTS=0 | live=200 ready=503 | ingress:/api/v1/clock=503 /health/ready=503
+[20:52:02.509] Ready=False RESTARTS=0 | live=200 ready=503 | ingress:/api/v1/clock=503 /health/ready=503
+[20:52:04.781] Ready=False RESTARTS=0 | live=200 ready=503 | ingress:/api/v1/clock=503 /health/ready=503
+[20:52:07.466] corpo de /health/ready com banco de pe mas vazio:
+{"status":"unavailable"}
+
+[20:52:07.569] RESULTADO 2: banco de pe e vazio -> readiness segue falhando, RESTARTS=0
+[20:52:07.573] =============== 3. JOB DE MIGRATION (make k8s-migrate K8S_OVERLAY=kind) ===============
+[20:52:07.580] $ make -C apps/fullstack k8s-migrate K8S_OVERLAY=kind KUBECTL="kubectl --context kind-argus"
+job.batch/argus-db-migrate created
+job.batch/argus-db-migrate condition met
+  + 014_catalogo_de_fontes ... 612 ms
+  + 015_etl_incremental ... 567 ms
+  + 016_gold_checkpoint ... 28 ms
+  + 017_analysis_coordination ... 68 ms
+  + 018_analysis_inputs ... 510 ms
+  + 019_detection_contract ... 80 ms
+  + 020_source_quality ... 15 ms
+  + 021_hypothesis_engine ... 107 ms
+  + 022_hypothesis_views ... 22 ms
+  + 023_deploy_events ... 12 ms
+  + 024_deploy_event_available_at ... 0 ms
+  + 025_indice_fonte_metrica_tempo ... 243 ms
+  + 026_indice_baseline_horario ... 176 ms
+  + 027_dados_operacionais_e_revisao ... 109 ms
+  + 028_merge_do_log_funde_pk ... 1 ms
+  + 029_watermark_inclui_eventos ... 0 ms
+  + 030_indice_lsn_em_evento ... 47 ms
+  + 031_lab_hypothesis_preview ... 11 ms
+  + 032_hypotheses_visible_on_generation ... 2 ms
+  + 033_all_generated_hypothesis_revisions ... 1 ms
+[20:52:39.311] job concluido em 31.7 s
+[20:52:39.752] Ready=True RESTARTS=0 | live=200 ready=200 | ingress:/api/v1/clock=200 /health/ready=200
+[20:52:42.082] RESULTADO 3: backend Ready de novo 2.5 s apos o fim das migrations (163.5 s apos o scale do Postgres para 1); RESTARTS=0 (antes: 0) -- mesmo pod, sem reinicio
+[20:52:42.086] $ kubectl --context kind-argus -n argus get endpoints argus-backend -o wide
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME            ENDPOINTS                           AGE
+argus-backend   10.244.0.24:5000,10.244.0.25:5000   7d1h
+argus-backend-88576b4db-8kl5x   True   Running   0     10.244.0.24   2026-09-24T23:45:19Z   <none>
+argus-backend-88576b4db-zlsj7   True   Running   0     10.244.0.25   2026-09-24T23:45:51Z   <none>
+[20:52:42.759] eventos recentes:
+2026-09-24T23:49:01Z   Warning   FailedComputeMetricsReplicas   HorizontalPodAutoscaler   argus-backend                     invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+2026-09-24T23:49:17Z   Warning   FailedGetResourceMetric        HorizontalPodAutoscaler   argus-backend                     failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+2026-09-24T23:49:59Z   Normal    ScalingReplicaSet              Deployment                argus-postgres                    Scaled up replica set argus-postgres-68fff74b7b from 0 to 1
+2026-09-24T23:49:59Z   Normal    SuccessfulCreate               ReplicaSet                argus-postgres-68fff74b7b         Created pod: argus-postgres-68fff74b7b-2z77s
+2026-09-24T23:50:03Z   Normal    Pulled                         Pod                       argus-postgres-68fff74b7b-2z77s   Container image "postgres:16" already present on machine and can be accessed by the pod
+2026-09-24T23:50:03Z   Normal    Created                        Pod                       argus-postgres-68fff74b7b-2z77s   Container created
+2026-09-24T23:50:04Z   Normal    Started                        Pod                       argus-postgres-68fff74b7b-2z77s   Container started
+2026-09-24T23:50:17Z   Warning   Unhealthy                      Pod                       argus-frontend-7fdb5d98-6wfj2     Readiness probe failed: Get "http://10.244.0.14:8080/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+2026-09-24T23:50:18Z   Warning   Unhealthy                      Pod                       argus-frontend-7fdb5d98-6wfj2     Liveness probe failed: Get "http://10.244.0.14:8080/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+2026-09-24T23:50:29Z   Warning   Unhealthy                      Pod                       argus-backend-88576b4db-8kl5x     Readiness probe failed: Get "http://10.244.0.24:5000/health/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+2026-09-24T23:50:47Z   Warning   Unhealthy                      Pod                       argus-backend-88576b4db-zlsj7     Readiness probe failed: Get "http://10.244.0.25:5000/health/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+2026-09-24T23:51:06Z   Warning   Unhealthy                      Pod                       argus-postgres-68fff74b7b-2z77s   Readiness probe failed: psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
+                       Is the server running locally and accepting connections on that socket?
+
+2026-09-24T23:52:08Z   Normal    SuccessfulCreate               Job                       argus-db-migrate                  Created pod: argus-db-migrate-79cvf
+2026-09-24T23:52:09Z   Normal    Created                        Pod                       argus-db-migrate-79cvf            Container created
+2026-09-24T23:52:09Z   Normal    Pulled                         Pod                       argus-db-migrate-79cvf            Container image "argus-processing:dev" already present on machine and can be accessed by the pod
+2026-09-24T23:52:10Z   Normal    Started                        Pod                       argus-db-migrate-79cvf            Container started
+2026-09-24T23:52:23Z   Warning   Unhealthy                      Pod                       argus-postgres-68fff74b7b-2z77s   Readiness probe failed: command timed out: "psql -U argus -d argus -c SELECT 1" timed out after 1s
+2026-09-24T23:52:38Z   Normal    Completed                      Job                       argus-db-migrate                  Job completed
+
+---- watch de todos os pods do namespace (kubectl get ... -w --output-watch-events, com timestamp) ----
+[20:47:50.306] EVENT      NAME                              READY   STATUS      RESTARTS        AGE
+[20:47:50.307] ADDED      argus-backend-88576b4db-8kl5x     1/1     Running     0               2m31s
+[20:47:50.307] ADDED      argus-backend-88576b4db-zlsj7     1/1     Running     0               119s
+[20:47:50.307] ADDED      argus-db-migrate-ljbjg            0/1     Completed   0               177m
+[20:47:50.307] ADDED      argus-frontend-7fdb5d98-6wfj2     1/1     Running     0               178m
+[20:47:50.307] ADDED      argus-postgres-68fff74b7b-nf4fv   1/1     Running     1 (3h28m ago)   7d1h
+[20:47:51.759] MODIFIED   argus-postgres-68fff74b7b-nf4fv   1/1     Terminating   1 (3h28m ago)   7d1h
+[20:47:53.571] MODIFIED   argus-postgres-68fff74b7b-nf4fv   1/1     Terminating   1 (3h28m ago)   7d1h
+[20:48:00.338] MODIFIED   argus-postgres-68fff74b7b-nf4fv   0/1     Completed     1 (3h28m ago)   7d1h
+[20:48:01.553] MODIFIED   argus-postgres-68fff74b7b-nf4fv   0/1     Completed     1 (3h28m ago)   7d1h
+[20:48:06.992] MODIFIED   argus-postgres-68fff74b7b-nf4fv   0/1     Completed     1 (3h28m ago)   7d1h
+[20:48:07.027] DELETED    argus-postgres-68fff74b7b-nf4fv   0/1     Completed     1 (3h28m ago)   7d1h
+[20:48:07.808] MODIFIED   argus-backend-88576b4db-8kl5x     0/1     Running       0               2m49s
+[20:48:11.492] MODIFIED   argus-backend-88576b4db-zlsj7     0/1     Running       0               2m20s
+[20:49:59.057] ADDED      argus-postgres-68fff74b7b-2z77s   0/1     Pending       0               0s
+[20:49:59.414] MODIFIED   argus-postgres-68fff74b7b-2z77s   0/1     Pending       0               0s
+[20:49:59.709] MODIFIED   argus-postgres-68fff74b7b-2z77s   0/1     ContainerCreating   0               1s
+[20:50:03.175] MODIFIED   argus-postgres-68fff74b7b-2z77s   0/1     ContainerCreating   0               4s
+[20:50:04.128] MODIFIED   argus-postgres-68fff74b7b-2z77s   0/1     Running             0               5s
+[20:51:11.047] MODIFIED   argus-postgres-68fff74b7b-2z77s   1/1     Running             0               72s
+[20:51:11.051] MODIFIED   argus-postgres-68fff74b7b-2z77s   1/1     Running             0               72s
+[20:51:19.097] MODIFIED   argus-db-migrate-ljbjg            0/1     Completed           0               3h1m
+[20:51:19.105] DELETED    argus-db-migrate-ljbjg            0/1     Completed           0               3h1m
+[20:52:08.065] ADDED      argus-db-migrate-79cvf            0/1     Pending             0               0s
+[20:52:08.229] MODIFIED   argus-db-migrate-79cvf            0/1     Pending             0               0s
+[20:52:08.340] MODIFIED   argus-db-migrate-79cvf            0/1     ContainerCreating   0               0s
+[20:52:09.239] MODIFIED   argus-db-migrate-79cvf            0/1     ContainerCreating   0               1s
+[20:52:10.124] MODIFIED   argus-db-migrate-79cvf            1/1     Running             0               2s
+[20:52:30.364] MODIFIED   argus-backend-88576b4db-zlsj7     1/1     Running             0               6m39s
+[20:52:33.270] MODIFIED   argus-backend-88576b4db-8kl5x     1/1     Running             0               7m14s
+[20:52:34.682] MODIFIED   argus-db-migrate-79cvf            0/1     Completed           0               27s
+[20:52:37.024] MODIFIED   argus-db-migrate-79cvf            0/1     Completed           0               29s
+[20:52:38.209] MODIFIED   argus-db-migrate-79cvf            0/1     Completed           0               30s
+---- fim ----
+
+
+================================================================
+RESUMO (kind local, commit 0ff97f4b0130)
+RESULTADO 1: sem banco, pod argus-backend-88576b4db-8kl5x Ready=False, RESTARTS=0 (antes: 0); Ingress responde 503 em /api/v1/clock
+RESULTADO 2: banco de pe e vazio -> readiness segue falhando, RESTARTS=0
+RESULTADO 3: backend Ready de novo 2.5 s apos o fim das migrations (163.5 s apos o scale do Postgres para 1); RESTARTS=0 (antes: 0) -- mesmo pod, sem reinicio
+================================================================
+
+NOTA: nas linhas de amostragem, "000000" e o helper imprimindo o codigo 000 duas vezes (curl -w e o fallback) quando a requisicao estourou os 3 s de timeout -- le-se como "sem resposta". No pod, /health/ready ficou presa no connect ao banco (timeout) e so respondeu 503 rapido em parte das amostras; pelo Ingress, sem endpoint pronto, a resposta foi 503 imediata. Nos ~30 s entre o scale e o Ready=False o usuario viu timeouts, nao 503. O describe registra 2 timeouts de liveness (limiar 3, sem reinicio) no mesmo intervalo: com um worker de gunicorn (patch do kind), a readiness presa pode sufocar /health/live.
