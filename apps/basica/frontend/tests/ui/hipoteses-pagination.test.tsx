@@ -54,5 +54,7 @@ test("carrega automaticamente todas as páginas de hipóteses geradas", async ()
 
   expect(await screen.findByRole("button", { name: /Segunda causa/ })).toBeVisible();
   expect(screen.getByRole("button", { name: /Primeira causa/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: /ID 1.*Primeira causa/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: /ID 2.*Segunda causa/ })).toBeVisible();
   expect(fetchHypotheses).toHaveBeenCalledTimes(2);
 });

@@ -188,7 +188,7 @@ function HypothesisItem({
       <strong className={clsx(styles.score, selected && "text-gradient-emphasis")}>{hypothesis.score}</strong>
       <span className={styles.body}>
         <span className={styles.kicker}>
-          Hipótese {rank} · {hypothesis.category}
+          Hipótese {rank} · ID {hypothesis.id} · {hypothesis.category}
         </span>
         <span className={styles.title}>{hypothesis.title}</span>
         {/* A faixa tem o comprimento total do score e cada segmento vale a
