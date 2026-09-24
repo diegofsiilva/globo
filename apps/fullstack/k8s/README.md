@@ -10,7 +10,7 @@ metade. As razões estão em [`infra/eks.tf`](../infra/eks.tf) e no artefato
 
 | Caminho | Onde roda | Por quê |
 |---|---|---|
-| Síncrono (dashboard + API) | **EKS Auto Mode** | Substitui o ASG, que subia o contêiner à mão pelo `user_data` e levava ~300s para repor uma instância. Ganha rolling update sem queda, reposição em segundos e escala por métrica. |
+| Síncrono (dashboard + API) | **EKS Auto Mode** | Substitui o ASG da Sprint 3 (removido do Terraform na Sprint 4), que subia o contêiner à mão pelo `user_data` e levava ~300s para repor uma instância. Ganha rolling update sem queda, reposição em segundos e escala por métrica. |
 | Assíncrono (ingestão, ETL, simulação) | **ECS Fargate** | Já entrega estado desejado, rolling deploy e health check — e **IAM por task**, que este cluster não consegue oferecer: o Learner Lab bloqueia IRSA e Pod Identity. |
 
 Nenhum pod deste cluster fala com a AWS. O backend não tem `boto3` (removido de
@@ -194,4 +194,4 @@ make k8s-delete       # remove o namespace e, com ele, o ALB
 ```
 
 Para derrubar o cluster inteiro: `create_eks = false` no `terraform.tfvars` e
-`make tf-apply`. ECS, RDS, ALB e ASG não referenciam nada dele e continuam de pé.
+`make tf-apply`. ECS, RDS e a Lambda de leitura não referenciam nada dele e continuam de pé.
