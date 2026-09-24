@@ -7,9 +7,10 @@
 # de RNF03 nao compare os dois numeros como se fossem a mesma coisa.
 #
 # O sintoma de HPA sem metrica e `<unknown>/60%` em `kubectl get hpa`: ele nao
-# escala nada e nao reclama. Quem fornece a metrica e o metrics-server, que o
-# EKS Auto Mode JA traz de fabrica -- no cluster local ele nao existe, e por
-# isso `make kind-up` o instala.
+# escala nada e nao reclama. Quem fornece a metrica e o metrics-server, e
+# NENHUM cluster o traz sozinho: no EKS Auto Mode ele e o add-on declarado em
+# infra/eks.tf (um cluster novo nasce sem ele -- lab de 18/09/2026); no kind
+# e `make kind-up` que o instala.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
