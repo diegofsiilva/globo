@@ -1,4 +1,4 @@
-/** Consulta a explicacao Ollama ancorada em uma hipotese publicada. */
+/** Consulta a explicacao Ollama ancorada em uma hipotese gerada. */
 
 import { apiFetch } from "@/lib/api/client";
 
@@ -27,7 +27,7 @@ export const hypothesisRefinementEnabled =
 /**
  * Solicita uma explicacao concisa sem autorizar fontes externas.
  *
- * @param hypothesisId Hipotese publicada selecionada pelo operador.
+ * @param hypothesisId Hipotese gerada selecionada pelo operador.
  * @returns Texto refinado, afirmacoes e ids das fontes usadas.
  */
 export async function refineHypothesis(

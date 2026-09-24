@@ -18,6 +18,8 @@ export function createHttpHypothesesSource(): HypothesesSource {
 
     if (filters.from) params.set("from", filters.from);
     if (filters.to) params.set("to", filters.to);
+    if (filters.cursor) params.set("cursor", filters.cursor);
+    params.set("limit", "200");
     for (const [key, value] of Object.entries(filters.scope ?? {})) {
       params.set(key, value);
     }

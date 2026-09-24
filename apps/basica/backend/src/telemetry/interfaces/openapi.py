@@ -82,7 +82,7 @@ def _hypothesis_paths() -> dict[str, Any]:
         "/api/v1/hypothesis-runs": {
             "get": {
                 "tags": ["Hipoteses"],
-                "summary": "Lista runs publicados",
+                "summary": "Lista runs concluidos",
                 "parameters": [
                     {
                         "name": "limit",
@@ -91,13 +91,13 @@ def _hypothesis_paths() -> dict[str, Any]:
                     },
                     {"name": "before_run_id", "in": "query", "schema": {"type": "integer"}},
                 ],
-                "responses": {"200": {"description": "Runs concluidos e publicados"}},
+                "responses": {"200": {"description": "Runs concluidos"}},
             }
         },
         "/api/v1/hypotheses": {
             "get": {
                 "tags": ["Hipoteses"],
-                "summary": "Lista hipoteses publicadas",
+                "summary": "Lista hipoteses geradas",
                 "parameters": [
                     {"name": name, "in": "query", "schema": {"type": "string"}}
                     for name in (
@@ -173,7 +173,7 @@ def _hypothesis_paths() -> dict[str, Any]:
                 "tags": ["Hipoteses"],
                 "summary": "Refina uma hipotese com Ollama",
                 "description": (
-                    "A resposta usa somente a hipotese publicada e devolve as fontes "
+                    "A resposta usa somente a hipotese gerada e devolve as fontes "
                     "citadas por cada afirmacao. Nao altera o diagnostico."
                 ),
                 "parameters": [hypothesis_id],
@@ -403,7 +403,7 @@ def build_spec() -> dict[str, Any]:
             "description": (
                 "Consulta de telemetria e hipoteses para o dashboard. A entrada "
                 "de eventos nao passa por esta API; a unica escrita publica e o "
-                "feedback idempotente de uma hipotese publicada.\n\n"
+                "feedback idempotente de uma hipotese gerada.\n\n"
                 "### Custo das consultas\n\n"
                 "Toda busca devolve um bloco `query` com a estrategia usada e "
                 "quantos itens foram lidos. Informar `event_name`, `session_id` ou "

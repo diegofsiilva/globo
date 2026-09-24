@@ -2,7 +2,7 @@
 
 API Flask que serve telemetria e hipóteses para o dashboard. A entrada de
 eventos continua no pipeline `API Gateway → SQS → ECS Fargate → RDS PostgreSQL`.
-A única escrita desta API é o feedback idempotente de uma hipótese publicada.
+A única escrita desta API é o feedback idempotente de uma hipótese gerada.
 
 Publicada em Lambda + API Gateway.
 
@@ -12,7 +12,7 @@ Ela lê dois grains diferentes, e por isso tem dois adaptadores:
 |---|---|---|
 | `infrastructure/postgres.py` | evento individual de sessão | busca, filtros, breakdown, série, facetas |
 | `infrastructure/gold.py` | bucket agregado de 15 min | relógio, séries, incidentes, transmissões e anomalias |
-| `infrastructure/hypotheses.py` | hipótese publicada | runs, listagem, detalhe, evidências e feedback |
+| `infrastructure/hypotheses.py` | hipótese gerada | runs, listagem, detalhe, evidências e feedback |
 
 São separados de propósito: um repositório único teria dois conjuntos de métodos
 que nunca se cruzam, e a `EventFilters` acabaria com campos que só metade dos
@@ -83,7 +83,7 @@ terraform output -raw read_api_url
 | `GET /api/v1/incidents` | janelas de incidente rotuladas |
 | `GET /api/v1/live-events` | calendário de transmissões ao vivo |
 | `GET /api/v1/anomalies` | saída do detector |
-| `GET /api/v1/hypothesis-runs` | runs concluídos de manifestos publicados |
+| `GET /api/v1/hypothesis-runs` | runs concluídos |
 | `GET /api/v1/hypotheses` | listagem filtrável com paginação keyset |
 | `GET /api/v1/hypotheses/{id}` | linhagem, findings, evidências, qualidade e score |
 | `POST /api/v1/hypotheses/{id}/feedback` | feedback idempotente; payload máximo de 4 KiB |
@@ -105,9 +105,9 @@ estouraram o timeout da Lambda. A rota lê o catálogo derivado
 `gold.v_source_series` e faz apenas uma sondagem indexada por fonte para obter o
 bucket mais recente; o mesmo `sim.now()` continua impedindo vazamento de futuro.
 
-As views de hipóteses ficam vazias durante o modo sombra. Um manifesto só aparece
-depois do evento append-only `published`; `withdrawn` volta a ocultá-lo sem apagar
-o histórico.
+As views de hipóteses mostram resultados `generated` de runs concluídos até o
+relógio virtual. Eventos append-only `published` e `withdrawn` registram a
+certificação do manifesto, mas não controlam a visibilidade.
 
 `/incidents` **exclui** por padrão os rótulos `detector-derived`: sete dos vinte
 rótulos de `incident_label` foram criados olhando a saída do próprio Argus, e
@@ -226,7 +226,7 @@ rodar local com o dono, consultas que a produção recusaria vão passar.
 
 ### Ollama remoto por SSH
 
-O refinamento acontece depois da leitura da hipótese publicada; ele não altera o
+O refinamento acontece depois da leitura da hipótese gerada; ele não altera o
 motor determinístico, o score ou as evidências. Cada afirmação devolvida precisa
 citar ids presentes na hipótese. Formato inválido, citação inexistente ou falha
 de rede resulta em `503`, sem resposta parcialmente aterrada.

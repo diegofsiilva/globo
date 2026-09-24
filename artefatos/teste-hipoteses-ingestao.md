@@ -51,11 +51,11 @@ padrão de Silver para Gold é 15 minutos. A verificação exige:
    lote, e nenhuma hipótese ligada ao controle.
 
 Não avance o watermark manualmente: todas as mudanças deste lote são novas e
-estão depois do LSN do dump. O modo padrão de hipóteses é **sombra**. Assim,
-`generated` em `gold.hypothesis` comprova o motor interno, mas a hipótese
-ainda não aparece na API pública ou na tela; a publicação tem critérios
-próprios. Um fracasso em uma etapa deve ser investigado nessa etapa antes de
-gerar outro lote com identificador novo.
+estão depois do LSN do dump. Hipóteses `generated` de runs concluídos passam
+automaticamente para a API e a tela após as migrations 032 e 033, respeitando
+`sim.now()` e o período selecionado. A promoção do manifesto continua sendo
+um registro auditável separado. Um fracasso em uma etapa deve ser investigado
+nessa etapa antes de gerar outro lote com identificador novo.
 
 ## Execução no lab de 23/09/2026
 
@@ -65,28 +65,27 @@ terminou sem truncamento. Foram detectadas duas anomalias no incidente e zero
 no controle. A hipótese 2951, da família `backend_internal`, ficou como
 `generated`, com score 94,64 e cobertura 0,8125. As duas evidências favoráveis
 referenciam versões do lote, uma de Prometheus e outra de Apollo. A view
-`gold.v_hypothesis` permaneceu vazia e não houve evento de publicação,
-conforme o modo sombra. O payload, o manifesto, o recibo e a verificação
+`gold.v_hypothesis` permaneceu vazia na execução original, quando o modo
+sombra ainda estava ativo. Após as migrations 032 e 033, a hipótese é visível sem
+publicação manual. O payload, o manifesto, o recibo e a verificação
 ficam em `projeto/evidencias/hipoteses/`, fora do repositório.
 
-## Visualizar uma hipótese no frontend do lab
+## Visualizar as hipóteses no frontend do lab
 
-A migration `031_lab_hypothesis_preview.sql` acrescenta um evento `preview`:
-ele torna visível apenas a hipótese indicada e seu run. Isso registra a
-inspeção sem afirmar que as onze famílias e os SLOs passaram no portão de
-promoção. Para a hipótese deste teste:
+A migration `031_lab_hypothesis_preview.sql` foi o caminho temporário usado
+para inspecionar a hipótese 2951. A migration 032 remove a exigência de
+prévia e publicação das views; a 033 mantém também as revisões anteriores.
+Toda revisão com status `generated` e run concluído fica disponível pela API.
+O frontend busca automaticamente as páginas adicionais da janela selecionada.
+Para publicar a versão atual do frontend:
 
 ```bash
-make -C apps/basica hypothesis-preview HYPOTHESIS_ID=2951
 make -C apps/basica frontend-deploy NEXT_BUILD_ARGS=--webpack
 ```
 
 O frontend precisa estar configurado com `HYPOTHESES_SOURCE=api` no `.env`
-local ignorado pelo Git. Na tela `/hipoteses`, selecione **3 h** no período:
+local ignorado pelo Git. Na tela `/hipoteses`, selecione **24 h** no período:
 o evento de teste ocorreu mais de 30 minutos antes da publicação da prévia.
 O detalhe apresenta o score, os fatores e as evidências de Apollo e
-Prometheus. Para voltar ao modo sombra:
-
-```bash
-make -C apps/basica hypothesis-preview-withdraw HYPOTHESIS_ID=2951
-```
+Prometheus. Os eventos históricos `preview` e `withdrawn` continuam no banco
+para auditoria, mas não ocultam hipóteses geradas.

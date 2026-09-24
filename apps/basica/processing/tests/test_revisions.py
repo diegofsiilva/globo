@@ -21,7 +21,6 @@ from argus_processing.analysis_repository import (
     CapturedWork,
     claim_and_capture,
     persist_result,
-    promote_manifest,
     register_manifest,
 )
 from argus_processing.catalog import Catalog
@@ -276,7 +275,7 @@ def _resultado_com_revisao(
 
 
 def test_evidencia_tardia_cria_revisao_sem_alterar_a_anterior(db, inserir_change):
-    """`revision + 1` aponta para a anterior e a view expoe so a mais recente."""
+    """`revision + 1` aponta para a anterior e ambas seguem visíveis."""
     _semear(db, inserir_change)
     catalog = Catalog("test")
     register_manifest(db, catalog.manifest_hash, catalog.manifest_payload, "test")
@@ -331,19 +330,22 @@ def test_evidencia_tardia_cria_revisao_sem_alterar_a_anterior(db, inserir_change
         (LINEAGE,),
     )
     assert len(revisoes) == 2
-    # A revisao 1 continua byte a byte como foi publicada.
+    # A revisao 1 continua byte a byte como foi gerada.
     assert revisoes[0] == original
     assert revisoes[1]["revision"] == 2
     assert revisoes[1]["score"] == 88
     assert revisoes[1]["confidence"] == "high"
     assert revisoes[1]["supersedes_hypothesis_id"] == original["hypothesis_id"]
 
-    promote_manifest(db, catalog.manifest_hash, {"test": True})
-    publicadas = db.fetch_all(
-        "SELECT hypothesis_id, revision FROM gold.v_hypothesis WHERE lineage_key = %s",
+    visiveis = db.fetch_all(
+        """SELECT hypothesis_id, revision FROM gold.v_hypothesis
+            WHERE lineage_key = %s ORDER BY revision""",
         (LINEAGE,),
     )
-    assert publicadas == [{"hypothesis_id": revisoes[1]["hypothesis_id"], "revision": 2}]
+    assert visiveis == [
+        {"hypothesis_id": revisoes[0]["hypothesis_id"], "revision": 1},
+        {"hypothesis_id": revisoes[1]["hypothesis_id"], "revision": 2},
+    ]
 
 
 def test_hipotese_de_qualidade_nao_quebra_finding_de_anomalia_no_mesmo_run(

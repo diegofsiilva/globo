@@ -1,13 +1,12 @@
-"""A visualização de lab mostra só a hipótese solicitada e pode ser retirada."""
+"""Hipóteses geradas ficam visíveis sem publicação manual."""
 
 from __future__ import annotations
 
 from argus_processing.analysis_repository import register_manifest
-from argus_processing.analysisctl import preview_hypothesis
 from argus_processing.catalog import Catalog
 
 
-def test_preview_expõe_somente_uma_hipotese_e_retirada_oculta(db, checkpoint):
+def test_hipoteses_geradas_visiveis_sem_publicacao(db, checkpoint):
     catalog = Catalog("test")
     register_manifest(db, catalog.manifest_hash, catalog.manifest_payload, "test")
 
@@ -54,16 +53,54 @@ def test_preview_expõe_somente_uma_hipotese_e_retirada_oculta(db, checkpoint):
                 ).fetchone()[0]
             )
 
-        assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis")["n"] == 0
-
-    assert preview_hypothesis(db, hypothesis_ids[0])
-    assert db.fetch_all("SELECT hypothesis_id FROM gold.v_hypothesis") == [
-        {"hypothesis_id": hypothesis_ids[0]}
-    ]
+    assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis")["n"] == 2
+    with db.connection() as conn:
+        revised_id = conn.execute(
+            """
+            INSERT INTO gold.hypothesis (
+              run_id, family, kind, title, summary, scope,
+              effect_start, effect_end, score, coverage, confidence,
+              evaluation_status, dedup_key, lineage_key, revision,
+              supersedes_hypothesis_id
+            ) VALUES (
+              %s, 'backend_internal', 'operational', 'Revisão', 'Teste',
+              '{}'::jsonb, sim.now() - interval '15 minutes',
+              sim.now() - interval '15 minutes', 91, 0.8, 'high',
+              'generated', %s, %s, 2, %s
+            ) RETURNING hypothesis_id
+            """,
+            (run_id, "3" * 64, "1" * 64, hypothesis_ids[0]),
+        ).fetchone()[0]
+    expected_ids = {*hypothesis_ids, revised_id}
+    visible = db.fetch_all("SELECT hypothesis_id FROM gold.v_hypothesis")
+    assert {row["hypothesis_id"] for row in visible} == expected_ids
+    assert db.fetch_one(
+        "SELECT hypothesis_id FROM gold.v_hypothesis_detail WHERE hypothesis_id = %s",
+        (hypothesis_ids[0],),
+    ) == {"hypothesis_id": hypothesis_ids[0]}
+    with db.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gold.manifest_publication_event
+              (manifest_hash, action, gate_metrics)
+            VALUES (%s, 'preview', %s::jsonb)
+            """,
+            (catalog.manifest_hash, f'{{"hypothesis_id": {hypothesis_ids[0]}}}'),
+        )
+    visible = db.fetch_all("SELECT hypothesis_id FROM gold.v_hypothesis")
+    assert {row["hypothesis_id"] for row in visible} == expected_ids
     assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis_run")["n"] == 1
 
-    assert preview_hypothesis(db, hypothesis_ids[0], withdraw=True)
-    assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis")["n"] == 0
+    with db.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO gold.manifest_publication_event
+              (manifest_hash, action, gate_metrics)
+            VALUES (%s, 'withdrawn', '{}'::jsonb)
+            """,
+            (catalog.manifest_hash,),
+        )
+    assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis")["n"] == 3
 
     with db.connection() as conn:
         conn.execute(
@@ -74,4 +111,4 @@ def test_preview_expõe_somente_uma_hipotese_e_retirada_oculta(db, checkpoint):
             """,
             (catalog.manifest_hash,),
         )
-    assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis")["n"] == 2
+    assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis")["n"] == 3

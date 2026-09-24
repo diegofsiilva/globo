@@ -6,7 +6,7 @@ import { refineHypothesis } from "@/app/(operations)/hipoteses/_lib/refinement";
 describe("contrato HTTP da tela Hipóteses", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  test("[TA-06] transforma a página publicada do backend em relatório explicável", async () => {
+  test("[TA-06] transforma a página gerada do backend em relatório explicável", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
         count: 1,
@@ -70,6 +70,7 @@ describe("contrato HTTP da tela Hipóteses", () => {
     expect(endpoint.pathname).toBe("/api/v1/hypotheses");
     expect(endpoint.searchParams.get("source")).toBe("prometheus");
     expect(report.summary).toEqual({ hypotheses: 1, families: 1, sources: 1 });
+    expect(report.nextCursor).toBeNull();
     expect(report.hypotheses[0]).toMatchObject({
       id: "17",
       category: "falha interna de backend",
@@ -79,6 +80,25 @@ describe("contrato HTTP da tela Hipóteses", () => {
     });
     expect(report.hypotheses[0].factors[0].contribution).toBe(82);
     expect(report.hypotheses[0].evidence[0].detail).toContain("12 contra 4 esperado");
+  });
+
+  test("permite buscar a próxima página sem perder o recorte", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({ count: 0, next_cursor: "cursor-seguinte", items: [] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const report = await createHttpHypothesesSource()({
+      from: "2026-07-14T11:30:00.000Z",
+      to: "2026-07-14T12:00:00.000Z",
+      cursor: "cursor-anterior",
+    });
+
+    const endpoint = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(endpoint.searchParams.get("from")).toBe("2026-07-14T11:30:00.000Z");
+    expect(endpoint.searchParams.get("to")).toBe("2026-07-14T12:00:00.000Z");
+    expect(endpoint.searchParams.get("cursor")).toBe("cursor-anterior");
+    expect(report.nextCursor).toBe("cursor-seguinte");
   });
 
   test("[TA-07] rejeita resposta sem lista de hipóteses", async () => {

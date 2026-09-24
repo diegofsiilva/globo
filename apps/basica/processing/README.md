@@ -52,7 +52,7 @@ canário → EWMA → anomalias → 11 regras → score
        ↓
 commit protegido por fencing
        ↓
-views sombra/publicadas → Lambda
+views de hipóteses geradas → Lambda
 ```
 
 O claim:
@@ -170,8 +170,10 @@ O corte estável usa força, impacto e chave canônica e é auditado em
 
 ## API e segurança
 
-As views públicas só mostram runs concluídos de manifestos publicados, a revisão
-mais recente elegível e evidência disponível até `run.sim_now`.
+As views públicas mostram runs concluídos, todas as revisões geradas e
+evidência disponível até `run.sim_now`. O relógio virtual impede a
+exposição de resultados futuros. A publicação do manifesto registra a passagem
+pelo portão de qualidade, sem controlar a visibilidade.
 
 Endpoints:
 
@@ -186,7 +188,7 @@ sempre `false`. O payload máximo é 4 KiB e a rota tem throttle 5 req/s, burst 
 
 `argus_reader` recebe somente `SELECT` nas views e `EXECUTE` em
 `gold.submit_hypothesis_feedback`. A função é `SECURITY DEFINER`, fixa
-`search_path`, valida o payload e exige hipótese publicada. Não há permissão nas
+`search_path`, valida o payload e exige hipótese visível. Não há permissão nas
 tabelas base.
 
 ## Configuração operacional
@@ -215,14 +217,15 @@ truncamento, takeover, fencing, backlog e lag simulado. Alarmes cobrem três
 falhas consecutivas, takeover por lease expirado, backlog de três checkpoints,
 truncamento e 30 minutos sem run concluído.
 
-## Sombra e promoção
+## Visibilidade e promoção
 
 1. publicar a imagem com análise habilitada;
-2. não publicar o manifesto ainda;
-3. reiniciar o simulador em `t0` e executar replay causal completo;
-4. inspecionar runs e hipóteses internos enquanto as views permanecem vazias;
-5. executar `analysisctl evaluate-and-promote` com as medições do replay;
-6. usar `analysisctl withdraw` para ocultar append-only sem apagar histórico.
+2. reiniciar o simulador em `t0` e executar replay causal completo;
+3. inspecionar runs e hipóteses visíveis pela API e pelo dashboard;
+4. executar `analysisctl evaluate-and-promote` com as medições do replay para
+   registrar a certificação do manifesto;
+5. usar `analysisctl withdraw` para retirar essa certificação sem apagar o
+   histórico. A retirada não oculta hipóteses geradas.
 
 Exemplo:
 
@@ -261,7 +264,7 @@ materialidade), qualidade por cadência, atraso estrutural da NPAW e fim do
 simulador, as 11 famílias em quatro cenários cada (positivo, contraditório,
 indisponível e semanticamente não relacionado), determinismo e budgets,
 captura as-of, retry, takeover, fencing, latência causal de 28 h, revisão
-append-only, exclusão do ground truth, portão de promoção, publicação sombra e
+append-only, exclusão do ground truth, portão de promoção auditável e
 feedback público.
 Nenhuma rotina automática de expurgo está habilitada; retenção será definida
 depois de medir o volume real dos novos artefatos.

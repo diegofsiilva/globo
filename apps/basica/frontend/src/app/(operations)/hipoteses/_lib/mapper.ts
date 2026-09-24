@@ -57,6 +57,7 @@ export function toHypothesesReport(
   const sources = new Set(items.flatMap((item) => (item.evidence ?? []).map((e) => e.source)));
 
   return {
+    nextCursor: page.next_cursor,
     window: {
       from: window.from ?? items[0]?.effect_start ?? "",
       to: window.to ?? items[0]?.effect_end ?? "",

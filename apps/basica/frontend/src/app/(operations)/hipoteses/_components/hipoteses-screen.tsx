@@ -3,8 +3,8 @@
 /** Tela 04 — Hipóteses: causas prováveis ranqueadas e decomposição do score. */
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,36 +55,62 @@ export function HipotesesScreen() {
     [clock.snapshot, period],
   );
 
-  const report = useQuery({
+  const report = useInfiniteQuery({
     queryKey: ["hypotheses", period, currentWindow?.to],
-    queryFn: ({ signal }) => fetchHypotheses(currentWindow!, signal),
+    queryFn: ({ pageParam, signal }) => fetchHypotheses({
+      ...currentWindow!,
+      cursor: pageParam ?? undefined,
+    }, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: Boolean(currentWindow),
     refetchInterval: 30_000,
   });
+  const { hasNextPage, isFetching, isFetchNextPageError, fetchNextPage } = report;
 
-  const hypotheses = useMemo(() => report.data?.hypotheses ?? [], [report.data]);
+  useEffect(() => {
+    if (hasNextPage && !isFetching && !isFetchNextPageError) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetching, isFetchNextPageError, fetchNextPage]);
+
+  const loadedReport = useMemo(() => {
+    const pages = report.data?.pages;
+    if (!pages?.length) return undefined;
+    const hypotheses = pages.flatMap((page) => page.hypotheses);
+    const families = new Set(hypotheses.map((item) => item.category));
+    const sources = new Set(hypotheses.flatMap((item) => item.evidence.map((evidence) => evidence.source.split(":")[0])));
+    return {
+      ...pages[0],
+      window: { ...pages[0].window, label: period },
+      generated: hypotheses.length,
+      summary: { hypotheses: hypotheses.length, families: families.size, sources: sources.size },
+      hypotheses,
+    };
+  }, [report.data, period]);
+  const hypotheses = useMemo(() => loadedReport?.hypotheses ?? [], [loadedReport]);
   const selected = hypotheses.find((item) => item.id === selectedId) ?? hypotheses[0] ?? null;
 
   return (
     <ScreenFrame
-      filters={scopeFilters(report.data)}
-      scopeSummary={scopeSummary(report.data)}
+      filters={scopeFilters(loadedReport)}
+      scopeSummary={scopeSummary(loadedReport)}
       operational={{
         state: clock.error && !clock.snapshot
           ? "error"
           : clock.isLoading || report.isLoading
           ? "loading"
-          : report.isError && !report.data
+          : report.isError && !loadedReport
             ? "error"
-            : report.isError && report.data
+            : report.isError && loadedReport
               ? "stale"
-              : report.isFetching && report.data
+              : report.isFetching && loadedReport
                 ? "refreshing"
-                : report.data && hypotheses.length === 0
+                : loadedReport && hypotheses.length === 0
                   ? "empty"
                   : "ready",
         title: "Hipóteses de causa provável",
-        scope: scopeSummary(report.data),
+        scope: scopeSummary(loadedReport),
         failure: clock.error
           ? normalizeQueryFailure(clock.error)
           : report.error
@@ -98,16 +124,16 @@ export function HipotesesScreen() {
     >
       <header className={styles.header}>
         <h1>Hipóteses de causa provável</h1>
-        {report.data && (
+        {loadedReport && (
           <p>
-            {report.data.generated} geradas
-            {report.data.discarded > 0 && ` · ${report.data.discarded} descartadas`} · janela{" "}
-            {report.data.window.label}
+            {loadedReport.generated}{report.hasNextPage ? "+" : ""} geradas
+            {loadedReport.discarded > 0 && ` · ${loadedReport.discarded} descartadas`} · janela{" "}
+            {loadedReport.window.label}
           </p>
         )}
       </header>
 
-      {report.data && hypotheses.length > 0 && (
+      {loadedReport && hypotheses.length > 0 && (
         <div className={styles.layout}>
           <section className={styles.list} aria-label="Hipóteses ranqueadas">
             <ol>
@@ -125,7 +151,12 @@ export function HipotesesScreen() {
             {/* Mostrar o que foi descartado é o que separa "avaliado e
                 rejeitado" de "nunca considerado" -- sem isso o operador não
                 consegue distinguir os dois casos. */}
-            <DiscardedList items={report.data.discardedHypotheses} />
+            <DiscardedList items={loadedReport.discardedHypotheses} />
+            {report.hasNextPage && (
+              <Button type="button" variant="outline" disabled={report.isFetchingNextPage} onClick={() => void report.fetchNextPage()}>
+                {report.isFetchingNextPage ? "Carregando hipóteses…" : "Carregar mais hipóteses"}
+              </Button>
+            )}
           </section>
 
           {selected && <ScorePanel key={selected.id} hypothesis={selected} />}
