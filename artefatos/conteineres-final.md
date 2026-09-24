@@ -346,7 +346,7 @@ a demonstração prática da decisão 5.
 índice: a primeira coluna dá o instante, a segunda diz o que aparece na tela e a
 terceira aponta a seção deste artefato que aquele trecho sustenta.
 
-**Link:** _(a preencher)_
+**Link:** [Vídeo no Drive](https://drive.google.com/file/d/1XFad3iP95uWSyXMZs26mPbUz7NWT7i-4/view?usp=sharing)
 
 | Tempo | O que o vídeo mostra | Evidência na tela |
 |---|---|---|
