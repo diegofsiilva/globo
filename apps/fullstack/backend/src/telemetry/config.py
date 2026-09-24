@@ -49,12 +49,13 @@ class Config:
     #
     # Desligada por padrao porque o desenvolvimento local, os testes e o e2e do
     # frontend sobem a aplicacao sem segredo nenhum. Quem liga na AWS e o
-    # user_data do launch template (infra/asg.tf).
+    # ConfigMap do cluster (k8s/base/configmap.yaml).
     AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "0")
 
     # SHA-256 do token da audiencia `dashboard`. NAO e o token: o valor em claro
-    # nunca entra na instancia. O user_data le o hash do Secrets Manager no boot
-    # e o injeta aqui -- e por isso que a aplicacao nao precisa de boto3.
+    # nunca entra no container. `make k8s-secret` le o hash dos outputs do
+    # Terraform e o poe no Secret do namespace, de onde o pod o recebe como
+    # variavel -- e por isso que a aplicacao nao precisa de boto3.
     DASHBOARD_TOKEN_SHA256 = os.getenv("DASHBOARD_TOKEN_SHA256", "")
 
     # Ollama e opcional e fica fora do motor deterministico. Em desenvolvimento,

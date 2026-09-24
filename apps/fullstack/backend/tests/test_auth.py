@@ -170,9 +170,9 @@ def test_bearer_minusculo_e_aceito():
 @pytest.mark.parametrize("rota", ["/health/live", "/docs", "/openapi.json", "/favicon.ico"])
 def test_rotas_publicas_dispensam_token(rota):
     """`/health/live` é a mais crítica das quatro: é a sonda do target group do
-    ALB, que não carrega cabeçalho nenhum. Se ela exigisse token, todas as
-    instâncias reprovariam e o Auto Scaling Group entraria em ciclo de
-    substituição sem que houvesse nada errado com elas.
+    ALB, que não carrega cabeçalho nenhum. Se ela exigisse token, todos os
+    alvos reprovariam e o orquestrador entraria em ciclo de substituição sem
+    que houvesse nada errado com eles.
     """
     resposta = _cliente().get(rota)
 

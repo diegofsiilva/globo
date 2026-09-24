@@ -1,9 +1,9 @@
 # Bastion host: o unico ponto de entrada administrativo da rede privada.
 #
-# As instancias do Auto Scaling Group e o RDS nao tem endereco publico -- e esse
-# e o ponto. Mas alguem precisa conseguir abrir um psql para investigar um
-# incidente, ou entrar numa instancia para ler um log que nao chegou ao
-# CloudWatch. As alternativas eram:
+# Os nos do cluster EKS, as tasks Fargate e o RDS nao tem endereco publico -- e
+# esse e o ponto. Mas alguem precisa conseguir abrir um psql para investigar um
+# incidente, ou testar de dentro da VPC o que um pod ou uma task enxerga. As
+# alternativas eram:
 #
 #   1. Dar IP publico as instancias. Desfaz a rede privada inteira.
 #   2. Abrir o RDS para a internet (`db_publicly_accessible = true`). Expoe o
@@ -40,11 +40,10 @@ data "aws_ssm_parameter" "al2023" {
 
   # arm64 (Graviton), e nao x86_64.
   #
-  # Nao e detalhe de custo: TODO o pipeline de imagens deste repositorio
-  # constroi arm64 (`make push` usa `--platform linux/arm64`, a Lambda e arm64,
-  # as tasks Fargate tambem). Uma AMI x86_64 faria o `docker run` do user_data
-  # falhar com "exec format error" -- e o sintoma apareceria como instancia
-  # reprovando no health check, longe da causa.
+  # Nao e detalhe de custo: as imagens do caminho assincrono deste repositorio
+  # sao arm64 (`make push` usa `--platform linux/arm64` para elas, a Lambda e
+  # arm64, as tasks Fargate tambem). Um `docker run` de inspecao numa AMI
+  # x86_64 falharia com "exec format error", longe da causa.
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64"
 }
 
@@ -129,21 +128,9 @@ resource "aws_security_group_rule" "bastion_ssh" {
   cidr_blocks       = [var.bastion_allowed_cidr]
 }
 
-# Saida restrita a tres destinos, e nao `0.0.0.0/0`. O bastion so precisa
-# alcancar a rede privada e os endpoints da AWS; abrir a saida inteira daria a
-# quem o comprometesse um trampolim para qualquer lugar.
-resource "aws_security_group_rule" "bastion_para_app" {
-  count = local.criar_bastion ? 1 : 0
-
-  type                     = "egress"
-  description              = "SSH para as instancias do Auto Scaling Group"
-  from_port                = 22
-  to_port                  = 22
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.bastion[0].id
-  source_security_group_id = aws_security_group.app[0].id
-}
-
+# Saida restrita a dois destinos, e nao `0.0.0.0/0`. O bastion so precisa
+# alcancar o banco e os endpoints da AWS; abrir a saida inteira daria a quem o
+# comprometesse um trampolim para qualquer lugar.
 resource "aws_security_group_rule" "bastion_para_rds" {
   count = local.criar_bastion ? 1 : 0
 

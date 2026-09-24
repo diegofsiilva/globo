@@ -1,7 +1,7 @@
 # Cluster Kubernetes que orquestra o caminho SINCRONO do Argus.
 #
 # O que ele substitui: ate a Sprint 3 a API de leitura rodava em instancias de
-# um Auto Scaling Group (asg.tf) que subiam o container a mao, pelo user_data
+# um ASG (asg.tf, removido na Sprint 4) que subiam o container a mao, pelo user_data
 # (`dnf install docker && docker pull && docker run`). Aquilo e orquestracao de
 # container feita numa VM: sem rolling deploy, sem reposicao do container por
 # health -- so o target group derrubando a instancia inteira -- e com

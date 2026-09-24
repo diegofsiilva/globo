@@ -58,10 +58,10 @@ UV := uv run --quiet
 # contexto em apps/fullstack/ -- e nao na pasta de cada app -- porque todas
 # dependem de common/.
 #
-# `backend` entrou quando a API de leitura saiu da Lambda e passou a rodar nas
-# instancias do Auto Scaling Group (infra/asg.tf): o que antes era um zip agora
-# e uma imagem que a instancia puxa do ECR no boot. Ele NAO depende de common/,
-# entao constroi com contexto so em backend/, que e muito menor.
+# `backend` entrou quando a API de leitura saiu da Lambda e passou a rodar como
+# container: primeiro nas instancias EC2 da Sprint 3 (caminho removido na
+# Sprint 4), hoje como Deployment no cluster Kubernetes (k8s/). Ele NAO depende
+# de common/, entao constroi com contexto so em backend/, que e muito menor.
 #
 # `frontend` entrou na Sprint 4, quando o dashboard passou a ser servido por um
 # nginx dentro do cluster em vez de pelo website do S3. Tambem nao depende de
@@ -76,8 +76,9 @@ CONTEXTO = $(if $(filter backend frontend,$(1)),$(1),.)
 # As node pools padrao do EKS Auto Mode sao amd64, enquanto o Fargate do caminho
 # assincrono e as maquinas do time sao arm64 (Apple Silicon). Publicar so arm64
 # colocaria o pod em CrashLoopBackOff com `exec format error` -- a mesma falha
-# que ja mordeu o time no ASG. As tres imagens que rodam SO no Fargate seguem
-# arm64, que custa ~20% menos e dispensa emulacao no build.
+# que ja mordeu o time na Sprint 3, quando a API rodava em EC2. As tres imagens
+# que rodam SO no Fargate seguem arm64, que custa ~20% menos e dispensa emulacao
+# no build.
 #
 # `processing` entrou nesta lista em 21/09/2026. Sao TRES as imagens que o
 # cluster executa, e nao duas: alem do backend e do frontend, o `Job` de
@@ -135,15 +136,11 @@ install: ## Instala as dependencias de todos os apps Python
 env: ## Cria o .env a partir dos outputs do Terraform
 	@test -f .env && { echo ".env ja existe — apague antes se quiser regerar."; exit 1; } || true
 	@echo "Lendo os endpoints do Terraform..."
-	@# ARGUS_API_URL prefere o ALB quando ele existe.
-	@#
-	@# Durante a migracao os dois caminhos de leitura coexistem: o HTTP API da
-	@# Lambda (`read_api_url`) e o Application Load Balancer (`api_url_alb`).
-	@# O ALB e o destino definitivo, entao ele vence; enquanto `create_network`
-	@# for falso o output vem vazio e o valor antigo continua valendo.
+	@# ARGUS_API_URL e o HTTP API da Lambda de leitura (`read_api_url`): o
+	@# caminho de contingencia, que sempre existe no estado. O endereco publico
+	@# do cluster vem do Ingress e nao passa pelo Terraform -- `make k8s-url`.
 	@{ \
-	  echo "ARGUS_API_URL=$$(cd $(INFRA) && { terraform output -raw api_url_alb 2>/dev/null \
-	    || terraform output -raw read_api_url 2>/dev/null; })"; \
+	  echo "ARGUS_API_URL=$$(cd $(INFRA) && terraform output -raw read_api_url 2>/dev/null)"; \
 	  echo "ARGUS_INGEST_URL=$$(cd $(INFRA) && terraform output -raw ingest_url 2>/dev/null)"; \
 	  echo "ARGUS_CHANGES_URL=$$(cd $(INFRA) && terraform output -raw changes_url 2>/dev/null)"; \
 	  echo "HYPOTHESES_SOURCE=api"; \
@@ -404,9 +401,9 @@ parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
 # Imagens
 # --------------------------------------------------------------------------- #
 
-# ARM64 em todas: a Lambda e arm64, as tasks Fargate sao arm64 e as instancias
-# do ASG sao Graviton (t4g). Construir x86 aqui faria a instancia falhar com
-# "exec format error" no `docker run` do user_data.
+# ARM64 no build local: a Lambda e arm64 e as tasks Fargate sao arm64. As
+# imagens que o cluster executa (IMAGES_MULTIARCH) ganham tambem amd64 no
+# `push` -- ver o comentario no topo do arquivo.
 .PHONY: images
 images: $(addprefix image-,$(IMAGES)) ## Constroi as imagens (ARM64)
 
