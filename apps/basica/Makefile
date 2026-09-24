@@ -31,10 +31,9 @@ OBSERVABILITY := observability
 TESTES_CARGA := tests/carga
 OBSERVABILITY_COMPOSE := docker compose -p carga -f $(OBSERVABILITY)/docker-compose.yml
 
-# O motor de hipóteses ainda não possui endpoint no MVP. O modo mock é
-# explícito nos fluxos suportados e pode ser trocado por `api` quando existir.
-HYPOTHESES_SOURCE ?= mock
-HYPOTHESES_API_URL ?=
+# A API de hipóteses faz parte da API de leitura. O mock continua disponível
+# para desenvolvimento visual explícito, mas nunca é o padrão de um build.
+HYPOTHESES_SOURCE ?= api
 
 # Pasta com os CSVs de evento exportados do BI.
 EVENTS_SRC ?= $(HOME)/Downloads/Events
@@ -62,10 +61,33 @@ UV := uv run --quiet
 # instancias do Auto Scaling Group (infra/asg.tf): o que antes era um zip agora
 # e uma imagem que a instancia puxa do ECR no boot. Ele NAO depende de common/,
 # entao constroi com contexto so em backend/, que e muito menor.
-IMAGES := worker simulator processing loader backend
+#
+# `frontend` entrou na Sprint 4, quando o dashboard passou a ser servido por um
+# nginx dentro do cluster em vez de pelo website do S3. Tambem nao depende de
+# common/, entao constroi com contexto so em frontend/.
+IMAGES := worker simulator processing loader backend frontend
 
-# Contexto de build por imagem. Ver acima o porque de o backend ser diferente.
-CONTEXTO = $(if $(filter backend,$(1)),backend,.)
+# Contexto de build por imagem. Ver acima por que backend e frontend diferem.
+CONTEXTO = $(if $(filter backend frontend,$(1)),$(1),.)
+
+# As imagens que o cluster Kubernetes executa (k8s/) precisam de amd64 E arm64.
+#
+# As node pools padrao do EKS Auto Mode sao amd64, enquanto o Fargate do caminho
+# assincrono e as maquinas do time sao arm64 (Apple Silicon). Publicar so arm64
+# colocaria o pod em CrashLoopBackOff com `exec format error` -- a mesma falha
+# que ja mordeu o time no ASG. As tres imagens que rodam SO no Fargate seguem
+# arm64, que custa ~20% menos e dispensa emulacao no build.
+#
+# `processing` entrou nesta lista em 21/09/2026. Sao TRES as imagens que o
+# cluster executa, e nao duas: alem do backend e do frontend, o `Job` de
+# migration usa a imagem de processing (ver k8s/migrate/job-db-migrate.yaml).
+# Publicada so em arm64, ela nunca poderia ter rodado nos nos amd64 do Auto
+# Mode; no `kind` passava despercebido porque a maquina do dev e amd64. Quem
+# guarda essa invariante agora e tools/verifica_manifests.py.
+#
+# A escolha da plataforma por imagem e feita no `push`, em shell: o nome da
+# imagem la e variavel de SHELL (vem do laco), e uma funcao de make nao alcanca.
+IMAGES_MULTIARCH := backend frontend processing
 
 # A tag que as task definitions referenciam. NUNCA `latest`.
 #
@@ -123,8 +145,7 @@ env: ## Cria o .env a partir dos outputs do Terraform
 	    || terraform output -raw read_api_url 2>/dev/null; })"; \
 	  echo "ARGUS_INGEST_URL=$$(cd $(INFRA) && terraform output -raw ingest_url 2>/dev/null)"; \
 	  echo "ARGUS_CHANGES_URL=$$(cd $(INFRA) && terraform output -raw changes_url 2>/dev/null)"; \
-	  echo "HYPOTHESES_SOURCE=mock"; \
-	  echo "HYPOTHESES_API_URL="; \
+	  echo "HYPOTHESES_SOURCE=api"; \
 	  echo "AWS_PROFILE=$${AWS_PROFILE:-default}"; \
 	  echo "AWS_REGION=$${AWS_REGION:-us-east-1}"; \
 	  echo "ARGUS_READ_TOKEN="; \
@@ -241,7 +262,12 @@ test-observabilidade: ## Valida scripts, Compose e dashboards sem acessar AWS ne
 
 .PHONY: test-authorizer
 test-authorizer: ## Testes do Lambda authorizer (Bearer, audiencias, rotacao)
-	cd $(AUTHORIZER) && uv run --quiet --group dev pytest
+	@# `handler.py` cria o cliente do Secrets Manager no import, e o botocore so
+	@# aceita a regiao por AWS_DEFAULT_REGION -- AWS_REGION, que e o que o .env
+	@# define, nao basta. Sem isso a coleta do pytest quebra com NoRegionError
+	@# numa maquina sem a variavel no shell. Nenhuma chamada sai daqui: o cliente
+	@# so precisa de uma regiao para ser construido.
+	cd $(AUTHORIZER) && AWS_DEFAULT_REGION=$${AWS_DEFAULT_REGION:-$${AWS_REGION:-us-east-1}} uv run --quiet --group dev pytest
 
 # TEST_DATABASE_URL aponta para o banco de teste local por padrao. Os testes que
 # precisam de banco sao PULADOS quando ele nao existe, em vez de quebrarem —
@@ -292,7 +318,6 @@ test-frontend-e2e: ## Teste integrado dashboard -> Flask -> PostgreSQL local
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="http://127.0.0.1:5100" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="api" \
-	  NEXT_PUBLIC_HYPOTHESES_API_URL="http://127.0.0.1:5100" \
 	  npm run build -- --webpack; \
 	npm run test:e2e
 
@@ -324,7 +349,7 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(INFRA) && terraform fmt -recursive
 
 .PHONY: check
-check: lint test frontend-build-check test-frontend-e2e tf-validate tf-test ## Tudo que a CI deveria rodar
+check: lint test frontend-build-check test-frontend-e2e tf-validate tf-test k8s-validate ## Tudo que a CI deveria rodar
 
 # O build do dashboard faz parte do portao, e nao so o lint.
 #
@@ -380,9 +405,22 @@ parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
 .PHONY: images
 images: $(addprefix image-,$(IMAGES)) ## Constroi as imagens (ARM64)
 
+# Build-args de quem tem configuracao COMPILADA para dentro do artefato. O Next
+# resolve `NEXT_PUBLIC_*` em tempo de build e congela o valor no bundle: passar a
+# variavel no ambiente do contêiner nao tem efeito nenhum.
+#
+# Sem esta linha, o `ARG NEXT_PUBLIC_HYPOTHESES_SOURCE=mock` do Dockerfile
+# vencia, e a imagem do dashboard ia para o cluster com a tela de Hipoteses
+# servida por dado simulado -- enquanto o caminho antigo, do S3, usava `api`
+# (ver `frontend-build`). O E2E-05 pega isso.
+BUILD_ARGS_frontend := --build-arg NEXT_PUBLIC_HYPOTHESES_SOURCE=$(HYPOTHESES_SOURCE)
+
 .PHONY: $(addprefix image-,$(IMAGES))
 $(addprefix image-,$(IMAGES)): image-%:
-	docker build --platform linux/arm64 -f $*/Dockerfile -t argus-$*:dev $(call CONTEXTO,$*)
+	@# Build local: uma arquitetura so, a da propria maquina. O multi-arquitetura
+	@# custa o dobro do tempo e so faz falta ao publicar -- ver `push`.
+	docker build -f $*/Dockerfile -t argus-$*:dev \
+	  --build-arg GIT_SHA=$(GIT_SHA) $(BUILD_ARGS_$*) $(call CONTEXTO,$*)
 
 .PHONY: image-tag
 image-tag: ## Mostra a tag de imagem deste commit
@@ -467,6 +505,10 @@ push: ## Publica as imagens no ECR com a tag do commit
 	  echo "      nenhum, e o rollback deixa de ter para onde voltar."; \
 	  exit 1;; esac
 	@echo "publicando com a tag $(IMAGE_TAG)"
+	@# `docker buildx build --push` e nao `docker build` + `docker push`: uma
+	@# imagem multi-arquitetura e uma LISTA de manifestos, que so existe no
+	@# registry. O `docker push` empurraria apenas a arquitetura carregada no
+	@# daemon local, e o pod amd64 do EKS falharia com `exec format error`.
 	@# A tag vem do Makefile, e a URL do repositorio vem do `terraform output`.
 	@#
 	@# Nao use `docker_push_commands` aqui. `terraform output` le do STATE, e nao
@@ -488,11 +530,16 @@ push: ## Publica as imagens no ECR com a tag do commit
 	for nome in $(IMAGES); do \
 	  url=$$(printf '%s' "$$urls" | python3 -c "import json,sys; print(json.load(sys.stdin)['$$nome'])"); \
 	  echo; echo "--- $$nome"; \
-	  contexto="."; [ "$$nome" = "backend" ] && contexto="backend"; \
-	  docker build --platform linux/arm64 -f $$nome/Dockerfile \
-	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" "$$contexto"; \
-	  docker push "$$url:$(IMAGE_TAG)"; \
-	  docker push "$$url:latest"; \
+	  contexto="."; \
+	  case " backend frontend " in *" $$nome "*) contexto="$$nome";; esac; \
+	  plataformas="linux/arm64"; \
+	  case " $(IMAGES_MULTIARCH) " in *" $$nome "*) plataformas="linux/amd64,linux/arm64";; esac; \
+	  echo "    plataformas: $$plataformas"; \
+	  extra=""; \
+	  case "$$nome" in frontend) extra="$(BUILD_ARGS_frontend)";; esac; \
+	  docker buildx build --platform "$$plataformas" -f $$nome/Dockerfile \
+	    --build-arg GIT_SHA=$(GIT_SHA) $$extra \
+	    -t "$$url:$(IMAGE_TAG)" -t "$$url:latest" --push "$$contexto"; \
 	done
 	@echo
 	@echo "publicadas com a tag $(IMAGE_TAG). Agora rode: make tf-apply"
@@ -672,13 +719,9 @@ frontend-build-info: ## Grava frontend/public/build-info.json com commit e data
 .PHONY: frontend-build
 frontend-build: frontend-build-info ## Gera o site estatico do dashboard
 	@$(call require_env,ARGUS_API_URL)
-	@if [ "$(HYPOTHESES_SOURCE)" = "api" ] && [ -z "$(HYPOTHESES_API_URL)" ]; then \
-	  echo "erro: HYPOTHESES_API_URL é obrigatória no modo api."; exit 1; \
-	fi
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
-	  NEXT_PUBLIC_HYPOTHESES_API_URL="$(HYPOTHESES_API_URL)" \
 	  npm run build
 
 .PHONY: frontend-deploy
@@ -692,13 +735,9 @@ frontend-deploy: frontend-build ## Publica o dashboard no website S3
 .PHONY: frontend-dev
 frontend-dev: ## Sobe o dashboard local contra a API publicada
 	@$(call require_env,ARGUS_API_URL)
-	@if [ "$(HYPOTHESES_SOURCE)" = "api" ] && [ -z "$(HYPOTHESES_API_URL)" ]; then \
-	  echo "erro: HYPOTHESES_API_URL é obrigatória no modo api."; exit 1; \
-	fi
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
-	  NEXT_PUBLIC_HYPOTHESES_API_URL="$(HYPOTHESES_API_URL)" \
 	  npm run dev
 
 # --------------------------------------------------------------------------- #
@@ -899,6 +938,16 @@ observabilidade-check: ## Valida Prometheus, Grafana e os dois datasources (Prom
 teste-performance: ## Executa a suite k6 (CENARIO=todos; COM_GRAFANA=1 habilita metricas)
 	$(TESTES_CARGA)/executar_testes.sh "$${CENARIO:-todos}" \
 		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-carga-ui
+teste-carga-ui: ## Carga sobre as telas do dashboard em 3 niveis (5, 25 e 100 usuarios)
+	$(TESTES_CARGA)/executar_testes.sh carga-ui \
+		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-carga-ui-ec2
+teste-carga-ui-ec2: ## Mesma carga das telas, gerada de uma EC2 descartavel dentro da VPC
+	@$(call require_env,AWS_PROFILE)
+	$(TESTES_CARGA)/gerador_ec2.sh carga-ui
 
 .PHONY: teste-lote-drenagem
 teste-lote-drenagem: ## Injeta 1 lote logico de 150 mil eventos (nao mede sozinho a drenagem)
@@ -1185,6 +1234,304 @@ resume: ## Religa os workers e o processamento
 	cd $(INFRA) && terraform apply \
 	  -var="worker_desired_count=1" \
 	  -var="processing_desired_count=1"
+
+# --------------------------------------------------------------------------- #
+# Kubernetes
+# --------------------------------------------------------------------------- #
+#
+# O cluster orquestra o caminho SINCRONO (dashboard + API de leitura). O caminho
+# assincrono -- workers de SQS, processing, simulator, loader -- continua no ECS
+# Fargate, sem nenhuma alteracao: la o Fargate ja entrega estado desejado,
+# rolling deploy e health check, e o IAM por task e melhor do que um cluster
+# consegue oferecer neste lab, onde IRSA e Pod Identity estao bloqueados.
+#
+# Fluxo tipico na AWS:
+#
+#   make tf-apply          # cria o cluster (create_eks = true no tfvars)
+#   make k8s-kubeconfig    # aponta o kubectl para ele
+#   make k8s-bootstrap     # IngressClass do ALB
+#   make k8s-push          # publica backend e frontend multi-arquitetura
+#   make k8s-secret        # monta o Secret a partir dos outputs do Terraform
+#   make k8s-migrate       # aplica as migrations
+#   make k8s-apply         # sobe a aplicacao
+#   make k8s-url           # imprime o endereco publico
+#
+# Fluxo local, sem AWS nenhuma:
+#
+#   make kind-up k8s-images kind-load
+#   make k8s-apply   K8S_OVERLAY=kind
+#   make k8s-migrate K8S_OVERLAY=kind
+
+KUBECTL       ?= kubectl
+K8S           := k8s
+K8S_OVERLAY   ?= aws
+K8S_NAMESPACE ?= argus
+KIND_CLUSTER  ?= argus
+
+# Versoes fixadas, e nao `latest`, pela mesma razao que as imagens do ECR sao
+# fixadas por digest: `latest` faz o ambiente local de hoje diferir do de amanha
+# sem que nenhum arquivo do repositorio tenha mudado.
+#
+# O repositorio do ingress-nginx e `kubernetes/`, e NAO `kubernetes-sigs/` --
+# o segundo existe, mas nao serve o manifesto de deploy e responde 404.
+INGRESS_NGINX_VERSAO ?= controller-v1.13.3
+METRICS_SERVER_VERSAO ?= v0.8.0
+
+# As duas imagens que o cluster SERVE. Sao as unicas que `k8s-push` publica:
+# `processing` ja sai no `make push` junto com as do caminho assincrono.
+K8S_IMAGES := backend frontend
+
+# O que o cluster LOCAL precisa ter carregado: as duas acima mais a de
+# `processing`, que e a imagem do Job de migration (ela embarca db/migrations/ e
+# tools/migrate.py). Listas separadas porque os dois conjuntos divergem, e
+# escrever a segunda a mao foi o que fez `make kind-load` falhar com "image not
+# present locally" depois de um `k8s-images` que nunca a construiu.
+K8S_IMAGES_LOCAIS := $(K8S_IMAGES) processing
+
+.PHONY: eks-roles
+eks-roles: ## Mostra os ARNs dos papeis LabEks* desta sessao do lab
+	@$(call require_env,AWS_PROFILE)
+	@# O prefixo do nome muda a cada sessao. O eks.tf os descobre sozinho por
+	@# regex; este alvo existe para o caso de iam:ListRoles ser negado, quando
+	@# os ARNs precisam ser colados em eks_*_role_arn no terraform.tfvars.
+	@aws iam list-roles --profile $$AWS_PROFILE \
+	  --query "Roles[?contains(RoleName,'LabEks')].[RoleName,Arn]" --output text
+
+.PHONY: k8s-kubeconfig
+k8s-kubeconfig: ## Aponta o kubectl para o cluster EKS deste stack
+	@$(call require_env,AWS_PROFILE)
+	@set -e; \
+	nome=$$(cd $(INFRA) && terraform output -raw eks_cluster_name); \
+	if [ -z "$$nome" ]; then \
+	  echo "erro: nenhum cluster EKS no state."; \
+	  echo "      Ligue create_eks = true no terraform.tfvars e rode 'make tf-apply'."; \
+	  exit 1; \
+	fi; \
+	aws eks update-kubeconfig --name "$$nome" \
+	  --region $${AWS_REGION:-us-east-1} --profile $$AWS_PROFILE
+
+.PHONY: k8s-bootstrap
+k8s-bootstrap: ## Instala o que o cluster precisa antes da aplicacao
+	@# O EKS Auto Mode ja traz o metrics-server (verificado: kube-system tem o
+	@# Deployment de pe), entao aqui so falta a IngressClass do controlador de
+	@# ALB. No kind e o contrario -- ver `kind-up`.
+	$(KUBECTL) apply -f $(K8S)/overlays/aws/ingressclass.yaml
+	@echo
+	@$(KUBECTL) get ingressclass
+
+.PHONY: k8s-images
+k8s-images: $(addprefix image-,$(K8S_IMAGES_LOCAIS)) ## Constroi as imagens do cluster para uso local
+
+.PHONY: k8s-push
+k8s-push: ## Publica backend e frontend multi-arquitetura no ECR
+	@# Atalho para quem mexeu so no caminho sincrono. `make push` publica as
+	@# seis imagens; este alvo publica as duas que o cluster executa.
+	@$(MAKE) --no-print-directory push IMAGES="$(K8S_IMAGES)"
+
+.PHONY: k8s-secret
+k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
+	@$(call require_env,AWS_PROFILE)
+	@# Os valores viajam por PIPE e nunca tocam o disco.
+	@#
+	@# Sem IRSA e sem Pod Identity (o Learner Lab nega iam:CreateRole e
+	@# iam:CreateOpenIDConnectProvider), o pod nao consegue ler o Secrets
+	@# Manager sozinho. As alternativas seriam o provider `kubernetes` no
+	@# Terraform, que gravaria o segredo no tfstate local, ou um arquivo .env,
+	@# que gravaria em disco. Esta e a unica das tres que mantem a regra de
+	@# nenhum segredo fora da memoria do shell.
+	@set -e; \
+	cd $(INFRA); \
+	url_api=$$(terraform output -raw eks_backend_database_url); \
+	url_mestre=$$(terraform output -raw eks_master_database_url); \
+	senha_leitor=$$(terraform output -raw eks_read_api_db_password); \
+	salt=$$(terraform output -raw eks_user_id_hash_salt); \
+	segredo=$$(terraform output -raw auth_tokens_secret); \
+	hash=$$(aws secretsmanager get-secret-value --secret-id "$$segredo" \
+	  --profile $$AWS_PROFILE --region $${AWS_REGION:-us-east-1} \
+	  --query SecretString --output text \
+	  | python3 -c "import json,sys; print(json.load(sys.stdin)['dashboard'])"); \
+	cd ..; \
+	$(KUBECTL) create namespace $(K8S_NAMESPACE) --dry-run=client -o yaml | $(KUBECTL) apply -f -; \
+	$(KUBECTL) create secret generic argus-backend -n $(K8S_NAMESPACE) \
+	  --from-literal=DATABASE_URL="$$url_api" \
+	  --from-literal=DATABASE_URL_MASTER="$$url_mestre" \
+	  --from-literal=DB_READER_PASSWORD="$$senha_leitor" \
+	  --from-literal=USER_ID_HASH_SALT="$$salt" \
+	  --from-literal=DASHBOARD_TOKEN_SHA256="$$hash" \
+	  --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	@echo
+	@# Variavel de ambiente vinda de secretKeyRef NAO e recarregada em pod que
+	@# ja esta de pe. Sem este restart, o token novo de `make auth-rotate` seria
+	@# rejeitado ate o proximo deploy -- e a causa apareceria como 401 sem
+	@# explicacao.
+	@# Distinguir os dois casos importa: antes do primeiro `k8s-apply` o
+	@# Deployment ainda nao existe e o silencio e correto; depois, um erro aqui
+	@# e RBAC negado ou contexto de kubectl errado -- e engoli-lo devolveria o
+	@# 401 sem explicacao que este alvo existe para evitar.
+	@if $(KUBECTL) -n $(K8S_NAMESPACE) get deployment argus-backend >/dev/null 2>&1; then \
+	  $(KUBECTL) -n $(K8S_NAMESPACE) rollout restart deployment/argus-backend; \
+	else \
+	  echo "  (backend ainda nao aplicado; o Secret sera lido no primeiro k8s-apply)"; \
+	fi
+	@echo "Secret argus-backend atualizado (5 chaves)."
+
+# Renderiza um diretorio de kustomize e aplica, trocando os placeholders de
+# imagem pela referencia completa do ECR desta sessao do lab.
+#
+# Por que substituicao em pipe, e nao o transformer `images:` do kustomize no
+# overlay `aws`: a referencia depende da CONTA, que muda a cada sessao do
+# Learner Lab. Grava-la no arquivo versionado a deixaria errada no dia seguinte.
+# No overlay `kind` nao ha esse problema -- la as imagens sao locais e o
+# transformer nativo resolve, sem pipe.
+#
+# $(1) = diretorio do kustomize
+define k8s_aplica_aws
+	set -e; \
+	urls=$$(cd $(INFRA) && terraform output -json ecr_repository_urls); \
+	ref() { printf '%s' "$$urls" | python3 -c "import json,sys; print(json.load(sys.stdin)['$$1'])"; }; \
+	$(KUBECTL) kustomize $(1) \
+	  | sed "s|IMAGE_BACKEND|$$(ref backend):$(IMAGE_TAG)|g; \
+	         s|IMAGE_FRONTEND|$$(ref frontend):$(IMAGE_TAG)|g; \
+	         s|IMAGE_PROCESSING|$$(ref processing):$(IMAGE_TAG)|g" \
+	  | $(KUBECTL) apply -f -
+endef
+
+.PHONY: k8s-apply
+k8s-apply: ## Aplica o overlay no cluster corrente (K8S_OVERLAY=aws|kind)
+	@set -e; \
+	if [ "$(K8S_OVERLAY)" = "aws" ]; then \
+	  $(call k8s_aplica_aws,$(K8S)/overlays/aws); \
+	else \
+	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY); \
+	fi
+
+.PHONY: k8s-migrate
+k8s-migrate: ## Aplica as migrations no cluster (Job one-shot)
+	@# delete antes do apply porque `spec.template` de Job e imutavel: sem isso,
+	@# rodar de novo com uma tag nova falha com "field is immutable".
+	@set -e; \
+	$(KUBECTL) delete job argus-db-migrate -n $(K8S_NAMESPACE) --ignore-not-found; \
+	if [ "$(K8S_OVERLAY)" = "aws" ]; then \
+	  $(call k8s_aplica_aws,$(K8S)/migrate); \
+	else \
+	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY)/migrate; \
+	fi; \
+	$(KUBECTL) wait --for=condition=complete job/argus-db-migrate \
+	  -n $(K8S_NAMESPACE) --timeout=600s
+	@$(KUBECTL) logs job/argus-db-migrate -n $(K8S_NAMESPACE) --tail=20
+
+.PHONY: k8s-rollout
+k8s-rollout: ## Publica as imagens e espera o rollout terminar
+	@# Em receita, e nao como pre-requisitos: o make nao garante ordem entre
+	@# pre-requisitos sob `-j`, e aplicar antes de publicar deixa os pods em
+	@# ImagePullBackOff apontando para uma tag que ainda nao existe.
+	$(MAKE) --no-print-directory k8s-push
+	$(MAKE) --no-print-directory k8s-apply
+	$(KUBECTL) -n $(K8S_NAMESPACE) rollout status deployment/argus-backend --timeout=300s
+	$(KUBECTL) -n $(K8S_NAMESPACE) rollout status deployment/argus-frontend --timeout=300s
+
+.PHONY: k8s-status
+k8s-status: ## Pods, HPA, PDB e Ingress numa tela so
+	@$(KUBECTL) -n $(K8S_NAMESPACE) get pods -o wide
+	@echo; $(KUBECTL) -n $(K8S_NAMESPACE) get hpa
+	@echo; $(KUBECTL) -n $(K8S_NAMESPACE) get pdb
+	@echo; $(KUBECTL) -n $(K8S_NAMESPACE) get ingress
+
+.PHONY: k8s-url
+k8s-url: ## Imprime o endereco publico do Ingress
+	@set -e; \
+	host=$$($(KUBECTL) -n $(K8S_NAMESPACE) get ingress argus \
+	  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null); \
+	if [ -z "$$host" ]; then \
+	  host=$$($(KUBECTL) -n $(K8S_NAMESPACE) get ingress argus \
+	    -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	fi; \
+	if [ -z "$$host" ]; then \
+	  echo "erro: o Ingress ainda nao tem endereco." >&2; \
+	  echo "      Na AWS o ALB leva 2 a 4 minutos para nascer." >&2; \
+	  exit 1; \
+	fi; \
+	echo "http://$$host"
+
+.PHONY: k8s-logs
+k8s-logs: ## Segue o log de um Deployment (APP=backend|frontend)
+	$(KUBECTL) -n $(K8S_NAMESPACE) logs -f deployment/argus-$(or $(APP),backend) --tail=100
+
+.PHONY: k8s-scale-zero
+k8s-scale-zero: ## Zera os Deployments para economizar credito do lab
+	@# Sem pod pendente o Karpenter do Auto Mode consolida os nos ate zero em
+	@# poucos minutos. O ALB continua de pe -- para remove-lo tambem, use
+	@# `make k8s-delete`. E o equivalente do `make pause` para o cluster.
+	$(KUBECTL) -n $(K8S_NAMESPACE) scale deployment --all --replicas=0
+	@$(KUBECTL) -n $(K8S_NAMESPACE) get deploy
+
+.PHONY: k8s-delete
+k8s-delete: ## Remove a aplicacao do cluster, sem destruir o cluster
+	@# Remover o namespace leva o Ingress junto, e com ele o ALB -- que e a
+	@# parte que cobra por hora parada.
+	$(KUBECTL) delete namespace $(K8S_NAMESPACE) --ignore-not-found
+
+.PHONY: k8s-validate
+k8s-validate: ## Renderiza todos os overlays sem tocar em cluster nenhum
+	@command -v $(KUBECTL) >/dev/null 2>&1 || { \
+	  echo "erro: $(KUBECTL) nao encontrado no PATH."; \
+	  echo "      Instale com 'brew install kubectl' -- ele e pre-requisito do"; \
+	  echo "      'make check' desde que os manifestos entraram (ver k8s/README.md)."; \
+	  exit 1; \
+	}
+	@set -e; \
+	for alvo in base migrate overlays/aws overlays/kind overlays/kind/migrate; do \
+	  printf '  %-24s ' "$$alvo"; \
+	  $(KUBECTL) kustomize $(K8S)/$$alvo > /dev/null; \
+	  echo "ok"; \
+	done
+	@# O kustomize so responde "este YAML e valido". As invariantes que ele nao
+	@# alcanca -- ordem das regras do Ingress, arquitetura das imagens e as chaves
+	@# do Secret -- ficam no verificador, que tambem nao toca em cluster nenhum.
+	@python3 $(TOOLS)/verifica_manifests.py \
+	  --k8s $(K8S) --makefile Makefile --kubectl $(KUBECTL)
+
+# --------------------------------------------------------------------------- #
+# Kubernetes local (kind)
+# --------------------------------------------------------------------------- #
+
+.PHONY: kind-up
+kind-up: ## Cria o cluster local com ingress-nginx, metrics-server e Postgres
+	@set -e; \
+	if ! kind get clusters 2>/dev/null | grep -qx "$(KIND_CLUSTER)"; then \
+	  kind create cluster --config $(K8S)/overlays/kind/kind-cluster.yaml; \
+	fi
+	@# O ingress-nginx, e nao um `kubectl port-forward`, de proposito: o
+	@# port-forward exigiria duas portas (uma por servico) e, com isso, um
+	@# bundle com NEXT_PUBLIC_API_URL absoluto -- o dev testaria um artefato
+	@# DIFERENTE do que vai para a AWS, e a decisao de origem unica nunca seria
+	@# exercitada localmente.
+	$(KUBECTL) apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/$(INGRESS_NGINX_VERSAO)/deploy/static/provider/kind/deploy.yaml
+	@# `rollout status` e nao `wait --for=condition=ready pod`: o wait falha com
+	@# "no matching resources found" quando roda antes de o Deployment criar o
+	@# primeiro pod, e o apply acima retorna sem esperar por isso.
+	$(KUBECTL) -n ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=300s
+	@# Diferente do EKS Auto Mode, o kind nao traz metrics-server -- e sem ele o
+	@# HPA fica em `<unknown>/60%` e nao escala nada. O --kubelet-insecure-tls e
+	@# obrigatorio: os certificados de kubelet do kind sao autoassinados.
+	$(KUBECTL) apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/$(METRICS_SERVER_VERSAO)/components.yaml
+	$(KUBECTL) -n kube-system patch deployment metrics-server --type=json \
+	  -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+	$(KUBECTL) -n kube-system rollout status deployment/metrics-server --timeout=180s
+	@echo
+	@echo "cluster local pronto. Agora: make k8s-images kind-load"
+
+.PHONY: kind-load
+kind-load: ## Carrega as imagens locais no no do kind
+	@# O kind nao enxerga o daemon do Docker da maquina: a imagem precisa ser
+	@# copiada para dentro do no. Por isso imagePullPolicy: IfNotPresent.
+	kind load docker-image \
+	  $(addsuffix :dev,$(addprefix argus-,$(K8S_IMAGES_LOCAIS))) \
+	  --name $(KIND_CLUSTER)
+
+.PHONY: kind-down
+kind-down: ## Destroi o cluster local
+	kind delete cluster --name $(KIND_CLUSTER)
 
 # --------------------------------------------------------------------------- #
 # Limpeza

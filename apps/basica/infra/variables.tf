@@ -1027,13 +1027,23 @@ variable "asg_min_size" {
     indisponibilidade total ate a substituta subir -- vaos de varios minutos,
     contando boot e pull da imagem. Com duas em AZs distintas, a perda de uma
     instancia ou de uma zona inteira degrada a capacidade sem derrubar o servico.
+
+    ZERO tambem e valido, e significa outra coisa: o caminho de leitura saiu
+    daqui e foi para o cluster Kubernetes (eks.tf). Nesse caso o grupo nao serve
+    ninguem, e manter duas instancias ligadas seria pagar duas vezes pela mesma
+    API. O grupo continua no estado -- launch template, target group e politicas
+    intactos --, entao voltar e trocar este valor, nao refazer o apply.
   EOT
   type        = number
   default     = 2
 
   validation {
-    condition     = var.asg_min_size >= 2
-    error_message = "Minimo de 2 para que a perda de uma instancia nao derrube o servico."
+    # Um e o unico valor proibido: e o que parece alta disponibilidade e nao e.
+    # Zero e uma decisao explicita (o grupo esta desligado); dois ou mais e o
+    # grupo servindo com folga. Um e o meio-termo que so aparece como problema
+    # no dia em que a instancia cai.
+    condition     = var.asg_min_size == 0 || var.asg_min_size >= 2
+    error_message = "Use 0 (grupo desligado, caminho de leitura no cluster) ou >= 2 (a perda de uma instancia nao derruba o servico). O valor 1 nao e aceito: parece redundante e nao e."
   }
 }
 
@@ -1227,4 +1237,131 @@ variable "alarm_latencia_p95_segundos" {
   EOT
   type        = number
   default     = 5
+}
+
+# --------------------------------------------------------------------------- #
+# Kubernetes (EKS Auto Mode)
+# --------------------------------------------------------------------------- #
+
+variable "create_eks" {
+  type    = bool
+  default = false
+
+  description = <<-EOT
+    Cria o cluster EKS que orquestra o caminho sincrono (eks.tf).
+
+    Desligado por padrao porque o cluster custa por hora existindo, e o
+    orcamento do Learner Lab e finito. Ligar e uma linha no terraform.tfvars;
+    desligar destroi SO o cluster -- ECS, ALB, ASG e RDS nao referenciam nada
+    dele, entao continuam de pe.
+
+    Depende de create_network: o Auto Mode precisa das sub-redes privadas com
+    saida por NAT para alcancar o RDS. Ver local.criar_eks em eks.tf.
+  EOT
+}
+
+variable "eks_version" {
+  type    = string
+  default = "1.33"
+
+  description = <<-EOT
+    Versao do control plane do Kubernetes.
+
+    Apenas major.minor: a AWS escolhe o patch e o aplica sozinha. Fixar o patch
+    aqui produziria um diff a cada atualizacao automatica da AWS.
+  EOT
+}
+
+variable "eks_node_pools" {
+  type    = list(string)
+  default = ["general-purpose", "system"]
+
+  description = <<-EOT
+    Node pools geridos pelo Auto Mode.
+
+    `general-purpose` recebe a carga da aplicacao; `system` recebe os
+    componentes do proprio cluster (CoreDNS e afins). Remover `system` faz os
+    dois disputarem o mesmo no, e uma rajada de trafego passa a poder
+    pressionar o DNS do cluster.
+  EOT
+}
+
+variable "eks_cluster_role_arn" {
+  type    = string
+  default = ""
+
+  description = <<-EOT
+    Escape para o papel de CLUSTER, quando a descoberta automatica falhar.
+
+    O caminho normal e vazio: eks.tf descobre o papel do lab por regex
+    (eks_cluster_role_name_regex), porque o nome carrega um prefixo de sessao
+    que muda a cada lab. Preencha isto apenas se `terraform plan` falhar com
+    AccessDenied em iam:ListRoles -- `make eks-roles` imprime o valor.
+  EOT
+}
+
+variable "eks_node_role_arn" {
+  type    = string
+  default = ""
+
+  description = <<-EOT
+    Escape para o papel dos NOS. Mesma logica de eks_cluster_role_arn.
+  EOT
+}
+
+variable "eks_cluster_role_name_regex" {
+  type    = string
+  default = ".*LabEksClusterRole.*"
+
+  description = <<-EOT
+    Regex que encontra o papel de cluster do Learner Lab.
+
+    O papel ja existe na conta e NAO pode ser criado (iam:CreateRole e negado).
+    Ele traz o conjunto que o Auto Mode exige: AmazonEKSClusterPolicy,
+    NetworkingPolicy, ComputePolicy, BlockStoragePolicy e LoadBalancingPolicy --
+    esta ultima e o que permite ao cluster criar o ALB sem IRSA.
+  EOT
+}
+
+variable "eks_node_role_name_regex" {
+  type    = string
+  default = ".*LabEksNodeRole.*"
+
+  description = <<-EOT
+    Regex que encontra o papel dos nos do Learner Lab.
+
+    Traz apenas WorkerNodePolicy, CNI e ECR ReadOnly -- nada de SQS ou S3, e e
+    o suficiente: nenhum pod deste cluster fala com a AWS.
+  EOT
+}
+
+variable "eks_public_access_cidrs" {
+  type    = list(string)
+  default = ["0.0.0.0/0"]
+
+  description = <<-EOT
+    De onde o endpoint publico do control plane aceita conexao.
+
+    Aberto por padrao porque o time troca de rede e a sessao do lab dura horas;
+    fechar no IP do laboratorio e uma melhoria barata quando o endereco e
+    estavel. O acesso ainda exige credencial da AWS E uma access entry no
+    cluster -- o CIDR e a primeira camada, nao a unica.
+  EOT
+}
+
+variable "eks_extra_admin_role_arns" {
+  type    = list(string)
+  default = []
+
+  description = <<-EOT
+    Papeis que tambem recebem acesso de administrador ao cluster.
+
+    O apply ja da acesso a quem o executou. Sem acrescentar os demais aqui, o
+    colega que rodar `aws eks update-kubeconfig` recebe "You must be logged in
+    to the server (Unauthorized)" -- um erro que parece de credencial da AWS,
+    mas e de autorizacao do cluster.
+
+    No Learner Lab todos assumem o mesmo papel `voclabs`, entao normalmente
+    esta lista fica vazia.
+  EOT
 }

@@ -1,0 +1,26 @@
+# Cluster local descartavel.
+#
+#   kind create cluster --name argus --config k8s/overlays/kind/kind-cluster.yaml
+#
+# Um no so. As topologySpreadConstraints da base usam `ScheduleAnyway`, entao
+# elas continuam satisfeitas aqui -- e `maxUnavailable: 0` continua exercitado,
+# que e o ponto: o dev testa o MESMO comportamento de rollout que roda na AWS.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: argus
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      # O deploy do ingress-nginx para kind seleciona o no por este rotulo.
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # 8080 do host -> 80 do ingress-nginx. E o que faz
+      # http://localhost:8080/ e http://localhost:8080/api/v1/clock
+      # funcionarem exatamente como pelo ALB: mesma origem, mesmo caminho.
+      - containerPort: 80
+        hostPort: 8080
+        protocol: TCP

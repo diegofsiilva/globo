@@ -1,0 +1,21 @@
+# Escala do dashboard. O nginx servindo arquivo estatico e barato, entao o teto
+# e menor que o do backend: o gargalo do sistema esta na consulta ao RDS, nao
+# na entrega do HTML.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: argus-frontend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: argus-frontend
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

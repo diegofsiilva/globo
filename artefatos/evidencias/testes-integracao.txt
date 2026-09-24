@@ -1,0 +1,342 @@
+Evidencia de execucao dos testes de integracao -- projeto Argus (g04)
+Data da execucao: 2026-09-17 17:23:49 UTC
+Maquina: Linux 7.0.0-31-generic x86_64
+Banco de teste: postgresql://argus:argus@localhost:55432/argus_test (container argus-pg, PostgreSQL 16)
+
+================================================================================
+TI-02  API Flask <-> PostgreSQL
+  cd apps/basica/backend
+  TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
+================================================================================
+============================= test session starts ==============================
+platform linux -- Python 3.13.12, pytest-8.4.2, pluggy-1.6.0
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/backend
+configfile: pyproject.toml
+plugins: cov-6.3.0
+collected 3 items
+
+tests/integration/test_api_postgres.py ...                               [100%]
+
+============================== 3 passed in 4.64s ===============================
+
+================================================================================
+TI-03  Worker <-> SQS (moto) <-> PostgreSQL
+  cd apps/basica/worker
+  TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
+================================================================================
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/worker
+configfile: pyproject.toml
+plugins: cov-7.1.0
+collected 2 items
+
+tests/integration/test_fila_banco.py ..                                  [100%]
+
+============================== 2 passed in 2.57s ===============================
+
+================================================================================
+TI-04  ETL bronze -> silver -> gold <-> PostgreSQL
+  cd apps/basica/processing
+  TEST_DATABASE_URL=$PG uv run pytest tests/integration -v
+================================================================================
+============================= test session starts ==============================
+platform linux -- Python 3.13.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/processing
+configfile: pyproject.toml
+collected 3 items
+
+tests/integration/test_camadas_medalhao.py ...                           [100%]
+
+============================== 3 passed in 7.63s ===============================
+
+================================================================================
+TI-01  Dashboard Next.js, API Flask e PostgreSQL (Playwright)
+  make -C apps/basica test-frontend-e2e
+  (linhas [WebServer] do log do Flask omitidas por volume)
+================================================================================
+cd tools && uv run --quiet python migrate.py aplicar
+  nada a fazer: o banco ja esta na ultima versao
+BEGIN
+NOTICE:  truncate cascades to table "detection_match"
+NOTICE:  truncate cascades to table "run"
+NOTICE:  truncate cascades to table "analysis_cursor"
+NOTICE:  truncate cascades to table "baseline_state"
+NOTICE:  truncate cascades to table "manifest_publication_event"
+NOTICE:  truncate cascades to table "anomaly"
+NOTICE:  truncate cascades to table "work_claim"
+NOTICE:  truncate cascades to table "run_input_fact"
+NOTICE:  truncate cascades to table "source_quality_run"
+NOTICE:  truncate cascades to table "finding_group"
+NOTICE:  truncate cascades to table "hypothesis"
+NOTICE:  truncate cascades to table "hypothesis_run_stats"
+NOTICE:  truncate cascades to table "source_quality"
+NOTICE:  truncate cascades to table "finding_group_member"
+NOTICE:  truncate cascades to table "hypothesis_finding"
+NOTICE:  truncate cascades to table "hypothesis_evidence"
+NOTICE:  truncate cascades to table "hypothesis_feature"
+NOTICE:  truncate cascades to table "hypothesis_feedback"
+NOTICE:  truncate cascades to table "finding_review"
+TRUNCATE TABLE
+       set_clock        
+------------------------
+ 2026-07-14 12:00:00+00
+(1 row)
+
+INSERT 0 6
+INSERT 0 15
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 3
+DO
+COMMIT
+
+> frontend@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.3.0 (webpack)
+- Environments: .env.local
+⚠ Warning: Next.js ignored package-lock.json in /home/inteli/Documentos/workspace/segundo ano because it is outside the current Git repository (/home/inteli/Documentos/workspace/segundo ano/g04).
+ To use this directory, set `outputFileTracingRoot` in your Next.js config.
+
+✓ Running next.config.ts took 36ms
+- Experiments (use with caution):
+  ⨯ useTypeScriptCli
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 4.1s
+  Running TypeScript ...
+  Finished TypeScript in 5.8s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/10) ...
+  Generating static pages using 11 workers (2/10) 
+  Generating static pages using 11 workers (4/10) 
+  Generating static pages using 11 workers (7/10) 
+✓ Generating static pages using 11 workers (10/10) in 1135ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /agora
+├ ○ /comparar
+├ ○ /explorar
+├ ○ /hipoteses
+├ ○ /recorte
+└ ○ /timeline
+
+
+○  (Static)  prerendered as static content
+
+
+> frontend@0.1.0 test:e2e
+> playwright test
+
+
+Running 12 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e/frontend-integrado.spec.ts:14:7 › acesso › [E2E-00] sem token o painel não carrega, e o token colado dá acesso (1.8s)
+  ✓   2 [chromium] › tests/e2e/frontend-integrado.spec.ts:45:5 › [E2E-01] a entrada redireciona e a navegação alcança as seis áreas (2.1s)
+  ✓   3 [chromium] › tests/e2e/frontend-integrado.spec.ts:64:5 › [E2E-02] Agora exibe o sinal calculado pelo Flask sobre o PostgreSQL (865ms)
+  ✓   4 [chromium] › tests/e2e/frontend-integrado.spec.ts:76:5 › [E2E-03] Explorar usa métricas, facetas e agrupamentos reais (1.8s)
+  ✓   5 [chromium] › tests/e2e/frontend-integrado.spec.ts:112:5 › [E2E-04] Comparar troca a referência e mostra mudanças do backend (1.1s)
+  ✓   6 [chromium] › tests/e2e/frontend-integrado.spec.ts:122:5 › [E2E-05] Hipóteses opera em modo API e expõe score e evidência (853ms)
+  ✓   7 [chromium] › tests/e2e/frontend-integrado.spec.ts:138:5 › [E2E-06] Timeline correlaciona as seis fontes reais (852ms)
+  ✓   8 [chromium] › tests/e2e/frontend-integrado.spec.ts:147:5 › [E2E-07] Recorte abre a timeline pública de uma sessão (1.7s)
+  ✓   9 [chromium] › tests/e2e/frontend-integrado.spec.ts:156:5 › [E2E-08] tema e navegação móvel preservam uma interação acessível (1.3s)
+  ✓  10 [chromium] › tests/e2e/integracao-camadas.spec.ts:93:7 › TI-01: dashboard, API de leitura e banco › [TI-01.1] a tela desenha exatamente as linhas que o Flask leu do PostgreSQL (993ms)
+  ✓  11 [chromium] › tests/e2e/integracao-camadas.spec.ts:137:7 › TI-01: dashboard, API de leitura e banco › [TI-01.2] trocar agrupamento e filtro na tela muda a query string e o que volta do banco (1.5s)
+  ✓  12 [chromium] › tests/e2e/integracao-camadas.spec.ts:175:7 › TI-01: dashboard, API de leitura e banco › [TI-01.3] sem token válido o navegador não chega a consultar o backend (605ms)
+
+  12 passed (18.1s)
+
+================================================================================
+TI-05  Pilha implantada na AWS (API Gateway -> authorizer -> SQS -> worker
+       -> RDS -> ETL -> API de leitura)
+  cd apps/basica/backend
+  set -a && . ../.env && set +a
+  export ARGUS_READ_TOKEN=... ARGUS_INGEST_TOKEN=...   (valores fora do arquivo)
+  TI05_TIMEOUT_SECONDS=300 uv run pytest tests/integration/test_implantacao.py -v -rs
+================================================================================
+
+Executado contra a pilha real. Endpoints, tokens e URLs foram substituidos por
+<TOKEN-OMITIDO> e <URL-OMITIDA> na captura: a saida do pytest e versionada, e
+token nem endpoint entram em arquivo do repositorio.
+
+Servicos ECS no momento da execucao (aws ecs describe-services):
+
+  argus-...-simulator        desejado 0  rodando 0
+  argus-...-processing       desejado 1  rodando 1
+  argus-...-merge-worker     desejado 1  rodando 1
+  argus-...-event-worker     desejado 1  rodando 1
+
+============================= test session starts ==============================
+platform linux -- Python 3.13.12, pytest-8.4.2, pluggy-1.6.0
+rootdir: /home/inteli/Documentos/workspace/segundo ano/g04/apps/basica/backend
+configfile: pyproject.toml
+plugins: cov-6.3.0
+collected 2 items
+
+tests/integration/test_implantacao.py .F                                 [100%]
+
+=================================== FAILURES ===================================
+_________ test_ti05_evento_postado_na_borda_aparece_na_api_de_leitura __________
+
+implantacao = {'ingest_token': '<TOKEN-OMITIDO>', 'ingest_url': '<URL-OMITIDA> 'read_url': '<URL-OMITIDA>
+sim_now = datetime.datetime(2026, 8, 2, 14, 19, 13, 654920, tzinfo=datetime.timezone.utc)
+
+    def test_ti05_evento_postado_na_borda_aparece_na_api_de_leitura(implantacao, sim_now):
+        """TI-05.2 -- o pipeline assincrono completo, na infraestrutura real.
+    
+        Entrada: um evento `error` unico (sessao `ti05-<uuid>`), carimbado um minuto
+        ATRAS do instante virtual para que fique imediatamente disponivel, enviado
+        por `POST /v1/events` com o token de ingestao.
+    
+        Resultado esperado: a borda aceita (2xx) e o evento aparece em
+        `GET /api/v1/events?session_id=...` dentro do prazo, com `event_name` e
+        `device_id` preservados. A espera e necessaria e faz parte do contrato: a
+        ingestao e assincrona de proposito -- a borda enfileira e responde, e quem
+        grava e o worker.
+        """
+        sessao = f"ti05-{uuid.uuid4()}"
+        evento = {
+            "timestamp": (sim_now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z"),
+            "event_name": "error",
+            "session_id": sessao,
+            "device_id": f"device-{sessao}",
+            "app_bucket": "S3",
+            "app_env": "production",
+            "app_version": "2026.3.0",
+            "device_os": "NetRange",
+            "error_name": "Teste de integracao TI-05",
+            "route_path": "vod",
+        }
+    
+        aceito, _ = _requisitar(
+            implantacao["ingest_url"], token=implantacao["ingest_token"], corpo=evento
+        )
+        assert 200 <= aceito < 300, _falha_sem_vazar(
+            f"a borda de ingestao recusou o evento com {aceito}"
+        )
+    
+        consulta = f"{implantacao['read_url']}/api/v1/events?session_id={sessao}&limit=10"
+        limite = time.monotonic() + ESPERA_MAXIMA_S
+        itens: list[dict] = []
+        tentativas = 0
+    
+        while time.monotonic() < limite:
+            tentativas += 1
+            status, corpo = _requisitar(consulta, token=implantacao["read_token"])
+            assert status == 200, _falha_sem_vazar(
+                f"GET /api/v1/events respondeu {status} na tentativa {tentativas}"
+            )
+            itens = corpo.get("items", [])
+            if itens:
+                break
+            time.sleep(INTERVALO_S)
+    
+>       assert itens, _falha_sem_vazar(
+            f"o evento nao apareceu na leitura em {ESPERA_MAXIMA_S}s"
+            f" ({tentativas} tentativas) -- fila, worker ou ETL podem estar parados"
+        )
+E       AssertionError: o evento nao apareceu na leitura em 300s (29 tentativas) -- fila, worker ou ETL podem estar parados
+E       assert []
+
+tests/integration/test_implantacao.py:253: AssertionError
+=================== 1 failed, 1 passed in 310.34s (0:05:10) ====================
+
+--------------------------------------------------------------------------------
+DIAGNOSTICO DO CASO REPROVADO (TI-05.2)
+Medicao de cada fronteira do pipeline, para localizar onde o dado parou.
+--------------------------------------------------------------------------------
+
+1. Cliente -> API Gateway -> authorizer .............. ATRAVESSOU
+   O proprio caso TI-05.1 passou: 401 sem token, 401 com token desconhecido,
+   401 com o token da audiencia errada, 200 com o token de leitura.
+
+2. API Gateway -> SQS ................................ ATRAVESSOU
+   O POST foi aceito com 2xx (assercao do teste, satisfeita).
+
+3. SQS -> event-worker ............................... ATRAVESSOU
+   $ aws sqs get-queue-attributes ... (as quatro filas)
+     argus-events        visiveis=0  em-voo=0
+     argus-events-dlq    visiveis=0  em-voo=0
+     argus-changes       visiveis=0  em-voo=0
+     argus-changes-dlq   visiveis=0  em-voo=0
+   Fila vazia e DLQ vazia: a mensagem foi consumida e nao foi recusada.
+
+   $ aws cloudwatch get-metric-statistics --metric-name MessagesReceived \
+       --dimensions Name=Service,Value=...-event-worker
+     2026-09-17T15:08:00-03:00   1.0
+
+4. event-worker -> bronze.event ...................... ATRAVESSOU
+   $ aws cloudwatch get-metric-statistics --metric-name ItemsWritten \
+       --dimensions Name=Service,Value=...-event-worker
+     2026-09-17T15:08:00-03:00   1.0
+   Uma mensagem recebida, um item gravado, no mesmo minuto do POST.
+
+5. bronze.event -> silver.session_event .............. PAROU AQUI
+   Log do servico processing, ultimos ciclos do ETL incremental:
+     16:15:56  etl bronze->silver  de_lsn 27904255  ate_lsn 27954255  linhas 50000
+     16:32:07  etl bronze->silver  de_lsn 27954255  ate_lsn 28004255  linhas 50000
+     16:48:26  etl bronze->silver  de_lsn 28004255  ate_lsn 28054255  linhas 50000
+     17:04:50  etl bronze->silver  de_lsn 28054255  ate_lsn 28104255  linhas 50000
+     17:20:45  etl bronze->silver  de_lsn 28104255  ate_lsn 28154255  linhas 50000
+     17:36:46  etl bronze->silver  de_lsn 28154255  ate_lsn 28204255  linhas 50000
+     17:52:51  etl bronze->silver  de_lsn 28204255  ate_lsn 28254255  linhas 50000
+     18:08:54  etl bronze->silver  de_lsn 28254255  ate_lsn 28304255  linhas 50000
+
+   Todos os ciclos fecham o lote maximo de 50.000 linhas: lote que satura e
+   lote que nao alcancou o fim da fila. Em 48 h foram 182 ciclos e o marcador
+   avancou 18.788.387 lsn, ainda saturando.
+
+   Dimensionamento do acumulo:
+     $ aws cloudwatch get-metric-statistics --metric-name RowsLoaded \
+         --dimensions Name=Service,Value=...-loader
+       2026-09-14   115.971.059      <- linhas que o loader gravou na bronze
+
+     ciclos consecutivos medidos:
+       17:36:46  ate_lsn 28.204.255  linhas 50.000
+       17:52:51  ate_lsn 28.254.255  linhas 50.000
+       18:08:54  ate_lsn 28.304.255  linhas 50.000
+       18:25:16  ate_lsn 28.354.255  linhas 50.000
+       18:41:27  ate_lsn 28.404.255  linhas 50.000
+
+     marcador ............ 28.404.255
+     carregado ........... 115.971.059
+     falta ............... ~87.500.000 linhas
+     vazao medida ........ 50.000 linhas / 16,2 min = ~185.000 linhas/hora
+     estimativa .......... ~470 horas (cerca de 20 dias) de execucao continua
+
+   O evento do teste recebeu um lsn na ponta da sequencia, atras de ~87 milhoes
+   de linhas. O prazo de 300 s errou por um fator de aproximadamente 5.700.
+
+6. silver.session_event -> GET /api/v1/events ........ NAO ALCANCADO
+   $ curl ... "/api/v1/events?limit=50"
+     itens: 0 | query: {'queries': 1, 'returned': 0, 'scanned': 0,
+                        'strategy': 'particao_por_tempo'}
+   $ curl ... "/api/v1/events?from=2026-07-01T00:00:00Z&to=2026-08-03T00:00:00Z"
+     itens: 0 | query: {... 'scanned': 0 ...}
+   Janela ampla e explicita tambem devolve zero: silver.session_event esta
+   vazia na implantacao. O servico simulator esta com zero tarefas, entao nao
+   ha quem publique evento de sessao -- o do teste e o unico do sistema.
+
+   Relogio virtual no momento da execucao:
+   $ curl ... "/api/v1/clock"
+     {"sim_now":"2026-08-02T14:19:13.654920+00:00","speed":0.0,
+       "updated_at":"2026-09-14T20:03:26.966028+00:00"}
+
+CONCLUSAO: o evento esta gravado no banco. O caso reprovou porque o ETL nao o
+promoveu dentro do prazo de 300 s, e nao porque algum componente falhou ou
+perdeu o dado. Existe o alvo `make etl` (gold.rebuild_tudo), recompute
+completo em uma chamada -- mas nenhum artefato do repositorio estabelece qual
+caminho e o previsto depois de uma carga em massa, entao isso fica como
+decisao operacional da equipe, e nao como recomendacao deste relatorio. O frescor ponta a ponta da implantacao e hoje de horas, nao de
+minutos, e o limite esta no ETL -- nao na fila. Nenhuma acao foi tomada sobre a
+infraestrutura: drenar o acumulo e decisao da equipe.
+
+O RDS nao e acessivel de fora (PubliclyAccessible: False), entao o topo da
+sequencia nao pode ser lido da maquina de desenvolvimento e a distancia exata
+que falta ao marcador nao foi medida.

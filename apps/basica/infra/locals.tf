@@ -43,6 +43,7 @@ locals {
     "processing", # detector / canario / ETL -- no-op por ora (decisao 7)
     "loader",     # carga inicial one-shot: Parquet -> COPY -> bronze
     "backend",    # API de leitura -- passou de zip de Lambda a imagem no EC2
+    "frontend",   # dashboard servido por nginx dentro do cluster (k8s/)
   ])
 
   image_uris = {

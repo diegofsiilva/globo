@@ -12,16 +12,14 @@
 
 ## 2. Inventário de contêineres, Docker e Kubernetes
 
-Este inventário documenta os arquivos do commit `88577df` na branch
-`fix/Repositório`, conferidos em 23/09/2026. Nesta branch
-`docs/Arquiteturafinal`, esta revisão altera somente a documentação. Os
-caminhos `apps/fullstack` e os manifests Kubernetes do commit de referência
-ainda não foram integrados a esta branch. No código de referência, o Kubernetes está
-configurado para executar o dashboard, a API de consulta e um `Job` de migrations. A API também registra
+Este inventário descreve os arquivos do commit `5f768ea` de `develop`,
+conferidos em 23/09/2026. Nesta branch, somente este documento difere de
+`develop`. O Kubernetes está configurado para executar o dashboard, a API de
+consulta e um `Job` de migrations. A API também registra
 feedback de hipóteses pela função controlada `gold.submit_hypothesis_feedback`.
 A ingestão e o processamento assíncrono continuam no ECS Fargate. As decisões
-e os comandos estão detalhados no [inventário de contêineres](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/conteineres-final.md)
-e no [runbook do Kubernetes](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/README.md).
+e os comandos estão detalhados no [inventário de contêineres](conteineres-final.md)
+e no [runbook do Kubernetes](../apps/basica/k8s/README.md).
 
 No diagrama fornecido para a seção 1, o ALB público recebe o tráfego HTTP do
 navegador e encaminha `/` ao frontend e `/api` e `/health` ao backend no EKS
@@ -41,14 +39,14 @@ os padrões da imagem, exceto quando a task ECS ou o Job os substitui.
 
 | Dockerfile | Build e conteúdo da imagem | Inicialização, usuário e health check | Relação com o diagrama |
 |---|---|---|---|
-| [`apps/fullstack/frontend/Dockerfile`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/frontend/Dockerfile) | `node:20` com `npm ci` e `npm run build` gera o export estático do Next.js. O estágio `nginx:1.27-alpine` copia `out/` e `nginx.conf`. | `CMD nginx -g 'daemon off;'`, usuário `nginx` (UID 101), porta 8080. `HEALTHCHECK` consulta `/healthz` a cada 30 s. | Imagem do `Deployment argus-frontend` no EKS ou kind, atrás do Ingress e do ALB. |
-| [`apps/fullstack/backend/Dockerfile`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/backend/Dockerfile) | `uv` instala dependências do lockfile e o código no builder. `python:3.12-slim` recebe a `.venv` e `run.py`. | `CMD gunicorn` com 2 workers e 4 threads na porta 5000, usuário `argus` (UID 10001). `HEALTHCHECK` consulta `/health/live` a cada 30 s, sem depender do RDS. | Imagem do `Deployment argus-backend` no caminho síncrono. Também atende o ASG legado. |
-| [`apps/fullstack/worker/Dockerfile`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/worker/Dockerfile) | `uv` instala `common/` e `worker/` no builder. O runtime Python recebe a `.venv`. | `ENTRYPOINT python -m argus_worker`. A task ECS seleciona `event` ou `merge`. UID 10001. `HEALTHCHECK` a cada 30 s exige heartbeat com menos de 120 s. | Uma imagem para `event-worker` e `merge-worker` no ECS Fargate: consomem SQS e persistem os dados das mensagens no PostgreSQL. |
-| [`apps/fullstack/processing/Dockerfile`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/processing/Dockerfile) | Builder `uv` com `common/` e `processing/`. Runtime Python inclui a `.venv`, `db/migrations/` e `tools/migrate.py`. | `ENTRYPOINT python -m argus_processing`, UID 10001. `HEALTHCHECK` de heartbeat a cada 30 s, com limite de 120 s. O Job substitui o comando por `python /app/tools/migrate.py aplicar`. | Serviço analítico no ECS e imagem reutilizada pelo `Job argus-db-migrate` no EKS. |
-| [`apps/fullstack/simulator/Dockerfile`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/simulator/Dockerfile) | Builder `uv` com `common/` e `simulator/`. Runtime Python recebe a `.venv`. | `ENTRYPOINT python -m argus_simulator`, UID 10001. `HEALTHCHECK` de heartbeat a cada 30 s, com limite de 120 s. | Serviço ECS que gera eventos e mudanças no caminho assíncrono. |
-| [`apps/fullstack/loader/Dockerfile`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/loader/Dockerfile) | Builder `uv` com `common/` e `loader/`. Runtime Python recebe a `.venv`. | `ENTRYPOINT python -m argus_loader`, UID 10001. Sem `HEALTHCHECK`, pois a task avulsa termina após a carga. | Task ECS que lê os Parquets do S3 e faz a carga inicial no PostgreSQL. |
+| [`apps/basica/frontend/Dockerfile`](../apps/basica/frontend/Dockerfile) | `node:20` com `npm ci` e `npm run build` gera o export estático do Next.js. O estágio `nginx:1.27-alpine` copia `out/` e `nginx.conf`. | `CMD nginx -g 'daemon off;'`, usuário `nginx` (UID 101), porta 8080. `HEALTHCHECK` consulta `/healthz` a cada 30 s. | Imagem do `Deployment argus-frontend` no EKS ou kind, atrás do Ingress e do ALB. |
+| [`apps/basica/backend/Dockerfile`](../apps/basica/backend/Dockerfile) | `uv` instala dependências do lockfile e o código no builder. `python:3.12-slim` recebe a `.venv` e `run.py`. | `CMD gunicorn` com 2 workers e 4 threads na porta 5000, usuário `argus` (UID 10001). `HEALTHCHECK` consulta `/health/live` a cada 30 s, sem depender do RDS. | Imagem do `Deployment argus-backend` no caminho síncrono. Também atende o ASG legado. |
+| [`apps/basica/worker/Dockerfile`](../apps/basica/worker/Dockerfile) | `uv` instala `common/` e `worker/` no builder. O runtime Python recebe a `.venv`. | `ENTRYPOINT python -m argus_worker`. A task ECS seleciona `event` ou `merge`. UID 10001. `HEALTHCHECK` a cada 30 s exige heartbeat com menos de 120 s. | Uma imagem para `event-worker` e `merge-worker` no ECS Fargate: consomem SQS e persistem os dados das mensagens no PostgreSQL. |
+| [`apps/basica/processing/Dockerfile`](../apps/basica/processing/Dockerfile) | Builder `uv` com `common/` e `processing/`. Runtime Python inclui a `.venv`, `db/migrations/` e `tools/migrate.py`. | `ENTRYPOINT python -m argus_processing`, UID 10001. `HEALTHCHECK` de heartbeat a cada 30 s, com limite de 120 s. O Job substitui o comando por `python /app/tools/migrate.py aplicar`. | Serviço analítico no ECS e imagem reutilizada pelo `Job argus-db-migrate` no EKS. |
+| [`apps/basica/simulator/Dockerfile`](../apps/basica/simulator/Dockerfile) | Builder `uv` com `common/` e `simulator/`. Runtime Python recebe a `.venv`. | `ENTRYPOINT python -m argus_simulator`, UID 10001. `HEALTHCHECK` de heartbeat a cada 30 s, com limite de 120 s. | Serviço ECS que gera eventos e mudanças no caminho assíncrono. |
+| [`apps/basica/loader/Dockerfile`](../apps/basica/loader/Dockerfile) | Builder `uv` com `common/` e `loader/`. Runtime Python recebe a `.venv`. | `ENTRYPOINT python -m argus_loader`, UID 10001. Sem `HEALTHCHECK`, pois a task avulsa termina após a carga. | Task ECS que lê os Parquets do S3 e faz a carga inicial no PostgreSQL. |
 
-`worker`, `processing`, `simulator` e `loader` usam `apps/fullstack/` como
+`worker`, `processing`, `simulator` e `loader` usam `apps/basica/` como
 contexto de build para incluir `common/`. `backend` e `frontend` usam seus
 próprios diretórios. O Makefile publica `backend`, `frontend` e `processing`
 para `amd64` e `arm64`. `backend` e `frontend` precisam de `amd64` para os
@@ -65,19 +63,19 @@ arquitetura das tasks mudar.
 
 | Arquivo ou entrada | Serviços iniciados e uso |
 |---|---|
-| [`backend/compose.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/backend/compose.yaml) | Sobe API e PostgreSQL 16. Banco em `127.0.0.1:55433` e API em `127.0.0.1:5000`. As migrations são aplicadas separadamente. |
-| [`observability/docker-compose.yml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/observability/docker-compose.yml) | Sobe Prometheus na porta 9090 e Grafana na 3001, restritos a `127.0.0.1`. |
-| [`Makefile`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/Makefile), alvo `db-local` | Inicia PostgreSQL 16 na porta 55432, cria os bancos de desenvolvimento e teste e aplica as migrations. |
-| [`k8s/overlays/kind/kind-cluster.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/kind-cluster.yaml) | `kind-up` cria um cluster de um nó a partir deste arquivo e instala ingress-nginx e metrics-server. A entrada fica em `http://localhost:8080`. |
-| [`k8s/overlays/kind/kustomization.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/kustomization.yaml) | `k8s-apply` implanta frontend, backend, Ingress, PostgreSQL local e Secret gerado de `secret.env`. O `Job` é aplicado separadamente por `k8s-migrate`. |
+| [`backend/compose.yaml`](../apps/basica/backend/compose.yaml) | Sobe API e PostgreSQL 16. Banco em `127.0.0.1:55433` e API em `127.0.0.1:5000`. As migrations são aplicadas separadamente. |
+| [`observability/docker-compose.yml`](../apps/basica/observability/docker-compose.yml) | Sobe Prometheus na porta 9090 e Grafana na 3001, restritos a `127.0.0.1`. |
+| [`Makefile`](../apps/basica/Makefile), alvo `db-local` | Inicia PostgreSQL 16 na porta 55432, cria os bancos de desenvolvimento e teste e aplica as migrations. |
+| [`k8s/overlays/kind/kind-cluster.yaml`](../apps/basica/k8s/overlays/kind/kind-cluster.yaml) | `kind-up` cria um cluster de um nó a partir deste arquivo e instala ingress-nginx e metrics-server. A entrada fica em `http://localhost:8080`. |
+| [`k8s/overlays/kind/kustomization.yaml`](../apps/basica/k8s/overlays/kind/kustomization.yaml) | `k8s-apply` implanta frontend, backend, Ingress, PostgreSQL local e Secret gerado de `secret.env`. O `Job` é aplicado separadamente por `k8s-migrate`. |
 
-No checkout do código de referência, reproduzir o caminho Kubernetes local com:
+Para reproduzir o caminho Kubernetes local, executar, da raiz:
 
 ```bash
-make -C apps/fullstack kind-up
-make -C apps/fullstack k8s-images kind-load
-make -C apps/fullstack k8s-apply K8S_OVERLAY=kind
-make -C apps/fullstack k8s-migrate K8S_OVERLAY=kind
+make -C apps/basica kind-up
+make -C apps/basica k8s-images kind-load
+make -C apps/basica k8s-apply K8S_OVERLAY=kind
+make -C apps/basica k8s-migrate K8S_OVERLAY=kind
 ```
 
 O kind valida o roteamento e os manifests.
@@ -88,7 +86,7 @@ seu nó único não demonstra disponibilidade entre nós ou zonas.
 
 #### 2.3.1 Inventário dos arquivos Kubernetes
 
-Os caminhos abaixo partem de `apps/fullstack/k8s/`. Arquivos `kustomization.yaml`
+Os caminhos abaixo partem de `apps/basica/k8s/`. Arquivos `kustomization.yaml`
 compõem recursos, enquanto patches alteram os objetos da base. A configuração
 do cluster kind e o exemplo de Secret são entradas de apoio, não recursos
 criados por `kubectl apply`.
@@ -97,47 +95,47 @@ criados por `kubectl apply`.
 
 | Arquivo | Recurso e configuração principal | Relação com o diagrama |
 |---|---|---|
-| [`apps/fullstack/k8s/base/namespace.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/namespace.yaml) | Cria `Namespace argus`, isolando os objetos da aplicação. | Contorno lógico dos workloads EKS. Não representa uma sub-rede. |
-| [`apps/fullstack/k8s/base/configmap.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/configmap.yaml) | Cria `ConfigMap argus-backend`: região `us-east-1`, log `INFO`, janela de 168 h, limite de 20.000 itens e `AUTH_REQUIRED=1`. Segredos ficam fora deste arquivo. | Configuração não sensível da API de leitura no EKS. |
-| [`apps/fullstack/k8s/base/backend-deployment.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/backend-deployment.yaml) | Cria `Deployment argus-backend`: 2 réplicas, porta 5000, `RollingUpdate` 0/1, probes de startup/liveness/readiness, `preStop` de 10 s, UID 10001, ConfigMap e Secret. Prefere espalhar por zona e nó. | Pods Flask/Gunicorn nos nós EC2 privados, ligados ao RDS. |
-| [`apps/fullstack/k8s/base/backend-service.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/backend-service.yaml) | Cria `Service argus-backend` `ClusterIP` na porta 5000, selecionando os pods da API. | Destino interno do Ingress para `/api` e `/health`. |
-| [`apps/fullstack/k8s/base/backend-hpa.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/backend-hpa.yaml) | Cria `HPA argus-backend`: 2 a 6 réplicas, alvo de CPU de 60%, subida sem estabilização e descida estabilizada em 300 s. | Escala declarada do caminho síncrono. Depende de métricas disponíveis. |
-| [`apps/fullstack/k8s/base/backend-pdb.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/backend-pdb.yaml) | Cria `PDB argus-backend` com `minAvailable: 1` para interrupções voluntárias. | Preserva uma réplica da API durante drenagem planejada. |
-| [`apps/fullstack/k8s/base/frontend-deployment.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/frontend-deployment.yaml) | Cria `Deployment argus-frontend`: 2 réplicas, nginx na porta 8080, `RollingUpdate` 0/1, probes `/healthz`, `preStop` de 5 s, UID 101 e preferência por zona. | Pods do dashboard nos nós EC2 privados. |
-| [`apps/fullstack/k8s/base/frontend-service.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/frontend-service.yaml) | Cria `Service argus-frontend` `ClusterIP`, porta 80 para a porta 8080 do contêiner. | Destino interno do Ingress para `/`. |
-| [`apps/fullstack/k8s/base/frontend-hpa.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/frontend-hpa.yaml) | Cria `HPA argus-frontend`: 2 a 4 réplicas, alvo de CPU de 70%. | Escala declarada do dashboard no caminho síncrono. |
-| [`apps/fullstack/k8s/base/frontend-pdb.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/frontend-pdb.yaml) | Cria `PDB argus-frontend` com `minAvailable: 1` para interrupções voluntárias. | Preserva uma réplica do dashboard durante drenagem planejada. |
-| [`apps/fullstack/k8s/base/ingress.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/ingress.yaml) | Cria `Ingress argus` com `/api` e `/health` para backend:5000 e `/` para frontend:80, na mesma origem. | Entrada lógica do ALB público representado no diagrama. |
-| [`apps/fullstack/k8s/base/kustomization.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/kustomization.yaml) | Compõe Namespace, ConfigMap, Deployments, Services, HPAs, PDBs e Ingress. Não inclui o Job de migration. | Define a base comum da aplicação EKS e do equivalente local. |
+| [`apps/basica/k8s/base/namespace.yaml`](../apps/basica/k8s/base/namespace.yaml) | Cria `Namespace argus`, isolando os objetos da aplicação. | Contorno lógico dos workloads EKS. Não representa uma sub-rede. |
+| [`apps/basica/k8s/base/configmap.yaml`](../apps/basica/k8s/base/configmap.yaml) | Cria `ConfigMap argus-backend`: região `us-east-1`, log `INFO`, janela de 168 h, limite de 20.000 itens e `AUTH_REQUIRED=1`. Segredos ficam fora deste arquivo. | Configuração não sensível da API de leitura no EKS. |
+| [`apps/basica/k8s/base/backend-deployment.yaml`](../apps/basica/k8s/base/backend-deployment.yaml) | Cria `Deployment argus-backend`: 2 réplicas, porta 5000, `RollingUpdate` 0/1, probes de startup/liveness/readiness, `preStop` de 10 s, UID 10001, ConfigMap e Secret. Prefere espalhar por zona e nó. | Pods Flask/Gunicorn nos nós EC2 privados, ligados ao RDS. |
+| [`apps/basica/k8s/base/backend-service.yaml`](../apps/basica/k8s/base/backend-service.yaml) | Cria `Service argus-backend` `ClusterIP` na porta 5000, selecionando os pods da API. | Destino interno do Ingress para `/api` e `/health`. |
+| [`apps/basica/k8s/base/backend-hpa.yaml`](../apps/basica/k8s/base/backend-hpa.yaml) | Cria `HPA argus-backend`: 2 a 6 réplicas, alvo de CPU de 60%, subida sem estabilização e descida estabilizada em 300 s. | Escala declarada do caminho síncrono. Depende de métricas disponíveis. |
+| [`apps/basica/k8s/base/backend-pdb.yaml`](../apps/basica/k8s/base/backend-pdb.yaml) | Cria `PDB argus-backend` com `minAvailable: 1` para interrupções voluntárias. | Preserva uma réplica da API durante drenagem planejada. |
+| [`apps/basica/k8s/base/frontend-deployment.yaml`](../apps/basica/k8s/base/frontend-deployment.yaml) | Cria `Deployment argus-frontend`: 2 réplicas, nginx na porta 8080, `RollingUpdate` 0/1, probes `/healthz`, `preStop` de 5 s, UID 101 e preferência por zona. | Pods do dashboard nos nós EC2 privados. |
+| [`apps/basica/k8s/base/frontend-service.yaml`](../apps/basica/k8s/base/frontend-service.yaml) | Cria `Service argus-frontend` `ClusterIP`, porta 80 para a porta 8080 do contêiner. | Destino interno do Ingress para `/`. |
+| [`apps/basica/k8s/base/frontend-hpa.yaml`](../apps/basica/k8s/base/frontend-hpa.yaml) | Cria `HPA argus-frontend`: 2 a 4 réplicas, alvo de CPU de 70%. | Escala declarada do dashboard no caminho síncrono. |
+| [`apps/basica/k8s/base/frontend-pdb.yaml`](../apps/basica/k8s/base/frontend-pdb.yaml) | Cria `PDB argus-frontend` com `minAvailable: 1` para interrupções voluntárias. | Preserva uma réplica do dashboard durante drenagem planejada. |
+| [`apps/basica/k8s/base/ingress.yaml`](../apps/basica/k8s/base/ingress.yaml) | Cria `Ingress argus` com `/api` e `/health` para backend:5000 e `/` para frontend:80, na mesma origem. | Entrada lógica do ALB público representado no diagrama. |
+| [`apps/basica/k8s/base/kustomization.yaml`](../apps/basica/k8s/base/kustomization.yaml) | Compõe Namespace, ConfigMap, Deployments, Services, HPAs, PDBs e Ingress. Não inclui o Job de migration. | Define a base comum da aplicação EKS e do equivalente local. |
 
 **Migration separada**
 
 | Arquivo | Recurso e configuração principal | Relação com o diagrama |
 |---|---|---|
-| [`apps/fullstack/k8s/migrate/job-db-migrate.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/migrate/job-db-migrate.yaml) | Cria `Job argus-db-migrate` com a imagem `processing`, comando `python /app/tools/migrate.py aplicar`, `backoffLimit: 2`, limite de 900 s e credencial mestre do Secret. | Migration pontual entre EKS e PostgreSQL privado. |
-| [`apps/fullstack/k8s/migrate/kustomization.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/migrate/kustomization.yaml) | Compõe apenas o Job, separado da base porque o template de Job é imutável. | Permite executar migration separadamente dos Deployments. |
+| [`apps/basica/k8s/migrate/job-db-migrate.yaml`](../apps/basica/k8s/migrate/job-db-migrate.yaml) | Cria `Job argus-db-migrate` com a imagem `processing`, comando `python /app/tools/migrate.py aplicar`, `backoffLimit: 2`, limite de 900 s e credencial mestre do Secret. | Migration pontual entre EKS e PostgreSQL privado. |
+| [`apps/basica/k8s/migrate/kustomization.yaml`](../apps/basica/k8s/migrate/kustomization.yaml) | Compõe apenas o Job, separado da base porque o template de Job é imutável. | Permite executar migration separadamente dos Deployments. |
 
 **Overlay AWS**
 
 | Arquivo | Recurso e configuração principal | Relação com o diagrama |
 |---|---|---|
-| [`apps/fullstack/k8s/overlays/aws/ingressclass.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/aws/ingressclass.yaml) | Cria `IngressClassParams` e `IngressClass argus-alb` para `eks.amazonaws.com/alb`, com esquema público. | Vincula o Ingress ao ALB gerenciado pelo EKS Auto Mode. |
-| [`apps/fullstack/k8s/overlays/aws/ingress-patch.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/aws/ingress-patch.yaml) | Altera `Ingress argus`: ALB público, alvos por IP de pod, listener HTTP 80, health check `/health/live` e atraso de desregistro de 30 s. | Liga o ALB às duas aplicações sem expor seus Services diretamente. |
-| [`apps/fullstack/k8s/overlays/aws/kustomization.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/aws/kustomization.yaml) | Compõe a base, a classe de Ingress e o patch. As imagens ECR são injetadas pelo Makefile. Não gera o Secret. | Seleciona a implantação AWS do caminho síncrono. |
+| [`apps/basica/k8s/overlays/aws/ingressclass.yaml`](../apps/basica/k8s/overlays/aws/ingressclass.yaml) | Cria `IngressClassParams` e `IngressClass argus-alb` para `eks.amazonaws.com/alb`, com esquema público. | Vincula o Ingress ao ALB gerenciado pelo EKS Auto Mode. |
+| [`apps/basica/k8s/overlays/aws/ingress-patch.yaml`](../apps/basica/k8s/overlays/aws/ingress-patch.yaml) | Altera `Ingress argus`: ALB público, alvos por IP de pod, listener HTTP 80, health check `/health/live` e atraso de desregistro de 30 s. | Liga o ALB às duas aplicações sem expor seus Services diretamente. |
+| [`apps/basica/k8s/overlays/aws/kustomization.yaml`](../apps/basica/k8s/overlays/aws/kustomization.yaml) | Compõe a base, a classe de Ingress e o patch. As imagens ECR são injetadas pelo Makefile. Não gera o Secret. | Seleciona a implantação AWS do caminho síncrono. |
 
 **Overlay kind**
 
 | Arquivo | Recurso e configuração principal | Relação com o diagrama |
 |---|---|---|
-| [`apps/fullstack/k8s/overlays/kind/kind-cluster.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/kind-cluster.yaml) | Configura o kind com um nó control-plane e mapeia `localhost:8080` para a porta 80 do ingress-nginx. Não é recurso aplicado pelo Kubernetes. | Reproduz localmente a entrada única do navegador. |
-| [`apps/fullstack/k8s/overlays/kind/kustomization.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/kustomization.yaml) | Compõe base, PostgreSQL local e patches. Substitui imagens por tags `:dev` e gera `Secret argus-backend` de `secret.env`. | Versão local da topologia EKS, sem ALB ou RDS. |
-| [`apps/fullstack/k8s/overlays/kind/postgres.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/postgres.yaml) | Cria `Deployment` e `Service argus-postgres` com PostgreSQL 16, porta 5432, armazenamento `emptyDir` e readiness por `psql SELECT 1`. | Substitui o RDS apenas no ensaio local. |
-| [`apps/fullstack/k8s/overlays/kind/config-patch.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/config-patch.yaml) | Altera o ConfigMap: `AUTH_REQUIRED=0`, log `DEBUG` e origens localhost. | Adapta a API à autenticação e ao endereço locais. |
-| [`apps/fullstack/k8s/overlays/kind/hpa-patch.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/hpa-patch.yaml) | Altera os dois HPAs para 1 a 2 réplicas no nó único. | Reduz a escala dos dois Deployments em relação ao EKS do diagrama. |
-| [`apps/fullstack/k8s/overlays/kind/ingress-patch.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/ingress-patch.yaml) | Altera a classe de `Ingress argus` para `nginx`, preservando as rotas da base. | Substitui o ALB pelo ingress-nginx local. |
-| [`apps/fullstack/k8s/overlays/kind/replicas-patch.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/replicas-patch.yaml) | Altera os dois Deployments para uma réplica e reduz recursos. O backend usa um worker Gunicorn. | Permite ensaiar dashboard e API no nó único. |
-| [`apps/fullstack/k8s/overlays/kind/migrate/kustomization.yaml`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/migrate/kustomization.yaml) | Compõe o Job de migration com a imagem local `argus-processing:dev`. | Aplica ao PostgreSQL local a mesma migration da arquitetura AWS. |
-| [`apps/fullstack/k8s/overlays/kind/secret.env.example`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/kind/secret.env.example) | Modelo de cinco chaves locais usado para gerar o Secret. Não é manifesto Kubernetes nem contém os segredos AWS. | Fornece ao backend e ao Job credenciais do banco descartável do kind. |
+| [`apps/basica/k8s/overlays/kind/kind-cluster.yaml`](../apps/basica/k8s/overlays/kind/kind-cluster.yaml) | Configura o kind com um nó control-plane e mapeia `localhost:8080` para a porta 80 do ingress-nginx. Não é recurso aplicado pelo Kubernetes. | Reproduz localmente a entrada única do navegador. |
+| [`apps/basica/k8s/overlays/kind/kustomization.yaml`](../apps/basica/k8s/overlays/kind/kustomization.yaml) | Compõe base, PostgreSQL local e patches. Substitui imagens por tags `:dev` e gera `Secret argus-backend` de `secret.env`. | Versão local da topologia EKS, sem ALB ou RDS. |
+| [`apps/basica/k8s/overlays/kind/postgres.yaml`](../apps/basica/k8s/overlays/kind/postgres.yaml) | Cria `Deployment` e `Service argus-postgres` com PostgreSQL 16, porta 5432, armazenamento `emptyDir` e readiness por `psql SELECT 1`. | Substitui o RDS apenas no ensaio local. |
+| [`apps/basica/k8s/overlays/kind/config-patch.yaml`](../apps/basica/k8s/overlays/kind/config-patch.yaml) | Altera o ConfigMap: `AUTH_REQUIRED=0`, log `DEBUG` e origens localhost. | Adapta a API à autenticação e ao endereço locais. |
+| [`apps/basica/k8s/overlays/kind/hpa-patch.yaml`](../apps/basica/k8s/overlays/kind/hpa-patch.yaml) | Altera os dois HPAs para 1 a 2 réplicas no nó único. | Reduz a escala dos dois Deployments em relação ao EKS do diagrama. |
+| [`apps/basica/k8s/overlays/kind/ingress-patch.yaml`](../apps/basica/k8s/overlays/kind/ingress-patch.yaml) | Altera a classe de `Ingress argus` para `nginx`, preservando as rotas da base. | Substitui o ALB pelo ingress-nginx local. |
+| [`apps/basica/k8s/overlays/kind/replicas-patch.yaml`](../apps/basica/k8s/overlays/kind/replicas-patch.yaml) | Altera os dois Deployments para uma réplica e reduz recursos. O backend usa um worker Gunicorn. | Permite ensaiar dashboard e API no nó único. |
+| [`apps/basica/k8s/overlays/kind/migrate/kustomization.yaml`](../apps/basica/k8s/overlays/kind/migrate/kustomization.yaml) | Compõe o Job de migration com a imagem local `argus-processing:dev`. | Aplica ao PostgreSQL local a mesma migration da arquitetura AWS. |
+| [`apps/basica/k8s/overlays/kind/secret.env.example`](../apps/basica/k8s/overlays/kind/secret.env.example) | Modelo de cinco chaves locais usado para gerar o Secret. Não é manifesto Kubernetes nem contém os segredos AWS. | Fornece ao backend e ao Job credenciais do banco descartável do kind. |
 
 O Secret Kubernetes `argus-backend` consumido pelo backend e pelo Job é criado
 no EKS por `make k8s-secret`, a partir dos outputs do Terraform. No kind, o
@@ -148,14 +146,14 @@ valores reais do Secret EKS e o arquivo `secret.env` não são versionados.
 
 | Arquivos | Recursos declarados e conexão |
 |---|---|
-| [`infra/eks.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/eks.tf), [`infra/vpc.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/vpc.tf), [`infra/rds.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/rds.tf) | EKS Auto Mode opcional na VPC, acesso ao cluster, sub-redes etiquetadas para o ALB e regra de acesso dos pods ao RDS. O ALB externo nasce do Ingress. |
-| [`infra/ecr.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/ecr.tf) e arquivos [`infra/ecs*.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/ecs.tf) | Repositórios de imagens, serviços ECS dos workers, processamento e simulador, task de carga e task alternativa de migration. |
-| [`infra/apigateway.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/apigateway.tf), [`infra/apigateway_changes.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/apigateway_changes.tf), [`infra/sqs.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/sqs.tf), [`infra/sqs_changes.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/sqs_changes.tf) | Rotas de ingestão para filas separadas de eventos e mudanças, consumidas pelos workers, cada uma com DLQ. |
-| [`infra/auth.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/auth.tf), [`infra/observability.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/observability.tf), [`infra/outputs.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/outputs.tf) | Autenticação, alarmes e saídas usadas na implantação. `asg.tf`, `alb.tf`, `frontend_s3.tf` e `api_read.tf` mantêm os caminhos anteriores de leitura e contingência. |
+| [`infra/eks.tf`](../apps/basica/infra/eks.tf), [`infra/vpc.tf`](../apps/basica/infra/vpc.tf), [`infra/rds.tf`](../apps/basica/infra/rds.tf) | EKS Auto Mode opcional na VPC, acesso ao cluster, sub-redes etiquetadas para o ALB e regra de acesso dos pods ao RDS. O ALB externo nasce do Ingress. |
+| [`infra/ecr.tf`](../apps/basica/infra/ecr.tf) e arquivos [`infra/ecs*.tf`](../apps/basica/infra/ecs.tf) | Repositórios de imagens, serviços ECS dos workers, processamento e simulador, task de carga e task alternativa de migration. |
+| [`infra/apigateway.tf`](../apps/basica/infra/apigateway.tf), [`infra/apigateway_changes.tf`](../apps/basica/infra/apigateway_changes.tf), [`infra/sqs.tf`](../apps/basica/infra/sqs.tf), [`infra/sqs_changes.tf`](../apps/basica/infra/sqs_changes.tf) | Rotas de ingestão para filas separadas de eventos e mudanças, consumidas pelos workers, cada uma com DLQ. |
+| [`infra/auth.tf`](../apps/basica/infra/auth.tf), [`infra/observability.tf`](../apps/basica/infra/observability.tf), [`infra/outputs.tf`](../apps/basica/infra/outputs.tf) | Autenticação, alarmes e saídas usadas na implantação. `asg.tf`, `alb.tf`, `frontend_s3.tf` e `api_read.tf` mantêm os caminhos anteriores de leitura e contingência. |
 
-O [Makefile](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/Makefile) contém alvos de publicação de imagens,
+O [Makefile](../apps/basica/Makefile) contém alvos de publicação de imagens,
 renderização dos overlays com `k8s-validate` e aplicação separada do `Job` e
-dos Deployments. O [runbook](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/README.md) define a ordem de
+dos Deployments. O [runbook](../apps/basica/k8s/README.md) define a ordem de
 execução: criar o Secret `argus-backend`, executar o Job de migrations e então
 aplicar os Deployments no EKS. No kind, `k8s-apply` cria primeiro o PostgreSQL
 local e as aplicações, e `k8s-migrate` executa o Job em seguida. No EKS,
@@ -163,7 +161,7 @@ frontend e backend partem de duas réplicas. Os HPAs
 declaram 2 a 4 e 2 a 6 réplicas, respectivamente. Escalonamento efetivo depende
 da API de métricas, conforme a seção 3.
 
-O [backend](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/backend/README.md) oferece o refinamento opcional
+O [backend](../apps/basica/backend/README.md) oferece o refinamento opcional
 de uma hipótese já publicada por `POST /api/v1/hypotheses/{id}/refinement`.
 O frontend solicita esse refinamento automaticamente ao abrir a hipótese com a
 API real.
@@ -248,12 +246,12 @@ dados.
 | Frontend no Kubernetes | Deployment com 2 réplicas, Service `ClusterIP`, `RollingUpdate`, HPA declarado de 2 a 4 pods, PDB e preferência de distribuição por zona | o Service remove pods não prontos. O ReplicaSet recria pods e o scheduler os reposiciona em nós saudáveis | manifests de Deployment, Service, HPA e PDB do frontend |
 | Backend no Kubernetes | Deployment com 2 réplicas, Service `ClusterIP`, `RollingUpdate`, HPA declarado de 2 a 6 pods, PDB e preferência de distribuição por zona e nó | requisições seguem apenas para pods `Ready`. O Deployment recompõe réplicas sem estado | manifests de Deployment, Service, ConfigMap, Secret, HPA e PDB do backend |
 | Entrada HTTP | Ingress cria um ALB público de origem única: `/api` e `/health` seguem para o backend. `/` e demais caminhos seguem para o frontend | elimina URL fixa no bundle e concentra a troca de destino. Falha da entrada afeta os dois serviços e é tratada como SEV-1 | manifest de Ingress e configuração do controlador do EKS Auto Mode |
-| Ollama remoto opcional | Backend usa uma sessão SSH para solicitar o refinamento e valida as fontes da resposta. A integração depende de configuração fora dos manifests base | falha de rede, resposta inválida ou fonte inexistente afeta apenas a rota de refinamento, que responde `503`. Hipóteses publicadas e evidências continuam consultáveis | `apps/fullstack/backend/src/telemetry/infrastructure/ollama.py`, `apps/fullstack/backend/README.md` |
-| API de ingestão | API Gateway integra diretamente com duas filas SQS independentes | a borda não depende da disponibilidade dos workers. Eventos e mudanças acumulam separadamente | `apps/fullstack/infra/apigateway.tf`, `apps/fullstack/infra/apigateway_changes.tf`, `apps/fullstack/infra/sqs.tf`, `apps/fullstack/infra/sqs_changes.tf` |
-| `event-worker` e `merge-worker` | serviços ECS Fargate mantêm o número desejado de tasks. Filas persistem trabalho pendente | a queda do consumidor não interrompe a aceitação. A mensagem volta a ficar visível se não for confirmada | `apps/fullstack/infra/ecs.tf` |
-| Processamento e simulador | serviços ECS mantêm uma task quando habilitados | ECS substitui a task. Checkpoints, watermarks, leases e o relógio persistem no PostgreSQL | `apps/fullstack/infra/ecs_processing.tf`, `apps/fullstack/infra/ecs_simulator.tf`, `apps/fullstack/db/migrations/` |
-| Mensagens problemáticas | cinco tentativas antes do redrive nativo. Quarentena explícita de payload inválido. DLQ com retenção de 14 dias | um item defeituoso é isolado sem bloquear os itens válidos. O redrive é manual depois da correção | `apps/fullstack/infra/sqs.tf`, `apps/fullstack/infra/sqs_changes.tf`, `apps/fullstack/infra/iam.tf`, `apps/fullstack/worker/src/argus_worker/` |
-| PostgreSQL | armazenamento criptografado, backup automático e opção Multi-AZ. Proteção contra exclusão e snapshot final em `prod` | Multi-AZ permite failover da instância. Backup permite reconstrução em falha lógica | `apps/fullstack/infra/rds.tf`, `apps/fullstack/infra/variables.tf` |
+| Ollama remoto opcional | Backend usa uma sessão SSH para solicitar o refinamento e valida as fontes da resposta. A integração depende de configuração fora dos manifests base | falha de rede, resposta inválida ou fonte inexistente afeta apenas a rota de refinamento, que responde `503`. Hipóteses publicadas e evidências continuam consultáveis | `apps/basica/backend/src/telemetry/infrastructure/ollama.py`, `apps/basica/backend/README.md` |
+| API de ingestão | API Gateway integra diretamente com duas filas SQS independentes | a borda não depende da disponibilidade dos workers. Eventos e mudanças acumulam separadamente | `apps/basica/infra/apigateway.tf`, `apps/basica/infra/apigateway_changes.tf`, `apps/basica/infra/sqs.tf`, `apps/basica/infra/sqs_changes.tf` |
+| `event-worker` e `merge-worker` | serviços ECS Fargate mantêm o número desejado de tasks. Filas persistem trabalho pendente | a queda do consumidor não interrompe a aceitação. A mensagem volta a ficar visível se não for confirmada | `apps/basica/infra/ecs.tf` |
+| Processamento e simulador | serviços ECS mantêm uma task quando habilitados | ECS substitui a task. Checkpoints, watermarks, leases e o relógio persistem no PostgreSQL | `apps/basica/infra/ecs_processing.tf`, `apps/basica/infra/ecs_simulator.tf`, `apps/basica/db/migrations/` |
+| Mensagens problemáticas | cinco tentativas antes do redrive nativo. Quarentena explícita de payload inválido. DLQ com retenção de 14 dias | um item defeituoso é isolado sem bloquear os itens válidos. O redrive é manual depois da correção | `apps/basica/infra/sqs.tf`, `apps/basica/infra/sqs_changes.tf`, `apps/basica/infra/iam.tf`, `apps/basica/worker/src/argus_worker/` |
+| PostgreSQL | armazenamento criptografado, backup automático e opção Multi-AZ. Proteção contra exclusão e snapshot final em `prod` | Multi-AZ permite failover da instância. Backup permite reconstrução em falha lógica | `apps/basica/infra/rds.tf`, `apps/basica/infra/variables.tf` |
 | Versões executáveis | imagens de frontend e backend separadas no registry e marcadas pelo SHA do commit | O rollback depende de preservar a revisão e a imagem anterior no registry, sem depender de `latest`. | Dockerfiles do frontend e backend, manifests Kubernetes e pipeline de publicação |
 
 O limite do cluster é intencional: apenas frontend, backend e o `Job` de
@@ -328,8 +326,8 @@ publicar uma imagem conhecida de forma controlada. O circuit breaker do ECS
 não executa esse rollback do Kubernetes.
 
 **Fallback S3/Lambda, executado pelo operador.** Terraform declara o website
-S3 em [`frontend_s3.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/frontend_s3.tf) e a API de
-leitura Lambda/API Gateway em [`api_read.tf`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/api_read.tf).
+S3 em [`frontend_s3.tf`](../apps/basica/infra/frontend_s3.tf) e a API de
+leitura Lambda/API Gateway em [`api_read.tf`](../apps/basica/infra/api_read.tf).
 Os registros da seção 4 não comprovam que esses destinos estavam implantados
 ou saudáveis no ensaio EKS. O procedimento requer credenciais AWS com acesso
 ao estado Terraform e ao bucket, perfil `g4` no laboratório, região
@@ -337,17 +335,17 @@ ao estado Terraform e ao bucket, perfil `g4` no laboratório, região
 destinos, verificar no estado
 Terraform os outputs `frontend_url`, `frontend_bucket` e `read_api_url` e
 testar seus endpoints. Se os recursos não existirem, preparar o pacote Lambda
-e aplicar a infraestrutura pelo fluxo `make -C apps/fullstack tf-apply`, sujeito
+e aplicar a infraestrutura pelo fluxo `make -C apps/basica tf-apply`, sujeito
 à revisão do plano Terraform. Esse preparo deve ocorrer antes do incidente
 para tornar viável a meta de 30 min.
 
 1. Confirmar que RDS e rede estão disponíveis, que a Lambda alcança o banco e
    que o token Bearer de leitura existe. O fallback compartilha o RDS.
 2. Obter `read_api_url` e `frontend_url` com `terraform output -raw` em
-   `apps/fullstack/infra`. Validar `GET /api/v1/clock` com token válido e sem
+   `apps/basica/infra`. Validar `GET /api/v1/clock` com token válido e sem
    token. A resposta sem token deve ser `401` quando a autenticação está ativa.
 3. Definir `ARGUS_API_URL` como `read_api_url` e executar
-   `make -C apps/fullstack frontend-deploy`. O build grava essa URL no frontend
+   `make -C apps/basica frontend-deploy`. O build grava essa URL no frontend
    estático e publica os arquivos no bucket `frontend_bucket`.
 4. Validar a página no `frontend_url`, as rotas do dashboard, as chamadas à API
    com Bearer e os dados de leitura. Registrar horário, respostas e latência.
@@ -391,7 +389,7 @@ flowchart LR
    coleta.
 3. Inspecionar pods, eventos, logs, Endpoints, HPAs e rollouts do namespace.
    Depois correlacionar com os alarmes de 5xx e latência, idade das filas, DLQ,
-   CPU, conexões e espaço do RDS. `make -C apps/fullstack logs`, `dlq` e `count`
+   CPU, conexões e espaço do RDS. `make -C apps/basica logs`, `dlq` e `count`
    continuam reunindo as inspeções dos componentes AWS.
 4. Classificar SEV-1, SEV-2 ou SEV-3 e designar um coordenador. Em SEV-1, pausar
    novos deploys e mudanças de schema até a normalização.
@@ -424,13 +422,13 @@ novamente a task. Migrations já aplicadas são protegidas por checksum.
 A recuperação somente pode ser declarada depois de todos os passos aplicáveis:
 
 1. Confirmar pelo endereço do Ingress as rotas `/` e `/api/v1/clock`, a
-   autenticação e uma consulta de leitura. `make -C apps/fullstack smoke` pode
+   autenticação e uma consulta de leitura. `make -C apps/basica smoke` pode
    apontar para o ALB legado e, sozinho, não prova a recuperação do EKS.
 2. Deployments, Services, Endpoints, Ingress e ECS apresentam capacidade
    saudável igual à desejada por pelo menos duas janelas de métrica.
 3. A idade da mensagem mais antiga diminui continuamente, as filas drenam e
-   `make -C apps/fullstack dlq` não mostra itens novos sem explicação.
-4. `make -C apps/fullstack count` fornece as contagens iniciais. Para cada lote,
+   `make -C apps/basica dlq` não mostra itens novos sem explicação.
+4. `make -C apps/basica count` fornece as contagens iniciais. Para cada lote,
    cruzar os identificadores aceitos com os registros únicos no PostgreSQL,
    os itens ainda nas filas, os enviados à DLQ e os rejeitados com motivo.
    Procurar identificadores ausentes e duplicados e verificar se o processamento
@@ -516,28 +514,28 @@ operacionais.
 
 ## 4. Evidências de validação
 
-O código inventariado na seção 2 corresponde ao commit `88577df` da branch
-`fix/Repositório`. Os registros de execução de 21/09/2026 **não preservam o
+O código inventariado na seção 2 corresponde ao commit `5f768ea` de
+`develop`. Os registros de execução de 21/09/2026 **não preservam o
 commit implantado nem os digests das imagens**. Portanto, o vínculo exato
 entre esses ensaios e essa revisão do código permanece pendente. O diagrama
 fornecido para a seção 1 é a referência de topologia e não é reproduzido aqui.
 
 | Verificação | Ambiente, data e fonte | Resultado comprovado e limite |
 |---|---|---|
-| Especificação de imagens e orquestração | Código do commit `88577df`: [Dockerfiles](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/backend/Dockerfile), [base Kubernetes](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/base/kustomization.yaml), [overlay AWS](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/k8s/overlays/aws/kustomization.yaml) e [EKS Terraform](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/eks.tf). | Seis imagens e a divisão EKS/ECS são rastreáveis no código. A existência do manifesto não comprova implantação. |
-| Renderização dos manifests | Validação estática em 21/09/2026: [log `k8s-validate`](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/k8s-validate.txt). | Cinco conjuntos renderizados. O teste não acessou cluster. |
-| Caminho síncrono local | Kind de um nó, PostgreSQL local e réplicas reduzidas, em 21/09/2026: [log de Kubernetes e Playwright](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/testes-kubernetes.txt). | `/` e `/api/v1/clock` responderam 200 e 12 testes de navegador passaram. Não mede tolerância a perda de nó ou zona. |
-| Entrada EKS e carga até 100 usuários virtuais | EKS Auto Mode `argus-events-livia-dev-eks`, EKS 1.33 em `us-east-1`, dois nós `amd64`, 21/09/2026. [Registro do cluster](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/carga-kubernetes.txt), [resumo A](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/carga-kubernetes/rodada-a-resultado.json), [saída k6 A](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/carga-kubernetes/rodada-a-saida-k6.txt). ID `20260921T183035Z`. | Frontend e backend `2/2`. Três níveis de 5, 25 e 100 VUs duraram 2 min cada, com 30 s entre níveis e pausa de 2 s entre navegações. Foram 25.576 requisições no conjunto, sem erro. Em 100 VUs, p95 de requisição 662 ms, p99 1.069 ms e p95 de abertura de tela 772 ms. Todos os limiares configurados passaram nesse nível. |
-| Escopo da aprovação até 100 VUs | [Script de carga](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/tests/carga/carga_ui.js) e [resumo A](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/carga-kubernetes/rodada-a-resultado.json). | O script percorre as telas `agora`, `timeline`, `comparar`, `explorar`, `recorte` e `hipoteses`, suas rotas de leitura da API e `GET /api/v1/clock` na preparação. A aprovação vale para essas rotas e para 2 min por nível, com erro abaixo de 1%, p95 de requisição abaixo de 3 s, p99 abaixo de 5 s e p95 de tela abaixo de 5 s. Não demonstra capacidade sustentada por horas nem outras rotas. |
-| Limite acima de 100 VUs | Mesmo EKS e data. [Resumo B](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/carga-kubernetes/rodada-b-resultado.json) e [saída k6 B](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/carga-kubernetes/rodada-b-saida-k6.txt). ID `20260921T184009Z`. | Em 200 VUs, não houve erros, mas `agora` excedeu os limiares por tela, com p95 de requisição 4.441 ms e p95 de tela 5.075 ms. `recorte` teve p95 de requisição 3.189 ms. Em 450 e 900 VUs, os erros chegaram a 15,21% e 24,80%. Não há aprovação de capacidade nesses níveis. |
-| HPA e reinícios | [Registro do EKS](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/carga-kubernetes.txt), 21/09/2026. | `metrics.k8s.io` ausente, `ScalingActive=False` e duas réplicas durante a carga. O registro mostra reinícios dos pods de backend, mas não inclui `kubectl describe`, eventos completos, `lastState` ou logs anteriores que determinem a causa. Não atribuir os reinícios à saturação sem essa análise. |
-| Rollout e reposição de pod | [Relatório de contêinerização](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/conteineres-final.md), seções 5.2 e 5.3. Ambiente e revisão da execução não identificados no resumo. | O relatório informa 547 respostas HTTP 200 durante um rollout e 4 s até um pod de backend ficar `Ready`. Não há log bruto com horários e requisições anexado para auditar esses números ou validar o RTO. |
+| Especificação de imagens e orquestração | Código do commit `5f768ea`: [Dockerfiles](../apps/basica/backend/Dockerfile), [base Kubernetes](../apps/basica/k8s/base/kustomization.yaml), [overlay AWS](../apps/basica/k8s/overlays/aws/kustomization.yaml) e [EKS Terraform](../apps/basica/infra/eks.tf). | Seis imagens e a divisão EKS/ECS são rastreáveis no código. A existência do manifesto não comprova implantação. |
+| Renderização dos manifests | Validação estática em 21/09/2026: [log `k8s-validate`](evidencias/k8s-validate.txt). | Cinco conjuntos renderizados. O teste não acessou cluster. |
+| Caminho síncrono local | Kind de um nó, PostgreSQL local e réplicas reduzidas, em 21/09/2026: [log de Kubernetes e Playwright](evidencias/testes-kubernetes.txt). | `/` e `/api/v1/clock` responderam 200 e 12 testes de navegador passaram. Não mede tolerância a perda de nó ou zona. |
+| Entrada EKS e carga até 100 usuários virtuais | EKS Auto Mode `argus-events-livia-dev-eks`, EKS 1.33 em `us-east-1`, dois nós `amd64`, 21/09/2026. [Registro do cluster](evidencias/carga-kubernetes.txt), [resumo A](evidencias/carga-kubernetes/rodada-a-resultado.json), [saída k6 A](evidencias/carga-kubernetes/rodada-a-saida-k6.txt). ID `20260921T183035Z`. | Frontend e backend `2/2`. Três níveis de 5, 25 e 100 VUs duraram 2 min cada, com 30 s entre níveis e pausa de 2 s entre navegações. Foram 25.576 requisições no conjunto, sem erro. Em 100 VUs, p95 de requisição 662 ms, p99 1.069 ms e p95 de abertura de tela 772 ms. Todos os limiares configurados passaram nesse nível. |
+| Escopo da aprovação até 100 VUs | [Script de carga](../apps/basica/tests/carga/carga_ui.js) e [resumo A](evidencias/carga-kubernetes/rodada-a-resultado.json). | O script percorre as telas `agora`, `timeline`, `comparar`, `explorar`, `recorte` e `hipoteses`, suas rotas de leitura da API e `GET /api/v1/clock` na preparação. A aprovação vale para essas rotas e para 2 min por nível, com erro abaixo de 1%, p95 de requisição abaixo de 3 s, p99 abaixo de 5 s e p95 de tela abaixo de 5 s. Não demonstra capacidade sustentada por horas nem outras rotas. |
+| Limite acima de 100 VUs | Mesmo EKS e data. [Resumo B](evidencias/carga-kubernetes/rodada-b-resultado.json) e [saída k6 B](evidencias/carga-kubernetes/rodada-b-saida-k6.txt). ID `20260921T184009Z`. | Em 200 VUs, não houve erros, mas `agora` excedeu os limiares por tela, com p95 de requisição 4.441 ms e p95 de tela 5.075 ms. `recorte` teve p95 de requisição 3.189 ms. Em 450 e 900 VUs, os erros chegaram a 15,21% e 24,80%. Não há aprovação de capacidade nesses níveis. |
+| HPA e reinícios | [Registro do EKS](evidencias/carga-kubernetes.txt), 21/09/2026. | `metrics.k8s.io` ausente, `ScalingActive=False` e duas réplicas durante a carga. O registro mostra reinícios dos pods de backend, mas não inclui `kubectl describe`, eventos completos, `lastState` ou logs anteriores que determinem a causa. Não atribuir os reinícios à saturação sem essa análise. |
+| Rollout e reposição de pod | [Relatório de contêinerização](conteineres-final.md), seções 5.2 e 5.3. Ambiente e revisão da execução não identificados no resumo. | O relatório informa 547 respostas HTTP 200 durante um rollout e 4 s até um pod de backend ficar `Ready`. Não há log bruto com horários e requisições anexado para auditar esses números ou validar o RTO. |
 | Recuperação do pipeline assíncrono | AWS Academy Learner Lab em `us-east-1`: [testes de carga e resiliência](testes-carga-inicial.md). A seção RNF05 não registra data, commit ou digest de cada cenário. | Desligamento de consumidor, reposição de task e drenagem foram registrados. O recorte de 1.001 eventos tem igualdade de contagens. Não há conciliação por IDs e duplicidades para esse lote nem reconciliação integral dos lotes maiores. Assim, não se afirma RPO zero para eles. |
-| Integração fora do cluster | PostgreSQL 16 local e AWS Academy Learner Lab, em 17/09/2026: [log de integração](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/testes-integracao.txt). Imagens e commit implantados não registrados. | TI-02, TI-03 e TI-04 passaram. TI-05 na AWS falhou: o evento chegou à bronze, mas não apareceu na API dentro de 300 s por atraso da ETL. Frescor ponta a ponta segue pendente. |
-| Ollama e fallback AWS | [Adaptador Ollama](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/backend/src/telemetry/infrastructure/ollama.py), [testes](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/backend/tests/test_ollama.py), [Terraform da API de leitura](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/api_read.tf) e [site S3](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/apps/fullstack/infra/frontend_s3.tf). | Há código e recursos declarados. Não há captura que comprove Ollama remoto ativo no EKS, site S3 e Lambda disponíveis para contingência ou troca real entre destinos. |
+| Integração fora do cluster | PostgreSQL 16 local e AWS Academy Learner Lab, em 17/09/2026: [log de integração](evidencias/testes-integracao.txt). Imagens e commit implantados não registrados. | TI-02, TI-03 e TI-04 passaram. TI-05 na AWS falhou: o evento chegou à bronze, mas não apareceu na API dentro de 300 s por atraso da ETL. Frescor ponta a ponta segue pendente. |
+| Ollama e fallback AWS | [Adaptador Ollama](../apps/basica/backend/src/telemetry/infrastructure/ollama.py), [testes](../apps/basica/backend/tests/test_ollama.py), [Terraform da API de leitura](../apps/basica/infra/api_read.tf) e [site S3](../apps/basica/infra/frontend_s3.tf). | Há código e recursos declarados. Não há captura que comprove Ollama remoto ativo no EKS, site S3 e Lambda disponíveis para contingência ou troca real entre destinos. |
 
-Os [testes funcionais](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/testes-funcionais.md), [unitários](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/testes-unitarios.txt)
-e a [carga anterior](https://git.inteli.edu.br/graduacao/2026-2a/t15/g04/-/blob/88577df/artefatos/evidencias/testes-carga.txt) têm escopos diferentes do
+Os [testes funcionais](testes-funcionais.md), [unitários](evidencias/testes-unitarios.txt)
+e a [carga anterior](evidencias/testes-carga.txt) têm escopos diferentes do
 ensaio EKS. Para fechar as metas de recuperação, faltam os exercícios da seção
 3.4 com captura de commit, digests, eventos e logs, inclusive causa dos
 reinícios, horários, distribuição por zona, rollback, fallback e reconciliação

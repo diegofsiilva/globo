@@ -20,6 +20,7 @@ export const hipotesesStyles = {
   "panelKicker": "panelKicker [margin:0_0_8px] text-subtle-foreground text-micro font-semibold [letter-spacing:0.09em] [text-transform:uppercase]",
   "panelScore": "panelScore [margin:0_0_22px] [display:flex] [align-items:baseline] [gap:14px] [&_strong]:text-display [&_strong]:[line-height:1] [&_strong]:[font-variant-numeric:tabular-nums] [&_span]:text-muted-foreground [&_span]:text-micro",
   "primary": "primary [border-color:var(--primary)] bg-primary text-primary-foreground hover:bg-primary-hover hover:[border-color:var(--primary-hover)]",
+  "refinement": "refinement [margin:0_0_24px] [padding:16px] [border:1px_solid_var(--border)] [border-radius:var(--radius-control)] bg-surface [&_>_p:not(.panelKicker)]:[margin:0_0_12px] [&_>_p:not(.panelKicker)]:text-muted-foreground [&_>_p:not(.panelKicker)]:text-body [&_>_p:not(.panelKicker)]:[line-height:1.55] [&_small]:[display:block] [&_small]:[margin:-4px_0_12px] [&_small]:text-subtle-foreground [&_small]:text-micro [&_small]:[overflow-wrap:anywhere]",
   "score": "score text-display [line-height:0.9] [text-align:right] [font-variant-numeric:tabular-nums] max-[700px]:text-display",
   "selected": "selected [box-shadow:inset_3px_0_var(--primary)] bg-surface [border-bottom-color:var(--border)]",
   "state": "state [margin:0] [padding:30px_0] [border-top:1px_solid_var(--border-soft)] text-muted-foreground text-micro",

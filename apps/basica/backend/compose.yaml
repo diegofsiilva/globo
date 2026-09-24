@@ -13,13 +13,13 @@
 #     uv run --directory .. --project tools python tools/migrate.py aplicar
 #
 # Para apontar a API para um banco que ja existe (o RDS publicado, por exemplo),
-# passe a URL e ignore o servico `db`:
+# passe a URL e suba somente o servico `api`:
 #
 #   DATABASE_URL=postgresql://... docker compose up api
 
 services:
   db:
-    image: postgres:16
+    image: postgres:16@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
     environment:
       POSTGRES_USER: argus
       POSTGRES_PASSWORD: argus
@@ -27,7 +27,7 @@ services:
     ports:
       # 55433 e nao 5432 para nao colidir nem com um PostgreSQL da maquina nem
       # com o container do `make db-local`, que usa 55432.
-      - "55433:5432"
+      - "127.0.0.1:55433:5432"
     healthcheck:
       # `pg_isready` responde durante o initdb, quando um servidor TEMPORARIO
       # esta de pe e prestes a ser derrubado. Conectar por TCP so funciona
@@ -40,18 +40,15 @@ services:
   api:
     build:
       context: .
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://argus:argus@db:5432/argus}
       AWS_REGION: ${AWS_REGION:-us-east-1}
       USER_ID_HASH_SALT: ${USER_ID_HASH_SALT:-local-compose-only}
       DEFAULT_WINDOW_HOURS: ${DEFAULT_WINDOW_HOURS:-168}
       MAX_ITEMS_SCANNED: ${MAX_ITEMS_SCANNED:-20000}
-      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     healthcheck:
       test:
         [

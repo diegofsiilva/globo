@@ -1,0 +1,94 @@
+# Aplica as migrations pendentes e termina.
+#
+# NAO esta em kustomization.yaml de proposito: `spec.template` de um Job e
+# imutavel, entao um `kubectl apply` com tag de imagem nova falharia com "field
+# is immutable". Quem o aplica e `make k8s-migrate`, que faz delete antes.
+#
+# A imagem e a de PROCESSING, e nao uma nova: ela ja embarca db/migrations/ em
+# /app/db/migrations/ e tools/migrate.py em /app/tools/migrate.py (ver
+# processing/Dockerfile). E a mesma forma da task one-shot de
+# infra/ecs_migration.tf -- inclusive o entryPoint e o command.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: argus-db-migrate
+  labels:
+    app.kubernetes.io/name: argus-db-migrate
+    app.kubernetes.io/component: migration
+    app.kubernetes.io/part-of: argus
+spec:
+  # Duas tentativas: falha de rede no caminho do RDS merece retry, erro de SQL
+  # nao melhora repetindo. O runner registra checksum e recusa reaplicar uma
+  # migration ja aplicada, entao o retry e seguro.
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  # Some sozinho uma hora depois de terminar, sem deixar Job concluido
+  # acumulando no namespace a cada deploy.
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus-db-migrate
+        app.kubernetes.io/part-of: argus
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: IMAGE_PROCESSING
+          imagePullPolicy: IfNotPresent
+          # Identicos ao entryPoint/command de infra/ecs_migration.tf.
+          command: ["python", "/app/tools/migrate.py"]
+          args: ["aplicar"]
+          env:
+            # MESTRE, e nao `argus_api`.
+            #
+            # A migration cria schema e faz GRANT, e o usuario de leitura nao
+            # tem essa permissao por construcao. Reusar a DATABASE_URL do
+            # backend aqui falharia com "permission denied for schema" no meio
+            # da aplicacao, deixando o banco parcialmente migrado. E a mesma
+            # separacao que infra/locals.tf mantem entre `database_url` e
+            # `read_api_database_url`.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DATABASE_URL_MASTER
+            # A mesma task tambem cria/atualiza o login somente-leitura que a
+            # API usa. Sem esta variavel, as migrations sao aplicadas mas
+            # `argus_api` fica com uma senha diferente da configurada na API --
+            # e a falha so aparece depois, como 503 no /health/ready.
+            - name: DB_READER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DB_READER_PASSWORD
+            - name: AWS_REGION
+              value: us-east-1
+            - name: LOG_LEVEL
+              value: INFO
+            - name: SERVICE_NAME
+              value: argus-migration
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

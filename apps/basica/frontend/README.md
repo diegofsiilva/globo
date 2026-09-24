@@ -79,22 +79,21 @@ e pseudo-elementos do seletor temporal são expressos por variantes Tailwind.
 
 ## Configuração
 
-O build exige uma fonte explícita para Hipóteses:
+O build usa a API de leitura para eventos e hipóteses:
 
 ```dotenv
 NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_HYPOTHESES_SOURCE=mock
-NEXT_PUBLIC_HYPOTHESES_API_URL=
+NEXT_PUBLIC_HYPOTHESES_SOURCE=api
 ```
 
 - `mock`: usa o adapter e as fixtures locais de `/hipoteses`.
-- `api`: exige `NEXT_PUBLIC_HYPOTHESES_API_URL` e preserva o contrato HTTP
+- `api`: usa `NEXT_PUBLIC_API_URL` e preserva o contrato HTTP autenticado
   `GET /api/v1/hypotheses`.
 
 Os alvos `make -C apps/basica frontend-dev` e `frontend-build` convertem
-`HYPOTHESES_SOURCE` e `HYPOTHESES_API_URL` nas variáveis públicas acima. O
-fluxo gerado por `make -C apps/basica env` usa `mock` enquanto não houver um
-endpoint do motor de hipóteses.
+`ARGUS_API_URL` e `HYPOTHESES_SOURCE` nas variáveis públicas acima. O fluxo
+gerado por `make -C apps/basica env` usa a API por padrão; `mock` precisa ser
+escolhido explicitamente para desenvolvimento visual.
 
 ## Desenvolvimento e validação
 

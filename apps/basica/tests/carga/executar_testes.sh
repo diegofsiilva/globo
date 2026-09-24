@@ -14,9 +14,9 @@ STATUS_FINAL=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --com-grafana) COM_GRAFANA=1 ;;
-    rnf01|rnf01-lote|rnf01-acumulo|rnf02|rnf03-baseline|rnf03-escalado|falha-backlog|falha-timeout|todos) TESTE="$1" ;;
+    rnf01|rnf01-lote|rnf01-acumulo|rnf02|rnf03-baseline|rnf03-escalado|falha-backlog|falha-timeout|carga-ui|todos) TESTE="$1" ;;
     *)
-      echo "Uso: $0 [rnf01|rnf01-lote|rnf01-acumulo|rnf02|rnf03-baseline|rnf03-escalado|falha-backlog|falha-timeout|todos] [--com-grafana]"
+      echo "Uso: $0 [rnf01|rnf01-lote|rnf01-acumulo|rnf02|rnf03-baseline|rnf03-escalado|falha-backlog|falha-timeout|carga-ui|todos] [--com-grafana]"
       exit 2
       ;;
   esac
@@ -60,6 +60,7 @@ else
     -e RNF03_FASE -e RNF03_RATE_PER_MIN -e RNF03_RECURSOS
     -e FALHA_CENARIO
     -e K6_QUANTIDADE_LOTES -e K6_EVENTOS_POR_LOTE -e K6_MAX_BODY_BYTES -e K6_VUS_INJECAO
+    -e CARGA_UI_VUS_1 -e CARGA_UI_VUS_2 -e CARGA_UI_VUS_3 -e CARGA_UI_DURACAO -e CARGA_UI_PAUSA -e CARGA_UI_PENSAR_S
     -e K6_PROMETHEUS_RW_SERVER_URL -e K6_PROMETHEUS_RW_TREND_STATS
     grafana/k6:0.54.0
   )
@@ -131,6 +132,7 @@ case "$TESTE" in
     executar "rnf01-acumulo-${K6_QUANTIDADE_LOTES}x" rnf01_lote_drenagem.js
     ;;
   rnf02) executar rnf02 rnf02_tempo_resposta.js ;;
+  carga-ui) executar carga-ui carga_ui.js ;;
   rnf03-baseline) executar_rnf03 baseline ;;
   rnf03-escalado) executar_rnf03 escalado ;;
   falha-backlog) executar_falha backlog ;;

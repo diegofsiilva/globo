@@ -1,0 +1,29 @@
+# Base comum aos dois ambientes (overlays/aws e overlays/kind).
+#
+# O Job de migration NAO entra aqui de proposito: `spec.template` de um Job e
+# imutavel, entao um `apply` com tag nova falharia com "field is immutable". Ele
+# vive em overlays/<ambiente>/migrate/ e e aplicado por `make k8s-migrate`, que
+# faz delete antes do apply.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argus
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - backend-deployment.yaml
+  - backend-service.yaml
+  - backend-hpa.yaml
+  - backend-pdb.yaml
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+  - frontend-hpa.yaml
+  - frontend-pdb.yaml
+  - ingress.yaml
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: argus
+      app.kubernetes.io/managed-by: kustomize
