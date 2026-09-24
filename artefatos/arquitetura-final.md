@@ -109,8 +109,8 @@ porque o control plane cobra por hora existindo e o orçamento do Learner Lab é
 finito; o cluster é ligado com `create_eks = true` e desligado sem tocar no
 restante do stack. Nesta sprint, o caminho EC2 da Sprint 3, formado por um Auto
 Scaling Group e um ALB próprio (`asg.tf`, `alb.tf`, `asg_observability.tf` e as
-variáveis `asg_*`, `app_instance_type` e `instance_profile_name`), foi removido
-na branch `refactor/remove-caminho-ec2-sprint3`, pois duplicava a API de leitura
+variáveis `asg_*`, `app_instance_type` e `instance_profile_name`), foi removido,
+pois duplicava a API de leitura
 que o EKS já atende e mantinha um segundo balanceador público pago em paralelo.
 Com isso, o único balanceador público do caminho de leitura é o ALB criado pelo
 Ingress do EKS, e a contingência desse caminho passa a ser a Lambda de leitura
@@ -314,7 +314,7 @@ materializa.
 Os arquivos `asg.tf`, `alb.tf` e `asg_observability.tf`, com as variáveis
 `asg_*`, `app_instance_type` e `instance_profile_name` e os outputs
 `alb_dns_name`, `api_url_alb`, `alb_zone_id` e `asg_name`, foram removidos nesta
-sprint na branch `refactor/remove-caminho-ec2-sprint3`, porque o caminho EC2 da
+sprint, porque o caminho EC2 da
 Sprint 3 duplicava a API de leitura que o EKS já atende e mantinha um segundo
 balanceador público pago em paralelo ao ALB do Ingress.
 
@@ -791,5 +791,5 @@ por identificador. Metas propostas na seção 3.1.1 não são resultados medidos
 
 Os ensaios de recuperação executados no kind (reposição de pod, perda de
 readiness, rollback e escala) ficarão em `evidencias/resiliencia-kind-*.txt`,
-a serem anexados pela branch `feat/ensaios-resiliencia-kind`; a seção 3.4
+a serem anexados a este artefato; a seção 3.4
 será preenchida com esses registros.
