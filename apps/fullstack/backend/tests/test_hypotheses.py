@@ -142,17 +142,19 @@ def _seed_hypothesis(
     return run_id, hypothesis_id
 
 
-def test_sombra_fica_invisivel_e_publicacao_expoe_run_e_hipotese(client, pool):
+def test_hipotese_gerada_aparece_sem_publicacao(client, pool):
     run_id, hypothesis_id = _seed_hypothesis(pool, publish=False)
-    assert client.get("/api/v1/hypothesis-runs").json["items"] == []
-    assert client.get("/api/v1/hypotheses").json["items"] == []
+    runs = client.get("/api/v1/hypothesis-runs").json["items"]
+    hypotheses = client.get("/api/v1/hypotheses").json["items"]
+    assert [item["run_id"] for item in runs] == [run_id]
+    assert [item["hypothesis_id"] for item in hypotheses] == [hypothesis_id]
 
     with pool.connection() as conn:
         conn.execute(
             """
             INSERT INTO gold.manifest_publication_event
               (manifest_hash, action, gate_metrics)
-            SELECT manifest_hash, 'published', '{}'::jsonb
+            SELECT manifest_hash, 'withdrawn', '{}'::jsonb
               FROM detect.run WHERE run_id = %s
             """,
             (run_id,),

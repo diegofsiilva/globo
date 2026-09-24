@@ -113,8 +113,7 @@ class SignalsRepository:
         excluidas = ["youbora_device"]
 
         filtro_janela, params_janela = self._filtros(escopo)
-        filtro_lateral, params_lateral = self._filtros(escopo, alias="h")
-        filtro_base, params_base = self._filtros(escopo, alias="b")
+        filtro_historico, params_historico = self._filtros(escopo, alias="h")
 
         return self._all(
             sql.SQL(
@@ -133,10 +132,29 @@ class SignalsRepository:
                     FROM janela
                    ORDER BY source, entity, metric, bucket_ts DESC
                 ),
-                -- Primeiro calcula apenas o baseline da hora do ULTIMO bucket.
-                -- Isso basta para decidir se a serie continua desviada agora;
-                -- calcular as seis horas de baseline para todas as series era
-                -- o principal custo da rota e estourava os 30 s da Lambda.
+                -- Le o historico uma vez. O LATERAL anterior repetia uma busca
+                -- no banco para cada serie da janela e excedia o timeout depois
+                -- que o dump passou a conter milhoes de buckets.
+                historico AS MATERIALIZED (
+                  SELECT h.bucket_ts, h.source, h.entity, h.metric,
+                         h.hora_brt, h.value
+                    FROM gold.v_feature_bucket h
+                   WHERE h.bucket_ts >= %s AND h.bucket_ts < %s
+                     AND h.value IS NOT NULL
+                     AND NOT (h.source = ANY(%s))
+                     {filtro_historico}
+                ),
+                baseline_ultimo AS MATERIALIZED (
+                  SELECT h.source, h.entity, h.metric, h.hora_brt,
+                         avg(h.value) AS media,
+                         stddev_samp(h.value) AS desvio,
+                         count(*) AS n
+                    FROM historico h
+                    JOIN ultimo u
+                      ON u.source = h.source AND u.entity = h.entity
+                     AND u.metric = h.metric AND u.hora_brt = h.hora_brt
+                   GROUP BY h.source, h.entity, h.metric, h.hora_brt
+                ),
                 avaliados AS MATERIALIZED (
                   SELECT u.bucket_ts, u.source, u.entity, u.metric, u.value,
                          u.hora_brt, b.media, b.desvio, b.n,
@@ -145,19 +163,9 @@ class SignalsRepository:
                            ELSE (u.value - b.media) / b.desvio
                          END AS z
                     FROM ultimo u
-                    CROSS JOIN LATERAL (
-                      SELECT avg(h.value)         AS media,
-                             stddev_samp(h.value) AS desvio,
-                             count(*)             AS n
-                        FROM gold.v_feature_bucket h
-                       WHERE h.source = u.source
-                         AND h.entity = u.entity
-                         AND h.metric = u.metric
-                         AND h.hora_brt = u.hora_brt
-                         AND h.bucket_ts >= %s AND h.bucket_ts < %s
-                         AND h.value IS NOT NULL
-                         {filtro_lateral}
-                    ) b
+                    LEFT JOIN baseline_ultimo b
+                      ON b.source = u.source AND b.entity = u.entity
+                     AND b.metric = u.metric AND b.hora_brt = u.hora_brt
                 ),
                 ativos AS MATERIALIZED (
                   SELECT source, entity, metric, abs(z) AS magnitude
@@ -180,14 +188,10 @@ class SignalsRepository:
                          avg(b.value)         AS media,
                          stddev_samp(b.value) AS desvio,
                          count(*)             AS n
-                    FROM gold.v_feature_bucket b
+                    FROM historico b
                     JOIN horas_ativas s
                       ON s.source = b.source AND s.entity = b.entity
                      AND s.metric = b.metric AND s.hora_brt = b.hora_brt
-                   WHERE b.bucket_ts >= %s AND b.bucket_ts < %s
-                     AND b.value IS NOT NULL
-                     AND NOT (b.source = ANY(%s))
-                     {filtro_base}
                    GROUP BY b.source, b.entity, b.metric, b.hora_brt
                 )
                 SELECT j.bucket_ts, j.source, j.entity, j.metric, j.value,
@@ -207,8 +211,7 @@ class SignalsRepository:
                 """
             ).format(
                 filtro_janela=filtro_janela,
-                filtro_lateral=filtro_lateral,
-                filtro_base=filtro_base,
+                filtro_historico=filtro_historico,
             ),
             [
                 desde,
@@ -217,17 +220,14 @@ class SignalsRepository:
                 *params_janela,
                 baseline_desde,
                 desde,
-                *params_lateral,
+                excluidas,
+                *params_historico,
                 limiar,
                 # Uma serie a mais que o teto, de proposito: e assim que a
                 # aplicacao distingue "sao exatamente 100 sinais" de "sao 100 e
                 # o banco parou de contar". A serie excedente e descartada, mas
                 # a sua existencia vira o `truncated` da resposta.
                 self._max_series_ativas + 1,
-                baseline_desde,
-                desde,
-                excluidas,
-                *params_base,
             ],
         )
 

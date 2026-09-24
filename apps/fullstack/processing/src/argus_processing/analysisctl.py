@@ -29,9 +29,9 @@ FAMILIES = {
 def evaluate(db: Database, catalog: Catalog, args: argparse.Namespace) -> dict:
     """Reune os criterios de promocao do manifesto atual.
 
-    O motor sobe em modo sombra: as views de hipotese ficam vazias ate um evento
-    `published` (AGENTS.md, regra 6). Esta funcao junta o que decide se esse
-    evento deve ser emitido -- execucoes falhas, divergencia de digest de
+    As hipoteses geradas aparecem automaticamente. Esta funcao avalia se o
+    manifesto recebe um registro de promocao auditavel -- execucoes falhas,
+    divergencia de digest de
     entrada, truncamento, cobertura das familias e as medidas que so um humano
     pode confirmar (precisao, latencia da API, SLA de checkpoint, suite).
 

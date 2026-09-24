@@ -34,7 +34,8 @@ python3 -m pip install \
   --python-version "$LAMBDA_PYTHON" \
   --implementation cp \
   --only-binary=:all: \
-  "Flask>=3.1,<4" "apig-wsgi>=2.18,<3" "psycopg[binary,pool]>=3.2,<4"
+  "Flask>=3.1,<4" "apig-wsgi>=2.18,<3" "psycopg[binary,pool]>=3.2,<4" \
+  "paramiko>=3.5,<5"
 
 echo "[2/3] copiando a aplicacao"
 # O pacote vai para a raiz do zip, que a Lambda ja coloca no sys.path. O
@@ -45,7 +46,8 @@ cp -R "$BACKEND_ROOT/src/telemetry" "$BUILD_DIR/telemetry"
 cp "$BACKEND_ROOT/lambda_handler.py" "$BUILD_DIR/"
 
 find "$BUILD_DIR" -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
-find "$BUILD_DIR" -type d -name "*.dist-info" -prune -exec rm -rf {} + 2>/dev/null || true
+# Algumas bibliotecas, incluindo paramiko, consultam importlib.metadata no
+# import. Seus diretórios .dist-info precisam permanecer no ZIP da Lambda.
 find "$BUILD_DIR" -type d -name "tests" -prune -exec rm -rf {} + 2>/dev/null || true
 
 # Confere que o wheel binario do psycopg realmente entrou. Sem esta checagem, o
@@ -53,6 +55,15 @@ find "$BUILD_DIR" -type d -name "tests" -prune -exec rm -rf {} + 2>/dev/null || 
 if [ ! -d "$BUILD_DIR/psycopg_binary" ]; then
   echo "erro: psycopg_binary nao foi instalado para $LAMBDA_PLATFORM." >&2
   echo "      A Lambda subiria e falharia na primeira consulta." >&2
+  exit 1
+fi
+
+if [ ! -d "$BUILD_DIR/paramiko" ]; then
+  echo "erro: paramiko nao entrou no pacote da Lambda." >&2
+  exit 1
+fi
+if ! compgen -G "$BUILD_DIR/paramiko-*.dist-info/METADATA" >/dev/null; then
+  echo "erro: metadados de paramiko nao entraram no pacote da Lambda." >&2
   exit 1
 fi
 

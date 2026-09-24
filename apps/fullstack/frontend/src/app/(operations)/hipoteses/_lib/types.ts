@@ -47,6 +47,7 @@ export type ScopeChip = {
 
 /** Relatório completo devolvido pelo motor de hipóteses. */
 export type HypothesesReport = {
+  nextCursor?: string | null;
   window: { from: string; to: string; label: string };
   generated: number;
   discarded: number;
@@ -60,6 +61,7 @@ export type HypothesesReport = {
 export type HypothesesFilters = {
   from?: string;
   to?: string;
+  cursor?: string;
   scope?: Record<string, string>;
 };
 

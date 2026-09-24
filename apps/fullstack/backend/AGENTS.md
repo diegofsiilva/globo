@@ -1,7 +1,7 @@
 # AGENTS.md — API de leitura
 
 Flask sobre Lambda, arquitetura hexagonal. Serve o dashboard. A única escrita é
-o feedback idempotente de uma hipótese publicada; a ingestão não passa por aqui.
+o feedback idempotente de uma hipótese gerada; a ingestão não passa por aqui.
 Detalhe de rotas, filtros e exemplos: `README.md` deste diretório.
 
 ## Regras
@@ -47,7 +47,7 @@ de métodos que nunca se cruzam:
 |---|---|
 | `infrastructure/postgres.py` | evento individual de sessão |
 | `infrastructure/gold.py` | bucket agregado de 15 min |
-| `infrastructure/hypotheses.py` | hipótese publicada |
+| `infrastructure/hypotheses.py` | hipótese gerada |
 
 ## Trabalhar nisso
 

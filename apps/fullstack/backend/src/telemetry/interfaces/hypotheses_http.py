@@ -122,7 +122,7 @@ def _json_value(value: Any) -> Any:
 
 @hypotheses_api.get("/hypothesis-runs")
 def hypothesis_runs():
-    """Execuções concluídas e publicadas do motor de hipóteses."""
+    """Execuções concluídas do motor de hipóteses."""
     limit = _int("limit", default=50, minimum=1, maximum=200)
     before = request.args.get("before_run_id")
     if before is not None and not before.isdigit():
@@ -133,7 +133,7 @@ def hypothesis_runs():
 
 @hypotheses_api.get("/hypotheses")
 def hypotheses():
-    """Página keyset de hipóteses publicadas, com filtros cumulativos.
+    """Página keyset de hipóteses geradas, com filtros cumulativos.
 
     Os valores aceitos em `family`, `kind`, `confidence` e `review_status` são
     validados contra conjuntos fechados. Um valor fora do conjunto vira 422 e
@@ -193,7 +193,7 @@ def hypothesis_detail(hypothesis_id: int):
     """
     item = repository().detail(hypothesis_id)
     if item is None:
-        raise ResourceNotFoundError("hipotese inexistente ou ainda nao publicada")
+        raise ResourceNotFoundError("hipotese indisponivel")
     return jsonify(_json_value(item))
 
 
@@ -202,7 +202,7 @@ def hypothesis_refinement(hypothesis_id: int):
     """Refina a hipotese sem permitir que o modelo acrescente fontes.
 
     Args:
-        hypothesis_id (int): Identificador da hipotese publicada.
+        hypothesis_id (int): Identificador da hipotese gerada.
     """
     if not request.is_json:
         raise ValidationError("Content-Type precisa ser application/json")
@@ -221,7 +221,7 @@ def hypothesis_refinement(hypothesis_id: int):
         question = question.strip()
     item = repository().detail(hypothesis_id)
     if item is None:
-        raise ResourceNotFoundError("hipotese inexistente ou ainda nao publicada")
+        raise ResourceNotFoundError("hipotese indisponivel")
     refiner = current_app.extensions.get("hypothesis_refiner")
     if refiner is None:
         raise RefinementUnavailableError("refinamento por Ollama nao configurado")
@@ -276,7 +276,7 @@ def hypothesis_feedback(hypothesis_id: int):
         request_id=request.headers.get("X-Request-Id") or request.headers.get("X-Amzn-Trace-Id"),
     )
     if result is None:
-        raise ResourceNotFoundError("hipotese inexistente ou ainda nao publicada")
+        raise ResourceNotFoundError("hipotese indisponivel")
     status = 201 if result["created"] else 200
     return jsonify(
         {

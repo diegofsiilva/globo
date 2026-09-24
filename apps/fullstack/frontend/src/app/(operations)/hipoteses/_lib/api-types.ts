@@ -47,7 +47,7 @@ export type ApiEvidence = {
 };
 
 /**
- * Uma hipótese publicada.
+ * Uma hipótese gerada e visível.
  *
  * É uma explicação candidata e auditável, para revisão humana — não uma
  * causa-raiz confirmada. `contradiction_strength` e `evaluation_status`

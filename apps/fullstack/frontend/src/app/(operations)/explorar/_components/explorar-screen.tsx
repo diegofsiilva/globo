@@ -259,7 +259,7 @@ export function ExplorarScreen() {
               ? "stale"
               : isRefreshing
                 ? "refreshing"
-                : hasAnyData && eventKinds.length === 0
+                : hasAnyData && eventKinds.length === 0 && rawEventsQuery.data?.items.length === 0
                   ? "empty"
                   : "ready",
         title: "Exploração de eventos",

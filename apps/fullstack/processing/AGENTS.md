@@ -23,8 +23,10 @@ auditável para revisão humana, não uma causa-raiz confirmada.
    lease, heartbeat, takeover, fencing). Não altere.
 5. **Regra nova entra em `rules.py` com teste em `test_familias.py`.** São 11
    famílias de hipótese; cada uma precisa de evidência explicável associada.
-6. **O modo sombra é o padrão.** As views de hipótese ficam vazias até o evento
-   append-only `published`; `withdrawn` volta a ocultar sem apagar histórico.
+6. **Hipóteses geradas aparecem automaticamente.** As views mostram todas as
+   revisões geradas de runs concluídos até `sim.now()`. Eventos
+   append-only `published` e `withdrawn` preservam a auditoria do manifesto,
+   mas não controlam a visibilidade.
 
 ## Estrutura
 

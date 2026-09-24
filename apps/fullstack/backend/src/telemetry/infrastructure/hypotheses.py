@@ -20,7 +20,7 @@ def _encode_cursor(row: dict[str, Any]) -> str:
     """Empacota a posição da última linha lida num cursor opaco.
 
     Paginação keyset, e não `OFFSET`: com `OFFSET` o banco varre e descarta as
-    páginas anteriores a cada requisição, e uma hipótese publicada no intervalo
+    páginas anteriores a cada requisição, e uma hipótese gerada no intervalo
     entre duas páginas empurraria uma linha para fora da leitura sem que o
     cliente percebesse.
 
@@ -69,7 +69,7 @@ def _decode_cursor(value: str) -> tuple[float, datetime, int]:
 
 
 class HypothesisRepository:
-    """Le hipoteses publicadas e registra o feedback do operador.
+    """Le hipoteses geradas e registra o feedback do operador.
 
     Como todo adaptador desta API, so enxerga views `v_*` -- `argus_reader` nao
     tem `SELECT` em tabela base. A unica excecao e o feedback, que chama a
@@ -97,7 +97,7 @@ class HypothesisRepository:
                 serve de cursor sem precisar de um opaco.
 
         Returns:
-            list[dict]: Uma linha por execucao publicada.
+            list[dict]: Uma linha por execucao concluida.
         """
         where = sql.SQL("TRUE")
         params: list[Any] = []
@@ -131,7 +131,7 @@ class HypothesisRepository:
         cursor: str | None = None,
         limit: int = 50,
     ) -> dict[str, Any]:
-        """Pagina as hipoteses publicadas, das mais fortes para as mais fracas.
+        """Pagina as hipoteses geradas, das mais fortes para as mais fracas.
 
         Todos os filtros sao cumulativos e opcionais; nenhum informado devolve
         a janela inteira. A ordenacao e por `score` decrescente, com

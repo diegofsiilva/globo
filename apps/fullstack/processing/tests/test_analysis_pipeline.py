@@ -55,9 +55,7 @@ def test_change_log_preserva_todas_as_versoes_e_tombstone(db, inserir_change):
     ]
 
 
-def test_pipeline_captura_checkpoint_commita_e_so_publica_depois_do_gate(
-    db, inserir_change
-):
+def test_pipeline_captura_checkpoint_e_expõe_run_concluido_sem_gate(db, inserir_change):
     instant = dt.datetime(2026, 7, 12, 10, tzinfo=dt.UTC)
     row = {
         "bts": _epoch_ms(instant),
@@ -97,7 +95,7 @@ def test_pipeline_captura_checkpoint_commita_e_so_publica_depois_do_gate(
     assert run["input_lsn"] == lsn
     assert len(run["input_digest"]) == 64
     assert run["input_rows"] == 1
-    assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis_run")["n"] == 0
+    assert db.fetch_one("SELECT count(*) AS n FROM gold.v_hypothesis_run")["n"] == 1
 
     captured = db.fetch_one(
         """
