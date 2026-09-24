@@ -1334,9 +1334,11 @@ k8s-kubeconfig: ## Aponta o kubectl para o cluster EKS deste stack
 
 .PHONY: k8s-bootstrap
 k8s-bootstrap: ## Instala o que o cluster precisa antes da aplicacao
-	@# O EKS Auto Mode ja traz o metrics-server (verificado: kube-system tem o
-	@# Deployment de pe), entao aqui so falta a IngressClass do controlador de
-	@# ALB. No kind e o contrario -- ver `kind-up`.
+	@# O metrics-server NAO vem com o Auto Mode: um cluster recem-criado nasce
+	@# com kube-system vazio e o HPA fica em `<unknown>/60%` (lab de 18/09).
+	@# Ele e o add-on aws_eks_addon.metrics_server de infra/eks.tf, instalado
+	@# pelo `tf-apply` junto com o cluster; aqui so falta a IngressClass do
+	@# controlador de ALB. No kind o metrics-server entra pelo `kind-up`.
 	$(KUBECTL) apply -f $(K8S)/overlays/aws/ingressclass.yaml
 	@echo
 	@$(KUBECTL) get ingressclass
@@ -1407,6 +1409,7 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 # transformer nativo resolve, sem pipe.
 #
 # $(1) = diretorio do kustomize
+# $(2) = flags extras do `kubectl apply` (opcional; `k8s_roda_job` passa -l)
 define k8s_aplica_aws
 	set -e; \
 	urls=$$(cd $(INFRA) && terraform output -json ecr_repository_urls); \
@@ -1415,7 +1418,7 @@ define k8s_aplica_aws
 	  | sed "s|IMAGE_BACKEND|$$(ref backend):$(IMAGE_TAG)|g; \
 	         s|IMAGE_FRONTEND|$$(ref frontend):$(IMAGE_TAG)|g; \
 	         s|IMAGE_PROCESSING|$$(ref processing):$(IMAGE_TAG)|g" \
-	  | $(KUBECTL) apply -f -
+	  | $(KUBECTL) apply -f - $(2)
 endef
 
 .PHONY: k8s-apply
@@ -1427,20 +1430,40 @@ k8s-apply: ## Aplica o overlay no cluster corrente (K8S_OVERLAY=aws|kind)
 	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY); \
 	fi
 
-.PHONY: k8s-migrate
-k8s-migrate: ## Aplica as migrations no cluster (Job one-shot)
-	@# delete antes do apply porque `spec.template` de Job e imutavel: sem isso,
-	@# rodar de novo com uma tag nova falha com "field is immutable".
-	@set -e; \
-	$(KUBECTL) delete job argus-db-migrate -n $(K8S_NAMESPACE) --ignore-not-found; \
+# Roda um dos Jobs de k8s/migrate/ ate o fim e mostra o rabo do log.
+#
+# Os dois Jobs vivem no mesmo kustomization, mas NAO podem subir juntos: o de
+# leitor faz `GRANT argus_reader`, e esse papel nasce na migration 001. Num
+# banco novo, aplicar os dois de uma vez e uma corrida que o leitor perde. O
+# `-l` do kubectl filtra o YAML renderizado pelo label do Job, e e isso que
+# permite aplicar um de cada vez a partir de um unico diretorio.
+#
+# delete antes do apply porque `spec.template` de Job e imutavel: sem isso,
+# rodar de novo com uma tag nova falha com "field is immutable".
+#
+# $(1) = nome do Job (argus-db-migrate | argus-db-reader)
+define k8s_roda_job
+	set -e; \
+	$(KUBECTL) delete job $(1) -n $(K8S_NAMESPACE) --ignore-not-found; \
 	if [ "$(K8S_OVERLAY)" = "aws" ]; then \
-	  $(call k8s_aplica_aws,$(K8S)/migrate); \
+	  $(call k8s_aplica_aws,$(K8S)/migrate,-l app.kubernetes.io/name=$(1)); \
 	else \
-	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY)/migrate; \
+	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY)/migrate \
+	    -l app.kubernetes.io/name=$(1); \
 	fi; \
-	$(KUBECTL) wait --for=condition=complete job/argus-db-migrate \
-	  -n $(K8S_NAMESPACE) --timeout=600s
-	@$(KUBECTL) logs job/argus-db-migrate -n $(K8S_NAMESPACE) --tail=20
+	$(KUBECTL) wait --for=condition=complete job/$(1) \
+	  -n $(K8S_NAMESPACE) --timeout=600s; \
+	$(KUBECTL) logs job/$(1) -n $(K8S_NAMESPACE) --tail=20
+endef
+
+.PHONY: k8s-migrate
+k8s-migrate: ## Aplica as migrations e cria o login de leitura (dois Jobs, em sequencia)
+	@# Primeiro o schema, depois o login: `migrate.py aplicar` NAO cria
+	@# `argus_api` -- `criar-leitor` e subcomando a parte. So com o primeiro
+	@# Job, num banco novo o backend fica 0/1 com PoolTimeout e, por baixo,
+	@# "password authentication failed for user argus_api" (lab de 18/09).
+	@$(call k8s_roda_job,argus-db-migrate)
+	@$(call k8s_roda_job,argus-db-reader)
 
 .PHONY: k8s-rollout
 k8s-rollout: ## Publica as imagens e espera o rollout terminar
@@ -1481,9 +1504,11 @@ k8s-logs: ## Segue o log de um Deployment (APP=backend|frontend)
 
 .PHONY: k8s-scale-zero
 k8s-scale-zero: ## Zera os Deployments para economizar credito do lab
-	@# Sem pod pendente o Karpenter do Auto Mode consolida os nos ate zero em
-	@# poucos minutos. O ALB continua de pe -- para remove-lo tambem, use
-	@# `make k8s-delete`. E o equivalente do `make pause` para o cluster.
+	@# Sem pod da aplicacao o Karpenter do Auto Mode consolida os nos em poucos
+	@# minutos -- mas nao ate zero: os pods do metrics-server (add-on em
+	@# infra/eks.tf) ficam em kube-system e seguram um no pequeno. O ALB
+	@# continua de pe -- para remove-lo tambem, use `make k8s-delete`. E o
+	@# equivalente do `make pause` para o cluster.
 	$(KUBECTL) -n $(K8S_NAMESPACE) scale deployment --all --replicas=0
 	@$(KUBECTL) -n $(K8S_NAMESPACE) get deploy
 
@@ -1533,8 +1558,9 @@ kind-up: ## Cria o cluster local com ingress-nginx, metrics-server e Postgres
 	@# "no matching resources found" quando roda antes de o Deployment criar o
 	@# primeiro pod, e o apply acima retorna sem esperar por isso.
 	$(KUBECTL) -n ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=300s
-	@# Diferente do EKS Auto Mode, o kind nao traz metrics-server -- e sem ele o
-	@# HPA fica em `<unknown>/60%` e nao escala nada. O --kubelet-insecure-tls e
+	@# Nenhum cluster traz metrics-server sozinho -- nem o kind nem o EKS Auto
+	@# Mode (la ele e o add-on de infra/eks.tf). Sem ele o HPA fica em
+	@# `<unknown>/60%` e nao escala nada. O --kubelet-insecure-tls e
 	@# obrigatorio: os certificados de kubelet do kind sao autoassinados.
 	$(KUBECTL) apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/$(METRICS_SERVER_VERSAO)/components.yaml
 	$(KUBECTL) -n kube-system patch deployment metrics-server --type=json \
