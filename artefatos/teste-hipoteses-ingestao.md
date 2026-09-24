@@ -16,7 +16,7 @@ do bastion quando necessário; não reutilize o endpoint de um lab antigo.
 Escolha um caminho absoluto fora de `g04` para o arquivo do lote:
 
 ```bash
-make -C apps/basica hypothesis-batch-prepare BATCH_FILE=/caminho/externo/lote.json
+make -C apps/fullstack hypothesis-batch-prepare BATCH_FILE=/caminho/externo/lote.json
 ```
 
 O comando lê `sim.now()` e o maior LSN do banco, grava o payload e um
@@ -30,8 +30,8 @@ minutos. O identificador novo evita misturar o experimento com o dump.
 ## Envio e acompanhamento
 
 ```bash
-make -C apps/basica hypothesis-batch-send BATCH_FILE=/caminho/externo/lote.json
-make -C apps/basica hypothesis-batch-verify BATCH_FILE=/caminho/externo/lote.json
+make -C apps/fullstack hypothesis-batch-send BATCH_FILE=/caminho/externo/lote.json
+make -C apps/fullstack hypothesis-batch-verify BATCH_FILE=/caminho/externo/lote.json
 ```
 
 O envio faz um POST e grava `lote.sent.json` após HTTP 2xx. Esse status só
@@ -80,7 +80,7 @@ O frontend busca automaticamente as páginas adicionais da janela selecionada.
 Para publicar a versão atual do frontend:
 
 ```bash
-make -C apps/basica frontend-deploy NEXT_BUILD_ARGS=--webpack
+make -C apps/fullstack frontend-deploy NEXT_BUILD_ARGS=--webpack
 ```
 
 O frontend precisa estar configurado com `HYPOTHESES_SOURCE=api` no `.env`

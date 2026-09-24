@@ -273,7 +273,7 @@ pelo mesmo identificador.
 | Alternativa descartada | VPC padrão da conta: não tem sub-rede privada, e sem ela não há como remover o endereço público das cargas |
 | Modo de falha previsto e mitigação | Sub-rede esgotada por crescimento do ASG: um `/24` dá 251 endereços úteis contra o teto de 6 instâncias, folga de duas ordens de grandeza |
 | Custo estimado | Sem custo próprio |
-| Arquivo Terraform | `apps/basica/infra/vpc.tf` |
+| Arquivo Terraform | `apps/fullstack/infra/vpc.tf` |
 
 **Ficha — NAT Gateway**
 
@@ -285,7 +285,7 @@ pelo mesmo identificador.
 | Alternativa descartada | (a) endereço público na própria carga: mais barato, mas desfaz a rede privada; (b) um NAT por zona, que é a recomendação de produção e dobra o custo |
 | Modo de falha previsto e mitigação | Queda da AZ do NAT: as instâncias da outra zona seguem servindo tráfego, mas sem saída; o ASG não sobe instância nova ali. Mitigação declarada: subir o segundo NAT (5.1) |
 | Custo estimado | ~US$ 32/mês mais o tráfego; é o item mais caro da topologia |
-| Arquivo Terraform | `apps/basica/infra/vpc.tf` |
+| Arquivo Terraform | `apps/fullstack/infra/vpc.tf` |
 
 **Ficha — VPC Flow Logs e access logs do ALB**
 
@@ -297,7 +297,7 @@ pelo mesmo identificador.
 | Alternativa descartada | (a) Formato padrão de flow log, que oculta o endereço real por trás do NAT; (b) destino CloudWatch Logs, inviável no laboratório porque a `LabRole` não confia em `vpc-flow-logs.amazonaws.com` (seção 8) |
 | Modo de falha previsto e mitigação | Volume de log inflando custo: retenção e ciclo de vida de 30 dias em ambos |
 | Custo estimado | ~US$ 1–3/mês no volume do laboratório |
-| Arquivo Terraform | `apps/basica/infra/vpc_logs.tf` |
+| Arquivo Terraform | `apps/fullstack/infra/vpc_logs.tf` |
 
 ### 3.2 Acesso administrativo — Bastion Host
 
@@ -366,7 +366,7 @@ interativa; a task, à alteração de schema.
 | Alternativa descartada | SSM Session Manager (sem porta 22 nem chave), dependente de permissão que o `voclabs` pode recusar |
 | Modo de falha previsto e mitigação | Perda da chave privada: recriar o key pair e reaplicar. Troca de rede do operador: atualizar `bastion_allowed_cidr` |
 | Custo estimado | ~US$ 3/mês |
-| Arquivo Terraform | `apps/basica/infra/bastion.tf` |
+| Arquivo Terraform | `apps/fullstack/infra/bastion.tf` |
 
 ### 3.3 Camada de aplicação — Auto Scaling Group de EC2 e Application Load Balancer
 
@@ -555,7 +555,7 @@ grupo.
 | Alternativa descartada | API Gateway com função sem servidor, que não expõe métrica por alvo nem permite política de escalonamento declarada |
 | Modo de falha previsto e mitigação | Zero alvo saudável → alarme `app-sem-alvo-saudavel`, que é o gatilho declarado de rollback (5.3) |
 | Custo estimado | ~US$ 16/mês de hora parada, mais o consumo medido em LCU (a unidade de capacidade que o serviço cobra por conexão, requisição e banda) |
-| Arquivo Terraform | `apps/basica/infra/alb.tf` |
+| Arquivo Terraform | `apps/fullstack/infra/alb.tf` |
 
 **Ficha — Launch template e Auto Scaling Group**
 
@@ -567,7 +567,7 @@ grupo.
 | Alternativa descartada | (a) função sem servidor, cuja concorrência é implícita e não expõe política de escalonamento; (b) ECS Fargate com autoscaling de serviço, que resolveria o mesmo problema mas repetiria a plataforma já usada no caminho assíncrono |
 | Modo de falha previsto e mitigação | Imagem ausente no ECR → `user_data` aborta, health check reprova, instância substituída. Grace curto demais → ciclo de reciclagem; por isso 300 s |
 | Custo estimado | ~US$ 12/mês por instância; 2 a 6 instâncias |
-| Arquivo Terraform | `apps/basica/infra/asg.tf`, `apps/basica/infra/templates/user_data.sh.tftpl` |
+| Arquivo Terraform | `apps/fullstack/infra/asg.tf`, `apps/fullstack/infra/templates/user_data.sh.tftpl` |
 
 ### 3.4 Persistência — Amazon RDS
 
@@ -626,7 +626,7 @@ caminho, por túnel, para inspeção interativa.
 | Alternativa descartada | DynamoDB, justificado em `arquitetura-inicial.md` §4.2; réplica síncrona em segunda zona, descartada por custo (5.1) |
 | Modo de falha previsto e mitigação | Perda da instância = indisponibilidade total, sem failover automático. Mitigação: restaurar do backup; reversão da decisão por `db_multi_az = true` |
 | Custo estimado | ~US$ 60/mês |
-| Arquivo Terraform | `apps/basica/infra/rds.tf` |
+| Arquivo Terraform | `apps/fullstack/infra/rds.tf` |
 
 ### 3.5 Entrega do front-end — Amazon S3
 
@@ -659,7 +659,7 @@ corrige, com uma distribuição CloudFront à frente do bucket e do balanceador,
 | Alternativa descartada | Servir o front pelo próprio balanceador, o que exigiria um processo entregando arquivo estático |
 | Modo de falha previsto e mitigação | Token em claro no transporte, porque o endpoint não fala HTTPS; a correção está planejada em 4.4 |
 | Custo estimado | < US$ 1/mês |
-| Arquivo Terraform | `apps/basica/infra/frontend_s3.tf` |
+| Arquivo Terraform | `apps/fullstack/infra/frontend_s3.tf` |
 
 ### 3.6 Pipeline assíncrono e demais serviços
 
@@ -742,7 +742,7 @@ caminho de volta é uma aposta, não uma escolha.
 projeto consiga reproduzir o ambiente do zero: pré-requisitos, ordem dos passos,
 motivo de cada precedência e roteiro de aceite ao fim. O runbook do dia a dia,
 com os comandos de deploy incremental e os atalhos de diagnóstico, vive em
-[`apps/basica/infra/README.md`](../apps/basica/infra/README.md). As duas peças se
+[`apps/fullstack/infra/README.md`](../apps/fullstack/infra/README.md). As duas peças se
 referenciam em vez de se duplicarem, porque um mesmo procedimento mantido em dois
 arquivos diverge no commit seguinte.
 
@@ -841,7 +841,7 @@ protegido fora da árvore de trabalho, e o `terraform.tfvars` é recriado a part
 exemplo.
 
 ```powershell
-Set-Location apps/basica/infra
+Set-Location apps/fullstack/infra
 
 $taskStamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $taskStateArchive = Join-Path $env:USERPROFILE "argus-state-archive\$taskStamp"
@@ -859,7 +859,7 @@ Copy-Item -LiteralPath "terraform.tfvars.example" -Destination "terraform.tfvars
 &emsp; Esse diretório de arquivo contém estado e valores sensíveis, e por isso fica
 fora do controle de versão. O destino recomendado do estado é um backend remoto
 criptografado, com bucket e mecanismo de trava, cujo modelo é
-[`backend.tf.example`](../apps/basica/infra/backend.tf.example): sem ele, o estado
+[`backend.tf.example`](../apps/fullstack/infra/backend.tf.example): sem ele, o estado
 fica no disco de quem aplicou, mais ninguém consegue aplicar e a perda da máquina
 leva junto a referência de tudo que foi criado. Onde o laboratório nega a criação
 desses recursos, o estado permanece local e sob responsabilidade de um único operador
@@ -932,12 +932,12 @@ Test-Path -LiteralPath "data/parquet/_manifest.json"
 ```
 
 &emsp; Pelo menos uma das duas verificações deve retornar `True`. Se apenas o dump
-estiver disponível, `make -C apps/basica parquet` gera os Parquet antes da
+estiver disponível, `make -C apps/fullstack parquet` gera os Parquet antes da
 sincronização com o bucket de origem.
 
 ### 4.2 Recursos provisionados
 
-&emsp; Os arquivos abaixo são todos de `apps/basica/infra/`. A convenção do
+&emsp; Os arquivos abaixo são todos de `apps/fullstack/infra/`. A convenção do
 diretório é um arquivo por conjunto de recursos, sem módulos.
 
 | Recurso AWS | Finalidade | Arquivo Terraform |
@@ -985,7 +985,7 @@ ou no WSL.
 
 ```bash
 export AWS_PROFILE=g4 AWS_REGION=us-east-1
-make -C apps/basica check
+make -C apps/fullstack check
 # saída esperada: lint, testes unitários, build do dashboard, terraform validate
 # e terraform test terminando sem falha
 ```
@@ -1000,7 +1000,7 @@ que o erro apareça como serviço que não estabiliza, horas depois.
 **2. Repositórios do ECR primeiro, sozinhos**
 
 ```bash
-cd apps/basica/infra
+cd apps/fullstack/infra
 terraform apply -target=aws_ecr_repository.images
 cd ../../..
 # saída esperada: 5 repositórios criados (backend, worker, simulator, processing, loader)
@@ -1017,7 +1017,7 @@ aplicação.
 **3. Imagens publicadas com a tag do commit**
 
 ```bash
-make -C apps/basica push
+make -C apps/fullstack push
 # saída esperada: as cinco imagens construídas em arm64 e publicadas com a tag
 # do SHA do commit corrente
 ```
@@ -1029,7 +1029,7 @@ que é justamente voltar para a versão anterior, deixaria de ter para onde volt
 **4. O apply completo: rede, segurança, banco, balanceador e grupo**
 
 ```bash
-make -C apps/basica tf-apply
+make -C apps/fullstack tf-apply
 # saída esperada: plano revisado e aplicado; o RDS é o recurso mais demorado
 ```
 
@@ -1047,7 +1047,7 @@ depende de `create_iam_roles = false` e de `existing_role_arn` apontando para a
 **5. Tokens de acesso**
 
 ```bash
-make -C apps/basica auth-rotate
+make -C apps/fullstack auth-rotate
 # saída esperada: os dois tokens impressos UMA vez; só o de ingestão é recuperável depois
 ```
 
@@ -1059,8 +1059,8 @@ confundir quem estiver acompanhando.
 **6. Migrations antes de liberar tráfego**
 
 ```bash
-make -C apps/basica migrate-status-aws
-make -C apps/basica migrate-aws
+make -C apps/fullstack migrate-status-aws
+make -C apps/fullstack migrate-aws
 # saída esperada: as migrations pendentes aplicadas, uma por linha, com o tempo de cada
 ```
 
@@ -1073,9 +1073,9 @@ dentro da sub-rede privada, junto do banco.
 **7. Usuário de leitura e carga inicial**
 
 ```bash
-make -C apps/basica db-reader-aws
-make -C apps/basica origem-sync
-make -C apps/basica load
+make -C apps/fullstack db-reader-aws
+make -C apps/fullstack origem-sync
+make -C apps/fullstack load
 # saída esperada: 33 tabelas carregadas em 20 a 30 minutos, 68,7 milhões de linhas
 ```
 
@@ -1087,8 +1087,8 @@ menos óbvia: simular mudança sobre tabela vazia não produz nada.
 **8. Serviços do pipeline religados**
 
 ```bash
-make -C apps/basica resume
-make -C apps/basica sim-on
+make -C apps/fullstack resume
+make -C apps/fullstack sim-on
 # saída esperada: workers e processamento em 1 task cada; relógio virtual andando
 ```
 
@@ -1099,8 +1099,8 @@ religa.
 **9. Dashboard publicado**
 
 ```bash
-make -C apps/basica env
-make -C apps/basica frontend-deploy
+make -C apps/fullstack env
+make -C apps/fullstack frontend-deploy
 # saída esperada: bundle sincronizado no bucket e a URL do dashboard impressa
 ```
 
@@ -1112,7 +1112,7 @@ exige compilar de novo e republicar, não basta mexer numa variável do servidor
 **10. Aceite**
 
 ```bash
-make -C apps/basica smoke
+make -C apps/fullstack smoke
 # saída esperada: 401 sem token, 403 com token inválido, 200 nas doze rotas
 # autenticadas, todas abaixo de 5 s
 ```
@@ -1205,9 +1205,9 @@ passa a terminar com uma invalidação, senão os pontos de presença continuam 
 bundle anterior até o cache vencer:
 
 ```bash
-make -C apps/basica frontend-deploy
+make -C apps/fullstack frontend-deploy
 aws cloudfront create-invalidation \
-  --distribution-id "$(cd apps/basica/infra && terraform output -raw cloudfront_distribution_id)" \
+  --distribution-id "$(cd apps/fullstack/infra && terraform output -raw cloudfront_distribution_id)" \
   --paths "/*" --profile g4
 ```
 
@@ -1217,7 +1217,7 @@ aws cloudfront create-invalidation \
 o front publicado:
 
 ```bash
-DOM=$(cd apps/basica/infra && terraform output -raw cloudfront_domain)
+DOM=$(cd apps/fullstack/infra && terraform output -raw cloudfront_domain)
 
 curl -s -o /dev/null -w '%{http_code}\n' "https://$DOM/"
 # esperado: 200; a mesma URL em http:// responde 301 para HTTPS
@@ -1256,7 +1256,7 @@ equivalente.
 resultado que ele precisa devolver. As verificações 3, 4 e 7 trazem o resultado
 capturado na aplicação da camada de rede de 08/09/2026, documentada em 4.6, e o
 roteiro completo foi repetido em 10 de setembro de 2026. Os comandos assumem o
-diretório `apps/basica/infra` e a variável `AWS_PROFILE=g4`.
+diretório `apps/fullstack/infra` e a variável `AWS_PROFILE=g4`.
 
 | # | Verificação | Comando | Resultado esperado |
 |---|---|---|---|
@@ -1268,7 +1268,7 @@ diretório `apps/basica/infra` e a variável `AWS_PROFILE=g4`.
 | 6 | Dashboard no ar | `curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw frontend_url)"` | `200`. O endpoint atende em HTTP; CloudFront não está implantado e permanece corretamente marcado como planejado (plano em 4.4) |
 | 7 | Flow logs capturando fluxo real | `aws s3 ls --recursive "$(terraform output -raw flow_log_destino)/"` | Verificado. 214 fluxos da instância de teste, com `ACCEPT` e `REJECT` |
 | 8 | Logs de aplicação chegando ao log group | `aws logs tail "$(terraform output -raw app_log_group_name)" --since 10m` | Uma linha JSON por requisição, com `request_id`, `route`, `status` e `latency_ms` |
-| 9 | Contrato da API publicada | `make -C apps/basica smoke` | `401` sem token, `403` com token inválido, `200` em `/health/live` e nas doze rotas autenticadas, todas abaixo de 5 s |
+| 9 | Contrato da API publicada | `make -C apps/fullstack smoke` | `401` sem token, `403` com token inválido, `200` em `/health/live` e nas doze rotas autenticadas, todas abaixo de 5 s |
 | 10 | Alarmes com destinatário | `aws sns list-subscriptions-by-topic --topic-arn "$(terraform output -raw alarms_topic_arn)"` | Ao menos uma assinatura de e-mail confirmada; se a lista vier vazia, `alarm_email` não foi preenchida (ver 5.4) |
 
 ### 4.6 Evidências da camada de rede
@@ -1597,8 +1597,8 @@ o dashboard, sobe a API Flask contra um PostgreSQL real carregado a partir de
 verifica a resposta que veio do banco, e não uma resposta simulada.
 
 ```bash
-make -C apps/basica db-local
-make -C apps/basica test-frontend-e2e
+make -C apps/fullstack db-local
+make -C apps/fullstack test-frontend-e2e
 ```
 
 &emsp; A tabela lista os casos. A coluna de resultado obtido registra a execução de
@@ -1717,7 +1717,7 @@ criar o recurso.
 
 &emsp; As variáveis abaixo são as que governam a rede, o acesso administrativo e a
 camada de aplicação. As demais estão documentadas com um parágrafo cada em
-`apps/basica/infra/variables.tf`.
+`apps/fullstack/infra/variables.tf`.
 
 | Variável | Padrão | Efeito |
 |---|---|---|
@@ -1761,7 +1761,7 @@ camada de aplicação. As demais estão documentadas com um parágrafo cada em
 
 &emsp; Os comandos que apareceram repetidas vezes durante o provisionamento,
 agrupados pela pergunta que respondem. Todos assumem `AWS_PROFILE=g4` e, quando
-usam `terraform output`, o diretório `apps/basica/infra`.
+usam `terraform output`, o diretório `apps/fullstack/infra`.
 
 **A sessão do laboratório ainda vale?**
 
@@ -1839,9 +1839,9 @@ aws s3 ls --recursive "$(terraform output -raw flow_log_destino)/" --profile g4 
 **O que está no ar corresponde ao commit?**
 
 ```bash
-make -C apps/basica digests     # cada serviço roda o digest da tag publicada?
-make -C apps/basica image-tag   # qual é a tag do commit corrente
-cd apps/basica/infra && terraform plan   # precisa dar zero mudanças
+make -C apps/fullstack digests     # cada serviço roda o digest da tag publicada?
+make -C apps/fullstack image-tag   # qual é a tag do commit corrente
+cd apps/fullstack/infra && terraform plan   # precisa dar zero mudanças
 ```
 
 **Quanto disso está custando?**

@@ -11,14 +11,14 @@ rubrica por completo.
 
 &emsp; Divergência de nomenclatura entre a especificação e o repositório:
 a especificação referencia a pasta de código-fonte como `/apps/backend`; no
-repositório o caminho real é [`apps/basica/backend`](../apps/basica/backend)
-(a API de leitura) e [`apps/basica/worker`](../apps/basica/worker) (a
-ingestão), já que `basica` é o nome do produto dentro do monorepo, decisão
-anterior a este artefato. Referências neste documento usam o caminho real.
+repositório o caminho real é [`apps/fullstack/backend`](../apps/fullstack/backend)
+(a API de leitura) e [`apps/fullstack/worker`](../apps/fullstack/worker) (a
+ingestão). A aplicação completa fica em `apps/fullstack`. Referências neste documento
+usam esse caminho.
 
 ## 1. Objetivo
 
-&emsp; Apresentar a API de leitura (`apps/basica/backend`) que serve o
+&emsp; Apresentar a API de leitura (`apps/fullstack/backend`) que serve o
 dashboard: como o código está organizado, quais endpoints existem, como cada
 um foi testado, e o estado atual de persistência, autenticação e log,
 incluindo o que está pendente.
@@ -28,7 +28,7 @@ incluindo o que está pendente.
 &emsp; Este artefato cobre a **API de leitura**, responsável pelos endpoints
 que o dashboard consome. A **ingestão** (API Gateway → SQS → worker →
 banco) é um serviço separado, com ciclo de vida e testes próprios em
-`apps/basica/worker`, e não é o foco aqui; é citada apenas onde necessário
+`apps/fullstack/worker`, e não é o foco aqui; é citada apenas onde necessário
 para explicar persistência e autenticação de ponta a ponta.
 
 &emsp; Dentro da API de leitura, este documento detalha em profundidade as
@@ -58,7 +58,7 @@ quem as implementou, não desta frente.
 
 ## 3. Organização do código
 
-&emsp; `apps/basica/backend/src/telemetry/` segue arquitetura hexagonal, em
+&emsp; `apps/fullstack/backend/src/telemetry/` segue arquitetura hexagonal, em
 quatro camadas:
 
 | Camada | Pasta | Responsabilidade |
@@ -111,7 +111,7 @@ descrição de uma linha e o RF principal que cada um atende. RF17
 
 &emsp; A API é **somente leitura**: não há `POST`, `PUT`, `PATCH` nem
 `DELETE`. A entrada de dado é exclusivamente pelo pipeline de ingestão
-(`apps/basica/worker`), o que elimina duas superfícies de validação
+(`apps/fullstack/worker`), o que elimina duas superfícies de validação
 divergentes; ver `interfaces/http.py`, docstring do módulo.
 
 ## 5. Itens da especificação
@@ -121,7 +121,7 @@ divergentes; ver `interfaces/http.py`, docstring do módulo.
 #### 5.1.a Testes dos endpoints com Postman
 
 &emsp; A fonte da verdade desta verificação foi o mapa de rotas registrado pelo
-Flask a partir de `apps/basica/backend/src/telemetry/interfaces/`. Foram
+Flask a partir de `apps/fullstack/backend/src/telemetry/interfaces/`. Foram
 encontradas **33 rotas distintas**: 32 `GET` (incluindo o `GET /favicon.ico`,
 que devolve 204) e um `POST`. A collection exportada e versionada continua no mesmo caminho
 da sprint anterior:
@@ -129,7 +129,7 @@ da sprint anterior:
 (modelo de environment sem segredos em
 [`artefatos/postman/environment.example.json`](postman/environment.example.json)).
 
-&emsp; **Autenticação:** O controle de acesso foi implementado na infraestrutura via Lambda Authorizer (`apps/basica/authorizer`, `apps/basica/infra/auth.tf`), exigindo cabeçalho `Authorization: Bearer <token>` com audiência `dashboard` para a API de leitura. A coleção está configurada com `auth: bearer` no nível da coleção (`{{read_token}}`, tipo `secret` no environment) e herda para todas as rotas protegidas; as três rotas públicas (`GET /health/live`, `GET /docs`, `GET /openapi.json`) têm `auth: noauth` explícito. Sem token o API Gateway responde **401** e com token inválido o Authorizer responde **403** (validado no `make smoke`). O `POST` de feedback usa somente identificadores e texto sintéticos, sem dado pessoal.
+&emsp; **Autenticação:** O controle de acesso foi implementado na infraestrutura via Lambda Authorizer (`apps/fullstack/authorizer`, `apps/fullstack/infra/auth.tf`), exigindo cabeçalho `Authorization: Bearer <token>` com audiência `dashboard` para a API de leitura. A coleção está configurada com `auth: bearer` no nível da coleção (`{{read_token}}`, tipo `secret` no environment) e herda para todas as rotas protegidas; as três rotas públicas (`GET /health/live`, `GET /docs`, `GET /openapi.json`) têm `auth: noauth` explícito. Sem token o API Gateway responde **401** e com token inválido o Authorizer responde **403** (validado no `make smoke`). O `POST` de feedback usa somente identificadores e texto sintéticos, sem dado pessoal.
 
 ##### Diagnóstico antes da atualização
 
@@ -187,10 +187,10 @@ ao worker de ingestão, fora do recorte 1(a)+1(b).
 
 ##### Execução Newman
 
-&emsp; Executada em **09/09/2026** contra o **API Gateway de leitura** (`read_api_url` via `terraform output`), com PostgreSQL RDS e authorizer ativo, usando `read_token` (audiência `dashboard`). Massa baseada nas fixtures de `apps/basica/backend/tests/` e nos dados reais do RDS. Foram executadas todas as pastas da API de leitura (`0`, `1` e `4` a `13`); somente as pastas legadas `2` e `3` (ingestão) ficaram fora pelo recorte desta spec. O comando usado (via `make postman-evidencia`, que gera `environment.json` a partir do `.env` sem versionar segredos) foi:
+&emsp; Executada em **09/09/2026** contra o **API Gateway de leitura** (`read_api_url` via `terraform output`), com PostgreSQL RDS e authorizer ativo, usando `read_token` (audiência `dashboard`). Massa baseada nas fixtures de `apps/fullstack/backend/tests/` e nos dados reais do RDS. Foram executadas todas as pastas da API de leitura (`0`, `1` e `4` a `13`); somente as pastas legadas `2` e `3` (ingestão) ficaram fora pelo recorte desta spec. O comando usado (via `make postman-evidencia`, que gera `environment.json` a partir do `.env` sem versionar segredos) foi:
 
 ```bash
-make -C apps/basica postman-env  # gera artefatos/postman/environment.json com read_token secret
+make -C apps/fullstack postman-env  # gera artefatos/postman/environment.json com read_token secret
 npx --yes newman@6 run artefatos/postman/argus.postman_collection.json \
   -e artefatos/postman/environment.json --delay-request 150 \
   --reporters cli,json --reporter-json-export artefatos/postman/evidencias/newman-full.json
@@ -232,8 +232,8 @@ mas a evidência válida para a rubrica é a execução via API Gateway acima.
 mesmo RF é atendido por mais de uma rota, ele é repetido. Os nomes da coluna
 “Teste Postman” existem literalmente na collection exportada; todos foram
 executados no Runner descrito em 5.1.a. A coluna “Teste pytest” vincula cada
-rota a um teste automatizado em `apps/basica/backend/tests/` que roda contra
-PostgreSQL real (`make -C apps/basica test-backend`), cobrindo o mesmo
+rota a um teste automatizado em `apps/fullstack/backend/tests/` que roda contra
+PostgreSQL real (`make -C apps/fullstack test-backend`), cobrindo o mesmo
 contrato que o Postman verifica via HTTP.
 
 | RF | Descrição do requisito | Endpoint | Método | Teste Postman | Teste pytest | Status |
@@ -282,23 +282,23 @@ worker de ingestão, fora do escopo deste artefato (seção 2).
 (zero violação) e `ruff format --check` em todo arquivo novo ou alterado
 desta etapa; modularidade garantida pela separação hexagonal (seção 3).
 Docstrings em **215/215** funções e classes públicas, **158 testes pytest**
-que rodam contra PostgreSQL real (`make -C apps/basica test-backend`), e
+que rodam contra PostgreSQL real (`make -C apps/fullstack test-backend`), e
 API somente leitura (sem `POST` geral; a única escrita é o feedback
 idempotente).
 
 &emsp; **Hospedagem — Lambda em produção, EC2 documentado como alternativa
 equivalente ao enunciado.** A API de leitura roda em **AWS Lambda**
-(`apps/basica/infra/api_read.tf`, `aws_lambda_function.read_api`) por decisão
+(`apps/fullstack/infra/api_read.tf`, `aws_lambda_function.read_api`) por decisão
 de custo e operação no Learner Lab: tráfego de dashboard é intermitente
 (picos em transmissão ao vivo, vale quase morto fora), e manter EC2 24/7
 custaria ~US$ 7/mês ocioso, com patch de SO, ALB e Auto Scaling para gerir,
 enquanto Lambda escala por requisição e cobra por execução, mantendo a mesma
 URL estável via API Gateway. O **código é idêntico** nos dois modelos —
-`apps/basica/backend/src/telemetry/app.py` + `Dockerfile` + `gunicorn` —
+`apps/fullstack/backend/src/telemetry/app.py` + `Dockerfile` + `gunicorn` —
 e o deploy em EC2 é reprodutível sem alteração de código: a alternativa está
-versionada em `apps/basica/infra/ec2_api.tf.example` (EC2 + ALB + ASG, mesma
+versionada em `apps/fullstack/infra/ec2_api.tf.example` (EC2 + ALB + ASG, mesma
 imagem ECR, variáveis `DATABASE_URL`/`USER_ID_HASH_SALT`) e documentada em
-`apps/basica/infra/README.md` § “Alternativa EC2”. O enunciado pedia “tal qual
+`apps/fullstack/infra/README.md` § “Alternativa EC2”. O enunciado pedia “tal qual
 o hospedado no AWS EC2” foi atendido como **compatibilidade EC2 garantida**
 (Lambda é computação gerenciada equivalente, com caminho EC2 pronto), não como
 divergência.
@@ -307,9 +307,9 @@ divergência.
 
 | Requisito | Status | Detalhe |
 |---|---|---|
-| Persistência em RDS | ✅ Feito | PostgreSQL RDS privado (`rds.tf`, `storage_encrypted=true`, `publicly_accessible=false`), schemas `bronze`/`silver`/`gold`/`sim`/`detect`/`etl`, migrations **001 a 028** (`apps/basica/db/migrations/`), aplicação confirmada em 09/09/2026 (`make db-local` + `make migrate` sem erro, 158 testes pytest contra Postgres real, ruff limpo). Toda leitura do dashboard passa por views `v_*` com `available_at <= sim.now()` e usuário `argus_reader` somente `SELECT` nas views. |
-| Log centralizado e estruturado | ✅ Feito | Todo `stdout`/`stderr` da Lambda vai para CloudWatch Log Group (`/aws/lambda/...-read-api`, comportamento nativo). **Estruturado e correlacionado:** `apps/basica/backend/src/telemetry/observability.py` emite **uma linha JSON por requisição** com `request_id`, `route`, `method`, `status`, `latency_ms`, `audience` e `query_keys` (apenas nomes, sem valores — RNF10), registrado em `app.py:register_observability`. O `X-Request-Id` é propagado do API Gateway (`$context.requestId` no access log) para o Flask (`CABECALHO_REQUEST_ID`) e volta no cabeçalho da resposta e no corpo de erro RFC 7807 (`request_id`), permitindo correlação ponta a ponta sem depender de relógio virtual. Nenhum token nem valor de parâmetro vai para o log. |
-| Autenticação segura | ✅ Feito | Lambda Authorizer `REQUEST` (`apps/basica/infra/auth.tf`, `apps/basica/authorizer/handler.py`) valida `Authorization: Bearer` por **SHA-256** (`hmac.compare_digest`) contra `aws_secretsmanager_secret.auth_tokens` (hashes) e segrega por audiência (`dashboard` vs `ingest`). Sem `Authorization` o API Gateway responde **401** sem invocar a função; com token inválido o Authorizer responde **403**. Alarme `authorizer-negacoes` cobre volume de 4xx (RNF09). Limitação documentada: token identifica **serviço, não pessoa** — revogação é por rotação (`make auth-rotate`), sem login individual; evolução para Cognito User Pool está registrada em `arquitetura-inicial.md` §3.7/§6. |
+| Persistência em RDS | ✅ Feito | PostgreSQL RDS privado (`rds.tf`, `storage_encrypted=true`, `publicly_accessible=false`), schemas `bronze`/`silver`/`gold`/`sim`/`detect`/`etl`, migrations **001 a 028** (`apps/fullstack/db/migrations/`), aplicação confirmada em 09/09/2026 (`make db-local` + `make migrate` sem erro, 158 testes pytest contra Postgres real, ruff limpo). Toda leitura do dashboard passa por views `v_*` com `available_at <= sim.now()` e usuário `argus_reader` somente `SELECT` nas views. |
+| Log centralizado e estruturado | ✅ Feito | Todo `stdout`/`stderr` da Lambda vai para CloudWatch Log Group (`/aws/lambda/...-read-api`, comportamento nativo). **Estruturado e correlacionado:** `apps/fullstack/backend/src/telemetry/observability.py` emite **uma linha JSON por requisição** com `request_id`, `route`, `method`, `status`, `latency_ms`, `audience` e `query_keys` (apenas nomes, sem valores — RNF10), registrado em `app.py:register_observability`. O `X-Request-Id` é propagado do API Gateway (`$context.requestId` no access log) para o Flask (`CABECALHO_REQUEST_ID`) e volta no cabeçalho da resposta e no corpo de erro RFC 7807 (`request_id`), permitindo correlação ponta a ponta sem depender de relógio virtual. Nenhum token nem valor de parâmetro vai para o log. |
+| Autenticação segura | ✅ Feito | Lambda Authorizer `REQUEST` (`apps/fullstack/infra/auth.tf`, `apps/fullstack/authorizer/handler.py`) valida `Authorization: Bearer` por **SHA-256** (`hmac.compare_digest`) contra `aws_secretsmanager_secret.auth_tokens` (hashes) e segrega por audiência (`dashboard` vs `ingest`). Sem `Authorization` o API Gateway responde **401** sem invocar a função; com token inválido o Authorizer responde **403**. Alarme `authorizer-negacoes` cobre volume de 4xx (RNF09). Limitação documentada: token identifica **serviço, não pessoa** — revogação é por rotação (`make auth-rotate`), sem login individual; evolução para Cognito User Pool está registrada em `arquitetura-inicial.md` §3.7/§6. |
 
 ### 5.4 (4) Vídeo de demonstração
 
