@@ -82,7 +82,10 @@ export function RecorteContent() {
   });
   const eventsQuery = useQuery({
     queryKey: ["recorte", "events", scope],
-    queryFn: ({ signal }) => fetchEvents({ eventName: "error", scope }, signal),
+    // A amostra confirma o fluxo de ingestão e por isso inclui todos os tipos.
+    // O escopo desta tela pertence às séries Gold e não deve ser enviado à
+    // busca Silver, que possui dimensões diferentes.
+    queryFn: ({ signal }) => fetchEvents({}, signal),
     refetchInterval: 30_000,
   });
   const sessionQuery = useQuery({

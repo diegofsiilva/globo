@@ -101,15 +101,16 @@ provisionado na conta do Learner Lab.
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
-| `/apps/basica/db/migrations` | As 27 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
-| `/apps/basica/backend` | API de leitura em Flask sobre Lambda, com arquitetura hexagonal |
+| `/apps/basica/db/migrations` | As 29 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+| `/apps/basica/backend` | API de leitura em Flask com arquitetura hexagonal, servida por contêiner no cluster Kubernetes |
 | `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
 | `/apps/basica/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
 | `/apps/basica/loader` | Carga inicial das 33 tabelas, de Parquet para o PostgreSQL |
 | `/apps/basica/processing` | ETL, checkpoints, canário, detector e motor determinístico das 11 famílias de hipótese |
 | `/apps/basica/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
-| `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por S3 |
+| `/apps/basica/frontend` | Dashboard em Next.js, export estático servido por nginx no cluster |
 | `/apps/basica/infra` | Terraform de toda a infraestrutura AWS |
+| `/apps/basica/k8s` | Manifestos Kubernetes do caminho síncrono, em base e overlays (`aws`, `kind`) |
 | `/apps/basica/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
 | `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
 | `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem, MVP, infraestrutura e integração |
@@ -146,7 +147,7 @@ cd g04
 # 2. instalar as dependências dos apps Python
 make -C apps/basica install
 
-# 3. subir um PostgreSQL 16 local e aplicar as 27 migrations
+# 3. subir um PostgreSQL 16 local e aplicar as 29 migrations
 make -C apps/basica db-local
 
 # 4. rodar a suíte de testes (66 do worker + 85 do backend)
@@ -191,6 +192,26 @@ Com `make db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração 
 
 Outros alvos úteis, todos com o prefixo `make -C apps/basica`: `lint`, `check`, `smoke`, `dlq`, `pause` e `resume`.
 
+### O sistema inteiro num cluster Kubernetes local
+
+O dashboard e a API também rodam num cluster de verdade na sua máquina, sem nenhuma credencial da AWS. É o mesmo conjunto de manifestos que vai para o EKS — muda só o banco (local em vez de RDS) e a classe do Ingress.
+
+```bash
+# pré-requisitos adicionais: kubectl e kind (brew install kubectl kind)
+make -C apps/basica kind-up                      # cluster, ingress-nginx, metrics-server
+make -C apps/basica k8s-images kind-load         # constrói e carrega as imagens
+make -C apps/basica k8s-apply   K8S_OVERLAY=kind
+make -C apps/basica k8s-migrate K8S_OVERLAY=kind
+
+# dashboard e API na MESMA origem, sem CORS
+open http://localhost:8080/
+curl -s http://localhost:8080/api/v1/clock
+```
+
+`make -C apps/basica kind-down` destrói tudo. O runbook completo, incluindo o caminho na AWS, está em [`apps/basica/k8s/README.md`](apps/basica/k8s/README.md).
+
+> **Recursos.** Um nó rodando control plane, ingress-nginx, metrics-server, PostgreSQL e a aplicação pede folga de CPU. Com menos de 4 vCPU na VM do Docker, o próprio API server começa a responder `TLS handshake timeout` — o sintoma parece "o cluster caiu", e é só falta de CPU.
+
 ---
 
 ## Execução na AWS
@@ -205,11 +226,12 @@ A rede é gerenciada pelo projeto: as tarefas, a API de leitura e o banco vivem 
 | API Gateway (ingestão) | HTTP API com integração direta `SQS-SendMessage` |
 | API Gateway (mudanças) | HTTP API com integração direta `SQS-SendMessage`, fila separada |
 | SQS | Duas filas (`events` e `changes`), cada uma com DLQ e redrive de 5 tentativas |
-| ECS Fargate | Quatro serviços ARM64 (merge worker, event worker, simulador, processamento) e uma task one-shot (carga) |
+| ECS Fargate | Quatro serviços ARM64 do caminho assíncrono (merge worker, event worker, simulador, processamento) e uma task one-shot (carga) |
 | RDS PostgreSQL 16 | `db.t3.medium`, 100 GB gp3, 33 tabelas de origem, 6 particionadas por dia |
 | S3 (origem) | Bucket versionado com o dump e os Parquet que alimentam a carga inicial |
-| Lambda + API Gateway | API de leitura, empacotada por `scripts/build_lambda.sh` |
-| S3 (site) | Bucket com website hosting, que serve o export estático do dashboard |
+| Lambda + API Gateway | Caminho alternativo da API de leitura, empacotado por `scripts/build_lambda.sh` |
+| S3 (site) | Bucket com website hosting; caminho alternativo ao dashboard servido pelo cluster |
+| EKS (Auto Mode) | Cluster na VPC do projeto que orquestra o caminho síncrono: dashboard, API de leitura e o `Job` de migrations, atrás de um ALB provisionado pelo Ingress |
 | CloudWatch | Namespace `Argus/Ingestion` com alarmes de fila, banco e atraso do relógio virtual |
 
 ### Passos de implantação
@@ -231,7 +253,7 @@ cp terraform.tfvars.example terraform.tfvars   # e preencha
 terraform init
 terraform apply -var="worker_desired_count=0" -var="processing_desired_count=0"
 
-# 3. publica as quatro imagens no ECR
+# 3. publica as seis imagens no ECR
 cd ../../.. && make -C apps/basica push
 
 # 4. aplica as migrations e cria o usuário de leitura
@@ -248,10 +270,20 @@ make -C apps/basica load
 cd apps/basica/infra && terraform apply
 cd ../../.. && make -C apps/basica sim-on
 
-# 7. gera o .env a partir dos outputs e publica o dashboard
+# 7. gera o .env a partir dos outputs e publica o dashboard no S3
 make -C apps/basica env
 make -C apps/basica frontend-install
 make -C apps/basica frontend-deploy      # imprime o endereço público do dashboard
+
+# 8. sobe o caminho síncrono no cluster Kubernetes
+#    (create_eks = true no terraform.tfvars; o apply do passo 6 já criou o cluster)
+make -C apps/basica k8s-kubeconfig       # aponta o kubectl para o cluster
+make -C apps/basica k8s-bootstrap        # classe de Ingress do ALB
+make -C apps/basica k8s-push             # backend e frontend, multi-arquitetura
+make -C apps/basica k8s-secret           # segredo montado a partir dos outputs
+make -C apps/basica k8s-migrate          # Job das migrations
+make -C apps/basica k8s-apply
+make -C apps/basica k8s-url              # imprime o endereço do dashboard e da API
 ```
 
 O simulador fica desligado até a carga terminar de propósito: simular mudança sobre tabela vazia não produz nada útil.
@@ -262,6 +294,7 @@ comando só.
 Verificação:
 
 ```bash
+make -C apps/basica k8s-status # pods, HPA, PDB e Ingress do cluster
 make -C apps/basica smoke      # confere as rotas da API publicada
 make -C apps/basica postman    # roda a coleção Postman contra as APIs
 make -C apps/basica count      # conta as linhas carregadas por camada
@@ -288,7 +321,9 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 | [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
 | [Frontend](apps/basica/frontend/README.md) | Rotas, estrutura App Router, fontes de dados e comandos de validação |
 | [API de leitura](apps/basica/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
+| [Conteinerização e orquestração](artefatos/conteineres-final.md) | Arquitetura distribuída, imagens Docker, Kubernetes no caminho síncrono e mecanismos de resiliência |
 | [Infraestrutura](apps/basica/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
+| [Kubernetes](apps/basica/k8s/README.md) | Runbook do cluster: manifestos, overlays, segredos, custo e desligamento |
 
 A API também se documenta em tempo de execução: `GET /docs` serve a Swagger UI e `GET /openapi.json` a especificação OpenAPI 3.1.
 

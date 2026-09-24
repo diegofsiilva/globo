@@ -17,6 +17,10 @@ import { useSimClock, windowEndingAt } from "../../_lib/sim-clock";
 import { normalizeQueryFailure } from "@/lib/operational-state";
 import { fetchHypotheses } from "../_lib/hypotheses-source";
 import { factorStrength } from "../_lib/score";
+import {
+  hypothesisRefinementEnabled,
+  refineHypothesis,
+} from "../_lib/refinement";
 import type {
   DiscardedHypothesis,
   Hypothesis,
@@ -124,7 +128,7 @@ export function HipotesesScreen() {
             <DiscardedList items={report.data.discardedHypotheses} />
           </section>
 
-          {selected && <ScorePanel hypothesis={selected} />}
+          {selected && <ScorePanel key={selected.id} hypothesis={selected} />}
         </div>
       )}
     </ScreenFrame>
@@ -199,6 +203,16 @@ function DiscardedList({ items }: { items: DiscardedHypothesis[] }) {
 /** Renderiza a decomposição do score, as evidências e as ações da hipótese. */
 function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
   const { hrefWithDemoState } = useOperationsUi();
+  const refinement = useQuery({
+    queryKey: ["hypothesis-refinement", hypothesis.id],
+    queryFn: () => refineHypothesis(hypothesis.id),
+    enabled: hypothesisRefinementEnabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: 1,
+  });
+  const refinementFailure = refinement.isError
+    ? normalizeQueryFailure(refinement.error)
+    : null;
   return (
     <aside className={styles.panel} aria-label="Composição do score">
       <p className={styles.panelKicker}>Como este score foi calculado</p>
@@ -243,6 +257,36 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
           </li>
         ))}
       </ul>
+
+      {hypothesisRefinementEnabled && (
+        <section className={styles.refinement} aria-live="polite">
+          <p className={styles.panelKicker}>Explicação refinada</p>
+          {refinement.data ? (
+            <>
+              <p>{refinement.data.answer}</p>
+              {refinement.data.sources.length > 0 && (
+                <small>
+                  Base exclusiva: {refinement.data.sources.map((source) => source.id).join(", ")}
+                </small>
+              )}
+            </>
+          ) : refinementFailure ? (
+            <>
+              <p role="alert">{refinementFailure.cause}</p>
+              <small>Referencia: {refinementFailure.reference}</small>
+              <Button type="button" variant="outline" size="sm" onClick={() => refinement.refetch()}>
+                Tentar novamente
+              </Button>
+            </>
+          ) : refinement.isLoading ? (
+            <p>Refinando automaticamente com base apenas nesta hipótese...</p>
+          ) : (
+            <p>
+              A explicação refinada ainda não está disponível.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* As duas ações encadeiam os fluxos: a hipótese viaja na URL para que a
           timeline e o recorte abram já centrados nela. */}

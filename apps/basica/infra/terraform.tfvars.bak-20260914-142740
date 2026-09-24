@@ -1,0 +1,19 @@
+region      = "us-east-1"
+environment = "livia-dev"
+
+create_iam_roles  = false
+existing_role_arn = "arn:aws:iam::024170130022:role/LabRole"
+
+dynamodb_kms_managed_key = false
+
+assign_public_ip = false
+retention_days   = 90
+gsi1_shards      = 10
+
+worker_desired_count = 1
+worker_cpu           = 256
+worker_memory        = 512
+# --- v3: gerado por deploy assistido, 2026-08-31 ---
+read_api_db_user     = "argus_api"
+read_api_db_password = "b154ETvDkAn37YZ3SbWW7LGo"
+user_id_hash_salt    = "98520626c933ebcfb4a97f1548d2bdc79248b9e62a798c56"

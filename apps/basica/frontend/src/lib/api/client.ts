@@ -38,7 +38,7 @@ export type ApiFetchOptions = {
   signal?: AbortSignal;
   /** Sufixo dos códigos de referência (`ARG-<tag>-HTTP-500`). */
   tag: string;
-  /** Verbo HTTP. Só `POST` é usado além do padrão, no feedback de hipótese. */
+  /** Verbo HTTP. `POST` atende feedback e refinamento de hipótese. */
   method?: "GET" | "POST";
   /** Corpo já serializável em JSON. */
   body?: unknown;

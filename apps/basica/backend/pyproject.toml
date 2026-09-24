@@ -11,6 +11,9 @@ dependencies = [
   "Flask>=3.1,<4",
   "gunicorn>=23,<24",
   "apig-wsgi>=2.18,<3",
+  # A integracao Ollama executa o cliente HTTP no host SSH fornecido pelo
+  # parceiro. Assim funciona mesmo quando o servidor bloqueia port forwarding.
+  "paramiko>=3.5,<5",
   # `binary` traz a libpq compilada: sem isso o pacote da Lambda precisaria de
   # uma layer com a biblioteca do sistema, e o zip deixaria de ser
   # auto-contido. `pool` porque a Lambda reusa a conexao entre invocacoes na

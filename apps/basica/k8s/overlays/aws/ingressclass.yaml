@@ -1,0 +1,28 @@
+# Classe de Ingress servida pelo controlador de load balancer EMBUTIDO no EKS
+# Auto Mode (controller: eks.amazonaws.com/alb).
+#
+# E este detalhe que torna o Auto Mode a escolha certa para o Learner Lab: o
+# AWS Load Balancer Controller instalado por Helm precisaria de IRSA, e o lab
+# nega iam:CreateRole e iam:CreateOpenIDConnectProvider. No Auto Mode quem
+# provisiona o ALB e a propria AWS, usando a role do CLUSTER -- que ja carrega
+# a AmazonEKSLoadBalancingPolicy.
+#
+# Forma verificada contra um cluster Auto Mode real (v1.36):
+#   kubectl explain ingressclassparams.spec --api-version=eks.amazonaws.com/v1
+apiVersion: eks.amazonaws.com/v1
+kind: IngressClassParams
+metadata:
+  name: argus-alb
+spec:
+  scheme: internet-facing
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: argus-alb
+spec:
+  controller: eks.amazonaws.com/alb
+  parameters:
+    apiGroup: eks.amazonaws.com
+    kind: IngressClassParams
+    name: argus-alb
