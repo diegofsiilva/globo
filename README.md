@@ -27,15 +27,13 @@ Turma T15 · 2026-2A · Parceiro: **Grupo Globo**
 
 ## Descrição do projeto
 
-A cadeia de entrega do Globoplay (player, CDN, backend, identidade, catálogo) é monitorada em silos: cada área tem seu próprio painel e vocabulário de métricas, o que faz com que a triagem de um incidente consuma mais tempo para descobrir *quem* conserta do que para de fato consertar. Além disso, degradações que não geram erro (buffer alto, tempo de início ruim) sequer acendem os alertas atuais. A solução é um sistema distribuído de telemetria com API única de ingestão, normalização dos eventos sob vocabulário comum, pipeline assíncrono de alta escala e camada de consulta que devolve uma linha do tempo única do incidente com o recorte afetado explícito, permitindo identificar a causa provável em minutos e sem depender de um especialista por componente.
-
-O sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `video_view`, `vitals` e `error`) e ainda aceita tipos novos sem alteração de código, porque o parque de TVs atualiza devagar e um schema estrito viraria perda de dados em massa.
+**Argus, sistema distribuído de telemetria para diagnóstico de degradação de streaming.** A cadeia de entrega do Globoplay (player, CDN, backend, identidade, catálogo) é monitorada em silos: cada área tem seu próprio painel e vocabulário de métricas, o que faz com que a triagem de um incidente consuma mais tempo para descobrir *quem* conserta do que para de fato consertar, e degradações que não geram erro (buffer alto, tempo de início ruim) sequer acendem os alertas atuais. A solução é um sistema distribuído de telemetria com API única de ingestão, normalização dos eventos sob vocabulário comum, pipeline assíncrono de alta escala e camada de consulta que devolve uma linha do tempo única do incidente com o recorte afetado explícito, permitindo identificar a causa provável em minutos e sem depender de um especialista por componente; o sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `video_view`, `vitals` e `error`) e ainda aceita tipos novos sem alteração de código, porque o parque de TVs atualiza devagar e um schema estrito viraria perda de dados em massa.
 
 ---
 
 ## Arquitetura
 
-A arquitetura v3, implantada e validada na sprint anterior, possui **dois fluxos de ingestão** independentes que desembocam no mesmo banco, e um fluxo de leitura sobre ele.
+A arquitetura possui **dois fluxos de ingestão** independentes que desembocam no mesmo banco, e um fluxo de leitura sobre ele, servido por um cluster Kubernetes.
 
 O primeiro fluxo é o de **eventos de sessão**: o que o app de TV emite (`request`, `screen_view`, `session`, `video_view`, `vitals`, `error`). O segundo é o de **mudanças (CDC)**: as 33 tabelas de telemetria do parceiro não chegam como evento, chegam como *linha que mudou*, e é isso que o simulador reproduz.
 
@@ -43,10 +41,10 @@ O primeiro fluxo é o de **eventos de sessão**: o que o app de TV emite (`reque
 App de TV ──> API Gateway ──> SQS ──> ECS Fargate ─┐
              (ingestão)                (event      │
                                         worker)    │
-                                                   ├──> RDS PostgreSQL ──> Lambda ──> API Gateway ──> Dashboard
-Simulador ──> API Gateway ──> SQS ──> ECS Fargate ─┘   bronze/silver/gold   (API de    (leitura)      (Next.js
- (ECS)       (mudanças)                (merge                                leitura)                  estático)
-                                        worker)
+                                                   ├──> RDS PostgreSQL ──> EKS Auto Mode ──> ALB ──> Navegador
+Simulador ──> API Gateway ──> SQS ──> ECS Fargate ─┘   bronze/silver/gold   (Deployments     (Ingress:
+ (ECS)       (mudanças)                (merge                                backend Flask e   / dashboard,
+                                        worker)                              frontend nginx)   /api leitura)
 ```
 
 Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
@@ -69,8 +67,11 @@ Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
 | Simulador | Anda um relógio virtual e reemite as mudanças das tabelas como se estivessem acontecendo agora | ECS Fargate (ARM64) |
 | Banco de dados | 33 tabelas de origem (68,7 M linhas), 6 delas particionadas por dia | RDS PostgreSQL 16 |
 | Carga inicial | Sobe as 33 tabelas a partir de Parquet, via `COPY FROM STDIN` | ECS Fargate (task one-shot) |
-| API de leitura | Filtros cumulativos, agregações, paginação por cursor e redação de dado pessoal | AWS Lambda (Flask) + API Gateway |
-| Dashboard | Visualização e investigação de incidentes | S3 (site estático) |
+| API de leitura | Filtros cumulativos, agregações, paginação por cursor e redação de dado pessoal | EKS Auto Mode (`Deployment argus-backend`, Flask + gunicorn, 2 a 6 pods por HPA) |
+| Dashboard | Visualização e investigação de incidentes | EKS Auto Mode (`Deployment argus-frontend`, nginx com o export estático do Next.js) |
+| Entrada pública | Um Ingress só: `/` vai para o dashboard, `/api` e `/health` para a API; mesma origem, sem CORS | ALB provisionado pelo Ingress do EKS |
+| Migrations | `Job argus-db-migrate`, com a imagem `processing`, aplica as 33 migrations e cria o usuário de leitura | EKS (Job one-shot) |
+| Compatibilidade | Lambda da API de leitura atrás de API Gateway e website S3 do dashboard continuam provisionados, sem tráfego principal | AWS Lambda + API Gateway, S3 |
 
 ### O relógio virtual
 
@@ -80,20 +81,17 @@ Toda linha carrega um `available_at`, que é o instante em que a informação *f
 
 Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas, então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
 
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura do Argus v3](artefatos/arquitetura-inicial.md), no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/fullstack/infra/README.md).
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura final](artefatos/arquitetura-final.md), na [arquitetura inicial do Argus v3](artefatos/arquitetura-inicial.md), no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/fullstack/infra/README.md).
 
-> **Estado:** ingestão, leitura e dashboard estão aplicados e validados ponta a ponta em AWS Academy Learner Lab. O que está no ar, o modelo de dados e o relatório de testes estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
+### Estado atual (Sprint 4): conteinerização e Kubernetes
 
-### Arquitetura v4 da Sprint 3
+Na Sprint 4 o caminho síncrono passou a rodar num cluster **Amazon EKS Auto Mode**, criado pelo Terraform dentro da VPC do projeto (`create_eks = true`) e descrito pelos manifestos de [`apps/fullstack/k8s`](apps/fullstack/k8s). O namespace `argus` reúne dois Deployments (`argus-backend`, a API Flask + gunicorn, e `argus-frontend`, o nginx com o export estático do Next.js), cada um com Service, HorizontalPodAutoscaler e PodDisruptionBudget; um ConfigMap; um Ingress que provisiona o Application Load Balancer e encaminha `/` ao dashboard e `/api` e `/health` à API; e o Job `argus-db-migrate`, que usa a imagem `processing` para aplicar as migrations e criar o usuário de leitura antes de cada versão. O Auto Mode cria e remove os nós EC2 conforme os pods pendentes, e os overlays `aws` e `kind` executam o mesmo conjunto de manifestos na AWS e num cluster local.
 
-A **arquitetura v4 foi desenvolvida na Sprint 3** para acrescentar
-uma VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade,
-NAT Gateway, bastion host, API de leitura em instâncias EC2 sob Auto Scaling Group,
-Application Load Balancer, CloudFront e a opção de RDS Multi-AZ. O diagrama e a
-documentação dessa evolução estão no artefato de
-[infraestrutura e integração](artefatos/infraestrutura-integracao.md). O artefato
-mantém separado o desenho desenvolvido na Sprint 3 do estado efetivamente
-provisionado na conta do Learner Lab.
+A ingestão não mudou de plataforma: API Gateway → SQS → ECS Fargate (merge worker, event worker, simulador, processamento e a task de carga) continua gravando no RDS PostgreSQL 16, porque esses serviços precisam de IAM por task para falar com SQS e S3, e o Learner Lab bloqueia IRSA e Pod Identity no EKS. O caminho de leitura em EC2 da Sprint 3 (Auto Scaling Group com Application Load Balancer próprio) foi removido: a leitura pública vem do ALB criado pelo Ingress do EKS. A Lambda da API de leitura e o website S3 seguem provisionados apenas como recurso de compatibilidade. Diagrama, justificativas, plano de recuperação de falhas e evidências estão em [`artefatos/arquitetura-final.md`](artefatos/arquitetura-final.md); as decisões de conteinerização e orquestração, em [`artefatos/conteineres-final.md`](artefatos/conteineres-final.md).
+
+### Histórico: arquitetura v4 da Sprint 3
+
+A arquitetura v4, desenvolvida na Sprint 3, acrescentou a VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade, NAT Gateway, bastion host, Flow Logs, a opção de RDS Multi-AZ e uma API de leitura em instâncias EC2 sob Auto Scaling Group atrás de um Application Load Balancer, com CloudFront no desenho. A rede, o bastion e os Flow Logs permanecem; o caminho EC2 foi substituído pelo cluster na Sprint 4. O diagrama e a documentação dessa etapa estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md), que separa o desenho da Sprint 3 do que foi efetivamente provisionado na conta do Learner Lab. O estado das Sprints 1 e 2, com o modelo de dados e o relatório de testes iniciais, está em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
 ---
 
@@ -104,10 +102,26 @@ g04/
 ├── README.md
 ├── .gitignore
 ├── apps/
-│   └── fullstack/   # aplicação, infraestrutura e comandos de execução
-├── artefatos/       # documentação e evidências das sprints
-├── slides/          # apresentações das sprints
-└── assets/          # logos do Inteli e do parceiro
+│   └── fullstack/          # aplicação, infraestrutura e comandos de execução
+│       ├── authorizer/     # autorização das APIs por token Bearer
+│       ├── backend/        # API de leitura (Flask)
+│       ├── common/         # código compartilhado pelos serviços Python
+│       ├── db/migrations/  # as 33 migrations do banco
+│       ├── frontend/       # dashboard (Next.js)
+│       ├── infra/          # Terraform da AWS
+│       ├── k8s/            # manifestos Kubernetes (base, migrate, overlays aws e kind)
+│       ├── loader/         # carga inicial
+│       ├── notebooks/      # análise exploratória
+│       ├── observability/  # Prometheus e Grafana locais
+│       ├── processing/     # ETL, detector e motor de hipóteses
+│       ├── simulator/      # relógio virtual e emissor de mudanças
+│       ├── tests/carga/    # scripts K6 de carga, escalabilidade e resiliência
+│       ├── tools/          # migrations, DDL, ETL do dump, replay e loadtest
+│       ├── worker/         # merge worker e event worker
+│       └── Makefile        # comandos do projeto
+├── artefatos/              # documentação e evidências das sprints
+├── slides/                 # apresentações das sprints
+└── assets/                 # logos do Inteli e do parceiro
 ```
 
 | Pasta / Arquivo | Conteúdo |
@@ -115,7 +129,7 @@ g04/
 | `/apps` | Aplicações do projeto, organizadas em subpastas |
 | `/apps/fullstack` | Aplicação Argus completa: serviços, dashboard, infraestrutura e ferramentas |
 | `/apps/fullstack/authorizer` | Autorização das APIs por token Bearer |
-| `/apps/fullstack/db/migrations` | As 29 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
+| `/apps/fullstack/db/migrations` | As 33 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/fullstack/backend` | API de leitura em Flask com arquitetura hexagonal, servida por contêiner no cluster Kubernetes |
 | `/apps/fullstack/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
 | `/apps/fullstack/simulator` | Relógio virtual e emissor de mudanças, que reproduz o dump como se fosse hoje |
@@ -123,21 +137,23 @@ g04/
 | `/apps/fullstack/processing` | ETL, checkpoints, canário, detector e motor determinístico das 11 famílias de hipótese |
 | `/apps/fullstack/common` | O que os quatro serviços compartilham: conexão, métricas e ciclo de vida |
 | `/apps/fullstack/frontend` | Dashboard em Next.js, export estático servido por nginx no cluster |
-| `/apps/fullstack/infra` | Terraform de toda a infraestrutura AWS |
-| `/apps/fullstack/k8s` | Manifestos Kubernetes do caminho síncrono, em base e overlays (`aws`, `kind`) |
-| `/apps/fullstack/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
+| `/apps/fullstack/infra` | Terraform de toda a infraestrutura AWS, incluindo o cluster EKS (`eks.tf`) |
+| `/apps/fullstack/k8s` | Manifestos Kubernetes do caminho síncrono: `base` (Deployments, Services, HPA, PDB, Ingress, ConfigMap), `migrate` (Job) e overlays `aws` e `kind` |
+| `/apps/fullstack/tools` | Migrations (`migrate.py`), geração do DDL, ETL do dump, conversão dos CSVs, replay de eventos, lote de hipóteses, validação dos manifestos e scripts K6 de ingestão (`loadtest`) |
 | `/apps/fullstack/notebooks` | Análise exploratória do dataset do parceiro |
 | `/apps/fullstack/observability` | Configuração local de Prometheus e Grafana para acompanhar os testes |
-| `/apps/fullstack/tests` | Testes de carga, escalabilidade e resiliência |
-| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem, MVP, infraestrutura e integração |
+| `/apps/fullstack/tests/carga` | Scripts K6 dos testes de carga (RNF01 a RNF03), escalabilidade e resiliência, com `executar_testes.sh` e README próprio |
+| `/apps/fullstack/AGENTS.md`, `CLAUDE.md` | Convenções do app para assistentes de código; algumas subpastas têm os seus |
+| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem, arquitetura, hipóteses, testes, infraestrutura e conteinerização (índice na seção [Documentação](#documentação)) |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
+| `/artefatos/evidencias` | Saídas brutas dos testes unitários, de integração, de carga e do cluster citadas pelos artefatos |
 | `/artefatos/postman` | Coleção Postman de teste das duas APIs + evidências `evidencias/newman-*.json` |
 | `/assets` | Logos usados neste README |
-| `/slides` | Apresentações das sprints em PDF |
+| `/slides` | Apresentações das sprints: Sprint 1 em PDF, Sprints 2 e 3 em PPTX |
 | `/apps/fullstack/Makefile` | Comandos do projeto; `make -C apps/fullstack` lista os alvos |
 | `/apps/fullstack/.env.example` | Chaves de configuração; os valores ficam em `/apps/fullstack/.env`, fora do repositório |
 | `README.md` | Este arquivo |
-| `.gitignore` | Arquivos e pastas ignorados pelo controle de versão |
+| `.gitignore` | Arquivos e pastas ignorados pelo controle de versão, entre eles o dump do parceiro, a pasta local `data/` e o `terraform.tfvars` |
 
 ---
 
@@ -171,7 +187,7 @@ cd g04
 make -C apps/fullstack install
 make -C apps/fullstack frontend-install
 
-# 3. subir um PostgreSQL 16 local e aplicar as 29 migrations
+# 3. subir um PostgreSQL 16 local e aplicar as 33 migrations
 make -C apps/fullstack db-local
 
 # 4. rodar a suíte de testes
@@ -255,9 +271,11 @@ curl -s http://localhost:8080/api/v1/clock
 
 ## Execução na AWS
 
-Toda a infraestrutura é provisionada por Terraform em [`apps/fullstack/infra`](apps/fullstack/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado.
+Toda a infraestrutura é provisionada por Terraform em [`apps/fullstack/infra`](apps/fullstack/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado. O caminho síncrono é aplicado por `kubectl` e `kustomize` a partir de [`apps/fullstack/k8s`](apps/fullstack/k8s), cujo README é o runbook do cluster. Além do Terraform 1.x e da AWS CLI, esse caminho exige `kubectl` e Docker com `buildx`, porque as imagens do EKS são publicadas em duas arquiteturas (os nós do Auto Mode são amd64; as máquinas do time e o Fargate, arm64).
 
-A rede é gerenciada pelo projeto: as tarefas, a API de leitura e o banco vivem em **sub-redes privadas**, sem endereço público, e alcançam os serviços da AWS por um **NAT Gateway**. O tráfego da VPC é registrado em Flow Logs. O desenho, as justificativas e as evidências de aplicação estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md); `create_network = false` devolve o stack à VPC padrão da conta e dispensa o custo do NAT.
+A rede é gerenciada pelo projeto: as tarefas, os nós do cluster e o banco vivem em **sub-redes privadas**, sem endereço público, e alcançam os serviços da AWS por um **NAT Gateway**. O tráfego da VPC é registrado em Flow Logs. O desenho, as justificativas e as evidências de aplicação estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md) e em [`artefatos/arquitetura-final.md`](artefatos/arquitetura-final.md); `create_network = false` devolve o stack à VPC padrão da conta e dispensa o custo do NAT (e, com isso, o cluster, que exige a rede dedicada).
+
+O ambiente de entrega é o **AWS Academy Learner Lab**, que impõe concessões a um Terraform escrito para conta normal, todas resolvidas por variável no `terraform.tfvars` (que está no `.gitignore` porque carrega o id da conta e pode carregar a senha do banco): `iam:CreateRole` é negado, então os componentes usam a `LabRole` pronta (`create_iam_roles = false` e `existing_role_arn`); a senha do RDS pode vir do tfvars em vez do Secrets Manager; e a SCP da organização impede o provider de reler um bucket S3 recém-criado, por isso os buckets de logs são criados fora do Terraform e apenas referenciados por nome. O detalhe de cada uma, e o que muda numa conta normal, está em [`apps/fullstack/infra/README.md` § AWS Academy](apps/fullstack/infra/README.md#aws-academy--learner-lab).
 
 | Recurso | Configuração |
 |---------|--------------|
@@ -265,12 +283,14 @@ A rede é gerenciada pelo projeto: as tarefas, a API de leitura e o banco vivem 
 | API Gateway (ingestão) | HTTP API com integração direta `SQS-SendMessage` |
 | API Gateway (mudanças) | HTTP API com integração direta `SQS-SendMessage`, fila separada |
 | SQS | Duas filas (`events` e `changes`), cada uma com DLQ e redrive de 5 tentativas |
-| ECS Fargate | Quatro serviços ARM64 do caminho assíncrono (merge worker, event worker, simulador, processamento) e uma task one-shot (carga) |
+| ECR | Um repositório por imagem (`worker`, `simulator`, `processing`, `loader`, `backend`, `frontend`), com lifecycle policy; a tag é o SHA do commit |
+| ECS Fargate | Quatro serviços ARM64 do caminho assíncrono (merge worker, event worker, simulador, processamento) e tasks one-shot (carga e migration) |
 | RDS PostgreSQL 16 | `db.t3.medium`, 100 GB gp3, 33 tabelas de origem, 6 particionadas por dia |
 | S3 (origem) | Bucket versionado com o dump e os Parquet que alimentam a carga inicial |
-| Lambda + API Gateway | Caminho alternativo da API de leitura, empacotado por `scripts/build_lambda.sh` |
-| S3 (site) | Bucket com website hosting; caminho alternativo ao dashboard servido pelo cluster |
-| EKS (Auto Mode) | Cluster na VPC do projeto que orquestra o caminho síncrono: dashboard, API de leitura e o `Job` de migrations, atrás de um ALB provisionado pelo Ingress |
+| EKS (Auto Mode) | Cluster na VPC do projeto (`create_eks = true`) que orquestra o caminho síncrono: dashboard, API de leitura e o `Job` de migrations, atrás do ALB provisionado pelo Ingress; os nós usam o papel mínimo `LabEksNodeRole` |
+| Bastion | Host de acesso administrativo ao RDS, que é privado |
+| Lambda + API Gateway | Recurso de compatibilidade da API de leitura, empacotado por `scripts/build_lambda.sh` (`make lambda-build`) |
+| S3 (site) | Bucket com website hosting; recurso de compatibilidade do dashboard, que hoje é servido pelo cluster |
 | CloudWatch | Namespace `Argus/Ingestion` com alarmes de fila, banco e atraso do relógio virtual |
 
 ### Passos de implantação
@@ -279,56 +299,50 @@ Credenciais primeiro: [`artefatos/mvp-inicial.md` §6.2](artefatos/mvp-inicial.m
 mostra como pegar as credenciais do AWS Academy Learner Lab em **AWS Details →
 AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`.
 
-> **O id da conta do Learner Lab muda a cada sessão nova.** Antes do apply, confira com `aws sts get-caller-identity --profile g4 --query Account --output text` e atualize o `existing_role_arn` do `terraform.tfvars`. E **todo** comando `aws` deste projeto leva `--profile g4`: sem ele a CLI usa o profile default, que é outra conta.
+> **O id da conta do Learner Lab muda a cada sessão nova.** Antes do apply, confira com `aws sts get-caller-identity --profile g4 --query Account --output text` e atualize o `existing_role_arn` do `terraform.tfvars`. E **todo** comando `aws` deste projeto leva `--profile g4`: sem ele a CLI usa o profile default, que é outra conta. O Terraform não tem `--profile`: exporte `AWS_PROFILE=g4` e `AWS_REGION=us-east-1` antes de `plan` e `apply`.
 
 ```bash
-# 1. empacota a API de leitura: o Terraform precisa do zip já no plan
+# 1. empacota a Lambda de compatibilidade: o Terraform precisa do zip já no plan
 make -C apps/fullstack install
 make -C apps/fullstack lambda-build
 
-# 2. cria a infraestrutura sem os serviços (o ECR nasce vazio)
+# 2. cria a infraestrutura sem os serviços (o ECR nasce vazio) e com o cluster
+#    (create_eks = true no terraform.tfvars; o EKS leva 10 a 15 minutos)
 cd apps/fullstack/infra
 cp terraform.tfvars.example terraform.tfvars   # e preencha
 terraform init
-terraform apply -var="worker_desired_count=0" -var="processing_desired_count=0"
+terraform apply -var="worker_desired_count=0" -var="processing_desired_count=0" -var="simulator_desired_count=0"
 
-# 3. publica as seis imagens no ECR
+# 3. publica as seis imagens no ECR, com a tag do commit
 cd ../../.. && make -C apps/fullstack push
 
-# 4. aplica as migrations e cria o usuário de leitura
-make -C apps/fullstack db-url        # mostra como montar a DATABASE_URL
-make -C apps/fullstack migrate
-make -C apps/fullstack db-reader
+# 4. gera os tokens Bearer (imprime UMA vez) e monta o segredo do cluster
+make -C apps/fullstack auth-rotate          # até aqui as APIs respondem 403 de propósito
+make -C apps/fullstack k8s-kubeconfig       # aponta o kubectl para o cluster
+make -C apps/fullstack k8s-bootstrap        # classe de Ingress do ALB
+make -C apps/fullstack k8s-secret           # lê os outputs do Terraform; nada toca o disco
 
-# 5. carga inicial: sobe o Parquet e dispara a task (20 a 30 min, 68,7 M linhas)
-make -C apps/fullstack parquet       # só na primeira vez: dump MySQL -> Parquet
+# 5. aplica as 33 migrations e cria o usuário de leitura, pelo Job dentro da VPC
+make -C apps/fullstack k8s-migrate
+
+# 6. carga inicial: sobe o Parquet e dispara a task (20 a 30 min, 68,7 M linhas)
+make -C apps/fullstack parquet              # só na primeira vez: dump MySQL -> Parquet
 make -C apps/fullstack origem-sync
 make -C apps/fullstack load
 
-# 6. liga os workers e, depois que a carga terminar, o simulador
+# 7. liga os workers e, depois que a carga terminar, o simulador
 cd apps/fullstack/infra && terraform apply
 cd ../../.. && make -C apps/fullstack sim-on
 
-# 7. gera o .env a partir dos outputs e publica o dashboard no S3
-make -C apps/fullstack env
-make -C apps/fullstack frontend-install
-make -C apps/fullstack frontend-deploy      # imprime o endereço público do dashboard
-
-# 8. sobe o caminho síncrono no cluster Kubernetes
-#    (create_eks = true no terraform.tfvars; o apply do passo 6 já criou o cluster)
-make -C apps/fullstack k8s-kubeconfig       # aponta o kubectl para o cluster
-make -C apps/fullstack k8s-bootstrap        # classe de Ingress do ALB
-make -C apps/fullstack k8s-push             # backend e frontend, multi-arquitetura
-make -C apps/fullstack k8s-secret           # segredo montado a partir dos outputs
-make -C apps/fullstack k8s-migrate          # Job das migrations
+# 8. sobe o dashboard e a API no cluster e gera o .env local
 make -C apps/fullstack k8s-apply
-make -C apps/fullstack k8s-url              # imprime o endereço do dashboard e da API
+make -C apps/fullstack k8s-url              # http://<hostname do ALB>: dashboard em / e API em /api
+make -C apps/fullstack env                  # .env com as URLs, para smoke, postman e replay
 ```
 
-O simulador fica desligado até a carga terminar de propósito: simular mudança sobre tabela vazia não produz nada útil.
+O simulador fica desligado até a carga terminar de propósito: simular mudança sobre tabela vazia não produz nada útil. Se o RDS estiver parado (é o que guarda a carga entre sessões), religue-o antes do passo 4 com `aws rds start-db-instance --db-instance-identifier argus-events-dev --profile g4`. Sem o cluster, `migrate-aws` e `db-reader-aws` fazem o trabalho do passo 5 por uma task ECS dentro da VPC.
 
-Nos deploys seguintes, `make -C apps/fullstack deploy` testa, empacota, aplica e roda o smoke num
-comando só.
+Nos deploys seguintes, `make -C apps/fullstack push` seguido de `make -C apps/fullstack tf-apply` atualiza o caminho assíncrono (a tag é o SHA do commit, e o rollback é apontar o SHA anterior); `k8s-push`, `k8s-migrate` (quando houver migration nova) e `k8s-apply` atualizam o cluster com rolling update, sem queda. Depois de um `auth-rotate`, repita `k8s-secret`: ele termina com `rollout restart`, porque variável de `secretKeyRef` não recarrega em pod que já está de pé. `make -C apps/fullstack deploy` continua publicando a Lambda de compatibilidade.
 
 Verificação:
 
@@ -341,28 +355,44 @@ make -C apps/fullstack dlq        # mostra o que foi rejeitado, com o motivo
 make -C apps/fullstack logs SERVICO=worker    # worker|simulator|processing|loader
 ```
 
-Para economizar crédito do lab, `pause` e `resume` desligam e religam os serviços sem destruir nada, e o RDS continua de pé, que é o que guarda o trabalho da carga.
+Para economizar crédito do lab, `pause` e `resume` desligam e religam os serviços do Fargate sem destruir nada, e o RDS continua de pé, que é o que guarda o trabalho da carga. O cluster cobra por hora existindo, somado ao ALB: `k8s-scale-zero` consolida os nós até zero e `k8s-delete` remove o namespace e, com ele, o ALB; `create_eks = false` seguido de `tf-apply` derruba o cluster inteiro sem tocar no resto.
 
 ---
 
 ## Documentação
 
-| Artefato | Descrição |
-|----------|-----------|
-| [MVP inicial](artefatos/mvp-inicial.md) | O que está implantado, modelo de dados e relatório de testes |
-| [Arquitetura do Argus v3](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
-| [Infraestrutura e integração da Sprint 3](artefatos/infraestrutura-integracao.md) | Arquitetura v4, diagrama em nuvem, componentes, plano de deploy, integração front-end/back-end e riscos conhecidos |
-| [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
-| [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
-| [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
-| [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
-| [Modelagem](artefatos/modelagem.md) | Diagrama de classes UML (unificado + quatro recortes) e descrição textual do modelo de domínio |
-| [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
+Os artefatos em [`artefatos/`](artefatos) estão agrupados pela sprint em que foram entregues; vários foram revisados nas sprints seguintes.
+
+| Sprint | Artefato | Descrição |
+|--------|----------|-----------|
+| 1 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
+| 1 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
+| 1 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
+| 1 | [MVP inicial](artefatos/mvp-inicial.md) | O que foi implantado no MVP, modelo de dados, conexão do Terraform ao Learner Lab e relatório de testes |
+| 2 | [Arquitetura inicial (Argus v3)](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
+| 2 | [Plano da v3](artefatos/plano-argus-v3.md) | Por que a arquitetura mudou para RDS + CDC + bronze/silver/gold, schemas, Terraform, carga inicial, serviços, ordem de execução, riscos e ETL incremental |
+| 2 | [Correlação de dados](artefatos/correlacao_dados.md) | Correlação de dados para geração de hipóteses: invariantes temporais, tipos de correlação, features explicáveis, score, cobertura e confiança, padrões por família |
+| 2 | [Geração de hipóteses](artefatos/hipoteses.md) | Arquitetura do motor de hipóteses: conceitos temporais, responsabilidade de cada camada, catálogo inicial, proteções contra falsos positivos, score explicável e persistência no PostgreSQL |
+| 2 | [Back-end](artefatos/backend.md) | Organização do código da API de leitura, endpoints e itens da especificação atendidos |
+| 2 | [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
+| 2 | [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
+| 3 | [Infraestrutura e integração](artefatos/infraestrutura-integracao.md) | Arquitetura v4, diagrama em nuvem, componentes, plano de deploy, alta disponibilidade e rollback, vídeos de infraestrutura e integração front-end/back-end e riscos conhecidos |
+| 3 | [Modelagem](artefatos/modelagem.md) | Diagrama de classes UML (unificado + quatro recortes) e descrição textual do modelo de domínio |
+| 3 | [Testes de carga iniciais](artefatos/testes-carga-inicial.md) | Requisitos não funcionais e planos de teste revisados, resultados de desempenho e resiliência e visualização dos indicadores de observabilidade |
+| 4 | [Arquitetura final](artefatos/arquitetura-final.md) | Diagrama de implantação com EKS Auto Mode e ECS Fargate, componentes e justificativas, inventário de contêineres, Docker e Kubernetes, plano de recuperação de falhas e evidências de validação |
+| 4 | [Conteinerização e orquestração](artefatos/conteineres-final.md) | Arquitetura distribuída, imagens Docker, por que o Kubernetes cobre só o caminho síncrono, tabela de decisões e mecanismos de resiliência |
+| 4 | [Testes funcionais](artefatos/testes-funcionais.md) | Testes unitários, de integração, do UC03 com análise de valor-limite e de carga, com cobertura de requisitos e evidências em `artefatos/evidencias` |
+| 4 | [Teste de hipótese por ingestão CDC](artefatos/teste-hipoteses-ingestao.md) | Roteiro que leva um lote de `POST /v1/changes` até `gold.hypothesis` (bronze → silver → checkpoint → detector), com a execução no lab de 23/09/2026 e a visualização no dashboard |
+
+Os READMEs de cada parte da aplicação complementam os artefatos:
+
+| Documento | Descrição |
+|-----------|-----------|
 | [Frontend](apps/fullstack/frontend/README.md) | Rotas, estrutura App Router, fontes de dados e comandos de validação |
 | [API de leitura](apps/fullstack/backend/README.md) | Rotas, filtros, estratégias de consulta e variáveis de configuração |
-| [Conteinerização e orquestração](artefatos/conteineres-final.md) | Arquitetura distribuída, imagens Docker, Kubernetes no caminho síncrono e mecanismos de resiliência |
-| [Infraestrutura](apps/fullstack/infra/README.md) | Deploy, operação, DLQ, métricas e AWS Academy |
-| [Kubernetes](apps/fullstack/k8s/README.md) | Runbook do cluster: manifestos, overlays, segredos, custo e desligamento |
+| [Infraestrutura](apps/fullstack/infra/README.md) | Deploy, operação, DLQ, métricas, rede, Flow Logs e AWS Academy |
+| [Kubernetes](apps/fullstack/k8s/README.md) | Runbook do cluster: manifestos, overlays, segredos, resiliência, custo e desligamento |
+| [Testes de carga](apps/fullstack/tests/carga/README.md) | Como executar os scripts K6 de carga, escalabilidade e resiliência |
 
 A API também se documenta em tempo de execução: `GET /docs` serve a Swagger UI e `GET /openapi.json` a especificação OpenAPI 3.1.
 
@@ -374,7 +404,7 @@ A API também se documenta em tempo de execução: `GET /docs` serve a Swagger U
 - **Commits:** Conventional Commits em português, no imperativo, distribuídos ao longo da sprint.
 - **Documentação de código:** docstrings (PEP 257) em Python e JSDoc em JavaScript. Todo módulo tem cabeçalho descritivo e toda função documenta parâmetros, retorno e comportamento.
 - **Qualidade:** `make -C apps/fullstack check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
-- **Tags:** uma tag `SPRINTX` por entrega, criada na data de entrega da sprint.
+- **Tags:** uma tag `SPRINTN` por entrega (`SPRINT4` para esta), sem hífen, criada na data de entrega da sprint, como pede o enunciado. As tags anteriores variaram na grafia (`SPRINT-1`, `SPRINT-2`, `Sprint-3`) e foram mantidas como estão.
 
 ---
 

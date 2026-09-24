@@ -1,8 +1,9 @@
 # Dump bruto cedido pelo parceiro — 4 GB, nao redistribuir (DATASET.md §11)
 argus_dump.sql
 
-# Artefatos gerados por tools/etl_dump.py a partir do dump
-data/parquet/
+# Dados locais: Parquet gerados por tools/etl_dump.py a partir do dump e
+# qualquer outro derivado. A pasta so existe na maquina de quem roda o ETL.
+data/
 
 # Ambiente Python
 .venv/
