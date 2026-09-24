@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Argus, API de leitura e ingestão",
-    "description": "Coleção unificada atualizada em 09/09/2026. As pastas 0, 1 e 4 a 13 cobrem todas as 33 rotas declaradas em apps/basica/backend, inclusive hipóteses, com caminho feliz e erros 4xx quando a rota recebe entrada validável. Autenticação via Lambda Authorizer (Bearer {{read_token}}, audiência dashboard) — as rotas protegidas exigem Authorization e são executadas via API Gateway (ver evidência em artefatos/postman/evidencias/). Pastas públicas (/health/live, /docs, /openapi.json) mantêm No Auth. As pastas 2 e 3 preservam os testes legados de ingestão e estão fora do escopo do artefato backend.md.",
+    "description": "Coleção unificada atualizada em 09/09/2026. As pastas 0, 1 e 4 a 13 cobrem todas as 33 rotas declaradas em apps/fullstack/backend, inclusive hipóteses, com caminho feliz e erros 4xx quando a rota recebe entrada validável. Autenticação via Lambda Authorizer (Bearer {{read_token}}, audiência dashboard) — as rotas protegidas exigem Authorization e são executadas via API Gateway (ver evidência em artefatos/postman/evidencias/). Pastas públicas (/health/live, /docs, /openapi.json) mantêm No Auth. As pastas 2 e 3 preservam os testes legados de ingestão e estão fora do escopo do artefato backend.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -805,7 +805,7 @@
                 ""
               ]
             },
-            "description": "Esta pasta (POST, API de ingestão) não foi revisada nesta etapa. O trabalho desta rodada cobriu só a API de LEITURA (apps/basica/backend). Os testes abaixo assumem a integração API Gateway -> SQS direta descrita em plano-argus-v3.md; confirmar contra apps/basica/worker antes de rodar em CI."
+            "description": "Esta pasta (POST, API de ingestão) não foi revisada nesta etapa. O trabalho desta rodada cobriu só a API de LEITURA (apps/fullstack/backend). Os testes abaixo assumem a integração API Gateway -> SQS direta descrita em plano-argus-v3.md; confirmar contra apps/fullstack/worker antes de rodar em CI."
           }
         },
         {

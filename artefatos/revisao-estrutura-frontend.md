@@ -2,7 +2,7 @@
 
 **Data:** 25/08/2026
 
-**Escopo revisado:** `apps/basica/frontend`
+**Escopo revisado:** `apps/fullstack/frontend`
 
 **Base da revisão:** `develop` em `9dccc682be93cb88fd8679af079b2124df1678c3`
 
@@ -12,7 +12,7 @@
 
 ## Objetivo e método
 
-A revisão original usou `git diff develop...3b06bc9 -- apps/basica/frontend` e
+A revisão original usou `git diff develop...3b06bc9 -- apps/fullstack/frontend` e
 separou os resultados em dois eixos independentes:
 
 - **Standards:** aderência à organização do App Router, fronteiras
@@ -148,7 +148,7 @@ quando a URL está ausente.
 
 ## Evidências de verificação
 
-Executado em `apps/basica/frontend`:
+Executado em `apps/fullstack/frontend`:
 
 | Verificação | Resultado |
 |---|---|
