@@ -86,7 +86,7 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 ### Arquitetura v4 da Sprint 3
 
-A **arquitetura v4 foi desenvolvida na Sprint 3, a sprint atual**, para acrescentar
+A **arquitetura v4 foi desenvolvida na Sprint 3** para acrescentar
 uma VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade,
 NAT Gateway, bastion host, API de leitura em instâncias EC2 sob Auto Scaling Group,
 Application Load Balancer, CloudFront e a opção de RDS Multi-AZ. O diagrama e a
@@ -99,8 +99,22 @@ provisionado na conta do Learner Lab.
 
 ## Estrutura de pastas
 
+```text
+g04/
+├── README.md
+├── .gitignore
+├── apps/
+│   └── basica/      # aplicação, infraestrutura e comandos de execução
+├── artefatos/       # documentação e evidências das sprints
+├── slides/          # apresentações das sprints
+└── assets/          # logos do Inteli e do parceiro
+```
+
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
+| `/apps` | Aplicações do projeto, organizadas em subpastas |
+| `/apps/basica` | Aplicação Argus completa: serviços, dashboard, infraestrutura e ferramentas |
+| `/apps/basica/authorizer` | Autorização das APIs por token Bearer |
 | `/apps/basica/db/migrations` | As 29 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/basica/backend` | API de leitura em Flask com arquitetura hexagonal, servida por contêiner no cluster Kubernetes |
 | `/apps/basica/worker` | Os dois workers de ingestão (`merge` e `event`), que consomem o SQS e gravam na bronze |
@@ -113,10 +127,13 @@ provisionado na conta do Learner Lab.
 | `/apps/basica/k8s` | Manifestos Kubernetes do caminho síncrono, em base e overlays (`aws`, `kind`) |
 | `/apps/basica/tools` | Migrations, geração do DDL, ETL do dump, conversão dos CSVs e replay |
 | `/apps/basica/notebooks` | Análise exploratória do dataset do parceiro |
+| `/apps/basica/observability` | Configuração local de Prometheus e Grafana para acompanhar os testes |
+| `/apps/basica/tests` | Testes de carga, escalabilidade e resiliência |
 | `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem, MVP, infraestrutura e integração |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
 | `/artefatos/postman` | Coleção Postman de teste das duas APIs + evidências `evidencias/newman-*.json` |
 | `/assets` | Logos usados neste README |
+| `/slides` | Apresentações das sprints em PDF |
 | `/apps/basica/Makefile` | Comandos do projeto; `make -C apps/basica` lista os alvos |
 | `/apps/basica/.env.example` | Chaves de configuração; os valores ficam em `/apps/basica/.env`, fora do repositório |
 | `README.md` | Este arquivo |
@@ -132,10 +149,16 @@ provisionado na conta do Learner Lab.
 - [uv](https://docs.astral.sh/uv/), que monta os ambientes a partir do `pyproject.toml` de cada app
 - Node.js 20+ (para o dashboard)
 - Docker (para o PostgreSQL local e para construir as imagens dos serviços)
-- Terraform 1.x (para a infraestrutura)
-- Credenciais AWS configuradas (`aws sts get-caller-identity` deve responder)
+- GNU Make e Bash (para os comandos do `Makefile`; no Windows, use WSL com essas ferramentas e integração com o Docker)
 
-Em Codespaces ou VS Code, tudo o que segue funciona sem configuração adicional.
+Para a implantação na AWS, também são necessários Terraform 1.x, AWS CLI e
+credenciais do Learner Lab no profile `g4` (`aws sts get-caller-identity --profile g4`
+deve responder). A execução local abaixo não depende de credenciais AWS.
+
+No VS Code ou Codespaces, instale os pré-requisitos no ambiente em que os comandos
+serão executados. As configurações específicas do backend ficam em
+[`apps/basica/backend/.vscode`](apps/basica/backend/.vscode) e
+[`apps/basica/backend/.devcontainer`](apps/basica/backend/.devcontainer).
 
 ### Passos
 
@@ -144,41 +167,57 @@ Em Codespaces ou VS Code, tudo o que segue funciona sem configuração adicional
 git clone https://git.inteli.edu.br/graduacao/2026-2a/t15/g04.git
 cd g04
 
-# 2. instalar as dependências dos apps Python
+# 2. instalar as dependências dos serviços e do dashboard
 make -C apps/basica install
+make -C apps/basica frontend-install
 
 # 3. subir um PostgreSQL 16 local e aplicar as 29 migrations
 make -C apps/basica db-local
 
-# 4. rodar a suíte de testes (66 do worker + 85 do backend)
+# 4. rodar a suíte de testes
 make -C apps/basica test
 
-# 5. para usar serviços publicados, gerar as variáveis após o primeiro
-#    terraform apply descrito na seção "Execução na AWS"
-make -C apps/basica env
+# 5. subir a API de leitura local e manter este terminal aberto
+make -C apps/basica api DATABASE_URL=postgresql://argus:argus@localhost:55432/argus
 
-# 6. subir a API de leitura local, apontando para o banco local
-make -C apps/basica api
-
-# 7. subir o dashboard contra a API publicada
-make -C apps/basica frontend-install
-make -C apps/basica frontend-dev
+# 6. em outro terminal, a partir da raiz do repositório, subir o dashboard
+make -C apps/basica frontend-dev ARGUS_API_URL=http://localhost:5000
 ```
 
-O `db-local` sobe o container `argus-pg` na porta **55432** (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations. `make db-stop` derruba, `make db-psql` abre um `psql` dentro dele.
+O `db-local` sobe o container `argus-pg` na porta **55432** (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations. `make -C apps/basica db-stop` derruba, `make -C apps/basica db-psql` abre um `psql` dentro dele.
+
+No ambiente local padrão, a API usa `AUTH_REQUIRED=0`; a tela de acesso do dashboard
+exige o formato de 64 caracteres hexadecimais. Nesse ambiente local, use 64 zeros:
+`0000000000000000000000000000000000000000000000000000000000000000`.
+O banco começa sem o dataset do parceiro, portanto as telas podem ficar sem dados.
+Para usar a API publicada,
+gere o `.env` com `make -C apps/basica env` após a implantação na AWS e use o
+token de leitura desse ambiente.
 
 | Serviço | Porta local | Como subir |
 |---------|-------------|------------|
 | API de leitura | 5000 | `make -C apps/basica api` |
-| Dashboard | 3000 | `make -C apps/basica frontend-dev` |
+| Dashboard | 3000 | `make -C apps/basica frontend-dev ARGUS_API_URL=http://localhost:5000` |
 
-O backend também sobe por um único arquivo, sem `make`:
+O backend também possui scripts de desenvolvimento que preparam o ambiente Python,
+sem `make`. Com o banco local já iniciado:
 
 ```bash
-python apps/basica/backend/run.py
+# Linux/macOS
+DATABASE_URL=postgresql://argus:argus@localhost:55432/argus sh apps/basica/backend/scripts/dev.sh
 ```
 
-Esse ponto de entrada carrega o ambiente, cria a aplicação Flask e sobe o servidor; na primeira execução ele instala as dependências sozinho. No VS Code, abra `apps/basica/backend` como workspace, vá em **Run and Debug** e execute **Backend Flask**, que é o mesmo `run.py`. O Dev Container do serviço está em `apps/basica/backend/.devcontainer`. Para apenas instalar, testar e analisar o código, não é necessário gerar o `.env` nem possuir credenciais AWS.
+```powershell
+# Windows (PowerShell)
+$env:DATABASE_URL = "postgresql://argus:argus@localhost:55432/argus"
+& ./apps/basica/backend/scripts/dev.ps1
+```
+
+Os scripts criam o `.venv`, instalam as dependências e executam `run.py`. No VS Code,
+abra `apps/basica/backend` como workspace, selecione o interpretador desse
+`.venv`, configure `DATABASE_URL` no ambiente ou em `apps/basica/.env` e execute
+**Run and Debug → Backend Flask**. Para apenas instalar, testar e analisar o código,
+não é necessário gerar o `.env` nem possuir credenciais AWS.
 
 Os workers não são executados localmente contra a fila real: use `make -C apps/basica images` para construir as quatro imagens e `make -C apps/basica replay` para reenviar os eventos de exemplo à API de ingestão publicada.
 
@@ -186,7 +225,7 @@ Os workers não são executados localmente contra a fila real: use `make -C apps
 
 Os testes usam um SQS falso (moto) mas um PostgreSQL **de verdade**, porque a parte difícil deste sistema é o SQL: o MERGE idempotente, o keyset de paginação, a barreira do `available_at`. Um dublê que respondesse "ok" a tudo isso testaria apenas o dublê.
 
-Com `make db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são **pulados** em vez de quebrarem. Só os alvos de operação (`api`, `deploy`, `smoke`, `postman`, `frontend-dev`) precisam do `.env` preenchido.
+Com `make -C apps/basica db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são **pulados** em vez de quebrarem. Os alvos que acessam a AWS ou as APIs publicadas (`deploy`, `smoke`, `postman`) precisam da configuração correspondente. `api` e `frontend-dev` aceitam os valores locais mostrados acima.
 
 > **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/basica/.env`, que está no `.gitignore`; o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). As três APIs exigem `Authorization: Bearer` (RNF09); os tokens saem de `make -C apps/basica auth-rotate` e nunca entram no repositório, nem no bundle do dashboard.
 

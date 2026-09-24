@@ -13,8 +13,8 @@ rubrica por completo.
 a especificação referencia a pasta de código-fonte como `/apps/backend`; no
 repositório o caminho real é [`apps/basica/backend`](../apps/basica/backend)
 (a API de leitura) e [`apps/basica/worker`](../apps/basica/worker) (a
-ingestão), já que `basica` é o nome do produto dentro do monorepo, decisão
-anterior a este artefato. Referências neste documento usam o caminho real.
+ingestão). A aplicação completa fica em `apps/basica`. Referências neste documento
+usam esse caminho.
 
 ## 1. Objetivo
 

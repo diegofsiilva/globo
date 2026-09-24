@@ -11,8 +11,8 @@ o `../../README.md` é a documentação para humanos.
 
 ## Regras invioláveis
 
-1. **Não crie arquivo novo na raiz do repositório.** Ela é fixa: `README.md`,
-   `.gitignore`, `apps/`, `artefatos/`, `assets/`, `data/`, `slides/`.
+1. **Não crie arquivo novo na raiz do repositório.** A estrutura versionada é fixa:
+   `README.md`, `.gitignore`, `apps/`, `artefatos/`, `assets/`, `slides/`.
 2. **Comandos saem do `Makefile`, não de scripts novos.** Rode
    `make -C apps/basica` para listar os alvos. Se já existe alvo para o que você
    quer fazer, use-o em vez de reproduzir os passos à mão.

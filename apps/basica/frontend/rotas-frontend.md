@@ -664,7 +664,7 @@ Uma tela só deve ser considerada integrada quando:
 
 ## 5. Rotas do motor de hipóteses ainda não consumidas
 
-&emsp;Definidas em [hipoteses.md](./hipoteses.md) §14.2. O frontend hoje só lista
+&emsp;Definidas em [hipoteses.md](../../../artefatos/hipoteses.md) §14.2. O frontend hoje só lista
 o relatório. Detalhe por id e feedback humano são o próximo contrato.
 
 | Método | Caminho | Papel | Estado no frontend |
@@ -695,7 +695,7 @@ escopo livre.
 - Cliente de hipóteses: `apps/basica/frontend/src/app/(operations)/hipoteses/_lib/`
 - Rotas Flask: `apps/basica/backend/src/telemetry/interfaces/http.py`
 - OpenAPI gerada: `GET /openapi.json` no host da API de leitura
-- [Interface gráfica](./frontend.md)
-- [Arquitetura de hipóteses](./hipoteses.md)
-- [Requisitos](./requisitos.md)
-- [Entendimento de UX](./entendimento_ux.md)
+- [Interface gráfica](../../../artefatos/frontend.md)
+- [Arquitetura de hipóteses](../../../artefatos/hipoteses.md)
+- [Requisitos](../../../artefatos/requisitos.md)
+- [Entendimento de UX](../../../artefatos/entendimento_ux.md)
