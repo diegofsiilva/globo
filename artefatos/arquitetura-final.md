@@ -12,9 +12,8 @@
 
 ## 2. Inventário de contêineres, Docker e Kubernetes
 
-Este inventário descreve os arquivos do commit `5f768ea` de `develop`,
-conferidos em 23/09/2026. Nesta branch, somente este documento difere de
-`develop`. O Kubernetes está configurado para executar o dashboard, a API de
+Este inventário descreve os arquivos de implementação conferidos em
+23/09/2026. O Kubernetes está configurado para executar o dashboard, a API de
 consulta e um `Job` de migrations. A API também registra
 feedback de hipóteses pela função controlada `gold.submit_hypothesis_feedback`.
 A ingestão e o processamento assíncrono continuam no ECS Fargate. As decisões
@@ -58,6 +57,15 @@ As imagens `worker`,
 das tasks Fargate atuais. Essa divisão deve ser revista se o tipo de nó ou a
 arquitetura das tasks mudar.
 
+**Arquivos auxiliares dos builds e da validação**
+
+| Arquivo | Função e relação com a implantação |
+|---|---|
+| [`apps/basica/.dockerignore`](../apps/basica/.dockerignore) | Limita o contexto compartilhado de `worker`, `processing`, `simulator` e `loader`. Exclui arquivos de ambiente, caches, dependências locais, estado Terraform, dados e logs antes do envio ao builder. |
+| [`apps/basica/backend/.dockerignore`](../apps/basica/backend/.dockerignore) | Limita o contexto próprio do backend. Exclui ambiente local, caches, testes, artefatos de distribuição e logs da imagem da API. |
+| [`apps/basica/frontend/.dockerignore`](../apps/basica/frontend/.dockerignore) | Limita o contexto próprio do frontend. Exclui `node_modules`, export anterior, arquivos de ambiente, saídas de teste e `public/build-info.json`. O Dockerfile instala dependências com `npm ci` e gera seu próprio build. |
+| [`apps/basica/frontend/nginx.conf`](../apps/basica/frontend/nginx.conf) | Serve o export estático do Next.js na porta 8080. `try_files` resolve rotas com barra final e `index.html`. Os assets de `/_next/static/` recebem cache longo. `/healthz` responde às probes Kubernetes e `/health/live` ao health check comum do ALB, inclusive no target group do frontend. Usa logs em stdout/stderr e caminhos temporários em `/tmp`. |
+| [`apps/basica/tools/verifica_manifests.py`](../apps/basica/tools/verifica_manifests.py) | Verificação offline chamada por `make k8s-validate`. Confere a ordem das rotas do Ingress, o build `amd64` das imagens executadas no EKS e a correspondência entre as chaves do Secret criadas pelo Makefile e as exigidas pelos pods. Complementa a renderização Kustomize. Não testa um cluster em execução. |
 
 ### 2.2 Execução local
 
@@ -136,11 +144,14 @@ criados por `kubectl apply`.
 | [`apps/basica/k8s/overlays/kind/replicas-patch.yaml`](../apps/basica/k8s/overlays/kind/replicas-patch.yaml) | Altera os dois Deployments para uma réplica e reduz recursos. O backend usa um worker Gunicorn. | Permite ensaiar dashboard e API no nó único. |
 | [`apps/basica/k8s/overlays/kind/migrate/kustomization.yaml`](../apps/basica/k8s/overlays/kind/migrate/kustomization.yaml) | Compõe o Job de migration com a imagem local `argus-processing:dev`. | Aplica ao PostgreSQL local a mesma migration da arquitetura AWS. |
 | [`apps/basica/k8s/overlays/kind/secret.env.example`](../apps/basica/k8s/overlays/kind/secret.env.example) | Modelo de cinco chaves locais usado para gerar o Secret. Não é manifesto Kubernetes nem contém os segredos AWS. | Fornece ao backend e ao Job credenciais do banco descartável do kind. |
+| [`apps/basica/k8s/overlays/kind/secret.env`](../apps/basica/k8s/overlays/kind/secret.env) | Entrada local do `secretGenerator`, rastreada pelo Git apesar da regra em `.gitignore`. Não é manifesto aplicado diretamente. Os valores não são reproduzidos neste documento. | Gera `Secret argus-backend` para backend e Job no kind; não é a fonte do Secret EKS. |
 
 O Secret Kubernetes `argus-backend` consumido pelo backend e pelo Job é criado
 no EKS por `make k8s-secret`, a partir dos outputs do Terraform. No kind, o
-`secretGenerator` do overlay usa `secret.env`, copiado do exemplo local. Os
-valores reais do Secret EKS e o arquivo `secret.env` não são versionados.
+`secretGenerator` do overlay usa `secret.env`. Esse arquivo está versionado na
+implementação examinada: a entrada em `.gitignore` não retira do controle de
+versão um arquivo já rastreado. Os valores do Secret EKS não constam dos
+manifests.
 
 #### 2.3.2 Infraestrutura Terraform
 
@@ -219,6 +230,10 @@ A janela que resta no início do incidente depende da idade das mensagens já
 enfileiradas. Para cada fila, calcular quatro dias menos a idade da mensagem
 mais antiga, considerar o momento do redrive e reconciliar os identificadores.
 Esses prazos não são RTO nem garantem RPO zero por quatro dias após a falha.
+As metas de perda abrupta de nó, rollback Kubernetes, restauração do RDS e
+troca de entrada ainda não foram medidas de ponta a ponta. Os exercícios da
+seção 3.4 definem como verificá-las. Até haver registros na seção 4, elas
+permanecem objetivos, não tempos alcançados.
 
 #### 3.1.2 Classificação e responsabilidade
 
@@ -252,7 +267,7 @@ dados.
 | Processamento e simulador | serviços ECS mantêm uma task quando habilitados | ECS substitui a task. Checkpoints, watermarks, leases e o relógio persistem no PostgreSQL | `apps/basica/infra/ecs_processing.tf`, `apps/basica/infra/ecs_simulator.tf`, `apps/basica/db/migrations/` |
 | Mensagens problemáticas | cinco tentativas antes do redrive nativo. Quarentena explícita de payload inválido. DLQ com retenção de 14 dias | um item defeituoso é isolado sem bloquear os itens válidos. O redrive é manual depois da correção | `apps/basica/infra/sqs.tf`, `apps/basica/infra/sqs_changes.tf`, `apps/basica/infra/iam.tf`, `apps/basica/worker/src/argus_worker/` |
 | PostgreSQL | armazenamento criptografado, backup automático e opção Multi-AZ. Proteção contra exclusão e snapshot final em `prod` | Multi-AZ permite failover da instância. Backup permite reconstrução em falha lógica | `apps/basica/infra/rds.tf`, `apps/basica/infra/variables.tf` |
-| Versões executáveis | imagens de frontend e backend separadas no registry e marcadas pelo SHA do commit | O rollback depende de preservar a revisão e a imagem anterior no registry, sem depender de `latest`. | Dockerfiles do frontend e backend, manifests Kubernetes e pipeline de publicação |
+| Versões executáveis | imagens de frontend e backend separadas no registry e marcadas pelo SHA da revisão do código | O rollback depende de preservar a revisão e a imagem anterior no registry, sem depender de `latest`. | Dockerfiles do frontend e backend, manifests Kubernetes e pipeline de publicação |
 
 O limite do cluster é intencional: apenas frontend, backend e o `Job` de
 migrations entram no Kubernetes. Colocar SQS, PostgreSQL ou consumidores no cluster duplicaria
@@ -300,13 +315,17 @@ a task termina e o serviço ECS cria outra para voltar ao `desired_count`.
 
 #### 3.2.3 Fallback e rollback
 
-**Ações automáticas.** O Service retira pods sem readiness. O ReplicaSet
-recompõe réplicas e o scheduler pode reagendá-las quando há capacidade. O PDB
-limita apenas interrupções voluntárias. SQS reentrega mensagens não confirmadas
-e as envia à DLQ após o limite. ECS repõe tasks quando `desired_count > 0`.
-O *deployment circuit breaker* configurado nos serviços ECS reverte um deploy
-que não estabiliza. O failover do RDS é automático somente com Multi-AZ ativo.
-Os resultados medidos e as falhas desses controles estão na seção 4.
+**Resposta automática por falha.** Estes mecanismos estão configurados, mas
+somente os ensaios identificados na seção 4 comprovam seu comportamento no
+ambiente observado.
+
+| Falha | Resposta automática configurada | Quando o operador precisa agir |
+|---|---|---|
+| Pod sem readiness ou nó perdido | Service retira o pod sem readiness. ReplicaSet recompõe a réplica e o scheduler a reagenda se houver capacidade. | Falta de capacidade, indisponibilidade do cluster ou falha persistente da aplicação. O PDB limita somente retiradas voluntárias, como `drain`. |
+| Task consumidora encerrada ou mensagem não confirmada | ECS repõe a task se `desired_count > 0`. SQS reentrega a mensagem e a envia à DLQ após o limite de tentativas. | Crash loop, fila envelhecendo ou redrive da DLQ após corrigir a causa. |
+| Deploy ECS que não estabiliza | O *deployment circuit breaker* dos serviços ECS pode reverter a publicação. | Verificar a versão ativa e corrigir a causa. Esse controle não atua nos Deployments Kubernetes. |
+| Falha de instância do RDS | Failover automático apenas se Multi-AZ estiver ativo. | Corrupção lógica, restauração de backup ou falha no RDS Single-AZ usado em `dev`. |
+| Ingress ou cluster indisponível | Não há troca automática para S3/Lambda nem alternância de DNS declarada. | Validar os destinos, fazer a troca de entrada e retornar ao EKS pelo procedimento abaixo. A implantação e a execução real desse fallback não estão comprovadas. |
 
 **Rollback Kubernetes, executado pelo operador.** O `RollingUpdate` conserva
 pods antigos enquanto os novos não estão prontos, mas não desfaz sozinho a
@@ -405,19 +424,88 @@ flowchart LR
 | Ingress falha | preservar os Services e confirmar que os pods continuam saudáveis | corrigir regra ou classe do Ingress e verificar o ALB gerenciado. Usar os fallbacks AWS se a falha persistir | entrada externa alcança frontend e backend pela mesma origem |
 | Refinamento por Ollama falha | preservar a hipótese e suas evidências e verificar se as consultas determinísticas seguem disponíveis | conferir configuração `OLLAMA_URL` e `OLLAMA_SSH_*`, conectividade SSH e fontes citadas. Repetir somente a requisição de refinamento após corrigir a causa | rota de refinamento responde com fontes válidas, sem alteração de score ou persistência. Falhas permanecem `503` |
 | Task ECS encerra ou trava | permitir uma tentativa de reposição automática. Manter mensagens no SQS | ECS cria nova task. Em crash loop, voltar à task definition anterior ou corrigir a dependência | `RunningTaskCount` igual ao desejado, heartbeat recente e fila voltando a drenar |
-| RDS fica indisponível | parar temporariamente os consumidores se a falha for longa, evitando que mensagens válidas esgotem cinco tentativas e inundem a DLQ | aguardar failover Multi-AZ. Sem Multi-AZ, corrigir a instância ou restaurar backup em nova instância e atualizar a configuração | `/health/ready` 200, escrita e leitura de verificação aprovadas e backlog em queda |
+| RDS fica indisponível | parar temporariamente os consumidores se a falha for longa, evitando que mensagens válidas esgotem cinco tentativas e inundem a DLQ | aguardar failover Multi-AZ. Sem Multi-AZ, corrigir a instância ou seguir a restauração da seção 3.3.3 | `/health/ready` 200, escrita e leitura de verificação aprovadas e backlog em queda |
 | Fila acumula | manter a borda aceitando enquanto houver retenção e capacidade | restabelecer ou aumentar consumidores com a mesma imagem. Acompanhar idade da mensagem mais antiga, não apenas quantidade | fila principal zerada ou dentro do patamar normal e contagens reconciliadas |
 | Mensagens chegam à DLQ | impedir redrive em massa antes de identificar a causa. Separar payload inválido de falha transitória | corrigir código ou configuração e redirecionar somente itens recuperáveis para a fila de origem | DLQ tratada, itens válidos persistidos uma vez e itens inválidos com motivo registrado |
 | Imagem ou deploy defeituoso | pausar novas publicações e preservar eventos | No Kubernetes, o operador executa `kubectl rollout undo` conforme a seção 3.2.3. No ECS, o circuit breaker reverte automaticamente um deploy que não estabiliza. | Digest esperado em todos os pods e tasks e smoke test aprovado. |
 | NAT ou rota privada falha | evitar substituir em massa tasks que ainda estejam executando | recriar rota ou NAT por Terraform. Em produção, promover a topologia para um NAT por AZ | tasks alcançam ECR, SQS, Secrets Manager e CloudWatch. Novas tasks conseguem iniciar |
-| Perda ou corrupção de estado | bloquear migrations e escritas não essenciais | selecionar ponto anterior ao incidente, restaurar o RDS, aplicar migrations imutáveis e reconciliar filas e DLQs | checksums das migrations, contagens por camada e consultas do dashboard consistentes |
+| Perda ou corrupção de estado | bloquear migrations e escritas não essenciais | selecionar um ponto anterior ao incidente e seguir a restauração e reconciliação da seção 3.3.3 | checksums das migrations, contagens por camada e consultas do dashboard consistentes |
 
 As tasks `loader` e `migration` são operações *one-shot*, não serviços.
 Elas não reiniciam indefinidamente porque uma carga ou migration defeituosa
 repetida pode ampliar o dano. Depois de corrigir a causa, o operador executa
 novamente a task. Migrations já aplicadas são protegidas por checksum.
 
-#### 3.3.3 Validar e encerrar
+#### 3.3.3 Recuperar o PostgreSQL de backup
+
+Este procedimento é uma sequência **planejada**, sem ensaio completo registrado
+na seção 4. Um failover Multi-AZ de uma instância saudável preserva o endpoint
+e deve ser verificado antes de iniciar uma restauração. Para corrupção lógica
+ou perda sem failover viável, o operador executa os passos abaixo. A restauração
+pontual do RDS cria outra instância e outro endpoint, como descreve a
+[documentação da AWS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIT.html).
+
+1. **Conter e registrar.** Registrar horário de detecção, identificador da
+   instância, endpoint atual, idade da mensagem mais antiga em cada SQS,
+   contagens por camada e `desired_count` dos serviços ECS. Suspender novas
+   migrations e pausar `event-worker`, `merge-worker` e `processing`, mantendo
+   as filas disponíveis. Reduzir temporariamente `desired_count` a zero por
+   operação controlada e registrar os valores anteriores. Esse ajuste precisa
+   ser reconciliado com o Terraform antes do próximo `apply`.
+2. **Escolher o ponto.** Usar eventos, logs e a última transação válida para
+   localizar o instante imediatamente anterior à corrupção, em UTC. Consultar
+   `LatestRestorableTime` e `BackupRetentionPeriod` com
+   `aws rds describe-db-instances --db-instance-identifier <origem> --profile g4 --region us-east-1`.
+   Confirmar que o ponto está na janela disponível. Se não estiver, selecionar
+   um snapshot utilizável e registrar a perda potencial entre o backup e a
+   falha. Não usar automaticamente o ponto mais recente quando ele já contém
+   dados corrompidos.
+3. **Restaurar isoladamente.** Usar `aws rds restore-db-instance-to-point-in-time`
+   com `--source-db-instance-identifier <origem>`,
+   `--target-db-instance-identifier <nova-instancia>` e
+   `--restore-time <instante-UTC>`. Informar o mesmo DB subnet group e os
+   security groups privados adequados com `--db-subnet-group-name` e
+   `--vpc-security-group-ids`, além de `--no-publicly-accessible` e do
+   `--db-parameter-group-name` original. Em produção, incluir `--multi-az`,
+   retenção de backup apropriada e proteção contra exclusão. Sem esses
+   parâmetros, a restauração pode usar grupos padrão e criar uma instância
+   Single-AZ. Para snapshot, usar a operação de restauração de snapshot
+   equivalente. Esperar a nova instância com
+   `aws rds wait db-instance-available --db-instance-identifier <nova-instancia> --profile g4 --region us-east-1`.
+   Conferir endpoint, criptografia, acesso privado, usuários, credenciais
+   restauradas e conectividade a partir da VPC antes de mudar qualquer
+   consumidor.
+4. **Validar o banco restaurado.** Em acesso privado e somente leitura,
+   conferir a versão do schema, checksums e status das migrations, contagens
+   bronze/silver/gold e uma amostra de identificadores afetados. Executar a
+   inspeção por uma task temporária na VPC apontada explicitamente para o
+   novo endpoint. O alvo `make -C apps/basica migrate-status-aws` usa outputs
+   Terraform e só serve após a reconciliação desses outputs. Executar
+   migrations pendentes apenas se o schema restaurado realmente as exigir,
+   com credencial mestre e imagem correspondente. Não aplicar migrations às
+   cegas.
+5. **Trocar o endpoint e as credenciais de conexão.** Registrar o novo endpoint
+   nas URLs `DATABASE_URL` e `DATABASE_URL_MASTER`, preservando usuários,
+   senhas e `sslmode`. Atualizar as duas chaves no Secret Kubernetes
+   `argus-backend` por canal seguro, sem expor valores em arquivo ou log, e
+   preservar as outras três chaves. Reiniciar `Deployment argus-backend` e
+   confirmar `/health/ready`. Atualizar também as task definitions ECS, a
+   configuração da Lambda de leitura e o ASG legado se estiverem em uso.
+   Esses destinos usam referências derivadas de `aws_db_instance.main` em
+   Terraform. Reconciliar a nova instância com o estado e revisar o plano
+   antes de aplicar Terraform. `make k8s-secret` só pode regenerar o Secret
+   depois que `eks_backend_database_url` e `eks_master_database_url` apontarem
+   para o novo endpoint; executá-lo antes disso recolocaria a URL antiga.
+6. **Retomar e reconciliar.** Validar escrita e leitura com lote conhecido,
+   autenticação, dashboard e latência. Restaurar gradualmente os
+   `desired_count` registrados, acompanhar idade das filas e DLQs e fazer
+   redrive apenas dos itens corrigidos. Cruzar IDs aceitos, filas e registros
+   persistidos para localizar ausentes e duplicados, conforme a seção 3.3.4.
+   Medir RTO desde a falha até o serviço validado e RPO a partir do último
+   dado confirmado e recuperado. Preservar a instância original para análise
+   até encerrar a reconciliação.
+
+#### 3.3.4 Validar e encerrar
 
 A recuperação somente pode ser declarada depois de todos os passos aplicáveis:
 
@@ -444,7 +532,7 @@ A recuperação somente pode ser declarada depois de todos os passos aplicáveis
 
 Os resultados já executados e suas fontes ficam concentrados na seção 4.
 Os exercícios abaixo ainda exigem capturas próprias com ambiente, data,
-commit, digests, horários, eventos, logs, tráfego e reconciliação quando houver
+revisão do código, digests, horários, eventos, logs, tráfego e reconciliação quando houver
 dados envolvidos. Comparar o tempo de atendimento ao usuário e o tempo de
 recomposição da réplica separadamente com as metas da seção 3.1.1.
 
@@ -457,7 +545,7 @@ recomposição da réplica separadamente com as metas da seção 3.1.1.
 | Perda de readiness | Interromper temporariamente a conexão de um pod de backend com o RDS. | Confirmar retirada dos Endpoints sem ciclo de reinício e recuperação após restaurar a conexão. |
 | Escala por CPU | Disponibilizar `metrics.k8s.io` e gerar carga separada no frontend e backend. | Registrar `ScalingActive=True`, CPU, réplicas, latência e erros em cada etapa. |
 | Entrada e contingência | Simular falha do Ingress e executar a troca S3/Lambda da seção 3.2.3. | Guardar outputs Terraform, autenticação, URLs antes/depois e tempos de troca e retorno. |
-| RDS e filas | Restaurar backup em instância isolada e redirigir uma amostra conhecida da DLQ. | Medir restauração, idade das mensagens e igualdade por identificador, incluindo duplicidades. |
+| RDS e filas | Executar a seção 3.3.3 em instância isolada, trocar endpoint e Secret, retomar consumidores e redirigir uma amostra conhecida da DLQ. | Guardar ponto escolhido, backup, endpoint anterior e novo, plano Terraform, horários de restauração e troca, status das migrations, idade das mensagens e conciliação por identificador, incluindo duplicidades. |
 
 Os alvos `resiliencia-fila-cheia`, `resiliencia-timeout`,
 `resiliencia-evento-invalido`, `resiliencia-concorrente` e
@@ -483,7 +571,7 @@ seção 4.
 | Não há cópia de desastre entre regiões ou contas. | Meta regional da seção 3.1.1 ainda não é atendível. | Definir e implantar backup e estado Terraform externos, depois ensaiar a recuperação. | Alta |
 | Um NAT atende a infraestrutura AWS atual. | Falha do NAT afeta saída privada de ECS e outros serviços. | Planejar um NAT por zona e rotas independentes para produção. | Média |
 | Alertas e logs Kubernetes não têm captura operacional completa. | Diagnóstico, causa de reinícios e medição de RTO ficam frágeis. | Configurar coleta central, registrar eventos e logs anteriores. Confirmar `alarm_email` e a inscrição SNS. | Média |
-| Commit e digests da implantação não constam das capturas. | Não há vínculo verificável entre execução e código. | Guardar revisão, digests, ambiente e horário em cada ensaio. | Média |
+| Revisão do código e digests da implantação não constam das capturas. | Não há vínculo verificável entre execução e código. | Guardar revisão, digests, ambiente e horário em cada ensaio. | Média |
 | Ollama externo não foi validado no EKS. | Refinamento opcional pode responder `503`. | Injetar configuração por mecanismo seguro e testar SSH, fontes e isolamento da falha. | Média |
 
 Os resultados que fundamentam essas limitações e suas lacunas estão na
@@ -514,15 +602,15 @@ operacionais.
 
 ## 4. Evidências de validação
 
-O código inventariado na seção 2 corresponde ao commit `5f768ea` de
-`develop`. Os registros de execução de 21/09/2026 **não preservam o
-commit implantado nem os digests das imagens**. Portanto, o vínculo exato
-entre esses ensaios e essa revisão do código permanece pendente. O diagrama
+Os arquivos inventariados na seção 2 descrevem a implementação versionada
+neste repositório. Os registros de execução de 21/09/2026 **não preservam a
+revisão implantada nem os digests das imagens**. Portanto, o vínculo exato
+entre os ensaios e os arquivos atuais permanece pendente. O diagrama
 fornecido para a seção 1 é a referência de topologia e não é reproduzido aqui.
 
 | Verificação | Ambiente, data e fonte | Resultado comprovado e limite |
 |---|---|---|
-| Especificação de imagens e orquestração | Código do commit `5f768ea`: [Dockerfiles](../apps/basica/backend/Dockerfile), [base Kubernetes](../apps/basica/k8s/base/kustomization.yaml), [overlay AWS](../apps/basica/k8s/overlays/aws/kustomization.yaml) e [EKS Terraform](../apps/basica/infra/eks.tf). | Seis imagens e a divisão EKS/ECS são rastreáveis no código. A existência do manifesto não comprova implantação. |
+| Especificação de imagens e orquestração | Arquivos versionados: [Dockerfiles](../apps/basica/backend/Dockerfile), [base Kubernetes](../apps/basica/k8s/base/kustomization.yaml), [overlay AWS](../apps/basica/k8s/overlays/aws/kustomization.yaml) e [EKS Terraform](../apps/basica/infra/eks.tf). | Seis imagens e a divisão EKS/ECS são rastreáveis no código. A existência do manifesto não comprova implantação. |
 | Renderização dos manifests | Validação estática em 21/09/2026: [log `k8s-validate`](evidencias/k8s-validate.txt). | Cinco conjuntos renderizados. O teste não acessou cluster. |
 | Caminho síncrono local | Kind de um nó, PostgreSQL local e réplicas reduzidas, em 21/09/2026: [log de Kubernetes e Playwright](evidencias/testes-kubernetes.txt). | `/` e `/api/v1/clock` responderam 200 e 12 testes de navegador passaram. Não mede tolerância a perda de nó ou zona. |
 | Entrada EKS e carga até 100 usuários virtuais | EKS Auto Mode `argus-events-livia-dev-eks`, EKS 1.33 em `us-east-1`, dois nós `amd64`, 21/09/2026. [Registro do cluster](evidencias/carga-kubernetes.txt), [resumo A](evidencias/carga-kubernetes/rodada-a-resultado.json), [saída k6 A](evidencias/carga-kubernetes/rodada-a-saida-k6.txt). ID `20260921T183035Z`. | Frontend e backend `2/2`. Três níveis de 5, 25 e 100 VUs duraram 2 min cada, com 30 s entre níveis e pausa de 2 s entre navegações. Foram 25.576 requisições no conjunto, sem erro. Em 100 VUs, p95 de requisição 662 ms, p99 1.069 ms e p95 de abertura de tela 772 ms. Todos os limiares configurados passaram nesse nível. |
@@ -530,13 +618,13 @@ fornecido para a seção 1 é a referência de topologia e não é reproduzido a
 | Limite acima de 100 VUs | Mesmo EKS e data. [Resumo B](evidencias/carga-kubernetes/rodada-b-resultado.json) e [saída k6 B](evidencias/carga-kubernetes/rodada-b-saida-k6.txt). ID `20260921T184009Z`. | Em 200 VUs, não houve erros, mas `agora` excedeu os limiares por tela, com p95 de requisição 4.441 ms e p95 de tela 5.075 ms. `recorte` teve p95 de requisição 3.189 ms. Em 450 e 900 VUs, os erros chegaram a 15,21% e 24,80%. Não há aprovação de capacidade nesses níveis. |
 | HPA e reinícios | [Registro do EKS](evidencias/carga-kubernetes.txt), 21/09/2026. | `metrics.k8s.io` ausente, `ScalingActive=False` e duas réplicas durante a carga. O registro mostra reinícios dos pods de backend, mas não inclui `kubectl describe`, eventos completos, `lastState` ou logs anteriores que determinem a causa. Não atribuir os reinícios à saturação sem essa análise. |
 | Rollout e reposição de pod | [Relatório de contêinerização](conteineres-final.md), seções 5.2 e 5.3. Ambiente e revisão da execução não identificados no resumo. | O relatório informa 547 respostas HTTP 200 durante um rollout e 4 s até um pod de backend ficar `Ready`. Não há log bruto com horários e requisições anexado para auditar esses números ou validar o RTO. |
-| Recuperação do pipeline assíncrono | AWS Academy Learner Lab em `us-east-1`: [testes de carga e resiliência](testes-carga-inicial.md). A seção RNF05 não registra data, commit ou digest de cada cenário. | Desligamento de consumidor, reposição de task e drenagem foram registrados. O recorte de 1.001 eventos tem igualdade de contagens. Não há conciliação por IDs e duplicidades para esse lote nem reconciliação integral dos lotes maiores. Assim, não se afirma RPO zero para eles. |
-| Integração fora do cluster | PostgreSQL 16 local e AWS Academy Learner Lab, em 17/09/2026: [log de integração](evidencias/testes-integracao.txt). Imagens e commit implantados não registrados. | TI-02, TI-03 e TI-04 passaram. TI-05 na AWS falhou: o evento chegou à bronze, mas não apareceu na API dentro de 300 s por atraso da ETL. Frescor ponta a ponta segue pendente. |
+| Recuperação do pipeline assíncrono | AWS Academy Learner Lab em `us-east-1`: [testes de carga e resiliência](testes-carga-inicial.md). A seção RNF05 não registra data, revisão do código ou digest de cada cenário. | Desligamento de consumidor, reposição de task e drenagem foram registrados. O recorte de 1.001 eventos tem igualdade de contagens. Não há conciliação por IDs e duplicidades para esse lote nem reconciliação integral dos lotes maiores. Assim, não se afirma RPO zero para eles. |
+| Integração fora do cluster | PostgreSQL 16 local e AWS Academy Learner Lab, em 17/09/2026: [log de integração](evidencias/testes-integracao.txt). Imagens e revisão implantadas não registradas. | TI-02, TI-03 e TI-04 passaram. TI-05 na AWS falhou: o evento chegou à bronze, mas não apareceu na API dentro de 300 s por atraso da ETL. Frescor ponta a ponta segue pendente. |
 | Ollama e fallback AWS | [Adaptador Ollama](../apps/basica/backend/src/telemetry/infrastructure/ollama.py), [testes](../apps/basica/backend/tests/test_ollama.py), [Terraform da API de leitura](../apps/basica/infra/api_read.tf) e [site S3](../apps/basica/infra/frontend_s3.tf). | Há código e recursos declarados. Não há captura que comprove Ollama remoto ativo no EKS, site S3 e Lambda disponíveis para contingência ou troca real entre destinos. |
 
 Os [testes funcionais](testes-funcionais.md), [unitários](evidencias/testes-unitarios.txt)
 e a [carga anterior](evidencias/testes-carga.txt) têm escopos diferentes do
 ensaio EKS. Para fechar as metas de recuperação, faltam os exercícios da seção
-3.4 com captura de commit, digests, eventos e logs, inclusive causa dos
+3.4 com captura da revisão do código, digests, eventos e logs, inclusive causa dos
 reinícios, horários, distribuição por zona, rollback, fallback e reconciliação
 por identificador. Metas propostas na seção 3.1.1 não são resultados medidos.
