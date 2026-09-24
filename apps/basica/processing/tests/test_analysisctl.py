@@ -73,7 +73,7 @@ def test_portao_enxerga_retry_com_digest_divergente(db, checkpoint):
     assert "ha runs com falha" in metrics["failures"]
 
 
-def test_portao_reprova_cada_criterio_operacional_do_plano(db):
+def test_portao_reprova_cada_criterio_operacional_do_plano(db, checkpoint):
     catalog = _registrar(db)
 
     reprovado = evaluate(db, catalog, _args(precision_at_5=0.50))
@@ -90,6 +90,41 @@ def test_portao_reprova_cada_criterio_operacional_do_plano(db):
 
     sem_suite = evaluate(db, catalog, _args(suite_ok=False))
     assert "suite e cenarios das 11 familias nao confirmados" in sem_suite["failures"]
+
+    with db.connection() as conn:
+        run_id = conn.execute(
+            """
+            INSERT INTO detect.run (
+              detector, params, checkpoint_id, manifest_hash, sim_now, status,
+              claimed_by, lease_expires_at, heartbeat_at, fencing_token,
+              attempt, input_lsn, stream_key, started_at, finished_at
+            ) VALUES (
+              'argus-rules', '{}'::jsonb, %s, %s, sim.now(), 'completed',
+              'worker-limite', clock_timestamp(), clock_timestamp(),
+              nextval('detect.fencing_token_seq'), 1, 1, 'live',
+              clock_timestamp(), clock_timestamp()
+            )
+            RETURNING run_id
+            """,
+            (checkpoint["checkpoint_id"], catalog.manifest_hash),
+        ).fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO gold.hypothesis_run_stats (
+              run_id, candidates_prefiltered, candidates_evaluated,
+              candidates_truncated, generated, truncated
+            ) VALUES (%s, 501, 501, 1, 500, true)
+            """,
+            (run_id,),
+        )
+
+    truncado = evaluate(db, catalog, _args())
+    assert truncado["truncated_runs"] == 1
+    assert "ha runs truncados" in truncado["failures"]
+    assert (
+        db.fetch_one("SELECT count(*) AS n FROM gold.manifest_publication_event")["n"]
+        == 0
+    )
 
 
 def test_portao_cobre_exatamente_as_onze_familias():

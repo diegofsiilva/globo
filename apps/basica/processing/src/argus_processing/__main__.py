@@ -373,7 +373,9 @@ def main() -> int:
         return 1
     finally:
         for t in threads:
-            t.join(timeout=30)
+            # Uma falha de configuracao pode ocorrer antes de iniciar os workers.
+            if t.ident is not None:
+                t.join(timeout=30)
         if db is not None:
             db.close()
     return 0
