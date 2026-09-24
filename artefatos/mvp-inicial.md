@@ -255,7 +255,7 @@ Custo estimado para ~1 milhão de eventos/mês:
 ### 1.8 Estrutura do repositório
 
 ```
-apps/basica/
+apps/fullstack/
   backend/    API de leitura (Flask em Lambda)
     src/telemetry/
       domain/          entidade alinhada ao que o worker grava
@@ -411,7 +411,7 @@ até os eventos aparecerem, com teto de 20 tentativas.
 Execução por linha de comando, para que o resultado seja reproduzível:
 
 ```bash
-make -C apps/basica postman
+make -C apps/fullstack postman
 ```
 
 ### 4.2 Resultados
@@ -446,7 +446,7 @@ uma query por (dia × shard). É o custo escolhido quando se resolveu o gargalo 
 partição da GSI1.
 
 Não há captura de tela da execução: a coleção roda por `newman` na linha de
-comando (`make -C apps/basica postman`), sem interface gráfica. A tabela acima é
+comando (`make -C apps/fullstack postman`), sem interface gráfica. A tabela acima é
 a saída consolidada dessa execução, reproduzível e versionável, ao contrário de
 um print.
 
@@ -518,11 +518,11 @@ primeiro `terraform apply`, então antes disso não existe valor para preencher,
 copiar o `.env.example` só produz um arquivo de chaves vazias. A ordem real é:
 
 ```
-credenciais do lab  →  terraform apply  →  make -C apps/basica env  →  deploy  →  URL do dashboard
+credenciais do lab  →  terraform apply  →  make -C apps/fullstack env  →  deploy  →  URL do dashboard
 ```
 
-Quem só quer inspecionar o código não precisa de nada disso: `make -C apps/basica install &&
-make -C apps/basica test` roda as duas suítes contra um DynamoDB falso (moto), sem conta AWS.
+Quem só quer inspecionar o código não precisa de nada disso: `make -C apps/fullstack install &&
+make -C apps/fullstack test` roda as duas suítes contra um DynamoDB falso (moto), sem conta AWS.
 
 ### 6.1 Pré-requisitos
 
@@ -598,7 +598,7 @@ volte ao passo 1.
 variável, nenhuma delas bifurcando o código:
 
 ```bash
-cd apps/basica/infra
+cd apps/fullstack/infra
 cp terraform.tfvars.example terraform.tfvars
 ```
 
@@ -638,10 +638,10 @@ gsi1_shards      = 10
 
 ```bash
 # 0. ambientes Python do backend e do worker
-make -C apps/basica install
+make -C apps/fullstack install
 
 # 1. empacotar a API de leitura ANTES do primeiro plan
-make -C apps/basica lambda-build
+make -C apps/fullstack lambda-build
 ```
 
 O passo 1 não é opcional e não pode vir depois: o Terraform calcula
@@ -651,7 +651,7 @@ criar qualquer recurso.
 
 ```bash
 # 2. criar a infraestrutura com o worker desligado
-cd apps/basica/infra
+cd apps/fullstack/infra
 terraform init
 terraform apply -var="worker_desired_count=0"
 ```
@@ -662,16 +662,16 @@ imagem existir o deixa em crash loop. Não quebra nada, mas assusta e polui o lo
 ```bash
 # 3. construir a imagem ARM64 do worker e publicá-la no ECR
 cd ../../..
-make -C apps/basica worker-deploy
+make -C apps/fullstack worker-deploy
 
 # 4. ligar o worker
-cd apps/basica/infra && terraform apply -var="worker_desired_count=1"
+cd apps/fullstack/infra && terraform apply -var="worker_desired_count=1"
 cd ../../..
 ```
 
 ```bash
 # 5. gerar o .env com as URLs que acabaram de nascer
-make -C apps/basica env
+make -C apps/fullstack env
 ```
 
 `make env` lê `terraform output` e escreve as quatro chaves do `.env.example` já
@@ -683,8 +683,8 @@ que estiver no shell, então exporte `g4` antes (passo 3 de §6.2).
 
 ```bash
 # 6. publicar o dashboard
-make -C apps/basica frontend-install
-make -C apps/basica frontend-deploy
+make -C apps/fullstack frontend-install
+make -C apps/fullstack frontend-deploy
 ```
 
 O `frontend-deploy` injeta `ARGUS_API_URL` no bundle em tempo de build, sincroniza
@@ -693,12 +693,12 @@ Esse é o link que vai no relatório e no vídeo.
 
 ```bash
 # 7. verificar
-make -C apps/basica smoke      # confere as rotas da API publicada
-make -C apps/basica postman    # roda as 17 requisições da coleção (§4)
-make -C apps/basica count      # conta os eventos armazenados
+make -C apps/fullstack smoke      # confere as rotas da API publicada
+make -C apps/fullstack postman    # roda as 17 requisições da coleção (§4)
+make -C apps/fullstack count      # conta os eventos armazenados
 ```
 
-Nos deploys seguintes nada disso se repete: `make -C apps/basica deploy` testa, empacota,
+Nos deploys seguintes nada disso se repete: `make -C apps/fullstack deploy` testa, empacota,
 aplica e roda o smoke num comando só.
 
 ### 6.4 De onde vem cada URL
@@ -707,15 +707,15 @@ Todo endereço do sistema é um output do Terraform. Nenhum é versionado, e é
 por isso que o `.env.example` traz as chaves sem valor.
 
 ```bash
-cd apps/basica/infra && terraform output
+cd apps/fullstack/infra && terraform output
 ```
 
 | Output | O que é | Quem consome |
 |---|---|---|
 | `read_api_url` | base da API de leitura | `.env` → `ARGUS_API_URL`; entra no bundle do dashboard |
-| `ingest_url` | endpoint do `POST` de eventos | `.env` → `ARGUS_INGEST_URL`; `make -C apps/basica replay` e a coleção Postman |
+| `ingest_url` | endpoint do `POST` de eventos | `.env` → `ARGUS_INGEST_URL`; `make -C apps/fullstack replay` e a coleção Postman |
 | `frontend_url` | endereço público do dashboard | o link do relatório e do vídeo |
-| `table_name` · `dlq_url` · `log_group_worker` | nomes de recurso | `make -C apps/basica count`, `make -C apps/basica dlq`, `make -C apps/basica logs-worker` |
+| `table_name` · `dlq_url` · `log_group_worker` | nomes de recurso | `make -C apps/fullstack count`, `make -C apps/fullstack dlq`, `make -C apps/fullstack logs-worker` |
 
 Para um valor isolado, `-raw` devolve a string limpa, sem aspas:
 
@@ -723,24 +723,24 @@ Para um valor isolado, `-raw` devolve a string limpa, sem aspas:
 terraform output -raw read_api_url
 ```
 
-O environment do Postman segue a mesma regra: `make -C apps/basica postman-env` o gera a partir
+O environment do Postman segue a mesma regra: `make -C apps/fullstack postman-env` o gera a partir
 do `.env`, e o arquivo com as URLs reais fica fora do repositório.
 
 ### 6.5 Rodar local
 
 ```bash
-make -C apps/basica test                     # 58 testes do worker + 72 do backend, sem AWS
-make -C apps/basica api                      # API de leitura na porta 5000, contra o DynamoDB real
-make -C apps/basica frontend-install
-make -C apps/basica frontend-dev             # dashboard na porta 3000, contra a API publicada
+make -C apps/fullstack test                     # 58 testes do worker + 72 do backend, sem AWS
+make -C apps/fullstack api                      # API de leitura na porta 5000, contra o DynamoDB real
+make -C apps/fullstack frontend-install
+make -C apps/fullstack frontend-dev             # dashboard na porta 3000, contra a API publicada
 ```
 
-`make -C apps/basica test` e `make -C apps/basica lint` não precisam de credencial nenhuma. `make -C apps/basica api`,
-`make -C apps/basica frontend-dev` e os alvos de operação precisam do `.env` preenchido.
+`make -C apps/fullstack test` e `make -C apps/fullstack lint` não precisam de credencial nenhuma. `make -C apps/fullstack api`,
+`make -C apps/fullstack frontend-dev` e os alvos de operação precisam do `.env` preenchido.
 
-O backend também sobe sozinho com `python apps/basica/backend/run.py`, ou pelo
+O backend também sobe sozinho com `python apps/fullstack/backend/run.py`, ou pelo
 **Run and Debug** do VS Code (configuração `Backend Flask`, em
-`apps/basica/backend/.vscode/`).
+`apps/fullstack/backend/.vscode/`).
 
 ### 6.6 Quando o lab reinicia
 

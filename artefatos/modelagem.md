@@ -619,12 +619,12 @@ contextos:
 
 | Contexto | Serviço / pasta | Papel |
 |---|---|---|
-| Ingestão | `apps/basica/worker` | Consome as duas filas SQS, valida e grava na camada `bronze`, onde o dado fica como chegou, sem tratamento |
-| Carga inicial | `apps/basica/loader` | Sobe as 33 tabelas do dump do parceiro, de arquivos Parquet para a `bronze` |
-| Relógio virtual | `apps/basica/simulator` | Anda `sim.now()` e reemite o dump como mudanças, pela rede |
-| Análise | `apps/basica/processing` | ETL incremental de uma camada para a seguinte, detector causal e motor das 11 famílias de hipótese |
-| Leitura | `apps/basica/backend` | API em Flask sobre instâncias EC2 de um Auto Scaling Group, atrás de um Application Load Balancer, em arquitetura hexagonal (seção 2.7); é quem serve o dashboard |
-| Comum | `apps/basica/common` | Conexão, observabilidade e ciclo de vida, compartilhados pelos quatro serviços |
+| Ingestão | `apps/fullstack/worker` | Consome as duas filas SQS, valida e grava na camada `bronze`, onde o dado fica como chegou, sem tratamento |
+| Carga inicial | `apps/fullstack/loader` | Sobe as 33 tabelas do dump do parceiro, de arquivos Parquet para a `bronze` |
+| Relógio virtual | `apps/fullstack/simulator` | Anda `sim.now()` e reemite o dump como mudanças, pela rede |
+| Análise | `apps/fullstack/processing` | ETL incremental de uma camada para a seguinte, detector causal e motor das 11 famílias de hipótese |
+| Leitura | `apps/fullstack/backend` | API em Flask sobre instâncias EC2 de um Auto Scaling Group, atrás de um Application Load Balancer, em arquitetura hexagonal (seção 2.7); é quem serve o dashboard |
+| Comum | `apps/fullstack/common` | Conexão, observabilidade e ciclo de vida, compartilhados pelos quatro serviços |
 
 #### 2.1.2 O que fica de fora, e onde encontrar
 
