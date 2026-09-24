@@ -35,8 +35,8 @@ sem orquestrador nenhum.
 escala continuam no estado do Terraform, de modo que voltar atrás é trocar dois valores
 no `terraform.tfvars`, e não refazer o provisionamento.
 
-&emsp; Essa reversibilidade cumpriu o seu papel durante a sprint e agora sai de cena: a
-branch `refactor/remove-caminho-ec2-sprint3` remove o caminho EC2 da Sprint 3
+&emsp; Essa reversibilidade cumpriu o seu papel durante a sprint e agora sai de cena: esta
+sprint remove o caminho EC2 da Sprint 3
 (`infra/asg.tf`, `alb.tf` e `asg_observability.tf`). A leitura pública passa a vir só do
 ALB que o Ingress do EKS provisiona; a contingência, com o cluster desligado, é a Lambda
 `read_api_url` com o website do S3 (decisão 13 da seção 3.1).
@@ -223,7 +223,7 @@ RESULTADO: 547 respostas 200, 0 falhas
 
 &emsp; *Os números acima são a saída esperada do ensaio, não uma medição. A medição, com
 `rollout restart` sob carga do k6 no cluster kind, será gravada em
-`evidencias/resiliencia-kind-*.txt` pela branch `feat/ensaios-resiliencia-kind` e
+`evidencias/resiliencia-kind-*.txt` e
 substituirá este bloco.*
 
 ### 5.3 Autocura
@@ -236,8 +236,7 @@ recuperado em 4s
 ```
 
 &emsp; *Também aqui o valor é a saída esperada; a medição do `kubectl delete pod` e da
-queda do Postgres no kind entra em `evidencias/resiliencia-kind-*.txt` pela mesma
-branch.*
+queda do Postgres no kind entra em `evidencias/resiliencia-kind-*.txt`.*
 
 &emsp; O ASG levava até **300 segundos** para repor uma instância, o valor do
 `health_check_grace_period`, dimensionado para cobrir boot, `dnf install` e `docker
@@ -265,7 +264,7 @@ As réplicas ficaram no mínimo de 2, e a rodada B, de saturação, registrou do
 por pod do backend com o HPA sem poder reagir.
 
 &emsp; A correção é declarativa: a partir desta sprint o add-on `metrics-server` é
-declarado como `aws_eks_addon` em `infra/eks.tf` (branch `feat/eks-metrics-server`), de
+declarado como `aws_eks_addon` em `infra/eks.tf`, de
 modo que o cluster nasce com a métrica. No ambiente local o `kind-up` já instalava o
 `metrics-server` v0.8.0, razão pela qual o HPA do kind reporta CPU
 ([`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) mostra
@@ -413,7 +412,7 @@ make -C apps/fullstack k8s-delete       # remove o namespace e, com ele, o balan
 
 &emsp; Para derrubar o cluster inteiro, `create_eks = false` e `make tf-apply`. ECS e
 RDS não referenciam nada dele e continuam de pé; o balanceador e o ASG da Sprint 3, o
-mesmo, enquanto a branch da decisão 13 não os remove. É, também, a demonstração prática
+mesmo, até a remoção descrita na decisão 13. É, também, a demonstração prática
 da decisão 5.
 
 ---
@@ -453,7 +452,7 @@ que o produziu.
 | [`evidencias/carga-kubernetes/`](evidencias/carga-kubernetes/) | Os arquivos de cada rodada: `rodada-{a,b}-saida-k6.txt`, `-summary-k6.json`, `-resultado.json` e `-instancia.log` | 5.5 |
 | [`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) | TI-01 e a suíte e2e (12 testes, todos aprovados) contra o caminho orquestrado no cluster kind local, em 21/09, pela origem única do Ingress | 4, 5.1 |
 | [`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt) | `make k8s-validate` renderizando as cinco kustomizations sem tocar em cluster | 8 |
-| `evidencias/resiliencia-kind-*.txt` | Ensaios de autocura (`kubectl delete pod`), implantação sob carga (`rollout restart` com k6) e queda do Postgres no kind; serão gravados pela branch `feat/ensaios-resiliencia-kind` e substituirão as saídas esperadas de 5.2 e 5.3 | 5.2, 5.3 |
+| `evidencias/resiliencia-kind-*.txt` | Ensaios de autocura (`kubectl delete pod`), implantação sob carga (`rollout restart` com k6) e queda do Postgres no kind; serão gravados nesta sprint e substituirão as saídas esperadas de 5.2 e 5.3 | 5.2, 5.3 |
 
 ---
 
