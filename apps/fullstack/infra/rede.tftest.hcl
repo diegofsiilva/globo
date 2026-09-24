@@ -39,6 +39,27 @@ override_data {
   override_during = plan
 }
 
+# Mesma razao para os documentos de assume role: o provider 5.100 passou a
+# validar `assume_role_policy` no plan, e o `json` mockado nao e JSON. Sem estes
+# tres, o `topologia` morre em cinco aws_iam_role antes de olhar a rede.
+override_data {
+  target          = data.aws_iam_policy_document.ecs_assume
+  values          = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  override_during = plan
+}
+
+override_data {
+  target          = data.aws_iam_policy_document.apigw_assume
+  values          = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  override_during = plan
+}
+
+override_data {
+  target          = data.aws_iam_policy_document.lambda_assume[0]
+  values          = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
+  override_during = plan
+}
+
 # Os papeis do EKS sao descobertos por regex na conta do Learner Lab (eks.tf).
 # A conta mockada nao devolve papel nenhum, e a precondicao do cluster -- que
 # existe para falhar cedo quando a descoberta nao acha nada -- dispararia aqui
@@ -188,4 +209,51 @@ run "ip_publico_com_rede_dedicada_e_recusado" {
   }
 
   expect_failures = [var.assign_public_ip]
+}
+
+# O metrics-server nao vem com o Auto Mode: um cluster novo nasce sem ele e o
+# HPA fica em `<unknown>` (lab limpo de 18/09/2026). O add-on precisa nascer e
+# morrer junto com o cluster.
+run "eks_traz_metrics_server" {
+  command = plan
+
+  variables {
+    create_eks = true
+  }
+
+  assert {
+    condition     = length(aws_eks_addon.metrics_server) == 1
+    error_message = "create_eks = true precisa declarar o add-on metrics-server; sem ele o HPA fica em <unknown>."
+  }
+
+  assert {
+    condition     = aws_eks_addon.metrics_server[0].addon_name == "metrics-server"
+    error_message = "O add-on declarado em eks.tf nao e o metrics-server."
+  }
+
+  # `addon_version` e computado (o provider escolhe no apply), entao nao da
+  # para afirmar nada sobre ele no plan. O que da para segurar e o OVERWRITE:
+  # sem ele, um metrics-server instalado a mao faria o create falhar.
+  assert {
+    condition     = aws_eks_addon.metrics_server[0].resolve_conflicts_on_create == "OVERWRITE"
+    error_message = "resolve_conflicts_on_create precisa ser OVERWRITE para assumir um metrics-server instalado a mao."
+  }
+
+  assert {
+    condition     = aws_eks_addon.metrics_server[0].resolve_conflicts_on_update == "OVERWRITE"
+    error_message = "resolve_conflicts_on_update precisa ser OVERWRITE."
+  }
+}
+
+run "sem_eks_nao_ha_metrics_server" {
+  command = plan
+
+  variables {
+    create_eks = false
+  }
+
+  assert {
+    condition     = length(aws_eks_addon.metrics_server) == 0
+    error_message = "O add-on metrics-server so existe quando o cluster existe."
+  }
 }
