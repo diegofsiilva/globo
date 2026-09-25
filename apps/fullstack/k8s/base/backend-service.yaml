@@ -1,0 +1,22 @@
+# Service da API de leitura.
+#
+# ClusterIP e nao LoadBalancer: quem publica para fora e o Ingress, uma vez so,
+# para os dois servicos. Um LoadBalancer por Service criaria dois balanceadores,
+# dois enderecos e, com isso, duas origens -- que e justamente o que o desenho
+# de origem unica evita.
+apiVersion: v1
+kind: Service
+metadata:
+  name: argus-backend
+  labels:
+    app.kubernetes.io/name: argus-backend
+    app.kubernetes.io/part-of: argus
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: argus-backend
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http
+      protocol: TCP

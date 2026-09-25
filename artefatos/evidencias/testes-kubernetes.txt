@@ -1,0 +1,36 @@
+# TI-01 e suíte e2e contra o caminho orquestrado por Kubernetes (cluster kind local)
+# Executado em 21 de setembro de 2026, 17:53 UTC
+# Origem única: dashboard em / e API em /api, ambos em http://localhost:8080 (Ingress)
+# Imagem sob teste: a mesma que vai para o registro, construída com NEXT_PUBLIC_API_URL=/
+
+## Objetos no cluster
+  deployment.apps/argus-backend    1/1   1     1     13m
+  deployment.apps/argus-frontend   2/2   2     2     13m
+  deployment.apps/argus-postgres   1/1   1     1     13m
+  service/argus-backend    ClusterIP   10.96.106.253   <none>   5000/TCP   13m
+  service/argus-frontend   ClusterIP   10.96.73.106    <none>   80/TCP     13m
+  service/argus-postgres   ClusterIP   10.96.58.217    <none>   5432/TCP   13m
+  ingress.networking.k8s.io/argus   nginx   *     localhost   80    13m
+  horizontalpodautoscaler.autoscaling/argus-backend    Deployment/argus-backend    cpu: 20%/60%    1     2     1     13m
+  horizontalpodautoscaler.autoscaling/argus-frontend   Deployment/argus-frontend   cpu: 117%/70%   1     2     2     13m
+  poddisruptionbudget.policy/argus-backend    1     N/A   0     13m
+  poddisruptionbudget.policy/argus-frontend   1     N/A   1     13m
+
+## Origem única
+  GET /              -> 200
+  GET /api/v1/clock  -> 200
+
+## Suíte
+    ✓   1 [chromium] › tests/e2e/frontend-integrado.spec.ts:14:7 › acesso › [E2E-00] sem token o painel não carrega, e o token colado dá acesso (1.8s)
+    ✓   2 [chromium] › tests/e2e/frontend-integrado.spec.ts:45:5 › [E2E-01] a entrada redireciona e a navegação alcança as seis áreas (2.0s)
+    ✓   3 [chromium] › tests/e2e/frontend-integrado.spec.ts:64:5 › [E2E-02] Agora exibe o sinal calculado pelo Flask sobre o PostgreSQL (857ms)
+    ✓   4 [chromium] › tests/e2e/frontend-integrado.spec.ts:76:5 › [E2E-03] Explorar usa métricas, facetas e agrupamentos reais (2.2s)
+    ✓   5 [chromium] › tests/e2e/frontend-integrado.spec.ts:112:5 › [E2E-04] Comparar troca a referência e mostra mudanças do backend (1.4s)
+    ✓   6 [chromium] › tests/e2e/frontend-integrado.spec.ts:122:5 › [E2E-05] Hipóteses opera em modo API e expõe score e evidência (838ms)
+    ✓   7 [chromium] › tests/e2e/frontend-integrado.spec.ts:138:5 › [E2E-06] Timeline correlaciona as seis fontes reais (803ms)
+    ✓   8 [chromium] › tests/e2e/frontend-integrado.spec.ts:147:5 › [E2E-07] Recorte abre a timeline pública de uma sessão (1.3s)
+    ✓   9 [chromium] › tests/e2e/frontend-integrado.spec.ts:156:5 › [E2E-08] tema e navegação móvel preservam uma interação acessível (1.2s)
+    ✓  10 [chromium] › tests/e2e/integracao-camadas.spec.ts:105:7 › TI-01: dashboard, API de leitura e banco › [TI-01.1] a tela desenha exatamente as linhas que o Flask leu do PostgreSQL (1.0s)
+    ✓  11 [chromium] › tests/e2e/integracao-camadas.spec.ts:157:7 › TI-01: dashboard, API de leitura e banco › [TI-01.2] trocar agrupamento e filtro na tela muda a query string e o que volta do banco (1.5s)
+    ✓  12 [chromium] › tests/e2e/integracao-camadas.spec.ts:195:7 › TI-01: dashboard, API de leitura e banco › [TI-01.3] sem token válido o navegador não chega a consultar o backend (625ms)
+    12 passed (16.8s)

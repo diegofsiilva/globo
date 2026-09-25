@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="55" time="152.674" timestamp="2026-09-24T20:45:11.461154-03:00" hostname="MacBook-Air-de-Gabriel.local"><testcase classname="tests.test_uc03_valores_limite" name="test_a1_limites_de_geracao[score-imediatamente-abaixo]" time="0.033" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_limites_de_geracao[score-no-limite]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_limites_de_geracao[score-imediatamente-acima]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_limites_de_geracao[cobertura-imediatamente-abaixo]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_limites_de_geracao[cobertura-no-limite]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_limites_de_geracao[cobertura-imediatamente-acima]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_score_para_confianca_alta[abaixo]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_score_para_confianca_alta[no-limite]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_score_para_confianca_alta[acima]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_cobertura_para_confianca_alta[abaixo]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_cobertura_para_confianca_alta[no-limite]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_cobertura_para_confianca_alta[acima]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_qualidade_para_confianca_alta[abaixo]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_qualidade_para_confianca_alta[no-limite]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_limite_de_qualidade_para_confianca_alta[acima]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_a2_evidencia_obrigatoria_ausente_prevalece_sobre_score" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a3_contradicao_determinante_prevalece_sobre_score" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a3_limite_de_contradicao_determinante[abaixo]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a3_limite_de_contradicao_determinante[no-limite]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a3_limite_de_contradicao_determinante[acima]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_contradicao[um-clamp-inferior]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_contradicao[um-sem-clamp]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_contradicao[negativa-clamp-superior]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_valor_de_feature[um]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_valor_de_feature[acima-de-um]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_valor_de_feature[negativa]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_cobertura[zero]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_cobertura[nenhuma-aplicavel]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_qualidade[negativa]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_extremos_de_qualidade[acima-de-um]" time="0.000" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_extremos_fora_da_faixa[score-maximo]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_extremos_fora_da_faixa[score-acima-do-maximo]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_extremos_fora_da_faixa[score-negativo]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_extremos_fora_da_faixa[cobertura-zero]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_extremos_fora_da_faixa[cobertura-negativa]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_extremos_fora_da_faixa[cobertura-acima-de-um]" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_limite_real_de_2000_candidatas_por_familia[abaixo]" time="0.142" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_limite_real_de_2000_candidatas_por_familia[no-limite]" time="0.197" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_limite_real_de_2000_candidatas_por_familia[acima]" time="0.251" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_limite_real_de_10000_candidatas_totais[abaixo]" time="0.459" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_limite_real_de_10000_candidatas_totais[no-limite]" time="0.848" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_limite_real_de_10000_candidatas_totais[acima]" time="1.936" /><testcase classname="tests.test_uc03_valores_limite" name="test_fluxo_principal_oito_passos_com_persistencia" time="39.646"><failure message="AssertionError: assert [{'hypothesis...hesis_id': 4}] == []&#10;  &#10;  Left contains 5 more items, first extra item: {'hypothesis_id': 1}&#10;  Use -v to get more diff">db = &lt;argus_common.db.Database object at 0x10bdc6270&gt;
+inserir_change = &lt;function inserir_change.&lt;locals&gt;._inserir at 0x10a9f2e50&gt;
+
+    def test_fluxo_principal_oito_passos_com_persistencia(db, inserir_change):
+        # Passo 1: fotografia real; anomalias e qualidade sao entradas controladas
+        # do UC02. Detector e canario ficam fora do escopo deste teste do UC03.
+        event_at = db.sim_now() - dt.timedelta(hours=3)
+        with db.connection() as conn:
+            for source, entity, minutes in (
+                ("newrelic", "playback", 0),
+                ("apollo", "playback", -2),
+                ("prometheus", "playback", -60),
+                ("newrelic", "billing", 0),
+            ):
+                inserir_change(
+                    conn,
+                    "signal_bucket",
+                    {
+                        "bts": int(
+                            (event_at + dt.timedelta(minutes=minutes)).timestamp() * 1000
+                        ),
+                        "source": source,
+                        "entity": entity,
+                        "metric": "error_rate_pct",
+                        "value": 5,
+                    },
+                )
+            inserir_change(
+                conn,
+                "rpaas_bucket",
+                {
+                    "bucket_ts_ms": int(event_at.timestamp() * 1000),
+                    "region": "sudeste",
+                    "vhost": "playback.video.globo.com",
+                    "requests_total": 50,
+                    "requests_4xx": 5,
+                    "requests_5xx": 0,
+                },
+            )
+            inserir_change(
+                conn,
+                "tsuru_event",
+                {
+                    "start_time_ms": int(
+                        (event_at - dt.timedelta(minutes=5)).timestamp() * 1000
+                    ),
+                    "uniqueid": "uc03-deploy",
+                    "target_type": "app",
+                    "target_value": "playback-api",
+                    "kind": "app.deploy",
+                },
+            )
+            conn.execute("SELECT bronze.merge_todas()")
+        assert etl.executar_bronze_silver(db, batch_size=100)["status"] == "sucesso"
+        assert (
+            etl.executar_silver_gold(db, janela_max_segundos=999_999_999)["status"]
+            == "sucesso"
+        )
+        catalog = Catalog("test")
+        register_manifest(db, catalog.manifest_hash, catalog.manifest_payload, "test")
+        captured = claim_and_capture(
+            db, worker_id="uc03-fluxo", manifest_hash=catalog.manifest_hash
+        )
+        assert captured is not None
+        assert iniciar_trabalho(db, captured.claim)
+        assert len(captured.facts) == 8
+        assert all(fact.available_at &lt;= captured.claim.sim_now for fact in captured.facts)
+        facts = {(fact.source, fact.entity, fact.metric): fact for fact in captured.facts}
+        subject = facts["newrelic", "playback", "error_rate_pct"]
+        support = facts["apollo", "playback", "error_rate_pct"]
+        rpaas = facts["rpaas", "playback.video.globo.com", "4xx_rate_pct"]
+        deploy = facts["tsuru", "playback-api", "app.deploy"]
+        anomalies = tuple(
+            replace(
+                _anomaly(fact),
+                strength=strength,
+                observed=fact.value,
+                deviation=fact.value - 1,
+            )
+            for fact, strength in ((subject, 0.9), (support, 0.6), (rpaas, 0.7))
+        )
+        quality = tuple(
+            replace(_quality()[0], source=source, last_observation_at=event_at)
+            for source in sorted({fact.source for fact in captured.facts})
+        )
+    
+        # Passos 2 e 3: a mesma anomalia participa de mais de uma explicacao;
+        # candidatas e associacoes sao formadas pelas regras reais.
+        candidates = build_candidates(anomalies, captured.facts, quality, catalog)
+        assert len(candidates) == 7
+        assert {item.family for item in candidates} == {
+            "backend_internal",
+            "deploy_regression",
+            "playback_authorization",
+        }
+        assert {item.family for item in candidates if item.anomaly_index == 0} == {
+            "backend_internal",
+            "deploy_regression",
+        }
+        hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
+            candidates, anomalies, quality, catalog
+        )
+        assert (prefiltered, evaluated, truncated) == (7, 7, 0)
+        by_subject = {(item.family, item.anomaly_indexes[0]): item for item in hypotheses}
+        backend = by_subject["backend_internal", 0]
+        regression = by_subject["deploy_regression", 0]
+        contrary = by_subject["backend_internal", 2]
+        missing = by_subject["playback_authorization", 2]
+        assert set(backend.anomaly_indexes) == {0, 1, 2}
+    
+        # Passo 4: fontes relacionadas corroboram; billing e o sinal de uma hora
+        # antes nao entram. A contraria e a ausencia conservam polaridades distintas.
+        assert {e.fact.fact_key for e in backend.evidence if e.fact} == {
+            subject.fact_key,
+            support.fact_key,
+            rpaas.fact_key,
+            facts["rpaas", "playback.video.globo.com", "5xx_rate_pct"].fact_key,
+        }
+        assert any(e.fact == deploy for e in regression.evidence)
+        assert any(e.polarity == "contrary" and e.strength == 0.9 for e in contrary.evidence)
+        assert any(
+            e.polarity == "missing" and "100" in e.explanation for e in missing.evidence
+        )
+        assert missing.contradiction_strength == 0
+    
+        # Passo 5: oraculos numericos independentes para os seis fatores.
+        factors = {feature.name: feature for feature in backend.features}
+        assert set(factors) == {"A", "T", "C", "E", "I", "Q", "X"}
+        assert factors["A"].value == 0.9
+        assert factors["T"].applicability == "not_applicable"
+        assert factors["C"].value == pytest.approx(0.856)
+        assert factors["E"].value == 1
+        assert factors["I"].applicability == "unavailable"
+        assert factors["Q"].value == 1
+        temporal = next(f for f in regression.features if f.name == "T")
+        assert temporal.value == pytest.approx(2 ** (-5 / 15))
+        impact = next(f for f in contrary.features if f.name == "I")
+        assert impact.value == pytest.approx(math.log1p(50) / math.log1p(10000))
+    
+        # Passos 6 e 7: contribuições, penalidade, cobertura e classificacao real.
+        assert factors["C"].contribution == pytest.approx(0.1712)
+        assert backend.score == pytest.approx(100 * 0.5962 / 0.65)
+        assert backend.coverage == pytest.approx(0.8125)
+        assert backend.confidence == "high"
+        penalty = next(f for f in contrary.features if f.name == "X")
+        assert penalty.contribution == -27
+        assert backend.evaluation_status == regression.evaluation_status == "generated"
+        assert contrary.evaluation_status == "discarded"
+        assert missing.evaluation_status == "insufficient_evidence"
+    
+        # Passo 8: prioridade por forca (0.9, 0.7, 0.6) e desempate estavel;
+        # inverter a entrada nao altera a ordem, os scores ou as evidencias.
+        assert [item.anomaly_indexes[0] for item in hypotheses] == [0, 0, 2, 2, 2, 1, 1]
+        reversed_hypotheses, *_ = evaluate_candidates(
+            tuple(reversed(candidates)), anomalies, quality, catalog
+        )
+        assert reversed_hypotheses == hypotheses
+        result = AnalysisResult(
+            anomalies=anomalies,
+            finding_anomalies=anomalies,
+            baseline_updates={},
+            quality=quality,
+            hypotheses=hypotheses,
+            candidates_prefiltered=prefiltered,
+            candidates_evaluated=evaluated,
+            candidates_truncated=truncated,
+        )
+        persist_result(db, captured, result, duration_ms=1)
+        run_id = captured.claim.run_id
+        rows = db.fetch_all(
+            """SELECT hypothesis_id, dedup_key, evaluation_status, score, coverage, confidence
+                 FROM gold.hypothesis WHERE run_id = %s""",
+            (run_id,),
+        )
+        assert len(rows) == 7
+        persisted = {row["dedup_key"]: row for row in rows}
+        for hypothesis in hypotheses:
+            row = persisted[hypothesis.dedup_key]
+            assert (
+                row["evaluation_status"],
+                row["score"],
+                row["coverage"],
+                row["confidence"],
+            ) == (
+                hypothesis.evaluation_status,
+                hypothesis.score,
+                hypothesis.coverage,
+                hypothesis.confidence,
+            )
+            saved_features = db.fetch_all(
+                """SELECT feature, applicability, value, weight, contribution, explanation
+                     FROM gold.hypothesis_feature
+                    WHERE hypothesis_id = %s ORDER BY feature""",
+                (row["hypothesis_id"],),
+            )
+            assert saved_features == [
+                {
+                    "feature": f.name,
+                    "applicability": f.applicability,
+                    "value": f.value,
+                    "weight": f.weight,
+                    "contribution": f.contribution,
+                    "explanation": f.explanation,
+                }
+                for f in sorted(hypothesis.features, key=lambda f: f.name)
+            ]
+            saved_evidence = db.fetch_all(
+                """SELECT role, polarity, explanation, fact_key FROM gold.hypothesis_evidence
+                    WHERE hypothesis_id = %s ORDER BY evidence_id""",
+                (row["hypothesis_id"],),
+            )
+            assert saved_evidence == [
+                {
+                    "role": e.role,
+                    "polarity": e.polarity,
+                    "explanation": e.explanation,
+                    "fact_key": e.fact.fact_key if e.fact else None,
+                }
+                for e in hypothesis.evidence
+            ]
+        assert (
+            db.fetch_one(
+                """SELECT count(DISTINCT m.group_id) AS groups
+                 FROM gold.finding_group_member m
+                 JOIN detect.anomaly a ON a.anomaly_id = m.finding_id
+                WHERE m.finding_kind = 'anomaly' AND a.run_id = %s AND a.fact_key = %s""",
+                (run_id, subject.fact_key),
+            )["groups"]
+            &gt;= 2
+        )
+        assert db.fetch_one(
+            """SELECT candidates_prefiltered, candidates_evaluated, candidates_truncated,
+                      generated, discarded, insufficient_evidence
+                 FROM gold.hypothesis_run_stats WHERE run_id = %s""",
+            (run_id,),
+        ) == {
+            "candidates_prefiltered": 7,
+            "candidates_evaluated": 7,
+            "candidates_truncated": 0,
+            "generated": 5,
+            "discarded": 1,
+            "insufficient_evidence": 1,
+        }
+        assert db.fetch_one(
+            "SELECT status, manifest_hash FROM detect.run WHERE run_id = %s", (run_id,)
+        ) == {"status": "completed", "manifest_hash": catalog.manifest_hash}
+        assert db.fetch_one("SELECT count(*) AS n FROM gold.hypothesis_feedback")["n"] == 0
+&gt;       assert (
+            db.fetch_all(
+                "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
+            )
+            == []
+        )
+E       AssertionError: assert [{'hypothesis...hesis_id': 4}] == []
+E         
+E         Left contains 5 more items, first extra item: {'hypothesis_id': 1}
+E         Use -v to get more diff
+
+tests/test_uc03_valores_limite.py:756: AssertionError</failure></testcase><testcase classname="tests.test_uc03_valores_limite" name="test_a3_descarte_preserva_justificativa_no_banco" time="14.061" /><testcase classname="tests.test_uc03_valores_limite" name="test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto" time="8.644"><failure message="AssertionError: assert [{'hypothesis_id': 1}] == []&#10;  &#10;  Left contains one more item: {'hypothesis_id': 1}&#10;  Use -v to get more diff">db = &lt;argus_common.db.Database object at 0x10be0f250&gt;
+uc03_execution = (&lt;argus_processing.catalog.Catalog object at 0x10be56270&gt;, CapturedWork(claim=WorkClaim(run_id=1, checkpoint_id=1, man...idity=1.0, consistency=1.0, quality_score=1.0, status='healthy', expected_buckets=1, observed_buckets=1, details={}),))
+
+    def test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto(db, uc03_execution):
+        catalog, captured, candidate, anomaly, quality = uc03_execution
+        result = _evaluated_result(candidate, anomaly, quality, catalog)
+        assert result.hypotheses[0].evaluation_status == "generated"
+        persist_result(db, captured, result, duration_ms=1)
+        run_id = captured.claim.run_id
+        hypothesis = db.fetch_one(
+            "SELECT hypothesis_id FROM gold.hypothesis WHERE run_id = %s", (run_id,)
+        )
+        assert hypothesis is not None
+&gt;       assert (
+            db.fetch_all(
+                "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
+            )
+            == []
+        )
+E       AssertionError: assert [{'hypothesis_id': 1}] == []
+E         
+E         Left contains one more item: {'hypothesis_id': 1}
+E         Use -v to get more diff
+
+tests/test_uc03_valores_limite.py:871: AssertionError</failure></testcase><testcase classname="tests.test_uc03_valores_limite" name="test_e4_falha_na_persistencia_nao_expoe_hipotese_parcial[sombra]" time="6.472" /><testcase classname="tests.test_uc03_valores_limite" name="test_e4_falha_na_persistencia_nao_expoe_hipotese_parcial[publicado]" time="5.496" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_limite_de_500_hipoteses_geradas" time="0.146" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_tetos_documentados_sao_os_defaults_do_motor" time="0.001" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_motor_persiste_truncamento_e_cli_decide_promocao[no-limite]" time="22.589" /><testcase classname="tests.test_uc03_valores_limite" name="test_e2_motor_persiste_truncamento_e_cli_decide_promocao[acima]" time="17.246"><failure message="assert 500 == 0">db = &lt;argus_common.db.Database object at 0x10bdf2250&gt;
+database_url = 'postgresql://argus:x@localhost:55498/argus_test'
+uc03_execution = (&lt;argus_processing.catalog.Catalog object at 0x10be5edb0&gt;, CapturedWork(claim=WorkClaim(run_id=1, checkpoint_id=1, man...idity=1.0, consistency=1.0, quality_score=1.0, status='healthy', expected_buckets=1, observed_buckets=1, details={}),))
+quantity = 501
+
+    @pytest.mark.parametrize("quantity", [500, 501], ids=["no-limite", "acima"])
+    def test_e2_motor_persiste_truncamento_e_cli_decide_promocao(
+        db, database_url, uc03_execution, quantity
+    ):
+        catalog, captured, candidate, anomaly, quality = uc03_execution
+        families = sorted(FAMILIES)
+        # Escopos sinteticos distintos evitam deduplicacao. As onze familias estao
+        # presentes para que somente o truncamento possa reprovar o portao.
+        candidates = tuple(
+            replace(
+                candidate,
+                family=families[index % len(families)],
+                kind="data_quality"
+                if families[index % len(families)] == "source_data_delay"
+                else "context"
+                if families[index % len(families)] == "expected_live_peak"
+                else "operational",
+                scope={"source": "newrelic", "service": "playback", "cenario": index},
+            )
+            for index in range(quantity)
+        )
+        hypotheses, prefiltered, evaluated, truncated = evaluate_candidates(
+            candidates, (anomaly,), quality, catalog
+        )
+        assert prefiltered == evaluated == quantity
+        assert len(hypotheses) == quantity
+        assert sum(item.evaluation_status == "generated" for item in hypotheses) == 500
+        assert truncated == quantity - 500
+        result = AnalysisResult(
+            anomalies=(anomaly,),
+            finding_anomalies=(anomaly,),
+            baseline_updates={},
+            quality=quality,
+            hypotheses=hypotheses,
+            candidates_prefiltered=prefiltered,
+            candidates_evaluated=evaluated,
+            candidates_truncated=truncated,
+        )
+        persist_result(db, captured, result, duration_ms=1)
+        assert db.fetch_one(
+            """
+            SELECT candidates_evaluated, candidates_truncated, generated, discarded,
+                   truncated
+              FROM gold.hypothesis_run_stats WHERE run_id = %s
+            """,
+            (captured.claim.run_id,),
+        ) == {
+            "candidates_evaluated": quantity,
+            "candidates_truncated": quantity - 500,
+            "generated": 500,
+            "discarded": quantity - 500,
+            "truncated": quantity &gt; 500,
+        }
+        assert db.fetch_all("SELECT action FROM gold.manifest_publication_event") == []
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "argus_processing.analysisctl",
+                "evaluate-and-promote",
+                "--precision-at-5",
+                "0.70",
+                "--api-p95-ms",
+                "900",
+                "--api-max-ms",
+                "2500",
+                "--checkpoint-sla-ok",
+                "--suite-ok",
+            ],
+            env={**os.environ, "DATABASE_URL": database_url, "IMAGE_TAG": "test"},
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert completed.stderr == ""
+        metrics = json.loads(completed.stdout)
+        assert metrics["families_observed"] == families
+        assert metrics["completed_runs"] == 1
+        assert metrics["truncated_runs"] == int(quantity &gt; 500)
+        assert metrics["failures"] == (["ha runs truncados"] if quantity &gt; 500 else [])
+        assert completed.returncode == (2 if quantity &gt; 500 else 0)
+        events = db.fetch_all(
+            """
+            SELECT action, gate_metrics FROM gold.manifest_publication_event
+             WHERE manifest_hash = %s
+            """,
+            (catalog.manifest_hash,),
+        )
+        assert events == (
+            [] if quantity &gt; 500 else [{"action": "published", "gate_metrics": metrics}]
+        )
+&gt;       assert db.fetch_one(
+            "SELECT count(*) AS n FROM gold.v_hypothesis WHERE run_id = %s",
+            (captured.claim.run_id,),
+        )["n"] == (0 if quantity &gt; 500 else 500)
+E       assert 500 == 0
+
+tests/test_uc03_valores_limite.py:1111: AssertionError</failure></testcase><testcase classname="tests.test_uc03_valores_limite" name="test_e1_catalogo_invalido_registra_erro_sem_publicar" time="19.489" /><testcase classname="tests.test_uc03_valores_limite" name="test_e1_manifesto_invalido_registra_erro_sem_publicar" time="7.311" /><testcase classname="tests.test_uc03_valores_limite" name="test_pos_condicao_gerada_nao_significa_causa_confirmada" time="0.004" /><testcase classname="tests.test_uc03_valores_limite" name="test_pos_condicao_persiste_estados_metadados_e_sem_confirmacao" time="5.923" /></testsuite></testsuites>

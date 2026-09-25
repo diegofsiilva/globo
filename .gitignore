@@ -1,8 +1,9 @@
 # Dump bruto cedido pelo parceiro — 4 GB, nao redistribuir (DATASET.md §11)
 argus_dump.sql
 
-# Artefatos gerados por tools/etl_dump.py a partir do dump
-data/parquet/
+# Dados locais: Parquet gerados por tools/etl_dump.py a partir do dump e
+# qualquer outro derivado. A pasta so existe na maquina de quem roda o ETL.
+data/
 
 # Ambiente Python
 .venv/
@@ -15,13 +16,13 @@ __pycache__/
 # Terraform: state guarda ARN e pode guardar valor sensivel; tfvars guarda
 # config da conta. O .terraform.lock.hcl VAI versionado de proposito, e o que
 # garante a mesma versao de provider para todo mundo.
-apps/basica/infra/.terraform/
-apps/basica/infra/*.tfstate
-apps/basica/infra/*.tfstate.*
-apps/basica/infra/*.tfvars
-!apps/basica/infra/*.tfvars.example
-apps/basica/infra/backend.tf
-apps/basica/infra/tfplan
+apps/fullstack/infra/.terraform/
+apps/fullstack/infra/*.tfstate
+apps/fullstack/infra/*.tfstate.*
+apps/fullstack/infra/*.tfvars
+!apps/fullstack/infra/*.tfvars.example
+apps/fullstack/infra/backend.tf
+apps/fullstack/infra/tfplan
 crash.log
 
 # Cache de ferramentas Python
@@ -29,14 +30,21 @@ crash.log
 .ruff_cache/
 
 # Pacote de deploy da Lambda, gerado por scripts/build_lambda.sh
-apps/basica/backend/dist/
-apps/basica/backend/instance/
-apps/basica/authorizer/dist/
+apps/fullstack/backend/dist/
+apps/fullstack/backend/instance/
+apps/fullstack/authorizer/dist/
 
 # Gerado por `make frontend-build-info` a cada build. Versionar traria um
 # conflito de merge em todo commit, e o valor util e o do artefato publicado,
 # nao o do repositorio.
-apps/basica/frontend/public/build-info.json
+apps/fullstack/frontend/public/build-info.json
+
+# Segredo do cluster local (kind). Sao credenciais de um PostgreSQL descartavel
+# que vive dentro do cluster, mas o arquivo fica fora do repositorio mesmo assim:
+# a unica diferenca entre ele e o de um ambiente real e o conteudo, e essa e
+# exatamente a distincao que nao da para confiar a quem edita com pressa.
+# O secret.env.example mostra as chaves.
+apps/fullstack/k8s/overlays/kind/secret.env
 
 # Endpoints, IDs de conta e segredos. O .env.example mostra as chaves, nunca
 # os valores.
@@ -49,9 +57,9 @@ artefatos/postman/environment.json
 
 # Resumo bruto de cada execucao do K6 (tools/loadtest). Evidencia sanitizada
 # para o artefato vai versionada a parte, nao o dump automatico.
-apps/basica/tools/loadtest/resultado.json
+apps/fullstack/tools/loadtest/resultado.json
 
-apps/basica/backend/src/telemetry_backend.egg-info/
+apps/fullstack/backend/src/telemetry_backend.egg-info/
 
 .DS_Store
 

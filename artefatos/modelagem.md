@@ -1,13 +1,12 @@
 # Modelagem de Software
 
-&emsp;Este documento apresenta a modelagem de software da Plataforma Argus em três
-visões complementares: os casos de uso, que descrevem o comportamento observável
-do sistema a partir dos seus atores; o diagrama de classes, que detalha o modelo
-de domínio e o vocabulário das aplicações; e os diagramas de sequência, que
-mostram passo a passo os principais fluxos de execução. Os casos de uso explicam
-*o quê* e *por quê*, o diagrama de classes explica *com que* o sistema é
-construído, e os diagramas de sequência explicam *como*, no tempo, essas classes
-colaboram para realizar cada caso de uso.
+&emsp;Este documento reúne a modelagem de software da Plataforma Argus em três
+visões complementares. Os casos de uso descrevem o comportamento observável do
+sistema a partir dos seus atores. O diagrama de classes detalha o modelo de
+domínio e o vocabulário das aplicações. Os diagramas de sequência acompanham,
+passo a passo, os principais fluxos de execução. As três se apoiam umas nas
+outras: um único caso de uso costuma mobilizar classes de mais de um serviço, e é
+no diagrama de sequência que a ordem dessa colaboração fica visível.
 
 ---
 
@@ -36,12 +35,12 @@ produção ficam fora dela.
 
 | Ator | Tipo | Responsabilidade e interesse principal |
 |---|---|---|
-| **Fontes de telemetria** | Sistema externo | Publicar eventos de sessão e mudanças das fontes monitoradas para que sejam armazenados e analisados pelo Argus. |
-| **Novo checkpoint disponível** | Evento temporal | Informar que uma nova fotografia consistente da camada analítica está pronta para processamento. Não representa uma pessoa, mas o estímulo temporal que inicia o UC02. |
-| **Usuário Operacional** | Ator humano principal | Monitorar a plataforma, explorar dados e investigar degradações. Abrange, sobretudo, os perfis de Engenharia de Observabilidade e Suporte N2 definidos no [entendimento de UX](entendimento_ux.md) (EQUIPE ARGUS, 2026b). |
-| **Amazon CloudWatch** | Sistema de apoio | Disponibilizar logs, métricas e alarmes sobre a saúde da ingestão e dos componentes da plataforma. |
+| Fontes de telemetria | Sistema externo | Publicar eventos de sessão e mudanças das fontes monitoradas para que sejam armazenados e analisados pelo Argus. |
+| Novo checkpoint disponível | Evento temporal | Informar que uma nova fotografia consistente da camada analítica está pronta para processamento. Não representa uma pessoa, mas o estímulo temporal que inicia o UC02. |
+| Usuário Operacional | Ator humano principal | Monitorar a plataforma, explorar dados e investigar degradações. Abrange, sobretudo, os perfis de Engenharia de Observabilidade e Suporte N2 definidos no [entendimento de UX](entendimento_ux.md) (EQUIPE ARGUS, 2026b). |
+| Amazon CloudWatch | Sistema de apoio | Disponibilizar logs, métricas e alarmes sobre a saúde da ingestão e dos componentes da plataforma. |
 
-O ator **Usuário Operacional** aparece duas vezes no diagrama somente para reduzir o cruzamento de associações. As duas figuras representam o mesmo papel e possuem as mesmas permissões conceituais.
+O Usuário Operacional aparece duas vezes no diagrama, o que serve apenas para reduzir o cruzamento de associações. As duas figuras são o mesmo papel, com as mesmas permissões conceituais.
 
 ### 1.3 Diagrama de casos de uso
 
@@ -55,7 +54,7 @@ O ator **Usuário Operacional** aparece duas vezes no diagrama somente para redu
 
 <p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
 
-O diagrama separa os comportamentos em três grupos. **Processamento Automático** contém a entrada e a análise contínua da telemetria. **Monitoramento e Investigação Inicial** reúne as ações que ajudam o operador a reconhecer e começar a apurar um problema. **Diagnóstico e Avaliação** contém os aprofundamentos usados para explicar, delimitar e revisar uma degradação.
+O diagrama separa os comportamentos em três grupos. Em Processamento Automático ficam a entrada e a análise contínua da telemetria, que correm sem intervenção. Monitoramento e Investigação Inicial reúne o que ajuda o operador a perceber um problema e começar a apurá-lo. Diagnóstico e Avaliação guarda os aprofundamentos: explicar, delimitar e depois revisar uma degradação.
 
 #### 1.3.1 Relações entre os casos de uso
 
@@ -196,19 +195,21 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 5. Calcula força, coincidência temporal, corroboração, especificidade, impacto e qualidade.
 6. Aplica penalidades, calcula score, cobertura e confiança e registra a contribuição de cada fator.
 7. Classifica a candidata como gerada, descartada ou com evidência insuficiente.
-8. Ordena as hipóteses geradas e persiste candidatos, fatores, evidências e estatísticas, que ficam disponíveis para publicação e análise humana.
+8. Ordena as hipóteses geradas e persiste candidatos, fatores, evidências e estatísticas. Com a execução concluída, as hipóteses geradas ficam disponíveis para análise humana nas visões de leitura.
 
 **Fluxos alternativos e exceções.**
 
-- A1. Evidência suficiente: a hipótese atinge os limites de score e cobertura e é publicada.
+- A1. Evidência suficiente: a hipótese atinge os limites de score e cobertura, é classificada como gerada e fica visível para revisão assim que a execução conclui; a promoção do manifesto pelo portão de qualidade fica registrada como evento de auditoria.
 - A2. Evidência indisponível: a ausência é registrada, reduz a cobertura e não vira contradição.
 - A3. Evidência contrária determinante: a candidata é descartada, com a justificativa preservada.
 - A4. Pico ao vivo esperado: volume que cresce durante um evento compatível, sem piora proporcional de erro ou experiência, vira contexto e não degradação.
 - A5. Problema na própria fonte: baixa qualidade gera hipótese de atraso ou falha de dados, separada das causas operacionais.
-- E1. Catálogo ou manifesto inválido: a execução não é publicada e o erro de configuração fica registrado.
-- E2. Limite de candidatos excedido: o corte determinístico é aplicado e auditado; truncamento incompatível com o portão de qualidade impede promover o manifesto.
+- E1. Catálogo ou manifesto inválido: a execução não conclui, nenhuma hipótese fica visível e o erro de configuração fica registrado.
+- E2. Limite de candidatos excedido: o corte determinístico é aplicado e auditado nas estatísticas da execução; truncamento incompatível com o portão de qualidade impede promover o manifesto, e a recusa fica registrada sem ocultar as hipóteses geradas dentro do teto.
 - E3. Relação semântica desconhecida: sem ligar entidades por aproximação textual, a evidência fica não relacionada.
-- E4. Falha ao persistir: nenhuma publicação parcial é confirmada.
+- E4. Falha ao persistir: a transação é desfeita e nenhum resultado parcial fica visível.
+
+**Nota de revisão (24/09/2026).** Até 23/09/2026, a visibilidade dependia da publicação do manifesto. As migrations `032_hypotheses_visible_on_generation.sql` e `033_all_generated_hypothesis_revisions.sql` mudaram a regra: toda hipótese gerada em execução concluída aparece nas visões de leitura, respeitando o relógio virtual, e os eventos de publicação passaram a servir de auditoria do manifesto. Nenhuma hipótese continua a ser marcada como causa confirmada sem validação humana. Os testes CT01b, CT29 e CT13c de `testes-funcionais.md` verificam a regra atual.
 
 **Requisitos especiais.** Toda hipótese parte de ao menos uma detecção, usa somente evidências disponíveis no instante analisado e mantém linguagem não conclusiva; a mesma entrada e configuração geram o mesmo resultado. Hipótese gerada exige score mínimo de 40 e cobertura mínima de 0,50; confiança alta exige score 80, cobertura 0,80 e qualidade 0,70. Os tetos são de 10 mil candidatos, 2 mil por família e 500 hipóteses geradas por execução.
 
@@ -601,47 +602,43 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 ## 2. Diagrama UML de classes
 
-&emsp;Esta seção descreve o modelo de domínio da plataforma Argus, isto é, o
-conjunto de abstrações e o vocabulário centrais do sistema, por meio de um
-diagrama de classes UML (Unified Modeling Language, a notação-padrão para
-modelagem de software; OBJECT MANAGEMENT GROUP, 2017) e da descrição de cada
-classe: o que representa, o que
-guarda, o que faz e de quem depende. Onde a seção 1 descreve o comportamento
-observável, esta descreve a estrutura interna que o sustenta, atravessando os
-quatro serviços Python, a carga inicial e a biblioteca compartilhada.
+&emsp;Esta seção trata do modelo de domínio da plataforma, o vocabulário com que
+o sistema foi construído. A apresentação é feita por um diagrama de classes em
+UML (OBJECT MANAGEMENT GROUP, 2017), acompanhado da descrição de cada classe e
+das suas dependências. A seção 1 ficou na superfície do comportamento; aqui a
+leitura desce para a estrutura que o sustenta, atravessando os quatro serviços
+Python, a carga inicial e a biblioteca compartilhada.
 
 ### 2.1 Escopo e método
 
 #### 2.1.1 O que o diagrama cobre
 
-&emsp; O diagrama modela as classes de aplicação do repositório: entidades de
-domínio e objetos de valor (tipos sem identidade própria, definidos apenas pelo
-conteúdo), na acepção de Evans (2003), mais adaptadores, casos de uso,
-consumidores e repositórios, que são as categorias da arquitetura hexagonal,
-detalhadas na seção 2.7. São cerca de 45 classes,
-agrupadas em seis contextos:
+&emsp; O diagrama modela as classes de aplicação do repositório. Estão ali as
+entidades de domínio e os objetos de valor na acepção de Evans (2003), além dos
+adaptadores, casos de uso, consumidores e repositórios que a arquitetura
+hexagonal organiza, e que a seção 2.7 detalha. São cerca de 45 classes em seis
+contextos:
 
 | Contexto | Serviço / pasta | Papel |
 |---|---|---|
-| **Ingestão** | `apps/basica/worker` | Consome as duas filas SQS (o serviço de filas de mensagens da AWS), valida e grava na camada `bronze` (dados crus, ainda sem tratamento) |
-| **Carga inicial** | `apps/basica/loader` | Sobe as 33 tabelas do dump (a cópia de exportação do banco do parceiro), de arquivos Parquet (formato de arquivo colunar compactado) para a `bronze` |
-| **Relógio virtual** | `apps/basica/simulator` | Anda `sim.now()` e reemite o dump como mudanças, pela rede |
-| **Análise** | `apps/basica/processing` | ETL incremental (do inglês *extract, transform, load*, ou seja, extrair, transformar e carregar os dados de uma camada para a seguinte), detector causal e motor das 11 famílias de hipótese |
-| **Leitura** | `apps/basica/backend` | API em Flask (framework web Python) executada em instâncias EC2 de um Auto Scaling Group (grupo que cria e substitui máquinas conforme a demanda) atrás de um Application Load Balancer, com arquitetura hexagonal (regras de negócio isoladas da infraestrutura; ver seção 2.7); serve o dashboard, que é o painel de visualização |
-| **Comum** | `apps/basica/common` | Conexão, observabilidade (métricas e sinais que revelam o estado interno do sistema em produção) e ciclo de vida compartilhados pelos serviços |
+| Ingestão | `apps/fullstack/worker` | Consome as duas filas SQS, valida e grava na camada `bronze`, onde o dado fica como chegou, sem tratamento |
+| Carga inicial | `apps/fullstack/loader` | Sobe as 33 tabelas do dump do parceiro, de arquivos Parquet para a `bronze` |
+| Relógio virtual | `apps/fullstack/simulator` | Anda `sim.now()` e reemite o dump como mudanças, pela rede |
+| Análise | `apps/fullstack/processing` | ETL incremental de uma camada para a seguinte, detector causal e motor das 11 famílias de hipótese |
+| Leitura | `apps/fullstack/backend` | API em Flask sobre instâncias EC2 de um Auto Scaling Group, atrás de um Application Load Balancer, em arquitetura hexagonal (seção 2.7); é quem serve o dashboard |
+| Comum | `apps/fullstack/common` | Conexão, observabilidade e ciclo de vida, compartilhados pelos quatro serviços |
 
-#### 2.1.2 O que o diagrama não é
+#### 2.1.2 O que fica de fora, e onde encontrar
 
-&emsp; Não é o modelo de dados: o esquema físico do PostgreSQL, das camadas de
-dados crus (`bronze`) às limpas (`silver`) e às agregadas (`gold`), mais
-`detect`, `sim` e `etl`, está na [arquitetura inicial](arquitetura-inicial.md)
-(EQUIPE ARGUS, 2026a) e
-nos diagramas entidade-relacionamento em [`assets/`](assets/); aqui o banco é um
-único nó de fronteira. Também não é o diagrama de implantação, que descreve nós,
-contêineres e serviços AWS na mesma referência. E não cobre o frontend classe a
-classe: o dashboard é feito em React com módulos de tipos e funções `fetch` (as
-chamadas HTTP do navegador), e aparece no diagrama unificado apenas como cliente
-da API de leitura.
+&emsp; Três coisas ficaram deliberadamente fora deste recorte. O esquema físico
+do PostgreSQL, com as camadas `bronze`, `silver` e `gold` mais `detect`, `sim` e
+`etl`, está descrito na [arquitetura inicial](arquitetura-inicial.md) (EQUIPE
+ARGUS, 2026a) e nos diagramas entidade-relacionamento em [`assets/`](assets/);
+aqui o banco entra como um único nó de fronteira. O diagrama de implantação, com
+nós, contêineres e serviços AWS, está na mesma referência. Já o frontend não
+aparece classe a classe: o dashboard é feito em React, com módulos de tipos e
+chamadas `fetch`, e no diagrama unificado ele comparece só como cliente da API
+de leitura.
 
 #### 2.1.3 Notação
 
@@ -653,7 +650,7 @@ da API de leitura.
 | `A o-- B` | Agregação: `A` mantém uma referência a `B`, com ciclo de vida próprio |
 | `A --> B` | Associação direcionada: `A` usa `B` de forma duradoura |
 | `A ..> B` | Dependência: `A` usa `B` de forma pontual (parâmetro, retorno, construção) |
-| `«...»` | Estereótipo, que indica o papel da classe: `dataclass` e `pydantic` (formas de classe de dados em Python), `Protocol` (contrato de métodos, sem implementação), `abstract` (classe abstrata), `exception` (exceção), `module` (módulo de funções), `boundary` (fronteira com um sistema externo) |
+| `«...»` | Estereótipo, que indica o papel da classe: `dataclass` e `pydantic`, `Protocol` (contrato de métodos, sem implementação), `abstract`, `exception`, `module` e `boundary`, esta última para a fronteira com um sistema externo |
 | `$` após um método | Método estático / função de módulo |
 | `*` após um método | Método abstrato |
 
@@ -663,10 +660,10 @@ entre colchetes; nos recortes, o contexto já resolve a ambiguidade.
 
 #### 2.1.4 Fontes e reprodução
 
-&emsp; O texto-fonte de cada diagrama está em [`assets/`](assets/), com extensão
-`.mmd` (Mermaid, a linguagem de texto que descreve os diagramas; MERMAID,
-2026). O GitLab renderiza os blocos `mermaid` deste documento; os PNG ao lado de
-cada seção são a exportação para apresentação. Para regenerá-los:
+&emsp; O texto-fonte de cada diagrama está em [`assets/`](assets/), em arquivos
+`.mmd` escritos em Mermaid (MERMAID, 2026). O GitLab renderiza os blocos
+`mermaid` deste documento; os PNG ao lado de cada seção são a exportação para
+apresentação. Para regenerá-los:
 
 ```bash
 cd artefatos/assets
@@ -676,10 +673,10 @@ npx @mermaid-js/mermaid-cli -i diagrama-classes.mmd -o diagrama-classes.png -s 3
 
 ### 2.2 Visão geral: os seis contextos
 
-&emsp; Os contextos não trocam objetos entre si diretamente. Eles se comunicam por
-duas fronteiras: as filas SQS (na entrada) e o banco PostgreSQL (no centro).
-O acoplamento entre serviços é, portanto, o contrato de dados, não uma
-dependência de código.
+&emsp; Os contextos não trocam objetos entre si. Toda a comunicação passa por
+duas fronteiras, as filas SQS na entrada e o banco PostgreSQL no centro. O que
+acopla um serviço ao outro, portanto, é o contrato de dados que atravessa essas
+fronteiras, e nenhum deles importa código do outro.
 
 <p align="center"><sub>Figura 2 - Visão geral dos seis contextos e das duas fronteiras de integração</sub></p>
 
@@ -711,9 +708,10 @@ conceito.
 
 ### 2.3 Diagrama de classes unificado
 
-&emsp; A visão completa, com os seis contextos agrupados em `namespace` (as
-caixas nomeadas do Mermaid) e as fronteiras de infraestrutura. É densa por
-natureza: as seções 2.4 a 2.8 trazem o mesmo conteúdo em recortes legíveis.
+&emsp; A visão completa, com os seis contextos agrupados em `namespace` e as
+fronteiras de infraestrutura. A densidade é inevitável num diagrama que cobre 45
+classes de uma vez; quem preferir ler por partes encontra o mesmo conteúdo
+recortado nas seções 2.4 a 2.8.
 
 <p align="center"><sub>Figura 3 - Diagrama de classes unificado da Plataforma Argus</sub></p>
 
@@ -1298,49 +1296,49 @@ classDiagram
 
 | Classe | Responsabilidade |
 |---|---|
-| **`BaseEvent`** | Envelope comum a todo evento de sessão. Modelo Pydantic (biblioteca Python de validação de dados; PYDANTIC, 2026) com `extra="allow"`: campo novo enviado pelo app é preservado, não rejeitado. Só quatro campos são obrigatórios (`timestamp`, `event_name`, `session_id`, `device_id`). Os validadores `_to_utc` e `_not_blank` normalizam fuso e recusam string em branco. |
-| **`RequestEvent`** | Chamada HTTP feita pelo app: método, URL, status, cabeçalhos. |
-| **`ScreenViewEvent`** | Entrada em uma tela, só o envelope. |
-| **`SessionEvent`** | Ciclo de vida da sessão, com as *capabilities*, as capacidades técnicas negociadas com o aparelho, como HDR, DRM e Dolby Atmos. |
-| **`VideoViewEvent`** | Reprodução de vídeo, ao vivo ou sob demanda (VOD, de *video on demand*): mídia, DRM (trava de direitos autorais), anúncios. |
-| **`VitalsEvent`** | Sinal de saúde do player (o reprodutor de vídeo): travamento, buffering (as pausas para o vídeo carregar). Só o envelope. |
-| **`ErrorEvent`** | Erro exibido ao usuário: nome, mensagem, *stack* (a pilha de chamadas até o ponto do erro). |
-| **`GenericEvent`** | *Fallback* (rota de reserva) para `event_name` ainda desconhecido. Valida só o envelope e guarda o resto; existe para que um tipo novo apareça no banco no mesmo dia em que for lançado, em vez de acumular na DLQ, sigla de *dead-letter queue*, a fila para onde vão as mensagens que não puderam ser processadas (RF03, RNF06). |
-| **`ChangeEvent`** | Uma mudança em uma linha de uma das 33 tabelas do parceiro. Envelope validado com rigor (`source_table` na lista fechada, `op` ∈ `i/u/d/r`, `pk`, a chave primária da linha, não vazia); `pk`/`before`/`after` são `jsonb` livre (campo JSON sem esquema fixo, recurso do PostgreSQL), para absorver coluna nova sem alterar a estrutura do banco. |
+| `BaseEvent` | Envelope comum a todo evento de sessão. Modelo Pydantic (biblioteca Python de validação de dados; PYDANTIC, 2026) com `extra="allow"`: campo novo enviado pelo app é preservado, não rejeitado. Só quatro campos são obrigatórios (`timestamp`, `event_name`, `session_id`, `device_id`). Os validadores `_to_utc` e `_not_blank` normalizam fuso e recusam string em branco. |
+| `RequestEvent` | Chamada HTTP feita pelo app: método, URL, status, cabeçalhos. |
+| `ScreenViewEvent` | Entrada em uma tela, só o envelope. |
+| `SessionEvent` | Ciclo de vida da sessão, com as *capabilities*, as capacidades técnicas negociadas com o aparelho, como HDR, DRM e Dolby Atmos. |
+| `VideoViewEvent` | Reprodução de vídeo, ao vivo ou sob demanda (VOD, de *video on demand*): mídia, DRM (trava de direitos autorais), anúncios. |
+| `VitalsEvent` | Sinal de saúde do player: travamento, buffering. Só o envelope. |
+| `ErrorEvent` | Erro exibido ao usuário: nome, mensagem, *stack*. |
+| `GenericEvent` | *Fallback* (rota de reserva) para `event_name` ainda desconhecido. Valida só o envelope e guarda o resto; existe para que um tipo novo apareça no banco no mesmo dia em que for lançado, em vez de acumular na DLQ, sigla de *dead-letter queue*, a fila para onde vão as mensagens que não puderam ser processadas (RF03, RNF06). |
+| `ChangeEvent` | Uma mudança em uma linha de uma das 33 tabelas do parceiro. Envelope validado com rigor (`source_table` na lista fechada, `op` ∈ `i/u/d/r`, `pk`, a chave primária da linha, não vazia); `pk`/`before`/`after` são `jsonb` livre (campo JSON sem esquema fixo, recurso do PostgreSQL), para absorver coluna nova sem alterar a estrutura do banco. |
 
 #### 2.4.2 Consumidores
 
 | Classe | Responsabilidade |
 |---|---|
-| **`BaseConsumer`** *(abstrata)* | O laço de consumo do SQS, idêntico nos dois workers (os processos que leem a fila continuamente, em segundo plano): `receive` → `parse` → `persist` → `delete` (receber, interpretar, gravar, apagar). Nenhuma exceção de ciclo derruba o processo; a mensagem só é apagada depois que tudo nela foi gravado ou desviado para a DLQ. Métodos abstratos `_parse`, `_persist`, `_chave_lista` são o que cada worker define. Compõe-se de `Config`, `Metrics`, `Heartbeat` e `ShutdownSignal` (todos de `common`). |
-| **`ChangeConsumer`** | *Merge worker*, o processo que funde cada mudança na tabela correspondente. Valida `ChangeEvent`, delega a `ChangeRepository` e emite as métricas `LagSimSeconds`/`SourcesSilent` em cadência fixa. |
-| **`EventConsumer`** | *Event worker*, o processo dos eventos de sessão. Valida com `parse_event`, monta a linha com `keys.build_row` e delega a `EventRepository`. Conta `EventsUnknownType` e `EventsIncomplete` sem descartar. |
+| `BaseConsumer` *(abstrata)* | O laço de consumo do SQS, idêntico nos dois workers: `receive` → `parse` → `persist` → `delete` (receber, interpretar, gravar, apagar). Nenhuma exceção de ciclo derruba o processo; a mensagem só é apagada depois que tudo nela foi gravado ou desviado para a DLQ. Métodos abstratos `_parse`, `_persist`, `_chave_lista` são o que cada worker define. Compõe-se de `Config`, `Metrics`, `Heartbeat` e `ShutdownSignal` (todos de `common`). |
+| `ChangeConsumer` | *Merge worker*, o processo que funde cada mudança na tabela correspondente. Valida `ChangeEvent`, delega a `ChangeRepository` e emite as métricas `LagSimSeconds`/`SourcesSilent` em cadência fixa. |
+| `EventConsumer` | *Event worker*, o processo dos eventos de sessão. Valida com `parse_event`, monta a linha com `keys.build_row` e delega a `EventRepository`. Conta `EventsUnknownType` e `EventsIncomplete` sem descartar. |
 
 #### 2.4.3 Repositórios de escrita
 
 | Classe | Responsabilidade |
 |---|---|
-| **`ChangeRepository`** | Anexa o lote a `bronze.change_log` e dispara `bronze.merge_do_log` na mesma transação: ou os dois acontecem ou nenhum. `lag_sim_seconds` e `sources_silent` são consultas de métrica com teto de tempo, para que a observabilidade nunca derrube a ingestão. |
-| **`EventRepository`** (worker) | Grava o grão de sessão (o nível de detalhe adotado: uma linha por sessão) em `bronze.event` com `ON CONFLICT (ts, event_id) DO NOTHING` (se a linha já existir, ignora). `event_id` deriva do hash (a impressão digital) do conteúdo, o que dá efeito de *exactly-once*, ou seja, cada evento gravado uma única vez, sobre a entrega *at-least-once* do SQS, que pode repetir a mesma mensagem (AMAZON WEB SERVICES, 2026b). |
-| **`ChangeTooLarge`** | Exceção: evento de mudança maior que 4 MB; repetir a tentativa (*retry*) nunca resolveria, então vai direto para a DLQ. |
-| **`Config`** (worker) | *Dataclass* (classe de dados do Python) congelada, isto é, imutável depois de criada, com toda a configuração vinda do ambiente (`modo`, URLs de fila e DLQ, `DATABASE_URL`, tamanhos de lote, tolerância de desvio de relógio). `from_env` valida a presença das variáveis obrigatórias. |
+| `ChangeRepository` | Anexa o lote a `bronze.change_log` e dispara `bronze.merge_do_log` na mesma transação: ou os dois acontecem ou nenhum. `lag_sim_seconds` e `sources_silent` são consultas de métrica com teto de tempo, para que a observabilidade nunca derrube a ingestão. |
+| `EventRepository` (worker) | Grava o grão de sessão (o nível de detalhe adotado: uma linha por sessão) em `bronze.event` com `ON CONFLICT (ts, event_id) DO NOTHING` (se a linha já existir, ignora). `event_id` deriva do hash do conteúdo, o que dá efeito de *exactly-once*, ou seja, cada evento gravado uma única vez, sobre a entrega *at-least-once* do SQS, que pode repetir a mesma mensagem (AMAZON WEB SERVICES, 2026b). |
+| `ChangeTooLarge` | Exceção: evento de mudança maior que 4 MB; repetir a tentativa (*retry*) nunca resolveria, então vai direto para a DLQ. |
+| `Config` (worker) | *Dataclass* congelada, imutável depois de criada, com toda a configuração vinda do ambiente (`modo`, URLs de fila e DLQ, `DATABASE_URL`, tamanhos de lote, tolerância de desvio de relógio). `from_env` valida a presença das variáveis obrigatórias. |
 
 #### 2.4.4 Carga inicial
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Loader`** | Lê os Parquet do dump em lotes e despeja por `COPY FROM STDIN` (a carga em massa do PostgreSQL) na `bronze` corrente; opcionalmente grava o snapshot (a foto do estado inicial) também no `change_log` com `op='r'`. Retomável por tabela: uma tabela cuja contagem já bate com o `_manifest.json` é pulada. |
-| **`Resultado`** / **`ResultadoTabela`** | *Dataclasses* que acumulam o que aconteceu com cada tabela (linhas, esperadas, tempo, se foi pulada). `confere()` e `divergentes()` são a validação final contra o manifesto (RNF05: não perder dado em silêncio). |
-| **`ManifestoDivergente`** | Exceção: a contagem carregada não bate com o `_manifest.json`; a carga falha de forma explícita, em vez de seguir em silêncio. |
+| `Loader` | Lê os Parquet do dump em lotes e despeja por `COPY FROM STDIN` na `bronze` corrente; opcionalmente grava o snapshot inicial também no `change_log` com `op='r'`. Retomável por tabela: uma tabela cuja contagem já bate com o `_manifest.json` é pulada. |
+| `Resultado` / `ResultadoTabela` | *Dataclasses* que acumulam o que aconteceu com cada tabela (linhas, esperadas, tempo, se foi pulada). `confere()` e `divergentes()` são a validação final contra o manifesto (RNF05: não perder dado em silêncio). |
+| `ManifestoDivergente` | Exceção: a contagem carregada não bate com o `_manifest.json`; a carga falha de forma explícita, em vez de seguir em silêncio. |
 
 ### 2.5 Recorte 2: Relógio virtual
 
-&emsp; O simulador não inventa dados: lê o dump que já está na `bronze` e o reemite, no
-ritmo de `sim.now()`, pela rede: cada tick (cada passo do relógio virtual)
-exercita o fluxo de ingestão inteiro. `Clock` fala com o banco (o relógio vive
-lá), `Janela` lê a faixa de tempo que acabou de passar, `Falha` distorce pontos
-de forma determinística (mesma entrada, sempre o mesmo resultado) e `Emitter`
-publica em `POST /v1/changes`.
+&emsp; O dado que o simulador emite já existe: ele lê o dump gravado na `bronze` e
+o reemite pela rede, no ritmo de `sim.now()`, de modo que cada passo do relógio
+exercita o fluxo de ingestão inteiro. `Clock` conversa com o banco, que é onde o
+relógio vive. `Janela` lê a faixa de tempo recém-vencida. `Falha` distorce pontos
+de forma determinística, sempre com o mesmo resultado para a mesma entrada.
+`Emitter` publica em `POST /v1/changes`.
 
 <p align="center"><sub>Figura 5 - Diagrama de classes: contexto do relógio virtual</sub></p>
 
@@ -1435,22 +1433,23 @@ classDiagram
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Clock`** | Lê e avança `sim.clock`. `reset` ancora o relógio no início da janela; `now` lê o presente virtual; `abrir_run`/`fechar_run` registram a execução em `sim.run`; `registrar_falhas` grava o cenário sorteado em `sim.fault` (é o que torna o cenário auditável, isto é, verificável depois); `fontes` lista as fontes presentes na `bronze`. |
-| **`Janela`** | Lê da `bronze` as linhas cujo tempo caiu na faixa que acabou de passar, com teto por tabela por tick (uma mensagem do SQS tem limite de tamanho). |
-| **`Emitter`** | Publica os eventos de mudança em `POST /v1/changes`, repetindo a tentativa (*retry*) quando falha e reaproveitando o cliente HTTP entre os ticks. Divide o lote por bytes do JSON (o corpo viaja na *query string*, os parâmetros no fim da URL, da integração do API Gateway, o serviço da AWS que recebe as requisições da internet, cujo limite de tamanho de URL é menor que os 256 KB do SQS). Desistir de um lote o perde de propósito: melhor pular uma janela do que travar o tempo virtual. |
-| **`Falha`** *(dataclass congelada)* | Uma falha injetada, com alvo e janela. `alcanca` diz se a falha atinge um ponto (tempo + alvo); `aplicar` distorce o valor conforme o tipo (`error_spike`, `latency` e `drift`, que são pico de erro, latência e deriva, multiplicam o valor; `source_outage` devolve `None`: a fonte parou, que é diferente de reportar zero). |
-| **`faults`** *(módulo)* | `sortear` produz a lista de falhas de uma execução a partir da `seed` (o número que inicializa o sorteio aleatório): mesma seed, mesmo cenário, o que permite comparar dois detectores sabendo que viram os mesmos incidentes. |
+| `Clock` | Lê e avança `sim.clock`. `reset` ancora o relógio no início da janela; `now` lê o presente virtual; `abrir_run`/`fechar_run` registram a execução em `sim.run`; `registrar_falhas` grava o cenário sorteado em `sim.fault` (é o que torna o cenário auditável, isto é, verificável depois); `fontes` lista as fontes presentes na `bronze`. |
+| `Janela` | Lê da `bronze` as linhas cujo tempo caiu na faixa que acabou de passar, com teto por tabela por tick (uma mensagem do SQS tem limite de tamanho). |
+| `Emitter` | Publica os eventos de mudança em `POST /v1/changes`, repetindo a tentativa (*retry*) quando falha e reaproveitando o cliente HTTP entre os ticks. Divide o lote por bytes do JSON (o corpo viaja na *query string*, os parâmetros no fim da URL, da integração do API Gateway, o serviço da AWS que recebe as requisições da internet, cujo limite de tamanho de URL é menor que os 256 KB do SQS). Desistir de um lote o perde de propósito: melhor pular uma janela do que travar o tempo virtual. |
+| `Falha` *(dataclass congelada)* | Uma falha injetada, com alvo e janela. `alcanca` diz se a falha atinge um ponto (tempo + alvo); `aplicar` distorce o valor conforme o tipo (`error_spike`, `latency` e `drift`, que são pico de erro, latência e deriva, multiplicam o valor; `source_outage` devolve `None`: a fonte parou, que é diferente de reportar zero). |
+| `faults` *(módulo)* | `sortear` produz a lista de falhas de uma execução a partir da `seed` (o número que inicializa o sorteio aleatório): mesma seed, mesmo cenário, o que permite comparar dois detectores sabendo que viram os mesmos incidentes. |
 
 ### 2.6 Recorte 3: Análise
 
-&emsp; O contexto de análise tem três blocos: os contratos imutáveis (`Fact`,
-`Anomaly`, `Hypothesis` e afins), que são *dataclasses* congeladas (imutáveis) passadas
-entre as etapas; a coordenação (`WorkClaim`, `CapturedWork`), que garante que um
-só processo analise um checkpoint (um ponto de progresso salvo) por vez, usando
-*lease* (posse com prazo de validade) e *fencing* (um número crescente que
-invalida quem perdeu a posse); e o catálogo versionado (`Catalog`,
-`MetricPolicy`), cujo `manifest_hash` amarra cada resultado à configuração exata
-que o produziu.
+&emsp; O contexto de análise se divide em três blocos. Os contratos imutáveis
+(`Fact`, `Anomaly`, `Hypothesis` e afins) são *dataclasses* congeladas que
+passam de uma etapa para a outra sem serem alteradas no caminho. A coordenação
+(`WorkClaim`, `CapturedWork`) garante que um só processo analise cada checkpoint
+por vez, e para isso combina duas técnicas: o *lease*, que é uma posse com prazo
+de validade, e o *fencing*, um número crescente que invalida quem perdeu essa
+posse enquanto ainda tentava gravar. O terceiro bloco é o catálogo versionado
+(`Catalog`, `MetricPolicy`), cujo `manifest_hash` amarra cada resultado à
+configuração exata que o produziu.
 
 <p align="center"><sub>Figura 6 - Diagrama de classes: contexto de análise</sub></p>
 
@@ -1710,58 +1709,57 @@ classDiagram
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Fact`** | Uma observação de fonte já normalizada, no grão em que a análise trabalha. Sai de `bronze.change_log` (não da tabela corrente), o que conserva duas mudanças da mesma chave primária (PK) entre ciclos. `available_at` é a barreira causal: nenhuma regra olha um fato cujo `available_at` esteja à frente de `sim.now()`. |
-| **`Baseline`** | Média e variância acumuladas de uma série, pelo método de Welford (1962), que atualiza os dois números a cada novo ponto, sem guardar o histórico. Mutável de propósito: o detector atualiza a cada bucket (cada intervalo de tempo agregado). `n < 3` significa histórico insuficiente. |
-| **`Anomaly`** | Um fato que se afastou do baseline (o comportamento esperado, calculado a partir do histórico) o suficiente para virar sinal. Guarda `z` (o desvio em relação à média, medido em desvios-padrão σ), `strength` (a magnitude normalizada) e um `baseline_snapshot` (a foto do baseline naquele instante) para a evidência poder citar o número original. |
-| **`SourceQuality`** | Veredito do canário (a verificação contínua que acusa quando uma fonte para de responder) sobre uma fonte num ciclo. Existe porque uma fonte silenciosa é indistinguível de uma fonte saudável: as duas produzem zero anomalia. Quatro dimensões ponderadas em `quality_score`: `freshness`, `completeness`, `validity` e `consistency`, ou seja, atualidade, completude, validade e consistência. |
-| **`Feature`** | Um componente do score (a nota) de uma hipótese, com sua explicação. `applicability` (`available` / `unavailable` / `not_applicable`) distingue "calculada", "fonte não respondeu" e "não faz sentido para esta família"; sem isso, ausência de dado viraria zero e puxaria o score para baixo. |
-| **`Evidence`** | Um fato citado a favor ou contra uma hipótese. `polarity` permite mostrar ao operador também o que não fecha com a explicação. |
-| **`Hypothesis`** | Uma explicação candidata e auditável, para revisão humana; não é causa-raiz confirmada. `evaluation_status` e `contradiction_strength` carregam o quanto a própria evidência contradiz a explicação; `dedup_key`/`lineage_key` (chaves de deduplicação e de linhagem) agrupam e ligam versões entre ciclos. |
-| **`Candidate`** | Uma hipótese antes da avaliação: o formato, sem o score. Separar geração de avaliação é o que permite contar quantos candidatos existiam antes de qualquer corte. |
-| **`AnalysisResult`** | Tudo que um ciclo produziu, para gravação numa transação. Os três contadores de candidato distinguem "não há hipótese" de "havia candidatos demais e o ciclo parou no teto". |
+| `Fact` | Uma observação de fonte já normalizada, no grão em que a análise trabalha. Sai de `bronze.change_log` (não da tabela corrente), o que conserva duas mudanças da mesma chave primária (PK) entre ciclos. `available_at` é a barreira causal: nenhuma regra olha um fato cujo `available_at` esteja à frente de `sim.now()`. |
+| `Baseline` | Média e variância acumuladas de uma série, pelo método de Welford (1962), que atualiza os dois números a cada novo ponto, sem guardar o histórico. Mutável de propósito: o detector atualiza a cada bucket (cada intervalo de tempo agregado). `n < 3` significa histórico insuficiente. |
+| `Anomaly` | Um fato que se afastou do baseline (o comportamento esperado, calculado a partir do histórico) o suficiente para virar sinal. Guarda `z` (o desvio em relação à média, medido em desvios-padrão σ), `strength` e um `baseline_snapshot` (a foto do baseline naquele instante) para a evidência poder citar o número original. |
+| `SourceQuality` | Veredito do canário (a verificação contínua que acusa quando uma fonte para de responder) sobre uma fonte num ciclo. Existe porque uma fonte silenciosa é indistinguível de uma fonte saudável: as duas produzem zero anomalia. Quatro dimensões ponderadas em `quality_score`: `freshness`, `completeness`, `validity` e `consistency`, ou seja, atualidade, completude, validade e consistência. |
+| `Feature` | Um componente do score (a nota) de uma hipótese, com sua explicação. `applicability` (`available` / `unavailable` / `not_applicable`) distingue "calculada", "fonte não respondeu" e "não faz sentido para esta família"; sem isso, ausência de dado viraria zero e puxaria o score para baixo. |
+| `Evidence` | Um fato citado a favor ou contra uma hipótese. `polarity` permite mostrar ao operador também o que não fecha com a explicação. |
+| `Hypothesis` | Uma explicação candidata e auditável, para revisão humana; não é causa-raiz confirmada. `evaluation_status` e `contradiction_strength` carregam o quanto a própria evidência contradiz a explicação; `dedup_key`/`lineage_key` (chaves de deduplicação e de linhagem) agrupam e ligam versões entre ciclos. |
+| `Candidate` | Uma hipótese antes da avaliação: o formato, sem o score. Separar geração de avaliação é o que permite contar quantos candidatos existiam antes de qualquer corte. |
+| `AnalysisResult` | Tudo que um ciclo produziu, para gravação numa transação. Os três contadores de candidato distinguem "não há hipótese" de "havia candidatos demais e o ciclo parou no teto". |
 
 #### 2.6.2 Coordenação e captura
 
 | Classe | Responsabilidade |
 |---|---|
-| **`WorkClaim`** | Fotografia da posse de uma unidade de análise: `run_id`, `checkpoint_id`, `manifest_hash`, `lease_expires_at`, `fencing_token`. O *advisory lock* (trava cooperativa do PostgreSQL) só existe durante o *claim* (o instante em que o processo reivindica o trabalho); o trabalho demorado é protegido por *lease* e *fencing* gravados no banco. |
-| **`CapturedWork`** | Um instantâneo: o *claim* mais os `Fact` já lidos, capturados sob `REPEATABLE READ` (o nível de isolamento em que a transação vê um retrato fixo do banco) antes da análise: é o que faz o ciclo inteiro enxergar o mesmo estado do banco mesmo com o ETL escrevendo em paralelo. |
-| **`CoordinationError` / `FencingRejected`** | Erros de contrato da coordenação; `FencingRejected` é lançada quando o processo perdeu o *lease* e tenta gravar. |
-| **`CaptureLimitExceeded` / `InputDigestMismatch`** | A unidade excedeu o limite de linhas, ou um *retry* reconstruiu entrada diferente para o mesmo checkpoint. |
+| `WorkClaim` | Fotografia da posse de uma unidade de análise: `run_id`, `checkpoint_id`, `manifest_hash`, `lease_expires_at`, `fencing_token`. O *advisory lock* (trava cooperativa do PostgreSQL) só existe durante o *claim* (o instante em que o processo reivindica o trabalho); o trabalho demorado é protegido por *lease* e *fencing* gravados no banco. |
+| `CapturedWork` | Um instantâneo: o *claim* mais os `Fact` já lidos, capturados sob `REPEATABLE READ` (o nível de isolamento em que a transação vê um retrato fixo do banco) antes da análise: é o que faz o ciclo inteiro enxergar o mesmo estado do banco mesmo com o ETL escrevendo em paralelo. |
+| `CoordinationError` / `FencingRejected` | Erros de contrato da coordenação; `FencingRejected` é lançada quando o processo perdeu o *lease* e tenta gravar. |
+| `CaptureLimitExceeded` / `InputDigestMismatch` | A unidade excedeu o limite de linhas, ou um *retry* reconstruiu entrada diferente para o mesmo checkpoint. |
 
 #### 2.6.3 Catálogo e fluxo
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Catalog`** | Os cinco catálogos versionados (`sources`, `metrics`, `entity_relations`, `playback`, `rules`) e o `manifest_hash` canônico. `related` reconhece hierarquia de entidades (um POP, ponto de presença da rede, dentro do cluster que passou por um deploy, que é a publicação de uma nova versão); `normalize_entity` reduz nomes à forma canônica (uma grafia única). |
-| **`MetricPolicy`** | Como uma métrica deve ser tratada pelo detector: direção que importa (`up`/`down`), transformação (`log1p`, um logaritmo, para distribuições de cauda longa), limiares de materialidade e piso de σ. |
-| **`pipeline` / `detector` / `rules` / `scoring` / `quality`** *(módulos)* | As funções que executam o ciclo: `detect` (média móvel com peso exponencial, sigla EWMA, ajustada ao ciclo de 24 h e estritamente causal, isto é, sem olhar o futuro), `evaluate_quality` (canário), `build_candidates` (as 11 famílias), `evaluate_candidates` + `score_features` (pontuação determinística), `run_captured`/`analyze_once` (orquestração). |
-| **`orchestration` / `analysis_repository`** *(módulos)* | `reivindicar_trabalho`, `renovar_lease`, `commit_protegido`, `claim_and_capture`, `persist_result`, `promote_manifest`: o *claim*, a captura consistente e a gravação transacional protegida por *fencing*. |
+| `Catalog` | Os cinco catálogos versionados (`sources`, `metrics`, `entity_relations`, `playback`, `rules`) e o `manifest_hash` canônico. `related` reconhece hierarquia de entidades (um POP, ponto de presença da rede, dentro do cluster que passou por um deploy, que é a publicação de uma nova versão); `normalize_entity` reduz nomes à forma canônica (uma grafia única). |
+| `MetricPolicy` | Como uma métrica deve ser tratada pelo detector: direção que importa (`up`/`down`), transformação (`log1p`, um logaritmo, para distribuições de cauda longa), limiares de materialidade e piso de σ. |
+| `pipeline` / `detector` / `rules` / `scoring` / `quality` *(módulos)* | As funções que executam o ciclo: `detect` (média móvel com peso exponencial, sigla EWMA, ajustada ao ciclo de 24 h e estritamente causal, isto é, sem olhar o futuro), `evaluate_quality` (canário), `build_candidates` (as 11 famílias), `evaluate_candidates` + `score_features` (pontuação determinística), `run_captured`/`analyze_once` (orquestração). |
+| `orchestration` / `analysis_repository` *(módulos)* | `reivindicar_trabalho`, `renovar_lease`, `commit_protegido`, `claim_and_capture`, `persist_result`, `promote_manifest`: o *claim*, a captura consistente e a gravação transacional protegida por *fencing*. |
 
 ### 2.7 Recorte 4: Leitura
 
 &emsp;A API de leitura segue a arquitetura hexagonal, também chamada portas e
-adaptadores (COCKBURN, 2005): o núcleo de regras não sabe por qual tecnologia o
-dado entra ou sai. O centro (`domain`) não conhece Flask nem PostgreSQL. A porta
-`EventRepository` (um `Protocol` do Python, isto é, um contrato de métodos sem
-implementação) declara o que a aplicação exige; `PostgresEventRepository` é o
-adaptador concreto. Os casos de uso (`SearchEvents`, `GetTimeseries` e os
-demais) orquestram porta e entidades; `create_app` injeta os adaptadores. Os
-repositórios são especializados por grão (evento individual, bucket agregado,
-hipótese publicada, sinal ativo), em vez de um repositório único com métodos que
-nunca se cruzam.
+adaptadores (COCKBURN, 2005). A ideia é manter o núcleo de regras ignorante
+quanto à tecnologia por onde o dado entra e sai: o `domain` não menciona Flask
+nem PostgreSQL em lugar nenhum. Quem declara o que a aplicação precisa é a porta
+`EventRepository`, um `Protocol` do Python, e quem cumpre esse contrato é o
+adaptador `PostgresEventRepository`. Entre os dois ficam os casos de uso,
+`SearchEvents`, `GetTimeseries` e os demais, que orquestram porta e entidades,
+com `create_app` injetando os adaptadores na montagem. Vale notar que os
+repositórios são especializados por grão, um para evento individual, outro para
+bucket agregado, hipótese publicada e sinal ativo. A alternativa seria um
+repositório único reunindo métodos que nunca se cruzam.
 
 &emsp;O ambiente em que essa aplicação roda mudou. Até a versão anterior ela era
-uma função AWS Lambda exposta por um API Gateway, e quem checava o token era o
-Lambda Authorizer, antes de a aplicação ser chamada. Agora ela roda em
-instâncias EC2 de um Auto Scaling Group (o recurso da AWS que cria e substitui
-instâncias conforme a demanda; AMAZON WEB SERVICES, 2026a) atrás de um
-Application Load Balancer, o balanceador que distribui as requisições entre elas
-(AMAZON WEB SERVICES, 2026c). Um balanceador não tem authorizer, então a
-checagem do token Bearer passou para dentro do Flask, no módulo
-`interfaces.auth`. É a única mudança que o recorte incorpora: a
-arquitetura hexagonal e os adaptadores continuam iguais, porque nenhum deles
-depende de como a aplicação é hospedada.
+uma função AWS Lambda exposta por um API Gateway, com o Lambda Authorizer
+checando o token antes de a aplicação chegar a ser chamada. Hoje ela roda em
+instâncias EC2 de um Auto Scaling Group (AMAZON WEB SERVICES, 2026a), atrás de
+um Application Load Balancer (AMAZON WEB SERVICES, 2026c). Como um balanceador
+não tem authorizer, a checagem do Bearer teve de entrar no próprio Flask, no
+módulo `interfaces.auth`. O recorte incorpora só essa mudança. A arquitetura
+hexagonal e os adaptadores ficaram intactos, já que nenhum deles depende de como
+a aplicação é hospedada.
 
 <p align="center"><sub>Figura 7 - Diagrama de classes: contexto de leitura</sub></p>
 
@@ -2028,51 +2026,51 @@ classDiagram
 
 | Classe | Responsabilidade |
 |---|---|
-| **`TelemetryEvent`** | Um evento de telemetria como a API o devolve. `event_id` é `str` (o hash do conteúdo, não um UUID aleatório); `duration_ms` é derivado (o banco guarda segundos); `user_id_hash` nunca é o id cru; campos específicos de cada tipo ficam em `attributes`. |
-| **`TelemetryError`** e subclasses | Hierarquia de erros de domínio previstos: `ValidationError` (→ 422, aponta o campo), `UnsupportedMediaTypeError` (→ 415), `EventNotFoundError` (→ 404), `ResourceNotFoundError` (→ 404), `ConflictError` (→ 409). `create_app` traduz cada uma em uma resposta no formato *Problem Details*, o padrão de corpo de erro para APIs HTTP (NOTTINGHAM; WILDE, 2016). |
+| `TelemetryEvent` | Um evento de telemetria como a API o devolve. `event_id` é `str` (o hash do conteúdo, não um UUID aleatório); `duration_ms` é derivado (o banco guarda segundos); `user_id_hash` nunca é o id cru; campos específicos de cada tipo ficam em `attributes`. |
+| `TelemetryError` e subclasses | Hierarquia de erros de domínio previstos: `ValidationError` (→ 422, aponta o campo), `UnsupportedMediaTypeError` (→ 415), `EventNotFoundError` (→ 404), `ResourceNotFoundError` (→ 404), `ConflictError` (→ 409). `create_app` traduz cada uma em uma resposta no formato *Problem Details*, o padrão de corpo de erro para APIs HTTP (NOTTINGHAM; WILDE, 2016). |
 
 #### 2.7.2 `ports` (as portas: contratos que o núcleo exige)
 
 | Classe | Responsabilidade |
 |---|---|
-| **`EventRepository`** *(`Protocol`)* | A porta de leitura: `search`, `get`, `breakdown`, `crosstab`, `timeseries`, `facets`, `ping`. Sem `add`/`delete` de propósito: a escrita pertence ao pipeline de ingestão (a esteira que recebe e grava os dados). |
-| **`EventFilters`** | Filtros de busca cumulativos (RF08, RF09). Os três primeiros (`session_id`, `device_id`, `event_name`) decidem qual índice responde a consulta; o resto é aplicado depois. Paginação por cursor opaco (uma marca de posição codificada em base64 que o cliente não precisa interpretar) em vez de `OFFSET`. |
-| **`EventPage`** | Página resultante: `items`, `next_cursor` e `stats`. |
-| **`QueryStats`** | `strategy`, `queries`, `scanned`, `returned`: vão na resposta para tornar visível o custo de cada consulta (RNF02). |
-| **`EventMetric`** / **`TimeBucket`** | Ponto de agregação por dimensão (RF11) e ponto de série temporal (RF12). |
+| `EventRepository` *(`Protocol`)* | A porta de leitura: `search`, `get`, `breakdown`, `crosstab`, `timeseries`, `facets`, `ping`. Sem `add`/`delete` de propósito: a escrita pertence ao pipeline de ingestão. |
+| `EventFilters` | Filtros de busca cumulativos (RF08, RF09). Os três primeiros (`session_id`, `device_id`, `event_name`) decidem qual índice responde a consulta; o resto é aplicado depois. Paginação por cursor opaco (uma marca de posição codificada em base64 que o cliente não precisa interpretar) em vez de `OFFSET`. |
+| `EventPage` | Página resultante: `items`, `next_cursor` e `stats`. |
+| `QueryStats` | `strategy`, `queries`, `scanned`, `returned`: vão na resposta para tornar visível o custo de cada consulta (RNF02). |
+| `EventMetric` / `TimeBucket` | Ponto de agregação por dimensão (RF11) e ponto de série temporal (RF12). |
 
 #### 2.7.3 `application` (casos de uso)
 
 | Classe | RF | Responsabilidade |
 |---|---|---|
-| **`SearchEvents`** | RF08, RF09 | Busca com filtros cumulativos e paginação por cursor. |
-| **`GetSessionTimeline`** | RF16 | Todos os eventos de uma sessão, em ordem cronológica, mais o resumo executivo. |
-| **`GetEvent`** | RF16 | Detalhes completos de um evento por sessão + id. |
-| **`GetBreakdown`** | RF11 | Agrupamento por uma dimensão, com distribuição percentual. |
-| **`GetCrosstab`** | RF16 | Cruzamento por duas dimensões (o heatmap, ou mapa de calor, do Recorte). |
-| **`GetTimeseries`** | RF12, RF14, RF15 | Série temporal do volume; com `compare_previous`, a janela anterior de mesma duração e a variação entre as duas. |
-| **`GetFacets`** | RF10 | Valores existentes para preencher os filtros. |
-| **`GenerateSignals`** | RF15 | Lista de sinais em desvio ativo (tela Agora), a partir de `SignalsRepository.desvios`. |
+| `SearchEvents` | RF08, RF09 | Busca com filtros cumulativos e paginação por cursor. |
+| `GetSessionTimeline` | RF16 | Todos os eventos de uma sessão, em ordem cronológica, mais o resumo executivo. |
+| `GetEvent` | RF16 | Detalhes completos de um evento por sessão + id. |
+| `GetBreakdown` | RF11 | Agrupamento por uma dimensão, com distribuição percentual. |
+| `GetCrosstab` | RF16 | Cruzamento por duas dimensões (o mapa de calor do Recorte). |
+| `GetTimeseries` | RF12, RF14, RF15 | Série temporal do volume; com `compare_previous`, a janela anterior de mesma duração e a variação entre as duas. |
+| `GetFacets` | RF10 | Valores existentes para preencher os filtros. |
+| `GenerateSignals` | RF15 | Lista de sinais em desvio ativo (tela Agora), a partir de `SignalsRepository.desvios`. |
 
 #### 2.7.4 `infrastructure` (adaptadores)
 
 | Classe | Grão | Responsabilidade |
 |---|---|---|
-| **`PostgresEventRepository`** | Evento de sessão | Implementa a porta `EventRepository`. Lê de `silver.v_session_event`, aplica a redação de dado pessoal na saída (RNF10) e reporta a `strategy` de cada consulta. |
-| **`GoldRepository`** | Bucket agregado de 15 min | Séries, janelas estáveis, incidentes, deploys e o relógio (`clock()` → `Clock`), a partir das views (consultas SQL salvas e consultáveis como se fossem tabelas) de `gold`, `silver` e `sim`. |
-| **`HypothesisRepository`** | Hipótese publicada | Lista e detalha hipóteses do motor; registra o retorno (feedback) do operador pela função `gold.submit_hypothesis_feedback`, marcada como `SECURITY DEFINER` (roda com os privilégios de quem a criou, não de quem a chama). É a única escrita da API. |
-| **`SignalsRepository`** | Sinal ativo | Desvios ativos de `gold.v_feature_bucket`, com baseline por hora do dia. |
-| **`Clock`** *(dataclass)* | n/a | O presente virtual como o banco o enxerga: `sim_now`, `speed`, `updated_at`. |
+| `PostgresEventRepository` | Evento de sessão | Implementa a porta `EventRepository`. Lê de `silver.v_session_event`, aplica a redação de dado pessoal na saída (RNF10) e reporta a `strategy` de cada consulta. |
+| `GoldRepository` | Bucket agregado de 15 min | Séries, janelas estáveis, incidentes, deploys e o relógio (`clock()` → `Clock`), a partir das views (consultas SQL salvas e consultáveis como se fossem tabelas) de `gold`, `silver` e `sim`. |
+| `HypothesisRepository` | Hipótese publicada | Lista e detalha hipóteses do motor; registra o retorno (feedback) do operador pela função `gold.submit_hypothesis_feedback`, marcada como `SECURITY DEFINER` (roda com os privilégios de quem a criou, não de quem a chama). É a única escrita da API. |
+| `SignalsRepository` | Sinal ativo | Desvios ativos de `gold.v_feature_bucket`, com baseline por hora do dia. |
+| `Clock` *(dataclass)* | n/a | O presente virtual como o banco o enxerga: `sim_now`, `speed`, `updated_at`. |
 
 #### 2.7.5 `interfaces` e `config` (entrada HTTP e configuração)
 
 | Classe | Responsabilidade |
 |---|---|
-| **`create_app`** *(factory)* | Monta a aplicação Flask (PALLETS PROJECTS, 2026): um único *pool* de conexões (conjunto de conexões com o banco abertas e reaproveitadas) para todos os adaptadores, registra os *blueprints* (os grupos de rotas do Flask), o CORS manual (as regras que autorizam o navegador a chamar a API de outra origem), a observabilidade e os *error handlers* (os tratadores de erro). Aceita adaptadores injetados (é o que os testes usam). |
-| **`interfaces.http` / `hypotheses_http` / `signals_http`** *(blueprints)* | As rotas HTTP. Cada rota nova exige entrada correspondente no OpenAPI (a descrição da API em formato legível por máquina), verificada por teste nos dois sentidos. |
-| **`interfaces.openapi`** | Monta a especificação OpenAPI 3.1 em código, importando as mesmas constantes que os adaptadores usam para validar. Também define `ROTAS_PUBLICAS`, a lista de caminhos que dispensam token. |
-| **`interfaces.auth`** | Valida o token Bearer (JONES; HARDT, 2012) em um `before_request`, checagem que o Flask roda antes de qualquer rota (RNF09). Compara o SHA-256 do token apresentado com o hash que a instância recebeu no boot; responde 401 quando o cabeçalho `Authorization` falta e 403 quando o token está errado. Dispensa as rotas públicas e `/health/live`, usada pela verificação de saúde do balanceador, que não envia cabeçalho. Assumiu o papel que era do Lambda Authorizer no caminho de leitura. |
-| **`Config` / `TestConfig`** | Configuração vinda do ambiente: `DATABASE_URL`, `USER_ID_HASH_SALT` (RNF10; o *salt* é um valor secreto somado ao identificador antes de aplicar o hash), janelas e tetos de varredura, origens de CORS, além de `AUTH_REQUIRED` e `DASHBOARD_TOKEN_SHA256`, que ligam e alimentam a checagem de token. |
+| `create_app` *(factory)* | Monta a aplicação Flask (PALLETS PROJECTS, 2026): um único *pool* de conexões para todos os adaptadores, registra os *blueprints*, o CORS manual, a observabilidade e os *error handlers*. Aceita adaptadores injetados (é o que os testes usam). |
+| `interfaces.http` / `hypotheses_http` / `signals_http` *(blueprints)* | As rotas HTTP. Cada rota nova exige entrada correspondente no OpenAPI, verificada por teste nos dois sentidos. |
+| `interfaces.openapi` | Monta a especificação OpenAPI 3.1 em código, importando as mesmas constantes que os adaptadores usam para validar. Também define `ROTAS_PUBLICAS`, a lista de caminhos que dispensam token. |
+| `interfaces.auth` | Valida o token Bearer (JONES; HARDT, 2012) em um `before_request`, checagem que o Flask roda antes de qualquer rota (RNF09). Compara o SHA-256 do token apresentado com o hash que a instância recebeu no boot; responde 401 quando o cabeçalho `Authorization` falta e 403 quando o token está errado. Dispensa as rotas públicas e `/health/live`, usada pela verificação de saúde do balanceador, que não envia cabeçalho. Assumiu o papel que era do Lambda Authorizer no caminho de leitura. |
+| `Config` / `TestConfig` | Configuração vinda do ambiente: `DATABASE_URL`, `USER_ID_HASH_SALT` (RNF10; o *salt* é um valor secreto somado ao identificador antes de aplicar o hash), janelas e tetos de varredura, origens de CORS, além de `AUTH_REQUIRED` e `DASHBOARD_TOKEN_SHA256`, que ligam e alimentam a checagem de token. |
 
 ### 2.8 Código comum (`common`)
 
@@ -2081,10 +2079,10 @@ compartilham. Aparecem nos recortes como dependências externas.
 
 | Classe | Responsabilidade |
 |---|---|
-| **`Database`** | *Pool* de conexões com o PostgreSQL (POSTGRESQL GLOBAL DEVELOPMENT GROUP, 2026). `sim_now()` lê o relógio virtual do banco, nunca do relógio do contêiner: se cada serviço derivasse o próprio tempo, dois contêineres discordariam sobre o que já aconteceu. Sobrevive ao *failover* do RDS, o PostgreSQL gerenciado da AWS, que troca automaticamente para uma réplica quando o servidor principal cai: a conexão morta é descartada. |
-| **`Heartbeat`** | Marca presença para o *healthcheck* do contêiner (a checagem periódica de que o processo está vivo). Precisa bater a cada ciclo, inclusive com fila vazia: um worker saudável num domingo de madrugada seria reiniciado sem parar se o heartbeat (esse sinal de vida) só batesse quando houvesse mensagem. |
-| **`ShutdownSignal`** | Encerramento ordenado (*graceful shutdown*): o sinal `SIGTERM` faz o processo parar só depois de terminar o ciclo atual. O `sleep` acorda mais cedo quando a parada é pedida, para o sistema não precisar recorrer ao `SIGKILL` (o encerramento forçado, que interrompe no meio). |
-| **`Metrics`** | Coletor de métricas para o CloudWatch (o serviço de métricas e logs da AWS): `count`, `duration_ms` e `flush` (o envio do que se acumulou) em cadência. |
+| `Database` | *Pool* de conexões com o PostgreSQL (POSTGRESQL GLOBAL DEVELOPMENT GROUP, 2026). `sim_now()` lê o relógio virtual do banco, nunca do relógio do contêiner: se cada serviço derivasse o próprio tempo, dois contêineres discordariam sobre o que já aconteceu. Sobrevive ao *failover* do RDS, o PostgreSQL gerenciado da AWS, que troca automaticamente para uma réplica quando o servidor principal cai: a conexão morta é descartada. |
+| `Heartbeat` | Marca presença para o *healthcheck* do contêiner. Precisa bater a cada ciclo, inclusive com fila vazia: um worker saudável num domingo de madrugada seria reiniciado sem parar se o heartbeat (esse sinal de vida) só batesse quando houvesse mensagem. |
+| `ShutdownSignal` | Encerramento ordenado (*graceful shutdown*): o sinal `SIGTERM` faz o processo parar só depois de terminar o ciclo atual. O `sleep` acorda mais cedo quando a parada é pedida, para o sistema não precisar recorrer ao `SIGKILL` (o encerramento forçado, que interrompe no meio). |
+| `Metrics` | Coletor de métricas para o CloudWatch: `count`, `duration_ms` e `flush` em cadência. |
 
 ### 2.9 Relacionamentos principais
 
@@ -2114,33 +2112,33 @@ compartilham. Aparecem nos recortes como dependências externas.
 
 | Requisito | Classes que o realizam |
 |---|---|
-| **RF01** API única de ingestão | `BaseConsumer`, `ChangeConsumer`, `EventConsumer` (+ API Gateway) |
-| **RF03 / RF07** protocolos e tipos de evento; aceitar tipo novo | `BaseEvent` e subclasses, `GenericEvent`, `ChangeEvent` |
-| **RF04** validar campos obrigatórios, rejeitar de forma rastreável | `BaseEvent._not_blank`, `parse_event`, `BaseConsumer._quarantine`, `ChangeTooLarge` |
-| **RF05** esquema comum, UTC/ISO 8601, preservar campos de origem | `BaseEvent._to_utc`, `keys.build_row`, `TelemetryEvent.attributes` |
-| **RF06** armazenar para consulta posterior | `ChangeRepository`, `EventRepository`, `Loader` |
-| **RF08 / RF09** busca por atributos, filtros cumulativos | `EventFilters`, `SearchEvents`, `PostgresEventRepository.search` |
-| **RF10** sugerir valores dos filtros | `GetFacets`, `PostgresEventRepository.facets` |
-| **RF11** agrupamento | `GetBreakdown`, `EventMetric`, `GoldRepository.serie_breakdown` |
-| **RF12 / RF14 / RF15** gráficos, comparação de períodos, picos | `GetTimeseries`, `TimeBucket`, `GenerateSignals`, `SignalsRepository` |
-| **RF16** informações de investigação | `GetSessionTimeline`, `GetEvent`, `GetCrosstab`, `GoldRepository.incidents` |
-| **RF17 / RNF08** possíveis causas ordenadas, com evidências | `Hypothesis`, `Feature`, `Evidence`, `Candidate`, `HypothesisRepository` |
-| **RNF03** aumentar capacidade sem mudar o envio | `BaseConsumer` (consumo por lote), filas SQS |
-| **RNF04 / RNF05** evento inválido não bloqueia; não perder aceito | `BaseConsumer._quarantine`, `_persist_isolando`, `ChangeRepository.append_and_merge` (transação única), `Resultado.divergentes` |
-| **RNF02** consulta simples em até 5 s | `QueryStats`, tetos em `GoldRepository`/`PostgresEventRepository`, `timeline.amostrar_raia` |
-| **RNF09** acesso só a autorizados | `interfaces.auth.register_auth` (leitura), `Lambda Authorizer` (ingestão), `Config` (tokens fora do código) |
-| **RNF10** não expor dado pessoal | `application/redaction.py`, `TelemetryEvent.user_id_hash`, `Config.USER_ID_HASH_SALT` |
-| **RNF11** registrar falhas de ingestão/processamento | `Metrics`, DLQ, `AnalysisResult` (contadores de corte), log JSON por requisição |
+| RF01 API única de ingestão | `BaseConsumer`, `ChangeConsumer`, `EventConsumer` (+ API Gateway) |
+| RF03 / RF07 protocolos e tipos de evento; aceitar tipo novo | `BaseEvent` e subclasses, `GenericEvent`, `ChangeEvent` |
+| RF04 validar campos obrigatórios, rejeitar de forma rastreável | `BaseEvent._not_blank`, `parse_event`, `BaseConsumer._quarantine`, `ChangeTooLarge` |
+| RF05 esquema comum, UTC/ISO 8601, preservar campos de origem | `BaseEvent._to_utc`, `keys.build_row`, `TelemetryEvent.attributes` |
+| RF06 armazenar para consulta posterior | `ChangeRepository`, `EventRepository`, `Loader` |
+| RF08 / RF09 busca por atributos, filtros cumulativos | `EventFilters`, `SearchEvents`, `PostgresEventRepository.search` |
+| RF10 sugerir valores dos filtros | `GetFacets`, `PostgresEventRepository.facets` |
+| RF11 agrupamento | `GetBreakdown`, `EventMetric`, `GoldRepository.serie_breakdown` |
+| RF12 / RF14 / RF15 gráficos, comparação de períodos, picos | `GetTimeseries`, `TimeBucket`, `GenerateSignals`, `SignalsRepository` |
+| RF16 informações de investigação | `GetSessionTimeline`, `GetEvent`, `GetCrosstab`, `GoldRepository.incidents` |
+| RF17 / RNF08 possíveis causas ordenadas, com evidências | `Hypothesis`, `Feature`, `Evidence`, `Candidate`, `HypothesisRepository` |
+| RNF03 aumentar capacidade sem mudar o envio | `BaseConsumer` (consumo por lote), filas SQS |
+| RNF04 / RNF05 evento inválido não bloqueia; não perder aceito | `BaseConsumer._quarantine`, `_persist_isolando`, `ChangeRepository.append_and_merge` (transação única), `Resultado.divergentes` |
+| RNF02 consulta simples em até 5 s | `QueryStats`, tetos em `GoldRepository`/`PostgresEventRepository`, `timeline.amostrar_raia` |
+| RNF09 acesso só a autorizados | `interfaces.auth.register_auth` (leitura), `Lambda Authorizer` (ingestão), `Config` (tokens fora do código) |
+| RNF10 não expor dado pessoal | `application/redaction.py`, `TelemetryEvent.user_id_hash`, `Config.USER_ID_HASH_SALT` |
+| RNF11 registrar falhas de ingestão/processamento | `Metrics`, DLQ, `AnalysisResult` (contadores de corte), log JSON por requisição |
 
 ---
 
 ## 3. Diagramas de sequência UML
 
-&emsp;Esta seção mostra, no tempo, como as classes da seção 2 colaboram para
-realizar os casos de uso da seção 1. São quatro fluxos: a ingestão de um evento
-de sessão, um passo do relógio virtual, uma consulta do dashboard à API de
-leitura e um ciclo do motor de análise. O texto após cada diagrama comenta
-apenas o que a figura não mostra sozinha.
+&emsp;Esta seção acompanha, no tempo, a colaboração entre as classes da seção 2
+para realizar os casos de uso da seção 1. Foram escolhidos quatro fluxos: a
+ingestão de um evento de sessão, um passo do relógio virtual, uma consulta do
+dashboard à API de leitura e um ciclo do motor de análise. O texto que segue
+cada diagrama se limita ao que a figura deixa implícito.
 
 ### 3.1 Ingestão de um evento de sessão
 
@@ -2197,12 +2195,12 @@ sequenceDiagram
 
 <p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
 
-O `202 Accepted` confirma que o lote foi recebido para processamento, não que
-os eventos já estão no banco: quem autoriza a entrada é o Lambda Authorizer, que
-checa a audiência `ingest` do token, e o corpo original segue para a fila. Esse
-caminho de ingestão não mudou com a migração da API de leitura para EC2; o que
-mudou foi a posição dos consumidores, hoje em sub-rede privada, com saída pelo
-NAT Gateway.
+O `202 Accepted` responde pelo recebimento do lote para processamento, e a
+persistência dos eventos ainda não aconteceu nesse ponto. Quem autoriza a
+entrada é o Lambda Authorizer, checando a audiência `ingest` do token, e o corpo
+original segue para a fila. A migração da API de leitura para EC2 não alterou
+esse caminho. O que mudou foi a posição dos consumidores, hoje em sub-rede
+privada, com saída pelo NAT Gateway.
 
 Em segundo plano, o `EventConsumer` valida cada item. Um tipo de evento ainda
 desconhecido é aceito e guardado como `GenericEvent`; um item com JSON inválido

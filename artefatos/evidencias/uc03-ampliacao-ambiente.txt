@@ -1,0 +1,20 @@
+Ampliação dos testes do UC03
+Registro: 2026-09-23T20:18:52-03:00
+Commit base: 4a23a7ebc03c7f44b1a2a48ebd237532f343ae14
+Estado: alterações locais sobre o commit base; sem novo commit.
+SHA-256 de apps/basica/processing/tests/test_uc03_valores_limite.py: EBD928604110CAB1B17B14AC11C785DA5B464755E0FDC13D9DE520A9B659B992
+Ambiente: WSL/Linux; Python 3.12.3; pytest 9.1.1.
+PostgreSQL: 16.15 (Debian 16.15-1.pgdg13+2)
+Banco: argus_test local, porta 55432; container argus-uc03-review-pg já disponível.
+Preparação: fixture db limpa os dados por teste; fixture _migrated aplica/verifica as migrations.
+Comando pytest, a partir da raiz, em shell WSL com uv no PATH:
+PYTEST_ADDOPTS='-vv -p no:cacheprovider --junitxml=../../../artefatos/evidencias/uc03-ampliacao-junit.xml' make -s -C apps/basica test-processing
+Nesta sessão não interativa, UV foi definido como /home/inteli/.local/bin/uv run --quiet para localizar o executável; TEST_DATABASE_URL apontou explicitamente para o banco local de teste.
+Saída original: uc03-ampliacao-pytest.txt, capturada por Tee-Object; resultados estruturados: uc03-ampliacao-junit.xml.
+Comandos Ruff, em apps/basica/processing:
+uv run ruff check --no-cache src tests
+uv run ruff format --check --no-cache src tests
+Saída Ruff: uc03-ampliacao-ruff.txt.
+Resultado: 105 passed in 410.80s (0:06:50); 0 falhas, 0 erros, 0 ignorados.
+Os 39 casos específicos do UC03 estão incluídos na execução completa.
+SHA-256 do arquivo de testes conferido novamente após a execução.

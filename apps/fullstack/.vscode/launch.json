@@ -1,0 +1,45 @@
+{
+  // Depuracao com apps/fullstack aberto como pasta do workspace. Os dois
+  // servicos apontam para o banco local de `make db-ensure` (a preLaunchTask)
+  // e para as mesmas portas do `make dev`.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // O mesmo run.py do `make api`, no interpretador que `make install`
+      // (uv sync) cria em backend/.venv.
+      "name": "Backend Flask",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/run.py",
+      "cwd": "${workspaceFolder}/backend",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "console": "integratedTerminal",
+      "env": {
+        "FLASK_DEBUG": "1",
+        "PORT": "5000",
+        "DATABASE_URL": "postgresql://argus:argus@localhost:55432/argus"
+      },
+      "preLaunchTask": "Argus: banco local"
+    },
+    {
+      // `npm run dev` com a URL da API injetada, como o `make frontend-dev`
+      // faz: a URL entra no bundle em tempo de build e nunca fica no codigo.
+      "name": "Dashboard (Next dev)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev -- --port 3000",
+      "cwd": "${workspaceFolder}/frontend",
+      "env": {
+        "NEXT_PUBLIC_API_URL": "http://localhost:5000",
+        "NEXT_PUBLIC_HYPOTHESES_SOURCE": "api"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Backend + Dashboard",
+      "configurations": ["Backend Flask", "Dashboard (Next dev)"],
+      "stopAll": true
+    }
+  ]
+}

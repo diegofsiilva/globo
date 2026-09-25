@@ -1,0 +1,26 @@
++ dnf install -y -q tar gzip
++ curl -fsSL -o /tmp/k6.tgz https://github.com/grafana/k6/releases/download/v0.54.0/k6-v0.54.0-linux-arm64.tar.gz
++ tar -xzf /tmp/k6.tgz -C /tmp
++ install /tmp/k6-v0.54.0-linux-arm64/k6 /usr/local/bin/k6
++ mkdir -p /work/resultados
++ cd /work
++ aws s3 cp s3://argus-events-livia-dev-origem-<conta>/carga/20260921T184009Z/scripts/ /work/ --recursive --quiet
++ export ARGUS_API_URL=http://<ingress>
++ ARGUS_API_URL=http://<ingress>
+++ aws ssm get-parameter --name /argus/carga/20260921T184009Z/read-token --with-decryption --query Parameter.Value --output text
++ export ARGUS_READ_TOKEN=<token-redigido>
++ ARGUS_READ_TOKEN=<token-redigido>
++ export K6_TEST_ID=20260921T184009Z
++ K6_TEST_ID=20260921T184009Z
++ export K6_RESULT_FILE=resultados/carga-ui_resultado.json
++ K6_RESULT_FILE=resultados/carga-ui_resultado.json
++ export CARGA_UI_VUS_1=200
++ CARGA_UI_VUS_1=200
++ export CARGA_UI_VUS_2=450
++ CARGA_UI_VUS_2=450
++ export CARGA_UI_VUS_3=900
++ CARGA_UI_VUS_3=900
++ k6 run --tag testid=20260921T184009Z --tag requisito=carga-ui --tag origem=ec2 --summary-export=resultados/carga-ui_summary.json carga_ui.js
++ echo 'k6 exit 99'
++ aws s3 cp /work/resultados s3://argus-events-livia-dev-origem-<conta>/carga/20260921T184009Z/resultados/ --recursive --quiet
++ aws s3 cp /var/log/carga.log s3://argus-events-livia-dev-origem-<conta>/carga/20260921T184009Z/resultados/carga.log --quiet

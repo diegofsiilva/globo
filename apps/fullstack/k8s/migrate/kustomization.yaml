@@ -1,0 +1,20 @@
+# Base dos Jobs de banco (migration e login de leitura), separada da base da
+# aplicacao.
+#
+# Diretorio proprio, e nao um arquivo solto em base/, por duas razoes:
+#
+#  1. `spec.template` de um Job e imutavel. Se o Job estivesse no `resources` da
+#     base, todo `make k8s-apply` com uma tag de imagem nova falharia com "field
+#     is immutable". Quem os aplica e `make k8s-migrate`, que faz delete antes
+#     e sobe um de cada vez (filtrando pelo label app.kubernetes.io/name),
+#     porque o de leitor depende do papel que a migration 001 cria.
+#  2. O kustomize recusa referenciar um ARQUIVO fora da raiz do kustomization,
+#     mas aceita um DIRETORIO. Os overlays apontam para ca.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argus
+
+resources:
+  - job-db-migrate.yaml
+  - job-db-reader.yaml

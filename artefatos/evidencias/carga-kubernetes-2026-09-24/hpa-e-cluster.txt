@@ -1,0 +1,84 @@
+# Rodada A no EKS com metrics-server ativo — 2026-09-24 (test_id 20260925T004042Z)
+# cluster: argus-events-dev-eks (Auto Mode 1.33), conta do lab <conta>, commit 0ff97f4b0130
+# gerador: k6 v2.3.0 local, alvo http://<alb-do-ingress>
+
+## kubectl describe hpa argus-backend (após a rodada)
+Name:                                                  argus-backend
+Namespace:                                             argus
+Labels:                                                app.kubernetes.io/managed-by=kustomize
+                                                       app.kubernetes.io/part-of=argus
+Annotations:                                           <none>
+CreationTimestamp:                                     Thu, 24 Sep 2026 21:00:16 -0300
+Reference:                                             Deployment/argus-backend
+Metrics:                                               ( current / target )
+  resource cpu on pods  (as a percentage of request):  0% (1m) / 60%
+Min replicas:                                          2
+Max replicas:                                          6
+Behavior:
+  Scale Up:
+    Stabilization Window: 0 seconds
+    Select Policy: Max
+    Policies:
+      - Type: Percent  Value: 100  Period: 30 seconds
+  Scale Down:
+    Stabilization Window: 300 seconds
+    Select Policy: Max
+    Policies:
+      - Type: Percent  Value: 50  Period: 60 seconds
+Deployment pods:       2 current / 2 desired
+Conditions:
+  Type            Status  Reason            Message
+  ----            ------  ------            -------
+  AbleToScale     True    ReadyForNewScale  recommended size matches current size
+  ScalingActive   True    ValidMetricFound  the HPA was able to successfully calculate a replica count from cpu resource utilization (percentage of request)
+  ScalingLimited  True    TooFewReplicas    the desired replica count is less than the minimum replica count
+Events:
+  Type     Reason                        Age                From                       Message
+  ----     ------                        ----               ----                       -------
+  Warning  FailedGetResourceMetric       59m (x4 over 59m)  horizontal-pod-autoscaler  failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+  Warning  FailedComputeMetricsReplicas  59m (x4 over 59m)  horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+  Warning  FailedGetResourceMetric       58m (x2 over 58m)  horizontal-pod-autoscaler  failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server is currently unable to handle the request (get pods.metrics.k8s.io)
+  Warning  FailedComputeMetricsReplicas  58m (x2 over 58m)  horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server is currently unable to handle the request (get pods.metrics.k8s.io)
+
+## kubectl get hpa,deploy,pods,nodes
+NAME                                                 REFERENCE                   TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/argus-backend    Deployment/argus-backend    cpu: 0%/60%   2         6         2          60m
+horizontalpodautoscaler.autoscaling/argus-frontend   Deployment/argus-frontend   cpu: 2%/70%   2         4         2          60m
+
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/argus-backend    2/2     2            2           60m
+deployment.apps/argus-frontend   2/2     2            2           60m
+NAME                            READY   STATUS      RESTARTS   AGE   IP          NODE                  NOMINATED NODE   READINESS GATES
+argus-backend-dd8b6975d-xrftm   1/1     Running     0          60m   10.0.1.23   i-00a465e34dd02fa77   <none>           <none>
+argus-backend-dd8b6975d-zggsf   1/1     Running     0          60m   10.0.1.24   i-00a465e34dd02fa77   <none>           <none>
+argus-db-migrate-wmw7x          0/1     Completed   0          59m   10.0.1.25   i-00a465e34dd02fa77   <none>           <none>
+argus-frontend-974b6bc4-kbwwb   1/1     Running     0          60m   10.0.1.22   i-00a465e34dd02fa77   <none>           <none>
+argus-frontend-974b6bc4-v9p9z   1/1     Running     0          60m   10.0.1.26   i-00a465e34dd02fa77   <none>           <none>
+NAME                  STATUS   ROLES    AGE   VERSION                INTERNAL-IP   EXTERNAL-IP     OS-IMAGE                                                              KERNEL-VERSION   CONTAINER-RUNTIME
+i-00a465e34dd02fa77   Ready    <none>   59m   v1.33.13-eks-bca9cf6   10.0.1.235    54.211.5.234    Bottlerocket (EKS Auto, Standard) 2026.9.18 (aws-k8s-1.33-standard)   6.12.103         containerd://1.7.34+bottlerocket
+i-0d92fd726a3d75b1e   Ready    <none>   57m   v1.33.13-eks-bca9cf6   10.0.0.184    44.197.182.20   Bottlerocket (EKS Auto, Standard) 2026.9.18 (aws-k8s-1.33-standard)   6.12.103         containerd://1.7.34+bottlerocket
+
+## amostras do HPA durante a rodada (a cada 15 s)
+00:40:42 cpu: 2 pods=2 nodes=2
+00:41:00 cpu: 2 pods=2 nodes=2
+00:41:19 cpu: 2 pods=2 nodes=2
+00:41:38 cpu: 2 pods=2 nodes=2
+00:41:56 cpu: 2 pods=2 nodes=2
+00:42:14 cpu: 2 pods=2 nodes=2
+00:42:33 cpu: 2 pods=2 nodes=2
+00:42:51 cpu: 2 pods=2 nodes=2
+00:43:10 cpu: 2 pods=2 nodes=2
+00:43:29 cpu: 2 pods=2 nodes=2
+00:43:47 cpu: 2 pods=2 nodes=2
+00:44:05 cpu: 2 pods=2 nodes=2
+00:44:24 cpu: 2 pods=2 nodes=2
+00:44:42 cpu: 2 pods=2 nodes=2
+00:45:00 cpu: 2 pods=2 nodes=2
+00:45:19 cpu: 2 pods=2 nodes=2
+00:45:37 cpu: 2 pods=2 nodes=2
+00:45:55 cpu: 2 pods=2 nodes=2
+00:46:14 cpu: 2 pods=2 nodes=2
+00:46:32 cpu: 2 pods=2 nodes=2
+00:46:50 cpu: 2 pods=2 nodes=2
+00:47:08 cpu: 2 pods=2 nodes=2
+00:47:27 cpu: 2 pods=2 nodes=2

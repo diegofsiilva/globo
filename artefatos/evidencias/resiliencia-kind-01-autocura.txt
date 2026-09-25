@@ -1,0 +1,663 @@
+================================================================
+ENSAIO 1 -- AUTOCURA: reposicao de pod do backend sob carga (kind, local)
+================================================================
+data/hora (local)  : 2026-09-24 17:57:40 -03
+data/hora (UTC)    : 2026-09-24T20:57:40Z
+commit             : 0ff97f4b013020992da4e58a2ec76a25b5444ba6
+ambiente           : kind (local, Docker via colima), NAO e o EKS
+contexto kubectl   : kind-argus   namespace: argus
+kind               : kind v0.33.0 go1.27.0 darwin/arm64
+kubectl/k8s        : Client Version: v1.37.0 Kustomize Version: v5.8.1 Server Version: v1.37.0 
+no                 : argus-control-plane v1.37.0 arm64 containerd://2.3.4
+colima             : default Running aarch64 6 6GiB 100GiB docker 
+k6                 : k6 v2.3.0 (commit/devel, go1.27.1, darwin/arm64)
+imagens (spec)     :
+  argus-backend -> argus-backend:dev
+  argus-frontend -> argus-frontend:dev
+  argus-postgres -> postgres:16
+imagens (imageID nos pods, digest local do containerd):
+  argus-backend-7d5cd95578-v8j28 -> docker.io/library/import-2026-09-24@sha256:b944d683393f66949bd20fc48330e1d3747051a0227eeff8edb1332bf8401a53
+  argus-db-migrate-ljbjg -> sha256:22b3c27e4c08f7175373c9c1ac2a9802705e5f3eef7d7f70442b2ff50fd417fe
+  argus-frontend-7fdb5d98-6wfj2 -> sha256:c9881d4057ca694872bca55c9cebe449c1593dc7c1b657f9321da7a9f9f2f779
+  argus-postgres-68fff74b7b-nf4fv -> docker.io/library/postgres@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+digests no docker da maquina:
+backend: strategy/probes (do Deployment aplicado):
+  replicas=1 minReadySeconds=10 maxUnavailable=0 maxSurge=1 readiness=/health/ready/5s liveness=/health/live/10s startup=/health/live/3s preStop=["sleep","10"]
+hpa:
+  argus-backend min=1 max=2
+  argus-frontend min=1 max=2
+estado inicial:
+  NAME                              READY   STATUS      RESTARTS      AGE     IP            NODE                  NOMINATED NODE   READINESS GATES
+  argus-backend-7d5cd95578-v8j28    1/1     Running     0             3m39s   10.244.0.17   argus-control-plane   <none>           <none>
+  argus-db-migrate-ljbjg            0/1     Completed   0             7m34s   10.244.0.15   argus-control-plane   <none>           <none>
+  argus-frontend-7fdb5d98-6wfj2     1/1     Running     0             7m58s   10.244.0.14   argus-control-plane   <none>           <none>
+  argus-postgres-68fff74b7b-nf4fv   1/1     Running     1 (38m ago)   6d22h   10.244.0.6    argus-control-plane   <none>           <none>
+scripts             : artefatos/evidencias/resiliencia-kind/ (este ensaio: ensaio-01-autocura.sh)
+================================================================
+
+[17:57:43.496] =============== RODADA A-1replica: replicas=1 ===============
+[17:57:43.501] $ kubectl --context kind-argus -n argus get deploy argus-backend
+NAME            READY   UP-TO-DATE   AVAILABLE   AGE
+argus-backend   1/1     1            1           6d22h
+[17:57:43.698] pods do backend antes: argus-backend-7d5cd95578-v8j28 
+argus-backend-7d5cd95578-v8j28   True   Running   0     10.244.0.17   2026-09-24T20:54:04Z   <none>
+[17:57:43.822] k6: 5 VUs por 60s contra http://localhost:8080 (/api/v1/clock + /api/v1/hypotheses), resumo em k6-01-A-1replica.summary.json
+[17:57:43.829] aguardando 10 s de carga estavel antes de remover o pod
+[17:57:54.016] $ kubectl --context kind-argus -n argus delete pod -l app.kubernetes.io/name=argus-backend --wait=false
+pod "argus-backend-7d5cd95578-v8j28" deleted from argus namespace
+[17:57:54.301] T0 (delete emitido) = 17:57:54.232
+[17:58:02.103] novo pod Ready: argus-backend-7d5cd95578-z2h98
+[17:58:02.120] T1 (novo pod Ready) = 17:58:02.114
+[17:58:02.128] RESULTADO A-1replica: tempo entre delete e novo pod Ready = 8.3 s
+---- amostragem a cada 0,5 s (NAME|READY|PHASE|RESTARTS|IP|CREATED|DELETION) ----
+[17:57:54.311] argus-backend-7d5cd95578-v8j28   True   Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|
+[17:57:55.025] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Pending   0     <none>        2026-09-24T20:57:54Z   <none>|
+[17:57:55.688] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Pending   0     <none>        2026-09-24T20:57:54Z   <none>|
+[17:57:56.315] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+[17:57:56.905] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+[17:57:57.842] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+[17:57:58.458] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+[17:57:59.101] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+[17:57:59.777] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+[17:58:00.358] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+[17:58:00.914] argus-backend-7d5cd95578-v8j28   True    Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   False   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+[17:58:01.870] argus-backend-7d5cd95578-v8j28   True   Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z|argus-backend-7d5cd95578-z2h98   True   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>|
+---- fim ----
+[17:58:02.140] condicoes do pod novo (timestamps do API server, precisao de 1 s):
+creationTimestamp=2026-09-24T20:57:54Z
+PodReadyToStartContainers=True em 2026-09-24T20:57:55Z
+Initialized=True em 2026-09-24T20:57:54Z
+Ready=True em 2026-09-24T20:58:01Z
+ContainersReady=True em 2026-09-24T20:58:01Z
+PodScheduled=True em 2026-09-24T20:57:54Z
+containerStatuses: started=2026-09-24T20:57:56Z restarts=0 image=docker.io/library/argus-backend:dev
+[17:58:02.257] pods do backend depois:
+argus-backend-7d5cd95578-v8j28   True   Running   0     10.244.0.17   2026-09-24T20:54:04Z   2026-09-24T20:58:39Z
+argus-backend-7d5cd95578-z2h98   True   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>
+[17:58:02.432] eventos recentes do namespace:
+2026-09-24T20:54:53Z   Normal    ScalingReplicaSet              Deployment                argus-backend                     Scaled up replica set argus-backend-7d5cd95578 from 1 to 2
+2026-09-24T20:54:54Z   Normal    Started                        Pod                       argus-backend-7d5cd95578-pkgzr    Container started
+2026-09-24T20:54:54Z   Normal    Created                        Pod                       argus-backend-7d5cd95578-pkgzr    Container created
+2026-09-24T20:54:54Z   Normal    Pulled                         Pod                       argus-backend-7d5cd95578-pkgzr    Container image "argus-backend:dev" already present on machine and can be accessed by the pod
+2026-09-24T20:55:23Z   Normal    SuccessfulCreate               ReplicaSet                argus-backend-7d5cd95578          Created pod: argus-backend-7d5cd95578-bh8zn
+2026-09-24T20:55:23Z   Normal    Killing                        Pod                       argus-backend-7d5cd95578-pkgzr    Stopping container backend
+2026-09-24T20:55:24Z   Normal    Started                        Pod                       argus-backend-7d5cd95578-bh8zn    Container started
+2026-09-24T20:55:24Z   Normal    Pulled                         Pod                       argus-backend-7d5cd95578-bh8zn    Container image "argus-backend:dev" already present on machine and can be accessed by the pod
+2026-09-24T20:55:24Z   Normal    Created                        Pod                       argus-backend-7d5cd95578-bh8zn    Container created
+2026-09-24T20:56:59Z   Normal    SuccessfulDelete               ReplicaSet                argus-backend-7d5cd95578          Deleted pod: argus-backend-7d5cd95578-bh8zn
+2026-09-24T20:56:59Z   Normal    ScalingReplicaSet              Deployment                argus-backend                     Scaled down replica set argus-backend-7d5cd95578 from 2 to 1
+2026-09-24T20:57:00Z   Normal    Killing                        Pod                       argus-backend-7d5cd95578-bh8zn    Stopping container backend
+2026-09-24T20:57:54Z   Normal    Killing                        Pod                       argus-backend-7d5cd95578-v8j28    Stopping container backend
+2026-09-24T20:57:54Z   Normal    SuccessfulCreate               ReplicaSet                argus-backend-7d5cd95578          Created pod: argus-backend-7d5cd95578-z2h98
+2026-09-24T20:57:55Z   Normal    Created                        Pod                       argus-backend-7d5cd95578-z2h98    Container created
+2026-09-24T20:57:55Z   Normal    Pulled                         Pod                       argus-backend-7d5cd95578-z2h98    Container image "argus-backend:dev" already present on machine and can be accessed by the pod
+2026-09-24T20:57:56Z   Normal    Started                        Pod                       argus-backend-7d5cd95578-z2h98    Container started
+2026-09-24T20:57:56Z   Warning   FailedGetResourceMetric        HorizontalPodAutoscaler   argus-backend                     failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+2026-09-24T20:57:56Z   Warning   FailedComputeMetricsReplicas   HorizontalPodAutoscaler   argus-backend                     invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+2026-09-24T20:57:59Z   Warning   Unhealthy                      Pod                       argus-backend-7d5cd95578-z2h98    Startup probe failed: Get "http://10.244.0.20:5000/health/live": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+
+---- saida do k6 ----
+time="2026-09-24T17:57:54-03:00" level=info msg="2026-09-24T20:57:54.899Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:54-03:00" level=info msg="2026-09-24T20:57:54.902Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.115Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.119Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.162Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.171Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.323Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.324Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.353Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.354Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.379Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.385Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.385Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.387Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.530Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.532Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.558Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.559Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.561Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.562Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.588Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.589Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.590Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.593Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.734Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.736Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.767Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.767Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.776Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.776Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.793Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.795Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.796Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.796Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.943Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.947Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.989Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.989Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.995Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.996Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.997Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.997Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.999Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:55-03:00" level=info msg="2026-09-24T20:57:55.999Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.162Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.164Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.201Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.201Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.201Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.202Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.205Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.205Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.209Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.209Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.369Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.372Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.408Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.408Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.410Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.410Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.410Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.410Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.411Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.411Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.574Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.574Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.615Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.616Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.617Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.617Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.617Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.617Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.619Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.619Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.778Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.782Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.823Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.825Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.826Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.830Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.830Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.830Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.834Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:56-03:00" level=info msg="2026-09-24T20:57:56.834Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.003Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.005Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.033Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.038Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.038Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.039Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.040Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.041Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.043Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.045Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.226Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.231Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.247Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.254Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.257Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.258Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.265Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.265Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.266Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.266Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.442Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.444Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.468Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.468Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.469Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.469Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.470Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.471Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.472Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.472Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.648Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.649Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.673Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.673Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.673Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.674Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.675Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.675Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.675Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.675Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.853Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.854Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.883Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.883Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.883Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.883Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.890Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.894Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.895Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:57-03:00" level=info msg="2026-09-24T20:57:57.895Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.056Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.058Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.096Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.098Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.099Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.100Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.106Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.107Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.108Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.109Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.269Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.271Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.308Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.311Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.312Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.312Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.314Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.314Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.314Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.317Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.474Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.474Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.516Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.517Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.517Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.519Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.520Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.520Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.520Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.521Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.679Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.683Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.733Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.734Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.735Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.735Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.741Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.741Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.743Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.744Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.898Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.902Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.948Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.948Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.950Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.951Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.952Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.955Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.955Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:58-03:00" level=info msg="2026-09-24T20:57:58.956Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.116Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.122Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.166Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.167Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.168Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.177Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.178Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.186Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.190Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.190Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.324Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.328Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.382Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.383Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.388Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.389Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.392Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.392Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.393Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.394Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.530Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.532Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.586Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.588Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.590Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.592Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.594Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.595Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.595Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.597Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.734Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.735Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.790Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.791Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.793Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.795Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.797Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.798Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.799Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.800Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.938Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.939Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.995Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.997Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.997Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:57:59-03:00" level=info msg="2026-09-24T20:57:59.998Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.000Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.003Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.003Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.004Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.146Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.152Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.200Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.201Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.202Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.202Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.204Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.204Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.205Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.206Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.356Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.357Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.404Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.404Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.405Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.405Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.406Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.406Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.407Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.408Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.558Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.559Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.607Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.607Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.607Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.607Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.608Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.609Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.609Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.610Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.761Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.762Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.809Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.809Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.810Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.810Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.810Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.811Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.811Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.811Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.964Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:00-03:00" level=info msg="2026-09-24T20:58:00.965Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.018Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.018Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.019Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.020Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.020Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.023Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.024Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.026Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.188Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.194Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.230Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.234Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.238Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.240Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.242Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.250Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.251Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.251Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.406Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.408Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.442Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.442Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.451Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.452Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.452Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.452Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.452Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.452Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.614Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.614Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.645Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.646Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.654Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.654Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.654Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.654Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.659Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.664Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.820Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.821Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.855Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.856Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.858Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.867Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.868Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.872Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.872Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:01-03:00" level=info msg="2026-09-24T20:58:01.877Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.036Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.049Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.059Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.068Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.075Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.079Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.081Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.088Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.088Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.096Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.251Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.252Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.274Z FALHA vu=5 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.279Z FALHA vu=5 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.293Z FALHA vu=1 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.305Z FALHA vu=1 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.305Z FALHA vu=2 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.306Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.337Z FALHA vu=2 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.337Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.455Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.456Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.542Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.544Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.658Z FALHA vu=4 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.659Z FALHA vu=4 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.747Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.748Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.950Z FALHA vu=3 /api/v1/clock status=503" source=console
+time="2026-09-24T17:58:02-03:00" level=info msg="2026-09-24T20:58:02.951Z FALHA vu=3 /api/v1/hypotheses status=503" source=console
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 2470   41.073052/s
+    checks_succeeded...: 85.66% 2116 out of 2470
+    checks_failed......: 14.33% 354 out of 2470
+
+    ✗ status 200
+      ↳  85% — ✓ 2116 / ✗ 354
+
+    CUSTOM
+    respostas_200..................: 2116   35.186469/s
+    respostas_nao_200..............: 354    5.886583/s
+
+    HTTP
+    http_req_duration..............: avg=21.12ms  med=5.54ms   p(95)=45.87ms  max=2.11s
+      { expected_response:true }...: avg=23.91ms  med=6.01ms   p(95)=50.56ms  max=2.11s
+    http_req_failed................: 14.33% 354 out of 2470
+    http_reqs......................: 2470   41.073052/s
+
+    EXECUTION
+    iteration_duration.............: avg=243.27ms med=212.75ms p(95)=289.01ms max=2.42s
+    iterations.....................: 1235   20.536526/s
+    vus............................: 5      min=5           max=5
+    vus_max........................: 5      min=5           max=5
+
+    NETWORK
+    data_received..................: 1.1 MB 19 kB/s
+    data_sent......................: 209 kB 3.5 kB/s
+
+
+
+---- numeros-chave (de k6-01-A-1replica.summary.json) ----
+http_reqs=2470 http_req_failed=354 (taxa=0.14331983805668017) respostas_200=2116 respostas_nao_200=354 p95_ms=45.87469999999995 max_ms=2112.152
+---- fim ----
+
+
+---- watch dos pods do backend, rodada A-1replica (kubectl get ... -w --output-watch-events, com timestamp) ----
+[17:57:43.874] EVENT      NAME                             READY   STATUS    RESTARTS   AGE
+[17:57:43.875] ADDED      argus-backend-7d5cd95578-v8j28   1/1     Running   0          3m39s
+[17:57:54.248] MODIFIED   argus-backend-7d5cd95578-v8j28   1/1     Terminating   0          3m50s
+[17:57:54.493] MODIFIED   argus-backend-7d5cd95578-v8j28   1/1     Terminating   0          3m50s
+[17:57:54.501] ADDED      argus-backend-7d5cd95578-z2h98   0/1     Pending       0          0s
+[17:57:54.598] MODIFIED   argus-backend-7d5cd95578-z2h98   0/1     Pending       0          0s
+[17:57:54.654] MODIFIED   argus-backend-7d5cd95578-z2h98   0/1     ContainerCreating   0          0s
+[17:57:55.633] MODIFIED   argus-backend-7d5cd95578-z2h98   0/1     ContainerCreating   0          1s
+[17:57:56.051] MODIFIED   argus-backend-7d5cd95578-z2h98   0/1     Running             0          2s
+[17:57:58.082] MODIFIED   argus-backend-7d5cd95578-z2h98   0/1     Running             0          4s
+[17:58:01.374] MODIFIED   argus-backend-7d5cd95578-z2h98   0/1     Running             0          7s
+[17:58:01.902] MODIFIED   argus-backend-7d5cd95578-z2h98   1/1     Running             0          7s
+[17:58:08.408] MODIFIED   argus-backend-7d5cd95578-v8j28   0/1     Completed           0          4m4s
+[17:58:08.698] MODIFIED   argus-backend-7d5cd95578-v8j28   0/1     Completed           0          4m4s
+[17:58:08.706] DELETED    argus-backend-7d5cd95578-v8j28   0/1     Completed           0          4m4s
+[17:58:43.690] ADDED      argus-backend-7d5cd95578-zhzg7   0/1     Pending             0          0s
+[17:58:43.779] MODIFIED   argus-backend-7d5cd95578-zhzg7   0/1     Pending             0          0s
+[17:58:44.102] MODIFIED   argus-backend-7d5cd95578-zhzg7   0/1     ContainerCreating   0          1s
+---- fim ----
+
+[17:58:45.928] k6 rodada A-1replica: 2470 requisicoes, 2116 respostas 200, 354 falhas (taxa 14.33%), p95 46 ms
+[17:58:45.943] =============================================================
+
+[17:58:45.962] preparando rodada B: HPA minReplicas=2 e scale para 2
+[17:58:45.981] $ kubectl --context kind-argus -n argus patch hpa argus-backend --type=merge -p {"spec":{"minReplicas":2}}
+horizontalpodautoscaler.autoscaling/argus-backend patched
+[17:58:48.888] $ kubectl --context kind-argus -n argus scale deploy/argus-backend --replicas=2
+deployment.apps/argus-backend scaled
+[17:58:49.320] $ kubectl --context kind-argus -n argus rollout status deploy/argus-backend --timeout=180s
+Waiting for deployment "argus-backend" rollout to finish: 1 of 2 updated replicas are available...
+Waiting for deployment "argus-backend" rollout to finish: 1 of 2 updated replicas are available...
+deployment "argus-backend" successfully rolled out
+[17:59:15.486] =============== RODADA B-2replicas: replicas=2 ===============
+[17:59:15.492] $ kubectl --context kind-argus -n argus get deploy argus-backend
+NAME            READY   UP-TO-DATE   AVAILABLE   AGE
+argus-backend   2/2     2            2           6d22h
+[17:59:15.646] pods do backend antes: argus-backend-7d5cd95578-z2h98 argus-backend-7d5cd95578-zhzg7 
+argus-backend-7d5cd95578-z2h98   True   Running   0     10.244.0.20   2026-09-24T20:57:54Z   <none>
+argus-backend-7d5cd95578-zhzg7   True   Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>
+[17:59:15.723] k6: 5 VUs por 60s contra http://localhost:8080 (/api/v1/clock + /api/v1/hypotheses), resumo em k6-01-B-2replicas.summary.json
+[17:59:15.733] aguardando 10 s de carga estavel antes de remover o pod
+[17:59:25.772] $ kubectl --context kind-argus -n argus delete pod argus-backend-7d5cd95578-z2h98 --wait=false
+pod "argus-backend-7d5cd95578-z2h98" deleted from argus namespace
+[17:59:26.170] T0 (delete emitido) = 17:59:26.161
+[17:59:32.008] novo pod Ready: argus-backend-7d5cd95578-qdd45
+[17:59:32.028] T1 (novo pod Ready) = 17:59:32.015
+[17:59:32.042] RESULTADO B-2replicas: tempo entre delete e novo pod Ready = 6.2 s
+---- amostragem a cada 0,5 s (NAME|READY|PHASE|RESTARTS|IP|CREATED|DELETION) ----
+[17:59:26.181] argus-backend-7d5cd95578-z2h98   True   Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True   Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+[17:59:26.905] argus-backend-7d5cd95578-qdd45   False   Pending   0     <none>        2026-09-24T20:59:26Z   <none>|argus-backend-7d5cd95578-z2h98   True    Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True    Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+[17:59:27.502] argus-backend-7d5cd95578-qdd45   False   Pending   0     <none>        2026-09-24T20:59:26Z   <none>|argus-backend-7d5cd95578-z2h98   True    Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True    Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+[17:59:28.100] argus-backend-7d5cd95578-qdd45   False   Pending   0     <none>        2026-09-24T20:59:26Z   <none>|argus-backend-7d5cd95578-z2h98   True    Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True    Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+[17:59:28.708] argus-backend-7d5cd95578-qdd45   False   Running   0     10.244.0.22   2026-09-24T20:59:26Z   <none>|argus-backend-7d5cd95578-z2h98   True    Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True    Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+[17:59:29.428] argus-backend-7d5cd95578-qdd45   False   Running   0     10.244.0.22   2026-09-24T20:59:26Z   <none>|argus-backend-7d5cd95578-z2h98   True    Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True    Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+[17:59:29.994] argus-backend-7d5cd95578-qdd45   False   Running   0     10.244.0.22   2026-09-24T20:59:26Z   <none>|argus-backend-7d5cd95578-z2h98   True    Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True    Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+[17:59:30.644] argus-backend-7d5cd95578-qdd45   False   Running   0     10.244.0.22   2026-09-24T20:59:26Z   <none>|argus-backend-7d5cd95578-z2h98   True    Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True    Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+[17:59:31.242] argus-backend-7d5cd95578-qdd45   False   Running   0     10.244.0.22   2026-09-24T20:59:26Z   <none>|argus-backend-7d5cd95578-z2h98   True    Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z|argus-backend-7d5cd95578-zhzg7   True    Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>|
+---- fim ----
+[17:59:32.056] condicoes do pod novo (timestamps do API server, precisao de 1 s):
+creationTimestamp=2026-09-24T20:59:26Z
+PodReadyToStartContainers=True em 2026-09-24T20:59:27Z
+Initialized=True em 2026-09-24T20:59:26Z
+Ready=True em 2026-09-24T20:59:31Z
+ContainersReady=True em 2026-09-24T20:59:31Z
+PodScheduled=True em 2026-09-24T20:59:26Z
+containerStatuses: started=2026-09-24T20:59:28Z restarts=0 image=docker.io/library/argus-backend:dev
+[17:59:32.107] pods do backend depois:
+argus-backend-7d5cd95578-qdd45   True   Running   0     10.244.0.22   2026-09-24T20:59:26Z   <none>
+argus-backend-7d5cd95578-z2h98   True   Running   0     10.244.0.20   2026-09-24T20:57:54Z   2026-09-24T21:00:11Z
+argus-backend-7d5cd95578-zhzg7   True   Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>
+[17:59:32.153] eventos recentes do namespace:
+2026-09-24T20:57:55Z   Normal    Created                        Pod                       argus-backend-7d5cd95578-z2h98    Container created
+2026-09-24T20:57:56Z   Normal    Started                        Pod                       argus-backend-7d5cd95578-z2h98    Container started
+2026-09-24T20:57:59Z   Warning   Unhealthy                      Pod                       argus-backend-7d5cd95578-z2h98    Startup probe failed: Get "http://10.244.0.20:5000/health/live": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+2026-09-24T20:58:11Z   Warning   FailedComputeMetricsReplicas   HorizontalPodAutoscaler   argus-backend                     invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: no metrics returned from resource metrics API
+2026-09-24T20:58:11Z   Warning   FailedGetResourceMetric        HorizontalPodAutoscaler   argus-backend                     failed to get cpu utilization: unable to get metrics for resource cpu: no metrics returned from resource metrics API
+2026-09-24T20:58:42Z   Normal    SuccessfulRescale              HorizontalPodAutoscaler   argus-backend                     New size: 2; reason: cpu resource utilization (percentage of request) above target
+2026-09-24T20:58:43Z   Normal    ScalingReplicaSet              Deployment                argus-backend                     Scaled up replica set argus-backend-7d5cd95578 from 1 to 2
+2026-09-24T20:58:43Z   Normal    SuccessfulCreate               ReplicaSet                argus-backend-7d5cd95578          Created pod: argus-backend-7d5cd95578-zhzg7
+2026-09-24T20:58:46Z   Normal    Pulled                         Pod                       argus-backend-7d5cd95578-zhzg7    Container image "argus-backend:dev" already present on machine and can be accessed by the pod
+2026-09-24T20:58:47Z   Normal    Created                        Pod                       argus-backend-7d5cd95578-zhzg7    Container created
+2026-09-24T20:58:48Z   Normal    Started                        Pod                       argus-backend-7d5cd95578-zhzg7    Container started
+2026-09-24T20:58:51Z   Warning   Unhealthy                      Pod                       argus-backend-7d5cd95578-zhzg7    Startup probe failed: Get "http://10.244.0.21:5000/health/live": dial tcp 10.244.0.21:5000: connect: connection refused
+2026-09-24T20:58:58Z   Warning   Unhealthy                      Pod                       argus-backend-7d5cd95578-zhzg7    Startup probe failed: Get "http://10.244.0.21:5000/health/live": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+2026-09-24T20:59:26Z   Normal    Killing                        Pod                       argus-backend-7d5cd95578-z2h98    Stopping container backend
+2026-09-24T20:59:26Z   Normal    SuccessfulCreate               ReplicaSet                argus-backend-7d5cd95578          Created pod: argus-backend-7d5cd95578-qdd45
+2026-09-24T20:59:27Z   Normal    Created                        Pod                       argus-backend-7d5cd95578-qdd45    Container created
+2026-09-24T20:59:27Z   Normal    Pulled                         Pod                       argus-backend-7d5cd95578-qdd45    Container image "argus-backend:dev" already present on machine and can be accessed by the pod
+2026-09-24T20:59:27Z   Warning   FailedGetResourceMetric        HorizontalPodAutoscaler   argus-backend                     failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+2026-09-24T20:59:27Z   Warning   FailedComputeMetricsReplicas   HorizontalPodAutoscaler   argus-backend                     invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+2026-09-24T20:59:28Z   Normal    Started                        Pod                       argus-backend-7d5cd95578-qdd45    Container started
+
+---- saida do k6 ----
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 2262    8.442679/s
+    checks_succeeded...: 100.00% 2262 out of 2262
+    checks_failed......: 0.00%   0 out of 2262
+
+    ✓ status 200
+
+    CUSTOM
+    respostas_200..................: 2262   8.442679/s
+
+    HTTP
+    http_req_duration..............: avg=28.51ms  med=5.37ms   p(95)=84.16ms  max=2.93s
+      { expected_response:true }...: avg=28.51ms  med=5.37ms   p(95)=84.16ms  max=2.93s
+    http_req_failed................: 0.00%  0 out of 2262
+    http_reqs......................: 2262   8.442679/s
+
+    EXECUTION
+    iteration_duration.............: avg=265.69ms med=213.19ms p(95)=382.46ms max=3.14s
+    iterations.....................: 1131   4.22134/s
+    vus............................: 5      min=5         max=5
+    vus_max........................: 5      min=5         max=5
+
+    NETWORK
+    data_received..................: 1.1 MB 4.0 kB/s
+    data_sent......................: 191 kB 713 B/s
+
+
+
+---- numeros-chave (de k6-01-B-2replicas.summary.json) ----
+http_reqs=2262 http_req_failed=0 (taxa=0) respostas_200=2262 respostas_nao_200=0 p95_ms=84.16069999999998 max_ms=2933.317
+---- fim ----
+
+
+---- watch dos pods do backend, rodada B-2replicas (kubectl get ... -w --output-watch-events, com timestamp) ----
+[17:59:15.801] EVENT      NAME                             READY   STATUS    RESTARTS   AGE
+[17:59:15.802] ADDED      argus-backend-7d5cd95578-z2h98   1/1     Running   0          81s
+[17:59:15.802] ADDED      argus-backend-7d5cd95578-zhzg7   1/1     Running   0          32s
+[17:59:26.169] MODIFIED   argus-backend-7d5cd95578-z2h98   1/1     Terminating   0          92s
+[17:59:26.229] MODIFIED   argus-backend-7d5cd95578-z2h98   1/1     Terminating   0          92s
+[17:59:26.432] ADDED      argus-backend-7d5cd95578-qdd45   0/1     Pending       0          0s
+[17:59:26.676] MODIFIED   argus-backend-7d5cd95578-qdd45   0/1     Pending       0          0s
+[17:59:26.886] MODIFIED   argus-backend-7d5cd95578-qdd45   0/1     ContainerCreating   0          0s
+[17:59:27.815] MODIFIED   argus-backend-7d5cd95578-qdd45   0/1     ContainerCreating   0          1s
+[17:59:28.710] MODIFIED   argus-backend-7d5cd95578-qdd45   0/1     Running             0          2s
+[17:59:30.401] MODIFIED   argus-backend-7d5cd95578-qdd45   0/1     Running             0          4s
+[17:59:30.948] MODIFIED   argus-backend-7d5cd95578-qdd45   0/1     Running             0          4s
+[17:59:31.883] MODIFIED   argus-backend-7d5cd95578-qdd45   1/1     Running             0          5s
+[17:59:46.066] MODIFIED   argus-backend-7d5cd95578-z2h98   0/1     Completed           0          111s
+[17:59:47.693] MODIFIED   argus-backend-7d5cd95578-z2h98   0/1     Completed           0          113s
+[17:59:47.725] DELETED    argus-backend-7d5cd95578-z2h98   0/1     Completed           0          113s
+---- fim ----
+
+[18:28:19.867] k6 rodada B-2replicas: 2262 requisicoes, 2262 respostas 200, 0 falhas (taxa 0%), p95 84 ms
+[18:28:19.872] =============================================================
+
+[18:28:19.879] restaurando o overlay kind: HPA minReplicas=1 e scale para 1
+[18:28:19.884] $ kubectl --context kind-argus -n argus patch hpa argus-backend --type=merge -p {"spec":{"minReplicas":1}}
+horizontalpodautoscaler.autoscaling/argus-backend patched
+[18:28:20.268] $ kubectl --context kind-argus -n argus scale deploy/argus-backend --replicas=1
+deployment.apps/argus-backend scaled
+[18:28:20.385] $ kubectl --context kind-argus -n argus rollout status deploy/argus-backend --timeout=120s
+Waiting for deployment spec update to be observed...
+deployment "argus-backend" successfully rolled out
+argus-backend-7d5cd95578-qdd45   True   Running   0     10.244.0.22   2026-09-24T20:59:26Z   2026-09-24T21:29:05Z
+argus-backend-7d5cd95578-zhzg7   True   Running   0     10.244.0.21   2026-09-24T20:58:43Z   <none>
+
+================================================================
+RESUMO (kind local, 1 no, commit 0ff97f4b0130)
+RESULTADO A-1replica: tempo entre delete e novo pod Ready = 8.3 s
+  k6 rodada A (1 replica): 2470 req, 354 falhas
+RESULTADO B-2replicas: tempo entre delete e novo pod Ready = 6.2 s
+  k6 rodada B (2 replicas, 1 pod removido): 2262 req, 0 falhas
+================================================================
+
+NOTA: entre 17:59:32 e 18:28:19 a maquina host (nao o cluster) ficou sobrecarregada por outros processos e o script so retomou depois; os dois resultados e os numeros do k6 ja tinham sido colhidos antes da pausa, e nenhum comando do ensaio foi executado nesse intervalo.

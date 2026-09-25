@@ -1,0 +1,195 @@
+# API de leitura do Argus.
+#
+# Substitui o ASG da Sprint 3 (removido na Sprint 4), onde o container era iniciado
+# a mao pelo user_data (`dnf install docker && docker pull && docker run`). O que
+# se ganha aqui e exatamente o que faltava la: rolling update sem queda de
+# capacidade, reposicao do container por health em segundos em vez dos 300s do
+# health_check_grace_period, e escala por metrica sem precisar trocar a instancia
+# inteira.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-backend
+  labels:
+    app.kubernetes.io/name: argus-backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: argus
+spec:
+  # Espelha o asg_min_size = 2 que o ASG usava. Duas replicas e o minimo para
+  # que o PodDisruptionBudget abaixo consiga proteger uma durante um drain.
+  replicas: 2
+  revisionHistoryLimit: 3
+
+  # O pod so conta como disponivel depois de 10s Ready. Sem isso, um pod que
+  # passa na readiness e morre logo em seguida faria o rollout avancar para o
+  # proximo, derrubando a capacidade um pod por vez ate o fim.
+  minReadySeconds: 10
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus-backend
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Zero: a capacidade NUNCA cai durante um deploy. O pod novo precisa estar
+      # Ready antes de o velho sair. E o que permite rodar o k6 de carga durante
+      # um `kubectl rollout restart` e terminar com zero 5xx.
+      maxUnavailable: 0
+      maxSurge: 1
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus-backend
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: argus
+    spec:
+      # 45s e nao os 30s padrao: o preStop abaixo gasta 10s e o gunicorn ainda
+      # precisa terminar a requisicao em curso depois disso.
+      terminationGracePeriodSeconds: 45
+
+      securityContext:
+        runAsNonRoot: true
+        # O uid/gid que backend/Dockerfile cria. Declarar aqui tambem faz o
+        # kubelet RECUSAR uma imagem que volte a rodar como root, em vez de
+        # descobrir isso so em auditoria.
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+
+      # Espalha as replicas pelas duas zonas da VPC. `ScheduleAnyway` e nao
+      # `DoNotSchedule` porque no EKS Auto Mode o no so nasce DEPOIS de o pod
+      # ficar Pending: exigir a zona certa faria o pod de surge esperar um no
+      # novo por 1 a 2 minutos a cada rolling update. Numa conta de producao,
+      # com no ja quente, `DoNotSchedule` seria a escolha correta.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: argus-backend
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: argus-backend
+
+      containers:
+        - name: backend
+          # Substituido por `make k8s-apply`, que injeta a referencia COMPLETA
+          # da imagem -- registry, repositorio e tag -- lida de
+          # `terraform output ecr_repository_urls`.
+          #
+          # O nome do repositorio nao e escrito aqui de proposito: ele vem de
+          # `local.name` no Terraform ("${name_prefix}-${environment}"), e
+          # fixa-lo faria um `environment = "staging"` produzir
+          # ImagePullBackOff sem que plan, validate ou k8s-validate acusassem
+          # nada. Nunca `latest`: ver o comentario do IMAGE_TAG no Makefile.
+          image: IMAGE_BACKEND
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 5000
+
+          envFrom:
+            - configMapRef:
+                name: argus-backend
+
+          env:
+            # Conecta como `argus_api`, que so herda `argus_reader` e so enxerga
+            # as views v_*. E o MESMO usuario de menor privilegio que o ASG e a
+            # Lambda usavam: a troca de orquestrador nao e desculpa para a API
+            # voltar a entrar no banco como mestre.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DATABASE_URL
+            - name: USER_ID_HASH_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: USER_ID_HASH_SALT
+            - name: DASHBOARD_TOKEN_SHA256
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DASHBOARD_TOKEN_SHA256
+
+          # As tres sondas atacam problemas diferentes, e trocar uma pela outra
+          # tem consequencia concreta:
+          #
+          #  startup  -- da 60s de orcamento para o gunicorn subir sem que a
+          #              liveness comece a contar falha.
+          #  liveness -- /health/live NAO toca no banco. Se apontasse para
+          #              /health/ready, uma queda do RDS MATARIA todos os pods
+          #              ao mesmo tempo, transformando indisponibilidade de
+          #              banco em CrashLoopBackOff da aplicacao inteira.
+          #  readiness-- /health/ready consulta o banco, entao um soluco do RDS
+          #              tira o pod do Endpoints sem reinicia-lo. Ele volta
+          #              sozinho quando o banco volta.
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 3
+            failureThreshold: 20
+
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          lifecycle:
+            preStop:
+              # O ALB desregistra o alvo ao ver o pod Terminating, mas a
+              # propagacao leva alguns segundos. Sem esta pausa, cada rolling
+              # update produz um punhado de 502 -- exatamente o que o teste de
+              # carga fotografaria.
+              exec:
+                command: ["sleep", "10"]
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              # Memoria tem teto; CPU NAO tem, de proposito. Limite de CPU no
+              # Linux e cota CFS: o gunicorn com 4 threads levaria throttle em
+              # rajada e o p95 estouraria o orcamento do RNF02 sem aparecer em
+              # nenhuma metrica obvia. O `requests` ja basta para o Auto Mode
+              # dimensionar o no.
+              memory: 512Mi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        # Com readOnlyRootFilesystem, o gunicorn ainda precisa de um lugar para
+        # escrever arquivos temporarios de worker.
+        - name: tmp
+          emptyDir: {}

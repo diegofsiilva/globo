@@ -1,0 +1,670 @@
+# Testes de carga sobre as telas do dashboard
+#
+# Rodada 2, oficial — 18 de setembro de 2026, gerada de uma EC2 t4g.small dentro da VPC
+# (tests/carga/gerador_ec2.sh carga-ui), com o gunicorn já corrigido (--keep-alive 75).
+# k6 0.54.0. Sem as linhas de progresso. URLs substituídas por <url>; nenhum token aparece.
+
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+     execution: local
+        script: carga_ui.js
+        output: -
+
+     scenarios: (100.00%) 3 scenarios, 100 max VUs, 7m20s max duration (incl. graceful stop):
+              * nivel_1: 5 looping VUs for 2m0s (exec: abrirTela, gracefulStop: 20s)
+              * nivel_2: 25 looping VUs for 2m0s (exec: abrirTela, startTime: 2m30s, gracefulStop: 20s)
+              * nivel_3: 100 looping VUs for 2m0s (exec: abrirTela, startTime: 5m0s, gracefulStop: 20s)
+
+     ✓ agora: todas as rotas 200
+     ✓ agora: aberta em <= 5 s
+     ✓ timeline: todas as rotas 200
+     ✓ timeline: aberta em <= 5 s
+     ✓ comparar: todas as rotas 200
+     ✓ comparar: aberta em <= 5 s
+     ✓ explorar: todas as rotas 200
+     ✓ explorar: aberta em <= 5 s
+     ✓ recorte: todas as rotas 200
+     ✓ recorte: aberta em <= 5 s
+     ✓ hipoteses: todas as rotas 200
+     ✓ hipoteses: aberta em <= 5 s
+
+     checks.........................: 100.00% ✓ 14620     ✗ 0    
+     data_received..................: 18 MB   42 kB/s
+     data_sent......................: 7.4 MB  17 kB/s
+   ✓ falhas_por_status..............: 0       0/s
+     http_req_blocked...............: avg=144.32µs min=1.79µs  med=5.58µs   max=38.5ms   p(90)=16.68µs  p(95)=67µs     p(99)=1.28ms  
+     http_req_connecting............: avg=104.22µs min=0s      med=0s       max=26ms     p(90)=0s       p(95)=0s       p(99)=1.13ms  
+     http_req_duration..............: avg=122.43ms min=3.22ms  med=15.62ms  max=1.65s    p(90)=390.32ms p(95)=691.14ms p(99)=1.22s   
+       { expected_response:true }...: avg=122.43ms min=3.22ms  med=15.62ms  max=1.65s    p(90)=390.32ms p(95)=691.14ms p(99)=1.22s   
+     ✓ { nivel:1,tela:agora }.......: avg=88.07ms  min=3.82ms  med=25.39ms  max=888.73ms p(90)=221.62ms p(95)=480.29ms p(99)=863.39ms
+     ✓ { nivel:1,tela:comparar }....: avg=5.87ms   min=3.47ms  med=5.32ms   max=20.47ms  p(90)=7.28ms   p(95)=11.49ms  p(99)=17.59ms 
+     ✓ { nivel:1,tela:explorar }....: avg=15.86ms  min=4.1ms   med=9.39ms   max=164.06ms p(90)=33.76ms  p(95)=44.36ms  p(99)=110.01ms
+     ✓ { nivel:1,tela:hipoteses }...: avg=14.86ms  min=3.77ms  med=5.84ms   max=78.87ms  p(90)=37.1ms   p(95)=59.59ms  p(99)=73.33ms 
+     ✓ { nivel:1,tela:recorte }.....: avg=42.83ms  min=3.81ms  med=34.01ms  max=222.22ms p(90)=95.73ms  p(95)=119.42ms p(99)=200.05ms
+     ✓ { nivel:1,tela:timeline }....: avg=11.64ms  min=3.62ms  med=8.22ms   max=92.35ms  p(90)=21.09ms  p(95)=30.74ms  p(99)=91.15ms 
+     ✓ { nivel:1 }..................: avg=29.05ms  min=3.47ms  med=9.09ms   max=888.73ms p(90)=56.57ms  p(95)=93.62ms  p(99)=277.8ms 
+     ✓ { nivel:2,tela:agora }.......: avg=58.34ms  min=3.46ms  med=25.63ms  max=547.83ms p(90)=138.56ms p(95)=304.05ms p(99)=520.62ms
+     ✓ { nivel:2,tela:comparar }....: avg=6.69ms   min=3.42ms  med=5.29ms   max=73.12ms  p(90)=9.24ms   p(95)=15.51ms  p(99)=31.61ms 
+     ✓ { nivel:2,tela:explorar }....: avg=17.69ms  min=3.64ms  med=9.41ms   max=197.17ms p(90)=37.35ms  p(95)=52.97ms  p(99)=114.6ms 
+     ✓ { nivel:2,tela:hipoteses }...: avg=6.63ms   min=3.37ms  med=5.19ms   max=73.71ms  p(90)=8.82ms   p(95)=12.34ms  p(99)=47.28ms 
+     ✓ { nivel:2,tela:recorte }.....: avg=53.12ms  min=3.55ms  med=35.5ms   max=378.04ms p(90)=119.23ms p(95)=175.24ms p(99)=323.12ms
+     ✓ { nivel:2,tela:timeline }....: avg=7.23ms   min=3.3ms   med=7.35ms   max=61.07ms  p(90)=10.14ms  p(95)=11.76ms  p(99)=18.46ms 
+     ✓ { nivel:2 }..................: avg=26.26ms  min=3.3ms   med=8.52ms   max=547.83ms p(90)=57.82ms  p(95)=96ms     p(99)=308.83ms
+     ✓ { nivel:3,tela:agora }.......: avg=90.51ms  min=3.25ms  med=30.09ms  max=1.53s    p(90)=187.13ms p(95)=435.23ms p(99)=1.22s   
+     ✓ { nivel:3,tela:comparar }....: avg=22.06ms  min=3.23ms  med=5.96ms   max=539.23ms p(90)=27.14ms  p(95)=104.52ms p(99)=346.07ms
+     ✓ { nivel:3,tela:explorar }....: avg=179.58ms min=3.29ms  med=49.2ms   max=1.57s    p(90)=501.74ms p(95)=767.14ms p(99)=1.22s   
+     ✓ { nivel:3,tela:hipoteses }...: avg=137.9ms  min=3.26ms  med=10.65ms  max=1.57s    p(90)=547.14ms p(95)=764.4ms  p(99)=1.23s   
+     ✓ { nivel:3,tela:recorte }.....: avg=378.46ms min=3.45ms  med=230.46ms max=1.65s    p(90)=1.01s    p(95)=1.19s    p(99)=1.47s   
+     ✓ { nivel:3,tela:timeline }....: avg=11.72ms  min=3.22ms  med=8.25ms   max=122.41ms p(90)=23.35ms  p(95)=32.95ms  p(99)=78.96ms 
+     ✓ { nivel:3 }..................: avg=153.49ms min=3.22ms  med=23.12ms  max=1.65s    p(90)=500.1ms  p(95)=802.13ms p(99)=1.3s    
+     http_req_failed................: 0.00%   ✓ 0         ✗ 25502
+     ✓ { nivel:1,tela:agora }.......: 0.00%   ✓ 0         ✗ 150  
+     ✓ { nivel:1,tela:comparar }....: 0.00%   ✓ 0         ✗ 200  
+     ✓ { nivel:1,tela:explorar }....: 0.00%   ✓ 0         ✗ 300  
+     ✓ { nivel:1,tela:hipoteses }...: 0.00%   ✓ 0         ✗ 90   
+     ✓ { nivel:1,tela:recorte }.....: 0.00%   ✓ 0         ✗ 200  
+     ✓ { nivel:1,tela:timeline }....: 0.00%   ✓ 0         ✗ 100  
+     ✓ { nivel:1 }..................: 0.00%   ✓ 0         ✗ 1040 
+     ✓ { nivel:2,tela:agora }.......: 0.00%   ✓ 0         ✗ 750  
+     ✓ { nivel:2,tela:comparar }....: 0.00%   ✓ 0         ✗ 1000 
+     ✓ { nivel:2,tela:explorar }....: 0.00%   ✓ 0         ✗ 1500 
+     ✓ { nivel:2,tela:hipoteses }...: 0.00%   ✓ 0         ✗ 458  
+     ✓ { nivel:2,tela:recorte }.....: 0.00%   ✓ 0         ✗ 1000 
+     ✓ { nivel:2,tela:timeline }....: 0.00%   ✓ 0         ✗ 500  
+     ✓ { nivel:2 }..................: 0.00%   ✓ 0         ✗ 5208 
+     ✓ { nivel:3,tela:agora }.......: 0.00%   ✓ 0         ✗ 2943 
+     ✓ { nivel:3,tela:comparar }....: 0.00%   ✓ 0         ✗ 3600 
+     ✓ { nivel:3,tela:explorar }....: 0.00%   ✓ 0         ✗ 5400 
+     ✓ { nivel:3,tela:hipoteses }...: 0.00%   ✓ 0         ✗ 1852 
+     ✓ { nivel:3,tela:recorte }.....: 0.00%   ✓ 0         ✗ 3600 
+     ✓ { nivel:3,tela:timeline }....: 0.00%   ✓ 0         ✗ 1858 
+     ✓ { nivel:3 }..................: 0.00%   ✓ 0         ✗ 19253
+     http_req_receiving.............: avg=92.5µs   min=17.46µs med=69.58µs  max=9.69ms   p(90)=107.38µs p(95)=224.66µs p(99)=667.72µs
+     http_req_sending...............: avg=28.16µs  min=6.33µs  med=15.72µs  max=8.97ms   p(90)=22.55µs  p(95)=28.75µs  p(99)=413.63µs
+     http_req_tls_handshaking.......: avg=0s       min=0s      med=0s       max=0s       p(90)=0s       p(95)=0s       p(99)=0s      
+     http_req_waiting...............: avg=122.31ms min=3.16ms  med=15.5ms   max=1.65s    p(90)=390.13ms p(95)=690.98ms p(99)=1.22s   
+     http_reqs......................: 25502   60.415719/s
+     ✓ { nivel:1 }..................: 1040    2.46382/s
+     ✓ { nivel:2 }..................: 5208    12.338054/s
+     ✓ { nivel:3 }..................: 19253   45.611475/s
+     iteration_duration.............: avg=2.15s    min=2s      med=2.03s    max=3.65s    p(90)=2.49s    p(95)=2.82s    p(99)=3.38s   
+     iterations.....................: 7310    17.317814/s
+     tela_ms........................: avg=150.28ms min=4ms     med=31ms     max=1.65s    p(90)=499ms    p(95)=826.74ms p(99)=1.38s   
+     ✓ { nivel:1,tela:agora }.......: avg=144.76ms min=23ms    med=41ms     max=892ms    p(90)=329.2ms  p(95)=858.65ms p(99)=883.67ms
+     ✓ { nivel:1,tela:comparar }....: avg=7.66ms   min=5ms     med=7ms      max=21ms     p(90)=12.1ms   p(95)=13.54ms  p(99)=19.52ms 
+     ✓ { nivel:1,tela:explorar }....: avg=41.08ms  min=21ms    med=28.5ms   max=165ms    p(90)=65.3ms   p(95)=111ms    p(99)=142.45ms
+     ✓ { nivel:1,tela:hipoteses }...: avg=22.13ms  min=5ms     med=15ms     max=80ms     p(90)=59.6ms   p(95)=62.8ms   p(99)=76.92ms 
+     ✓ { nivel:1,tela:recorte }.....: avg=78.94ms  min=34ms    med=65ms     max=223ms    p(90)=128.8ms  p(95)=168.3ms  p(99)=219.08ms
+     ✓ { nivel:1,tela:timeline }....: avg=17.98ms  min=7ms     med=11ms     max=93ms     p(90)=31.6ms   p(95)=56.19ms  p(99)=92.02ms 
+     ✓ { nivel:1 }..................: avg=52.6ms   min=5ms     med=25ms     max=892ms    p(90)=99.2ms   p(95)=157.29ms p(99)=857.18ms
+     ✓ { nivel:2,tela:agora }.......: avg=87.24ms  min=22ms    med=37ms     max=552ms    p(90)=235.4ms  p(95)=469.65ms p(99)=539.02ms
+     ✓ { nivel:2,tela:comparar }....: avg=9.11ms   min=5ms     med=6ms      max=75ms     p(90)=16ms     p(95)=25ms     p(99)=39.54ms 
+     ✓ { nivel:2,tela:explorar }....: avg=41.52ms  min=21ms    med=31ms     max=197ms    p(90)=80.2ms   p(95)=108.09ms p(99)=141.15ms
+     ✓ { nivel:2,tela:hipoteses }...: avg=8.54ms   min=4ms     med=6ms      max=74ms     p(90)=12.2ms   p(95)=21.19ms  p(99)=52.31ms 
+     ✓ { nivel:2,tela:recorte }.....: avg=91.66ms  min=33ms    med=66ms     max=378ms    p(90)=192.1ms  p(95)=276.29ms p(99)=351.51ms
+     ✓ { nivel:2,tela:timeline }....: avg=10.25ms  min=7ms     med=9ms      max=61ms     p(90)=12ms     p(95)=15.54ms  p(99)=31.51ms 
+     ✓ { nivel:2 }..................: avg=41.85ms  min=4ms     med=25ms     max=552ms    p(90)=86.4ms   p(95)=148.09ms p(99)=409.25ms
+     ✓ { nivel:3,tela:agora }.......: avg=131.59ms min=21ms    med=48ms     max=1.57s    p(90)=262ms    p(95)=662ms    p(99)=1.41s   
+     ✓ { nivel:3,tela:comparar }....: avg=30.88ms  min=5ms     med=8ms      max=539ms    p(90)=52ms     p(95)=187.19ms p(99)=403.29ms
+     ✓ { nivel:3,tela:explorar }....: avg=264.49ms min=21ms    med=111.5ms  max=1.57s    p(90)=684.3ms  p(95)=976.74ms p(99)=1.31s   
+     ✓ { nivel:3,tela:hipoteses }...: avg=172.07ms min=4ms     med=16ms     max=1.57s    p(90)=662ms    p(95)=899.24ms p(99)=1.36s   
+     ✓ { nivel:3,tela:recorte }.....: avg=501.39ms min=35ms    med=368ms    max=1.65s    p(90)=1.2s     p(95)=1.37s    p(99)=1.56s   
+     ✓ { nivel:3,tela:timeline }....: avg=16.85ms  min=7ms     med=10ms     max=122ms    p(90)=30ms     p(95)=45.59ms  p(99)=94.72ms 
+     ✓ { nivel:3 }..................: avg=184.46ms min=4ms     med=37ms     max=1.65s    p(90)=618.5ms  p(95)=964ms    p(99)=1.43s   
+     telas_abertas..................: 7310    17.317814/s
+     ✓ { nivel:1 }..................: 295     0.698872/s
+     ✓ { nivel:2 }..................: 1479    3.503837/s
+     ✓ { nivel:3 }..................: 5536    13.115105/s
+   ✓ telas_completas................: 100.00% ✓ 7310      ✗ 0    
+     ✓ { nivel:1 }..................: 100.00% ✓ 295       ✗ 0    
+     ✓ { nivel:2 }..................: 100.00% ✓ 1479      ✗ 0    
+     ✓ { nivel:3 }..................: 100.00% ✓ 5536      ✗ 0    
+     vus............................: 2       min=0       max=100
+     vus_max........................: 100     min=100     max=100
+{
+  "requisito": "carga-ui",
+  "test_id": "carga-ui-ec2-20260918T174857Z",
+  "meta": "erros < 1%, p95 < 3 s e p99 < 5 s por requisicao; tela aberta em < 5 s no p95",
+  "pensar_s": 2,
+  "total_requisicoes": 25502,
+  "niveis": {
+    "nivel_1": {
+      "usuarios": 5,
+      "duracao": "2m",
+      "requisicoes": 1040,
+      "telas_abertas": 295,
+      "erros_pct": "0.00",
+      "p50_ms": "9",
+      "p95_ms": "94",
+      "p99_ms": "278",
+      "max_ms": "889",
+      "tela_p95_ms": "157",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "41",
+          "tela_p95_ms": "859",
+          "tela_max_ms": "892",
+          "req_p95_ms": "480",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "11",
+          "tela_p95_ms": "56",
+          "tela_max_ms": "93",
+          "req_p95_ms": "31",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "7",
+          "tela_p95_ms": "14",
+          "tela_max_ms": "21",
+          "req_p95_ms": "11",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "29",
+          "tela_p95_ms": "111",
+          "tela_max_ms": "165",
+          "req_p95_ms": "44",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "65",
+          "tela_p95_ms": "168",
+          "tela_max_ms": "223",
+          "req_p95_ms": "119",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "15",
+          "tela_p95_ms": "63",
+          "tela_max_ms": "80",
+          "req_p95_ms": "60",
+          "erros_pct": "0.00"
+        }
+      }
+    },
+    "nivel_2": {
+      "usuarios": 25,
+      "duracao": "2m",
+      "requisicoes": 5208,
+      "telas_abertas": 1479,
+      "erros_pct": "0.00",
+      "p50_ms": "9",
+      "p95_ms": "96",
+      "p99_ms": "309",
+      "max_ms": "548",
+      "tela_p95_ms": "148",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "37",
+          "tela_p95_ms": "470",
+          "tela_max_ms": "552",
+          "req_p95_ms": "304",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "9",
+          "tela_p95_ms": "16",
+          "tela_max_ms": "61",
+          "req_p95_ms": "12",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "6",
+          "tela_p95_ms": "25",
+          "tela_max_ms": "75",
+          "req_p95_ms": "16",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "31",
+          "tela_p95_ms": "108",
+          "tela_max_ms": "197",
+          "req_p95_ms": "53",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "66",
+          "tela_p95_ms": "276",
+          "tela_max_ms": "378",
+          "req_p95_ms": "175",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "6",
+          "tela_p95_ms": "21",
+          "tela_max_ms": "74",
+          "req_p95_ms": "12",
+          "erros_pct": "0.00"
+        }
+      }
+    },
+    "nivel_3": {
+      "usuarios": 100,
+      "duracao": "2m",
+      "requisicoes": 19253,
+      "telas_abertas": 5536,
+      "erros_pct": "0.00",
+      "p50_ms": "23",
+      "p95_ms": "802",
+      "p99_ms": "1302",
+      "max_ms": "1656",
+      "tela_p95_ms": "964",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "48",
+          "tela_p95_ms": "662",
+          "tela_max_ms": "1575",
+          "req_p95_ms": "435",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "10",
+          "tela_p95_ms": "46",
+          "tela_max_ms": "122",
+          "req_p95_ms": "33",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "8",
+          "tela_p95_ms": "187",
+          "tela_max_ms": "539",
+          "req_p95_ms": "105",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "112",
+          "tela_p95_ms": "977",
+          "tela_max_ms": "1573",
+          "req_p95_ms": "767",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "368",
+          "tela_p95_ms": "1372",
+          "tela_max_ms": "1656",
+          "req_p95_ms": "1194",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "16",
+          "tela_p95_ms": "899",
+          "tela_max_ms": "1572",
+          "req_p95_ms": "764",
+          "erros_pct": "0.00"
+        }
+      }
+    }
+  },
+  "aprovado": true
+}
+
+k6 exit 0
+
+# ---------------------------------------------------------------------------
+# Leituras do CloudWatch na janela da rodada 2 (17:49 a 17:58 UTC), por minuto
+# ---------------------------------------------------------------------------
+ALB RequestCount             17:49=96 17:50=525 17:51=420 17:52=1724 17:53=2601 17:54=2704 17:55=9343 17:56=8091 17:57=0
+ALB HTTPCode_ELB_5XX_Count   nenhum datapoint
+ALB HTTPCode_ELB_502_Count   nenhum datapoint
+ALB HTTPCode_ELB_4XX_Count   nenhum datapoint
+ALB HTTPCode_Target_5XX      nenhum datapoint
+ALB HTTPCode_Target_4XX      17:55=2 (o k6 registrou zero respostas fora de 200; origem externa ao teste)
+ALB TargetConnectionError    nenhum datapoint
+ALB TargetResponseTime avg   17:49=108ms 17:50=24ms 17:51=15ms 17:52=42ms 17:53=17ms 17:54=200ms 17:55=161ms 17:56=112ms
+ALB TargetResponseTime p95   17:49=766ms 17:50=92ms 17:51=56ms 17:52=217ms 17:53=71ms 17:54=820ms 17:55=888ms 17:56=507ms
+ALB TargetResponseTime p99   17:49=872ms 17:50=223ms 17:51=92ms 17:52=454ms 17:53=115ms 17:54=1293ms 17:55=1403ms 17:56=1135ms
+ALB HealthyHostCount         17:49..17:57=2
+ASG atividade                17:55:56Z alarme TargetTracking AlarmHigh disparou a política req-por-alvo: capacidade desejada de 2 para 6 (instâncias em aquecimento ao fim do teste)
+EC2 CPUUtilization (grupo)   17:50-17:55 média 3% / máximo 4%; 17:55-18:00 média 8% / máximo 12%
+RDS DatabaseConnections      12 antes, 14 durante todo o teste
+RDS CPUUtilization (máx/min) 17:49=33% 17:50=35% 17:51=34% 17:52=39% 17:53=44% 17:54=43% 17:55=73% 17:56=67% 17:57=32%
+
+
+# ===========================================================================
+# Rodada 1 — 17 de setembro de 2026, gerada da máquina de desenvolvimento, ANTES
+# da correção do keep-alive. Mantida porque foi ela que encontrou o defeito.
+# ===========================================================================
+
+
+
+Executando carga-ui (test_id=carga-ui-20260917T195718Z)
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+     execution: local
+        script: carga_ui.js
+        output: -
+
+     scenarios: (100.00%) 3 scenarios, 100 max VUs, 7m20s max duration (incl. graceful stop):
+              * nivel_1: 5 looping VUs for 2m0s (exec: abrirTela, gracefulStop: 20s)
+              * nivel_2: 25 looping VUs for 2m0s (exec: abrirTela, startTime: 2m30s, gracefulStop: 20s)
+              * nivel_3: 100 looping VUs for 2m0s (exec: abrirTela, startTime: 5m0s, gracefulStop: 20s)
+
+     ✗ agora: todas as rotas 200
+      ↳  99% — ✓ 1196 / ✗ 4
+     ✓ agora: aberta em <= 5 s
+     ✗ timeline: todas as rotas 200
+      ↳  99% — ✓ 1172 / ✗ 4
+     ✓ timeline: aberta em <= 5 s
+     ✗ comparar: todas as rotas 200
+      ↳  99% — ✓ 1169 / ✗ 2
+     ✓ comparar: aberta em <= 5 s
+     ✗ explorar: todas as rotas 200
+      ↳  99% — ✓ 1167 / ✗ 3
+     ✓ explorar: aberta em <= 5 s
+     ✗ recorte: todas as rotas 200
+      ↳  99% — ✓ 1163 / ✗ 7
+     ✓ recorte: aberta em <= 5 s
+     ✗ hipoteses: todas as rotas 200
+      ↳  99% — ✓ 1136 / ✗ 3
+     ✓ hipoteses: aberta em <= 5 s
+
+     checks.........................: 99.83% ✓ 14029     ✗ 23   
+     data_received..................: 17 MB  40 kB/s
+     data_sent......................: 7.1 MB 17 kB/s
+     http_req_blocked...............: avg=282.53µs min=655ns    med=11.99µs  max=43.96ms  p(90)=19.77µs  p(95)=30.94µs  p(99)=9.17ms  
+     http_req_connecting............: avg=206.92µs min=0s       med=0s       max=43.78ms  p(90)=0s       p(95)=0s       p(99)=8.41ms  
+     http_req_duration..............: avg=206.92ms min=121.26ms med=147.93ms max=1.43s    p(90)=367.42ms p(95)=500.96ms p(99)=828.21ms
+       { expected_response:true }...: avg=206.98ms min=121.26ms med=147.95ms max=1.43s    p(90)=367.59ms p(95)=501.22ms p(99)=828.35ms
+     ✓ { nivel:1,tela:agora }.......: avg=249.68ms min=123.43ms med=164.19ms max=1.43s    p(90)=257.76ms p(95)=1.13s    p(99)=1.35s   
+     ✓ { nivel:1,tela:comparar }....: avg=139.74ms min=123.21ms med=135.34ms max=262.12ms p(90)=145.82ms p(95)=165.83ms p(99)=252ms   
+     ✓ { nivel:1,tela:explorar }....: avg=148.84ms min=122.82ms med=138.5ms  max=279.31ms p(90)=176.76ms p(95)=213.22ms p(99)=270.91ms
+     ✓ { nivel:1,tela:hipoteses }...: avg=142.26ms min=122.01ms med=137.24ms max=186.02ms p(90)=157.89ms p(95)=168.34ms p(99)=182.75ms
+     ✓ { nivel:1,tela:recorte }.....: avg=190.34ms min=126.17ms med=181.09ms max=406.64ms p(90)=249.55ms p(95)=275.56ms p(99)=369.35ms
+     ✓ { nivel:1,tela:timeline }....: avg=146.21ms min=123.35ms med=140.92ms max=231.55ms p(90)=161.91ms p(95)=171.08ms p(99)=231.49ms
+     ✓ { nivel:1 }..................: avg=169.81ms min=122.01ms med=141.8ms  max=1.43s    p(90)=211.65ms p(95)=248.14ms p(99)=1.07s   
+     ✓ { nivel:2,tela:agora }.......: avg=215.01ms min=122.16ms med=160.34ms max=792.63ms p(90)=391.77ms p(95)=521.31ms p(99)=652.91ms
+     ✓ { nivel:2,tela:comparar }....: avg=145.68ms min=121.26ms med=136.75ms max=273.98ms p(90)=172.82ms p(95)=194.15ms p(99)=260.66ms
+     ✓ { nivel:2,tela:explorar }....: avg=162.92ms min=122.54ms med=141.98ms max=510.39ms p(90)=226.38ms p(95)=313.21ms p(99)=405.61ms
+     ✓ { nivel:2,tela:hipoteses }...: avg=141.54ms min=123.39ms med=136.72ms max=325.07ms p(90)=148.18ms p(95)=158.52ms p(99)=306.04ms
+     ✓ { nivel:2,tela:recorte }.....: avg=226.76ms min=123.34ms med=166.25ms max=952.72ms p(90)=438.99ms p(95)=630.14ms p(99)=762.91ms
+     ✓ { nivel:2,tela:timeline }....: avg=147.3ms  min=124.7ms  med=140.14ms max=309.05ms p(90)=159.55ms p(95)=210.26ms p(99)=245.39ms
+     ✓ { nivel:2 }..................: avg=176.28ms min=121.26ms med=143ms    max=952.72ms p(90)=249.32ms p(95)=364.77ms p(99)=646.49ms
+     ✓ { nivel:3,tela:agora }.......: avg=250.42ms min=121.85ms med=163.39ms max=1.4s     p(90)=514.48ms p(95)=745.01ms p(99)=1.22s   
+     ✓ { nivel:3,tela:comparar }....: avg=149.04ms min=121.67ms med=138.81ms max=497.27ms p(90)=177.53ms p(95)=215.98ms p(99)=296.82ms
+     ✓ { nivel:3,tela:explorar }....: avg=222.03ms min=121.97ms med=157.39ms max=969.48ms p(90)=403.89ms p(95)=531.08ms p(99)=817.46ms
+     ✓ { nivel:3,tela:hipoteses }...: avg=163.44ms min=121.78ms med=138.05ms max=897.64ms p(90)=216.02ms p(95)=331.61ms p(99)=516.72ms
+     ✓ { nivel:3,tela:recorte }.....: avg=305.41ms min=122.72ms med=250.59ms max=1.41s    p(90)=535.82ms p(95)=629.97ms p(99)=973.24ms
+     ✓ { nivel:3,tela:timeline }....: avg=158.82ms min=121.57ms med=140.07ms max=1.25s    p(90)=173.8ms  p(95)=221.62ms p(99)=590.14ms
+     ✓ { nivel:3 }..................: avg=216.61ms min=121.57ms med=150.61ms max=1.41s    p(90)=394.39ms p(95)=528.09ms p(99)=869.42ms
+     http_req_failed................: 0.09%  ✓ 23        ✗ 24592
+     ✓ { nivel:1,tela:agora }.......: 0.66%  ✓ 1         ✗ 149  
+     ✓ { nivel:1,tela:comparar }....: 0.00%  ✓ 0         ✗ 180  
+     ✓ { nivel:1,tela:explorar }....: 0.37%  ✓ 1         ✗ 269  
+     ✗ { nivel:1,tela:hipoteses }...: 2.22%  ✓ 2         ✗ 88   
+     ✗ { nivel:1,tela:recorte }.....: 1.66%  ✓ 3         ✗ 177  
+     ✗ { nivel:1,tela:timeline }....: 2.22%  ✓ 2         ✗ 88   
+     ✓ { nivel:1 }..................: 0.93%  ✓ 9         ✗ 951  
+     ✓ { nivel:2,tela:agora }.......: 0.13%  ✓ 1         ✗ 749  
+     ✓ { nivel:2,tela:comparar }....: 0.11%  ✓ 1         ✗ 899  
+     ✓ { nivel:2,tela:explorar }....: 0.07%  ✓ 1         ✗ 1349 
+     ✓ { nivel:2,tela:hipoteses }...: 0.00%  ✓ 0         ✗ 450  
+     ✓ { nivel:2,tela:recorte }.....: 0.44%  ✓ 4         ✗ 896  
+     ✓ { nivel:2,tela:timeline }....: 0.43%  ✓ 2         ✗ 456  
+     ✓ { nivel:2 }..................: 0.18%  ✓ 9         ✗ 4799 
+     ✓ { nivel:3,tela:agora }.......: 0.07%  ✓ 2         ✗ 2698 
+     ✓ { nivel:3,tela:comparar }....: 0.02%  ✓ 1         ✗ 3603 
+     ✓ { nivel:3,tela:explorar }....: 0.01%  ✓ 1         ✗ 5399 
+     ✓ { nivel:3,tela:hipoteses }...: 0.05%  ✓ 1         ✗ 1737 
+     ✓ { nivel:3,tela:recorte }.....: 0.00%  ✓ 0         ✗ 3600 
+     ✓ { nivel:3,tela:timeline }....: 0.00%  ✓ 0         ✗ 1804 
+     ✓ { nivel:3 }..................: 0.02%  ✓ 5         ✗ 18841
+     http_req_receiving.............: avg=132.06µs min=11.78µs  med=126.9µs  max=9.47ms   p(90)=181.41µs p(95)=201.68µs p(99)=275.28µs
+     http_req_sending...............: avg=36.2µs   min=2.32µs   med=32.88µs  max=1.32ms   p(90)=51.71µs  p(95)=62.11µs  p(99)=139.06µs
+     http_req_tls_handshaking.......: avg=0s       min=0s       med=0s       max=0s       p(90)=0s       p(95)=0s       p(99)=0s      
+     http_req_waiting...............: avg=206.75ms min=121.08ms med=147.74ms max=1.43s    p(90)=367.28ms p(95)=500.86ms p(99)=827.86ms
+     http_reqs......................: 24615  58.257847/s
+     ✓ { nivel:1 }..................: 960    2.272092/s
+     ✓ { nivel:2 }..................: 4808   11.379392/s
+     ✓ { nivel:3 }..................: 18846  44.603997/s
+     iteration_duration.............: avg=2.23s    min=2.12s    med=2.16s    max=3.44s    p(90)=2.45s    p(95)=2.61s    p(99)=3.06s   
+     iterations.....................: 7026   16.62887/s
+     tela_ms........................: avg=238.56ms min=123ms    med=163ms    max=1.44s    p(90)=458ms    p(95)=608.75ms p(99)=1.06s   
+     ✓ { nivel:1,tela:agora }.......: avg=297.74ms min=145ms    med=177ms    max=1.44s    p(90)=340.7ms  p(95)=1.27s    p(99)=1.44s   
+     ✓ { nivel:1,tela:comparar }....: avg=154.75ms min=135ms    med=140ms    max=307ms    p(90)=213.2ms  p(95)=253ms    p(99)=289.4ms 
+     ✓ { nivel:1,tela:explorar }....: avg=186.84ms min=150ms    med=173ms    max=284ms    p(90)=270.6ms  p(95)=274.8ms  p(99)=280.04ms
+     ✓ { nivel:1,tela:hipoteses }...: avg=148.4ms  min=126ms    med=146ms    max=187ms    p(90)=168.2ms  p(95)=180.19ms p(99)=185.24ms
+     ✓ { nivel:1,tela:recorte }.....: avg=238.88ms min=164ms    med=224ms    max=407ms    p(90)=325.6ms  p(95)=367.4ms  p(99)=392.48ms
+     ✓ { nivel:1,tela:timeline }....: avg=152.22ms min=129ms    med=147ms    max=232ms    p(90)=165.6ms  p(95)=172.6ms  p(99)=231.12ms
+     ✓ { nivel:1 }..................: avg=198.31ms min=126ms    med=161ms    max=1.44s    p(90)=252.6ms  p(95)=286.1ms  p(99)=1.27s   
+     ✓ { nivel:2,tela:agora }.......: avg=252.43ms min=145ms    med=176ms    max=793ms    p(90)=540.5ms  p(95)=633.49ms p(99)=685ms   
+     ✓ { nivel:2,tela:comparar }....: avg=159.2ms  min=134ms    med=140ms    max=279ms    p(90)=245.99ms p(95)=263.79ms p(99)=276.27ms
+     ✓ { nivel:2,tela:explorar }....: avg=202.08ms min=144ms    med=167ms    max=518ms    p(90)=359.6ms  p(95)=402.6ms  p(99)=456.04ms
+     ✓ { nivel:2,tela:hipoteses }...: avg=143.82ms min=123ms    med=138ms    max=325ms    p(90)=150.6ms  p(95)=164.8ms  p(99)=287.99ms
+     ✓ { nivel:2,tela:recorte }.....: avg=273.61ms min=153ms    med=203ms    max=953ms    p(90)=540.4ms  p(95)=717.79ms p(99)=890.43ms
+     ✓ { nivel:2,tela:timeline }....: avg=151.18ms min=132ms    med=143ms    max=309ms    p(90)=164.6ms  p(95)=216.99ms p(99)=245ms   
+     ✓ { nivel:2 }..................: avg=197.92ms min=123ms    med=157ms    max=953ms    p(90)=305ms    p(95)=455ms    p(99)=697ms   
+     ✓ { nivel:3,tela:agora }.......: avg=303.19ms min=142ms    med=179ms    max=1.43s    p(90)=650.1ms  p(95)=1.02s    p(99)=1.34s   
+     ✓ { nivel:3,tela:comparar }....: avg=166.46ms min=130ms    med=144ms    max=498ms    p(90)=249ms    p(95)=270ms    p(99)=324ms   
+     ✓ { nivel:3,tela:explorar }....: avg=288.98ms min=140ms    med=204ms    max=974ms    p(90)=564.3ms  p(95)=803ms    p(99)=931ms   
+     ✓ { nivel:3,tela:hipoteses }...: avg=174.65ms min=124ms    med=141ms    max=898ms    p(90)=268.2ms  p(95)=375.99ms p(99)=572.51ms
+     ✓ { nivel:3,tela:recorte }.....: avg=402.03ms min=155ms    med=359ms    max=1.41s    p(90)=657ms    p(95)=773.54ms p(99)=1.33s   
+     ✓ { nivel:3,tela:timeline }....: avg=168.64ms min=128ms    med=143ms    max=1.28s    p(90)=187ms    p(95)=266.24ms p(99)=663.83ms
+     ✓ { nivel:3 }..................: avg=251.05ms min=124ms    med=166ms    max=1.43s    p(90)=501ms    p(95)=641.44ms p(99)=1.14s   
+     telas_abertas..................: 7026   16.62887/s
+     ✓ { nivel:1 }..................: 275    0.65086/s
+     ✓ { nivel:2 }..................: 1379   3.263765/s
+     ✓ { nivel:3 }..................: 5372   12.714246/s
+   ✓ telas_completas................: 99.67% ✓ 7003      ✗ 23   
+     ✗ { nivel:1 }..................: 96.72% ✓ 266       ✗ 9    
+     ✓ { nivel:2 }..................: 99.34% ✓ 1370      ✗ 9    
+     ✓ { nivel:3 }..................: 99.90% ✓ 5367      ✗ 5    
+     vus............................: 22     min=0       max=100
+     vus_max........................: 100    min=100     max=100
+{
+  "requisito": "carga-ui",
+  "test_id": "carga-ui-20260917T195718Z",
+  "meta": "erros < 1%, p95 < 3 s e p99 < 5 s por requisicao; tela aberta em < 5 s no p95",
+  "pensar_s": 2,
+  "total_requisicoes": 24615,
+  "niveis": {
+    "nivel_1": {
+      "usuarios": 5,
+      "duracao": "2m",
+      "requisicoes": 960,
+      "telas_abertas": 275,
+      "erros_pct": "0.94",
+      "p50_ms": "142",
+      "p95_ms": "248",
+      "p99_ms": "1076",
+      "max_ms": "1433",
+      "tela_p95_ms": "286",
+      "telas_completas_pct": "96.73",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "177",
+          "tela_p95_ms": "1280",
+          "tela_max_ms": "1447",
+          "req_p95_ms": "1136",
+          "erros_pct": "0.67"
+        },
+        "timeline": {
+          "tela_p50_ms": "147",
+          "tela_p95_ms": "173",
+          "tela_max_ms": "232",
+          "req_p95_ms": "171",
+          "erros_pct": "2.22"
+        },
+        "comparar": {
+          "tela_p50_ms": "140",
+          "tela_p95_ms": "253",
+          "tela_max_ms": "307",
+          "req_p95_ms": "166",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "173",
+          "tela_p95_ms": "275",
+          "tela_max_ms": "284",
+          "req_p95_ms": "213",
+          "erros_pct": "0.37"
+        },
+        "recorte": {
+          "tela_p50_ms": "224",
+          "tela_p95_ms": "367",
+          "tela_max_ms": "407",
+          "req_p95_ms": "276",
+          "erros_pct": "1.67"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "146",
+          "tela_p95_ms": "180",
+          "tela_max_ms": "187",
+          "req_p95_ms": "168",
+          "erros_pct": "2.22"
+        }
+      }
+    },
+    "nivel_2": {
+      "usuarios": 25,
+      "duracao": "2m",
+      "requisicoes": 4808,
+      "telas_abertas": 1379,
+      "erros_pct": "0.19",
+      "p50_ms": "143",
+      "p95_ms": "365",
+      "p99_ms": "646",
+      "max_ms": "953",
+      "tela_p95_ms": "455",
+      "telas_completas_pct": "99.35",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "176",
+          "tela_p95_ms": "633",
+          "tela_max_ms": "793",
+          "req_p95_ms": "521",
+          "erros_pct": "0.13"
+        },
+        "timeline": {
+          "tela_p50_ms": "143",
+          "tela_p95_ms": "217",
+          "tela_max_ms": "309",
+          "req_p95_ms": "210",
+          "erros_pct": "0.44"
+        },
+        "comparar": {
+          "tela_p50_ms": "140",
+          "tela_p95_ms": "264",
+          "tela_max_ms": "279",
+          "req_p95_ms": "194",
+          "erros_pct": "0.11"
+        },
+        "explorar": {
+          "tela_p50_ms": "167",
+          "tela_p95_ms": "403",
+          "tela_max_ms": "518",
+          "req_p95_ms": "313",
+          "erros_pct": "0.07"
+        },
+        "recorte": {
+          "tela_p50_ms": "203",
+          "tela_p95_ms": "718",
+          "tela_max_ms": "953",
+          "req_p95_ms": "630",
+          "erros_pct": "0.44"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "138",
+          "tela_p95_ms": "165",
+          "tela_max_ms": "325",
+          "req_p95_ms": "159",
+          "erros_pct": "0.00"
+        }
+      }
+    },
+    "nivel_3": {
+      "usuarios": 100,
+      "duracao": "2m",
+      "requisicoes": 18846,
+      "telas_abertas": 5372,
+      "erros_pct": "0.03",
+      "p50_ms": "151",
+      "p95_ms": "528",
+      "p99_ms": "869",
+      "max_ms": "1412",
+      "tela_p95_ms": "641",
+      "telas_completas_pct": "99.91",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "179",
+          "tela_p95_ms": "1029",
+          "tela_max_ms": "1436",
+          "req_p95_ms": "745",
+          "erros_pct": "0.07"
+        },
+        "timeline": {
+          "tela_p50_ms": "143",
+          "tela_p95_ms": "266",
+          "tela_max_ms": "1282",
+          "req_p95_ms": "222",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "144",
+          "tela_p95_ms": "270",
+          "tela_max_ms": "498",
+          "req_p95_ms": "216",
+          "erros_pct": "0.03"
+        },
+        "explorar": {
+          "tela_p50_ms": "204",
+          "tela_p95_ms": "803",
+          "tela_max_ms": "974",
+          "req_p95_ms": "531",
+          "erros_pct": "0.02"
+        },
+        "recorte": {
+          "tela_p50_ms": "359",
+          "tela_p95_ms": "774",
+          "tela_max_ms": "1412",
+          "req_p95_ms": "630",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "141",
+          "tela_p95_ms": "376",
+          "tela_max_ms": "898",
+          "req_p95_ms": "332",
+          "erros_pct": "0.06"
+        }
+      }
+    }
+  },
+  "aprovado": false
+}
+
+time="2026-09-17T20:04:21Z" level=error msg="thresholds on metrics 'http_req_failed{nivel:1,tela:hipoteses}, http_req_failed{nivel:1,tela:recorte}, http_req_failed{nivel:1,tela:timeline}, telas_completas{nivel:1}' have been crossed"
+FALHA: carga-ui terminou com status 99; o resultado foi preservado.
+
+# ---------------------------------------------------------------------------
+# Leituras do CloudWatch na janela do teste (19:56 a 20:06 UTC), por minuto
+# ---------------------------------------------------------------------------
+ALB RequestCount             19:56=44 19:57=331 19:58=480 19:59=625 20:00=2299 20:01=2034 20:02=6324 20:03=9425 20:04=3097 20:05=0
+ALB HTTPCode_ELB_502_Count   19:57=1 19:58=5 19:59=5 20:00=4 20:01=3 20:02=1 20:03=4   (total 23)
+ALB HTTPCode_ELB_5XX_Count   idêntico ao 502: nenhum 503 ou 504
+ALB HTTPCode_Target_5XX      nenhum datapoint (as instâncias não devolveram 5xx)
+ALB HTTPCode_Target_4XX      nenhum datapoint
+ALB TargetConnectionError    nenhum datapoint
+ALB TargetResponseTime avg   19:56=48ms 19:57=56ms 19:58=21ms 19:59=77ms 20:00=43ms 20:01=16ms 20:02=118ms 20:03=59ms 20:04=70ms
+ALB TargetResponseTime p95   19:56=160ms 19:57=171ms 19:58=80ms 19:59=325ms 20:00=222ms 20:01=59ms 20:02=565ms 20:03=281ms 20:04=276ms
+ALB TargetResponseTime p99   19:56=252ms 19:57=1033ms 19:58=133ms 19:59=407ms 20:00=548ms 20:01=115ms 20:02=950ms 20:03=449ms 20:04=455ms
+ALB HealthyHostCount         19:56..20:04=2  20:05=6
+ASG atividade                20:02:56Z alarme TargetTracking AlarmHigh disparou a política req-por-alvo: capacidade desejada de 2 para 6; 20:03:00Z quatro instâncias lançadas (WaitingForInstanceWarmup até depois do fim do teste)
+EC2 CPUUtilization (grupo)   20:00-20:05 média 6% / máximo 12%
+RDS DatabaseConnections      13 constante em toda a janela
+RDS CPUUtilization (máx/min) 19:57=24% 19:58=24% 19:59=16% 20:00=32% 20:01=22% 20:02=40% 20:03=52% 20:04=40%
+Lambda read-api Invocations  nenhum datapoint: ARGUS_API_URL aponta para o ALB, não para o API Gateway
