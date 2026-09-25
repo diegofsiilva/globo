@@ -59,7 +59,7 @@
   <!-- Limites de rede -->
   <rect x="560" y="165" width="2410" height="1705" class="boundary"/>
   <text x="590" y="205" class="section-title">VPC dedicada — 10.0.0.0/16</text>
-  <text x="590" y="237" class="section-note">workloads e banco sem IP público · saída controlada por NAT · regras por security group</text>
+  <text x="590" y="237" class="section-note">Fargate e RDS sem IP público · nós EKS observados nas públicas · NAT · regras por security group</text>
 
   <rect x="590" y="275" width="2350" height="735" class="az"/>
   <text x="620" y="310" class="section-title">Zona de disponibilidade us-east-1a</text>
@@ -161,7 +161,7 @@
   <!-- EKS Auto Mode -->
   <rect x="1455" y="390" width="825" height="1285" class="group"/>
   <text x="1490" y="430" class="section-title" fill="#245bb8">Amazon EKS Auto Mode · modalidade Kubernetes</text>
-  <text x="1490" y="458" class="section-note">control plane gerenciado; EC2 como nós nas sub-redes privadas</text>
+  <text x="1490" y="458" class="section-note">control plane gerenciado; nós EC2 nas sub-redes privadas e públicas</text>
   <text x="1490" y="482" class="section-note">Auto Mode cria e remove nós conforme a demanda dos pods</text>
 
   <g filter="url(#shadow)">
@@ -198,11 +198,11 @@
 
   <g filter="url(#shadow)">
     <rect x="1505" y="1190" width="700" height="205" class="node-k8s"/>
-    <text x="1855" y="1225" class="stereo">«job»</text>
-    <text x="1855" y="1261" class="node-title">argus-db-migrate</text>
+    <text x="1855" y="1225" class="stereo">«jobs»</text>
+    <text x="1855" y="1261" class="node-title">argus-db-migrate · argus-db-reader</text>
     <text x="1855" y="1292" class="node-subtitle">imagem processing · execução avulsa</text>
     <rect x="1540" y="1315" width="630" height="55" class="artifact-k8s"/>
-    <text x="1855" y="1350" class="artifact-text">aplica migrations e cria/atualiza o usuário de leitura</text>
+    <text x="1855" y="1350" class="artifact-text">aplica migrations; depois cria/atualiza o login argus_api</text>
   </g>
 
   <g>

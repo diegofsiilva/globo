@@ -195,19 +195,21 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 5. Calcula força, coincidência temporal, corroboração, especificidade, impacto e qualidade.
 6. Aplica penalidades, calcula score, cobertura e confiança e registra a contribuição de cada fator.
 7. Classifica a candidata como gerada, descartada ou com evidência insuficiente.
-8. Ordena as hipóteses geradas e persiste candidatos, fatores, evidências e estatísticas, que ficam disponíveis para publicação e análise humana.
+8. Ordena as hipóteses geradas e persiste candidatos, fatores, evidências e estatísticas. Com a execução concluída, as hipóteses geradas ficam disponíveis para análise humana nas visões de leitura.
 
 **Fluxos alternativos e exceções.**
 
-- A1. Evidência suficiente: a hipótese atinge os limites de score e cobertura e é publicada.
+- A1. Evidência suficiente: a hipótese atinge os limites de score e cobertura, é classificada como gerada e fica visível para revisão assim que a execução conclui; a promoção do manifesto pelo portão de qualidade fica registrada como evento de auditoria.
 - A2. Evidência indisponível: a ausência é registrada, reduz a cobertura e não vira contradição.
 - A3. Evidência contrária determinante: a candidata é descartada, com a justificativa preservada.
 - A4. Pico ao vivo esperado: volume que cresce durante um evento compatível, sem piora proporcional de erro ou experiência, vira contexto e não degradação.
 - A5. Problema na própria fonte: baixa qualidade gera hipótese de atraso ou falha de dados, separada das causas operacionais.
-- E1. Catálogo ou manifesto inválido: a execução não é publicada e o erro de configuração fica registrado.
-- E2. Limite de candidatos excedido: o corte determinístico é aplicado e auditado; truncamento incompatível com o portão de qualidade impede promover o manifesto.
+- E1. Catálogo ou manifesto inválido: a execução não conclui, nenhuma hipótese fica visível e o erro de configuração fica registrado.
+- E2. Limite de candidatos excedido: o corte determinístico é aplicado e auditado nas estatísticas da execução; truncamento incompatível com o portão de qualidade impede promover o manifesto, e a recusa fica registrada sem ocultar as hipóteses geradas dentro do teto.
 - E3. Relação semântica desconhecida: sem ligar entidades por aproximação textual, a evidência fica não relacionada.
-- E4. Falha ao persistir: nenhuma publicação parcial é confirmada.
+- E4. Falha ao persistir: a transação é desfeita e nenhum resultado parcial fica visível.
+
+**Nota de revisão (24/09/2026).** Até 23/09/2026, a visibilidade dependia da publicação do manifesto. As migrations `032_hypotheses_visible_on_generation.sql` e `033_all_generated_hypothesis_revisions.sql` mudaram a regra: toda hipótese gerada em execução concluída aparece nas visões de leitura, respeitando o relógio virtual, e os eventos de publicação passaram a servir de auditoria do manifesto. Nenhuma hipótese continua a ser marcada como causa confirmada sem validação humana. Os testes CT01b, CT29 e CT13c de `testes-funcionais.md` verificam a regra atual.
 
 **Requisitos especiais.** Toda hipótese parte de ao menos uma detecção, usa somente evidências disponíveis no instante analisado e mantém linguagem não conclusiva; a mesma entrada e configuração geram o mesmo resultado. Hipótese gerada exige score mínimo de 40 e cobertura mínima de 0,50; confiança alta exige score 80, cobertura 0,80 e qualidade 0,70. Os tetos são de 10 mil candidatos, 2 mil por família e 500 hipóteses geradas por execução.
 
