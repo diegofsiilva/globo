@@ -423,20 +423,20 @@ da decisão 5.
 índice: a primeira coluna dá o instante, a segunda diz o que aparece na tela e a
 terceira aponta a seção deste artefato que aquele trecho sustenta.
 
-**Link:** [Vídeo no Drive](https://drive.google.com/file/d/1XFad3iP95uWSyXMZs26mPbUz7NWT7i-4/view?usp=sharing)
+**Link:** [Vídeo no Drive](https://drive.google.com/file/d/19DgDxN_cqHcZNQNFGKcaMAjAmcMVvx5W/view?usp=sharing)
 
 | Tempo | O que o vídeo mostra | Evidência na tela |
 |---|---|---|
-| 0:00–0:30 | Apresentação do grupo e do recorte da sprint | Não aplicável |
-| 0:30–1:40 | **Código em contêiner**: os seis `Dockerfile`, o multi-estágio, o usuário sem privilégio e a base fixada por resumo | `USER argus` uid 10001 e `USER nginx` uid 101; `HEALTHCHECK` em cinco das seis imagens, pois o `loader` é one-shot e termina; `@sha256:` nas bases (6.1) |
-| 1:40–2:30 | O build multi-arquitetura e a lista de manifestos no ECR | `docker buildx build --platform linux/amd64,linux/arm64`; `docker manifest inspect` listando as duas arquiteturas (6.2) |
-| 2:30–3:30 | **Kubernetes**: o cluster no console, os nós e os objetos aplicados | `kubectl get nodes`; `kubectl -n argus get pods,svc,ingress,hpa,pdb` (2.1) |
-| 3:30–4:10 | O Ingress de origem única | O dashboard em `/` e o relógio virtual em `/api/v1/clock`, no mesmo endereço, sem CORS (4) |
-| 4:10–4:40 | O `Job` de migrations | `kubectl get job` em `1/1`; as migrations aplicadas no registro do contêiner (33 em `db/migrations` na data desta entrega) (2.1) |
-| 4:40–5:30 | **Resiliência: autocura**. Remoção de um pod da API | Pod reagendado e `Ready` em segundos, contra os 300 s do ASG (5.3) |
-| 5:30–6:30 | **Resiliência: implantação sem queda sob carga** | `rollout restart` com o teste de carga rodando; zero erro no relatório (5.2) |
-| 6:30–6:50 | Escala automática | `kubectl get hpa -w` com as réplicas subindo e descendo (3.1, decisão 9). Requer o `metrics-server`, instalado pelo `kind-up` no ambiente local e, a partir desta sprint, pelo add-on no EKS; no cluster do laboratório de 21/09 a métrica ainda não existia (5.5) |
-| 6:50–7:00 | Encerramento | Não aplicável |
+| 0:00–0:35 | Apresentação do objetivo e visão geral da arquitetura | Introdução falada aos fluxos de ingestão e leitura |
+| 0:35–1:40 | **Código em contêiner:** Dockerfiles do backend e frontend, build em estágios, usuário sem privilégio e health check | Dockerfile do backend com `@sha256`, `USER argus` UID 10001 e `HEALTHCHECK`; Dockerfile do frontend e arquivos de deployment |
+| 1:40–2:30 | **Kubernetes no EKS:** contexto do cluster, nó e configuração do Deployment | `kubectl get nodes` com nó `Ready`; YAML do backend com `replicas: 2` |
+| 2:30–3:15 | Pods do backend e frontend em execução e chamadas à aplicação | `kubectl get pods -o wide` com dois pods de cada serviço, todos `Running` e `1/1`; logs com respostas HTTP 200 |
+| 3:15–4:07 | **Resiliência:** atualização controlada do backend e explicação das sondas | `kubectl rollout restart` e `kubectl rollout status`; pods novos iniciam, pods antigos terminam e o rollout conclui |
+| 4:07–5:14 | Processamento assíncrono com workers, ECS/Fargate e SQS | Dockerfile de worker; explicação de como a fila absorve picos e os consumidores processam eventos |
+| 5:14–5:50 | Build local da imagem Docker do backend | `docker build -t argus-backend:demo ...` e saída de build concluído |
+| 5:50–6:18 | Execução local do backend e do PostgreSQL em contêineres separados | `docker ps` mostra os dois contêineres saudáveis; backend acessível pela porta 5000 |
+| 6:18–6:54 | Verificação de saúde e chamada à API | `/health/live` e `/health/ready` retornam `200`; `/api/v1/clock` retorna JSON |
+| 6:54–6:58 | Encerramento | Conclusão da demonstração |
 
 ---
 
