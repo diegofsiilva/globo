@@ -1,0 +1,310 @@
+{
+  "requisito": "carga-ui",
+  "test_id": "20260925T004042Z",
+  "meta": "erros < 1%, p95 < 3 s e p99 < 5 s por requisicao; tela aberta em < 5 s no p95",
+  "pensar_s": 2,
+  "total_requisicoes": 24177,
+  "niveis": {
+    "nivel_1": {
+      "usuarios": 5,
+      "duracao": "2m",
+      "requisicoes": 962,
+      "telas_abertas": 276,
+      "erros_pct": "0.00",
+      "p50_ms": "138",
+      "p95_ms": "260",
+      "p99_ms": "503",
+      "max_ms": "782",
+      "tela_p95_ms": "410",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "195",
+          "tela_p95_ms": "897",
+          "tela_max_ms": "906",
+          "req_p95_ms": "667",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "131",
+          "tela_p95_ms": "245",
+          "tela_max_ms": "484",
+          "req_p95_ms": "228",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "129",
+          "tela_p95_ms": "265",
+          "tela_max_ms": "266",
+          "req_p95_ms": "150",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "158",
+          "tela_p95_ms": "269",
+          "tela_max_ms": "339",
+          "req_p95_ms": "194",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "183",
+          "tela_p95_ms": "411",
+          "tela_max_ms": "504",
+          "req_p95_ms": "282",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "141",
+          "tela_p95_ms": "215",
+          "tela_max_ms": "459",
+          "req_p95_ms": "212",
+          "erros_pct": "0.00"
+        }
+      },
+      "limiares": {
+        "agregado": {
+          "erros": true,
+          "req_p95": true,
+          "req_p99": true,
+          "tela_p95": true,
+          "telas_completas": true
+        },
+        "telas": {
+          "agora": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "timeline": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "comparar": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "explorar": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "recorte": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "hipoteses": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          }
+        }
+      },
+      "criterios_falhos": [],
+      "aprovado": true
+    },
+    "nivel_2": {
+      "usuarios": 25,
+      "duracao": "2m",
+      "requisicoes": 4764,
+      "telas_abertas": 1363,
+      "erros_pct": "0.00",
+      "p50_ms": "143",
+      "p95_ms": "304",
+      "p99_ms": "639",
+      "max_ms": "988",
+      "tela_p95_ms": "490",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "199",
+          "tela_p95_ms": "1003",
+          "tela_max_ms": "1113",
+          "req_p95_ms": "752",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "134",
+          "tela_p95_ms": "412",
+          "tela_max_ms": "634",
+          "req_p95_ms": "308",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "140",
+          "tela_p95_ms": "274",
+          "tela_max_ms": "810",
+          "req_p95_ms": "166",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "170",
+          "tela_p95_ms": "489",
+          "tela_max_ms": "840",
+          "req_p95_ms": "218",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "203",
+          "tela_p95_ms": "443",
+          "tela_max_ms": "659",
+          "req_p95_ms": "328",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "146",
+          "tela_p95_ms": "268",
+          "tela_max_ms": "754",
+          "req_p95_ms": "267",
+          "erros_pct": "0.00"
+        }
+      },
+      "limiares": {
+        "agregado": {
+          "erros": true,
+          "req_p95": true,
+          "req_p99": true,
+          "tela_p95": true,
+          "telas_completas": true
+        },
+        "telas": {
+          "agora": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "timeline": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "comparar": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "explorar": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "recorte": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "hipoteses": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          }
+        }
+      },
+      "criterios_falhos": [],
+      "aprovado": true
+    },
+    "nivel_3": {
+      "usuarios": 100,
+      "duracao": "2m",
+      "requisicoes": 18450,
+      "telas_abertas": 5239,
+      "erros_pct": "0.00",
+      "p50_ms": "169",
+      "p95_ms": "841",
+      "p99_ms": "1217",
+      "max_ms": "1570",
+      "tela_p95_ms": "969",
+      "telas_completas_pct": "100.00",
+      "telas": {
+        "agora": {
+          "tela_p50_ms": "220",
+          "tela_p95_ms": "1320",
+          "tela_max_ms": "1867",
+          "req_p95_ms": "864",
+          "erros_pct": "0.00"
+        },
+        "timeline": {
+          "tela_p50_ms": "141",
+          "tela_p95_ms": "352",
+          "tela_max_ms": "1640",
+          "req_p95_ms": "297",
+          "erros_pct": "0.00"
+        },
+        "comparar": {
+          "tela_p50_ms": "147",
+          "tela_p95_ms": "490",
+          "tela_max_ms": "1742",
+          "req_p95_ms": "267",
+          "erros_pct": "0.00"
+        },
+        "explorar": {
+          "tela_p50_ms": "243",
+          "tela_p95_ms": "1196",
+          "tela_max_ms": "1560",
+          "req_p95_ms": "995",
+          "erros_pct": "0.00"
+        },
+        "recorte": {
+          "tela_p50_ms": "391",
+          "tela_p95_ms": "1121",
+          "tela_max_ms": "1563",
+          "req_p95_ms": "1009",
+          "erros_pct": "0.00"
+        },
+        "hipoteses": {
+          "tela_p50_ms": "217",
+          "tela_p95_ms": "802",
+          "tela_max_ms": "1299",
+          "req_p95_ms": "707",
+          "erros_pct": "0.00"
+        }
+      },
+      "limiares": {
+        "agregado": {
+          "erros": true,
+          "req_p95": true,
+          "req_p99": true,
+          "tela_p95": true,
+          "telas_completas": true
+        },
+        "telas": {
+          "agora": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "timeline": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "comparar": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "explorar": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "recorte": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          },
+          "hipoteses": {
+            "abertura_p95": true,
+            "requisicao_p95": true,
+            "erros": true
+          }
+        }
+      },
+      "criterios_falhos": [],
+      "aprovado": true
+    }
+  },
+  "aprovado": true
+}

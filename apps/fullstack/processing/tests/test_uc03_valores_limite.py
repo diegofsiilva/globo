@@ -291,6 +291,162 @@ def test_a3_limite_de_contradicao_determinante(contradiction, expected):
     assert (evaluated, truncated) == (1, 0)
 
 
+# Extremos fora da faixa (CT39-CT54). Os trios (limite, -1, +1) acima param a
+# 0,01 de cada limiar; estes casos vao ate os pontos onde os dois clamps de
+# `scoring.score_features` agem (L30, por feature; L40, no score final) e
+# levam ao classificador de `rules.evaluate_candidates` valores que o scoring
+# nunca produz, para registrar onde a validacao de faixa mora e onde nao mora.
+
+
+@pytest.mark.parametrize(
+    ("feature_value", "contradiction", "expected_score", "expected_confidence"),
+    [
+        pytest.param(0.25, 1.00, 0.0, "low", id="um-clamp-inferior"),
+        pytest.param(1.00, 1.00, 70.0, "low", id="um-sem-clamp"),
+        pytest.param(1.00, -0.01, 100.0, "high", id="negativa-clamp-superior"),
+    ],
+)
+def test_extremos_de_contradicao(
+    feature_value, contradiction, expected_score, expected_confidence
+):
+    """Contradicao nos extremos 1,0 e -0,01, alem dos trios em torno de 0,50 e 0,80.
+
+    - ``um-clamp-inferior`` (CT39): contradicao 1,0 sobre base 25 daria -5; o
+      clamp inferior de ``score_features`` segura o score em 0,0 e a confianca
+      cai a ``low``.
+    - ``um-sem-clamp`` (CT40): contradicao 1,0 sobre base 100 da 70,0: a
+      penalidade maxima e -30 e o clamp so age quando a base e menor que 30.
+      A confianca ainda e ``low``, porque contradicao >= 0,80 barra ``medium``.
+    - ``negativa-clamp-superior`` (CT41): contradicao -0,01 (entrada invalida)
+      somaria 0,3 a base 100; o clamp superior segura o score em 100,0 e a
+      confianca fica ``high``, porque a guarda le a contradicao bruta.
+    """
+    values = {name: ("available", feature_value, "teste") for name in scoring.WEIGHTS}
+    score, coverage, confidence, features = scoring.score_features(
+        values, contradiction=contradiction
+    )
+    assert score == pytest.approx(expected_score)
+    assert coverage == 1.0
+    assert confidence == expected_confidence
+    penalty = next(feature for feature in features if feature.name == "X")
+    assert penalty.contribution == pytest.approx(-30 * contradiction)
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected_normalized", "expected_score"),
+    [
+        pytest.param(1.00, 1.0, 100.0, id="um"),
+        pytest.param(1.01, 1.0, 100.0, id="acima-de-um"),
+        pytest.param(-0.01, 0.0, 0.0, id="negativa"),
+    ],
+)
+def test_extremos_de_valor_de_feature(raw_value, expected_normalized, expected_score):
+    """Valor de feature em 1,00, 1,01 e -0,01: o clamp por feature (L30 do scoring).
+
+    - ``um`` (CT42): todas as features em 1,0 produzem score 100,0 sem clamp.
+    - ``acima-de-um`` (CT43): 1,01 e normalizado a 1,0 antes de ponderar; o
+      score continua 100,0 e o valor gravado na Feature e o normalizado.
+    - ``negativa`` (CT44): -0,01 e normalizado a 0,0; contribuicao zero em
+      todas as features e score 0,0, sem virar valor negativo.
+    """
+    values = {name: ("available", raw_value, "teste") for name in scoring.WEIGHTS}
+    score, coverage, _, features = scoring.score_features(values, contradiction=0.0)
+    assert score == pytest.approx(expected_score)
+    assert coverage == 1.0
+    for feature in features:
+        if feature.name == "X":
+            continue
+        assert feature.value == expected_normalized
+        assert feature.contribution == pytest.approx(feature.weight * expected_normalized)
+
+
+@pytest.mark.parametrize(
+    ("applicability", "expected_coverage"),
+    [
+        pytest.param("unavailable", 0.0, id="zero"),
+        pytest.param("not_applicable", 1.0, id="nenhuma-aplicavel"),
+    ],
+)
+def test_extremos_de_cobertura(applicability, expected_coverage):
+    """Cobertura nos extremos que o scoring consegue produzir.
+
+    - ``zero`` (CT45): todas as features aplicaveis e indisponiveis dao
+      cobertura 0,0, score 0,0 e confianca ``low``; ausencia nao vira zero
+      dentro do score, mas a cobertura registra que nada foi medido.
+    - ``nenhuma-aplicavel`` (CT46): sem feature aplicavel, a cobertura e 1,0
+      por convencao (nao ha o que cobrir) e o score continua 0,0 e ``low``.
+    """
+    values = {name: (applicability, None, "teste") for name in scoring.WEIGHTS}
+    score, coverage, confidence, _ = scoring.score_features(values, contradiction=0.0)
+    assert score == 0.0
+    assert coverage == expected_coverage
+    assert confidence == "low"
+
+
+@pytest.mark.parametrize(
+    ("quality", "expected"),
+    [
+        pytest.param(-0.01, "medium", id="negativa"),
+        pytest.param(1.01, "high", id="acima-de-um"),
+    ],
+)
+def test_extremos_de_qualidade(quality, expected):
+    """Qualidade Q em -0,01 e 1,01, alem do trio em torno de 0,70.
+
+    - ``negativa`` (CT47): Q=-0,01 e normalizado a 0,0 na feature, mas a guarda
+      de confianca le o valor bruto; -0,01 < 0,70 impede ``high`` e o score 95
+      com cobertura 1,0 cai em ``medium``.
+    - ``acima-de-um`` (CT48): Q=1,01 e normalizado a 1,0 na feature e o valor
+      bruto satisfaz a guarda; score 100,0 e ``high``.
+    """
+    values = {
+        name: ("available", quality if name == "Q" else 1.0, "teste")
+        for name in scoring.WEIGHTS
+    }
+    score, coverage, confidence, features = scoring.score_features(
+        values, contradiction=0.0
+    )
+    q_feature = next(feature for feature in features if feature.name == "Q")
+    assert q_feature.value == max(0.0, min(1.0, quality))
+    assert score == pytest.approx(100.0 - 5.0 * (1.0 - q_feature.value))
+    assert coverage == 1.0
+    assert confidence == expected
+
+
+@pytest.mark.parametrize(
+    ("score", "coverage", "expected"),
+    [
+        pytest.param(100.00, 1.00, "generated", id="score-maximo"),
+        pytest.param(100.01, 1.00, "generated", id="score-acima-do-maximo"),
+        pytest.param(-0.01, 1.00, "discarded", id="score-negativo"),
+        pytest.param(40.00, 0.00, "discarded", id="cobertura-zero"),
+        pytest.param(40.00, -0.01, "discarded", id="cobertura-negativa"),
+        pytest.param(40.00, 1.01, "generated", id="cobertura-acima-de-um"),
+    ],
+)
+def test_a1_extremos_fora_da_faixa(monkeypatch, score, coverage, expected):
+    """Classificador de A1 recebendo score e cobertura que o scoring nunca produz.
+
+    O ``score_features`` e substituido por um valor fixo, como nos trios de
+    ``test_a1_limites_de_geracao``, para observar so a decisao de
+    ``rules.evaluate_candidates``. Ela e um limiar puro (score >= 40 e
+    cobertura >= 0,50) e nao valida faixa: quem garante 0..100 e 0..1 e o
+    scoring, e estes casos registram essa divisao de responsabilidade.
+
+    - ``score-maximo`` (CT49): 100,00 e 1,00 geram.
+    - ``score-acima-do-maximo`` (CT50): 100,01 tambem gera; nao ha rejeicao
+      por excesso no classificador.
+    - ``score-negativo`` (CT51): -0,01 e descartado, como qualquer valor
+      abaixo de 40.
+    - ``cobertura-zero`` (CT52): cobertura 0,00 descarta mesmo com score no
+      limite.
+    - ``cobertura-negativa`` (CT53): -0,01 descarta.
+    - ``cobertura-acima-de-um`` (CT54): 1,01 gera; nao ha rejeicao por excesso.
+    """
+    status = _evaluation_status(monkeypatch, score=score, coverage=coverage)
+    assert status == expected
+
+
 @pytest.mark.parametrize(
     ("quantity", "expected_evaluated", "expected_truncated"),
     [(1999, 1999, 0), (2000, 2000, 0), (2001, 2000, 1)],

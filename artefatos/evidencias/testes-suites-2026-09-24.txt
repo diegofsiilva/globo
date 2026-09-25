@@ -1,0 +1,220 @@
+# Execução das suítes do Argus — 2026-09-24
+# Registro: 2026-09-24T17:53:25-03:00
+# Commit: 75a4889b9642dd22e9bea7028a890ce4710db1b0
+# Máquina: Darwin 25.6.0 arm64; Apple M2
+# uv: uv 0.8.17 (10960bc13 2025-09-10)
+# Python (processing): Python 3.14.7
+# pytest (processing): pytest 9.1.1
+# Node: v25.8.1; npm: 11.11.0
+# PostgreSQL de teste: PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit (container tf-pg, postgres:16, porta 55498)
+# Clone limpo: nenhum .venv existia no worktree antes desta rodada; uv sync/npm ci executados a partir dos lockfiles.
+# Sem banco: porta 55432 (default PG_TEST_URL do Makefile) sem nada escutando -> as fixtures pulam os testes de banco.
+
+==============================================================================
+# P0.1 — reprodução do defeito no comando do documento (antes da correção do Makefile; comando literal do doc)
+==============================================================================
+$ cd apps/fullstack/backend && uv run --quiet pytest tests/unit --tb=no
+error: Failed to spawn: `pytest`
+  Caused by: No such file or directory (os error 2)
+(capturado neste worktree em 2026-09-24 antes do commit "fix: torna os alvos de teste e os scripts reproduzíveis em clone limpo")
+
+==============================================================================
+# COM BANCO (TEST_DATABASE_URL=postgresql://argus:x@localhost:55498/argus_test)
+==============================================================================
+
+==============================================================================
+# backend — make -C apps/fullstack test-backend
+==============================================================================
+$ make -C apps/fullstack test-backend
+cd backend && TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgresql://argus:argus@localhost:55432/argus_test} uv run --quiet --extra dev pytest
+...ss................................................................... [ 29%]
+........................................................................ [ 58%]
+........................................................................ [ 87%]
+................................                                         [100%]
+246 passed, 2 skipped in 349.15s (0:05:49)
+[exit=0, 354 s]
+
+==============================================================================
+# worker — make -C apps/fullstack test-worker
+==============================================================================
+$ make -C apps/fullstack test-worker
+cd worker && TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgresql://argus:argus@localhost:55432/argus_test} uv run --quiet pytest
+........................................................................ [ 65%]
+......................................                                   [100%]
+110 passed in 78.60s (0:01:18)
+[exit=0, 288 s]
+
+==============================================================================
+# simulator — make -C apps/fullstack test-simulator
+==============================================================================
+$ make -C apps/fullstack test-simulator
+cd simulator && uv run --quiet pytest
+make: *** [test-simulator] Terminated: 15
+
+# (a rodada acima foi interrompida durante o simulador por sobrecarga da máquina; retomada em 2026-09-24T21:02:25-03:00 no mesmo commit)
+
+==============================================================================
+# simulator — make -C apps/fullstack test-simulator
+==============================================================================
+$ make -C apps/fullstack test-simulator
+cd simulator && uv run --quiet pytest
+......................                                                   [100%]
+22 passed in 0.11s
+[exit=0, 1 s]
+
+==============================================================================
+# authorizer — make -C apps/fullstack test-authorizer
+==============================================================================
+$ make -C apps/fullstack test-authorizer
+cd authorizer && AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-${AWS_REGION:-us-east-1}} uv run --quiet --group dev pytest
+..................                                                       [100%]
+18 passed in 1.24s
+[exit=0, 3 s]
+
+==============================================================================
+# tools — make -C apps/fullstack test-hypothesis-batch
+==============================================================================
+$ make -C apps/fullstack test-hypothesis-batch
+cd tools && uv run --quiet python -m unittest discover -s tests -p test_hypothesis_batch.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+OK
+[exit=0, 0 s]
+
+==============================================================================
+# frontend (vitest) — make -C apps/fullstack test-frontend
+==============================================================================
+$ make -C apps/fullstack test-frontend
+cd frontend && npm test
+
+> frontend@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/frontend
+
+
+ Test Files  9 passed (9)
+      Tests  28 passed (28)
+   Start at  21:02:32
+   Duration  2.66s (transform 714ms, setup 1.15s, import 1.14s, tests 469ms, environment 10.50s)
+
+[exit=0, 6 s]
+
+==============================================================================
+# backend — comando do doc: uv run --extra dev pytest tests/unit
+==============================================================================
+$ env -C /Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/backend uv run --quiet --extra dev pytest tests/unit --tb=no -p no:cacheprovider
+...............................................................          [100%]
+63 passed in 0.03s
+[exit=0, 0 s]
+
+==============================================================================
+# backend — testes de contrato spec<->rotas: tests/test_openapi.py
+==============================================================================
+$ env -C /Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/backend uv run --quiet --extra dev pytest tests/test_openapi.py -v --tb=short -p no:cacheprovider
+============================= test session starts ==============================
+platform darwin -- Python 3.14.7, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/backend
+configfile: pyproject.toml
+plugins: cov-6.3.0
+collected 12 items
+
+tests/test_openapi.py ............                                       [100%]
+
+============================== 12 passed in 7.69s ==============================
+[exit=0, 8 s]
+
+==============================================================================
+# frontend — testes de contrato: tests/contracts
+==============================================================================
+$ env -C /Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/frontend npx vitest run tests/contracts
+
+ RUN  v4.1.11 /Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/frontend
+
+
+ Test Files  6 passed (6)
+      Tests  25 passed (25)
+   Start at  21:02:44
+   Duration  1.29s (transform 467ms, setup 783ms, import 456ms, tests 86ms, environment 5.13s)
+
+[exit=0, 3 s]
+
+==============================================================================
+# k8s — make -C apps/fullstack k8s-validate
+==============================================================================
+$ make -C apps/fullstack k8s-validate
+  base                     ok
+  migrate                  ok
+  overlays/aws             ok
+  overlays/kind            error: loading KV pairs: env source files: [secret.env]: evalsymlink failure on '/Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/k8s/overlays/kind/secret.env' : lstat /Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/k8s/overlays/kind/secret.env: no such file or directory
+make: *** [k8s-validate] Error 1
+[exit=2, 0 s]
+
+==============================================================================
+# processing com banco
+==============================================================================
+ver cobertura-2026-09-24.txt: a suíte completa do processamento rodou com --cov e o banco (mesma contagem).
+
+==============================================================================
+# Playwright e2e (make test-frontend-e2e)
+==============================================================================
+não executado nesta rodada: exige next build (--webpack), Flask local e Chromium do Playwright, numa máquina já sobrecarregada;
+a evidência vigente dos 12 e2e é evidencias/testes-kubernetes.txt (kind, 21/09).
+
+==============================================================================
+# SEM BANCO (TEST_DATABASE_URL não definida; o default do Makefile aponta para :55432, sem servidor)
+==============================================================================
+
+==============================================================================
+# backend sem banco — make -C apps/fullstack test-backend
+==============================================================================
+$ make -C apps/fullstack test-backend
+cd backend && TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgresql://argus:argus@localhost:55432/argus_test} uv run --quiet --extra dev pytest
+ssssssssssssssssssssssssssssssssssssssss..............ssssssssssssssssss [ 29%]
+ssssssssssssssssssssssssssssssssssss........ssssssssssssssssssssssssssss [ 58%]
+ssssssssssssssssss..sssssssssssssssssssss............................... [ 87%]
+................................                                         [100%]
+87 passed, 161 skipped in 0.20s
+[exit=0, 1 s]
+
+==============================================================================
+# worker sem banco — make -C apps/fullstack test-worker
+==============================================================================
+$ make -C apps/fullstack test-worker
+cd worker && TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgresql://argus:argus@localhost:55432/argus_test} uv run --quiet pytest
+ss...................sssssssssssssssssssssssssssss...................... [ 65%]
+......................................                                   [100%]
+79 passed, 31 skipped in 0.28s
+[exit=0, 1 s]
+
+==============================================================================
+# processing sem banco — make -C apps/fullstack test-processing
+==============================================================================
+$ make -C apps/fullstack test-processing
+cd processing && TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgresql://argus:argus@localhost:55432/argus_test} uv run --quiet pytest
+sssssssss..............ssssssss....................ssssssss............s [ 49%]
+sssssssssssss...............................................sssss..ssss. [ 99%]
+s                                                                        [100%]
+96 passed, 49 skipped in 1.23s
+[exit=0, 1 s]
+
+==============================================================================
+# processing sem banco — UC03 isolado (-rs mostra os pulos)
+==============================================================================
+$ env -C /Users/gabriel/inteli/g04/.claude/worktrees/agent-a4cb1de52cb8fd4a5/apps/fullstack/processing uv run --quiet pytest tests/test_uc03_valores_limite.py -q -rs -p no:cacheprovider
+..........................................sssss..ssss.s                  [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_uc03_valores_limite.py:512: TEST_DATABASE_URL nao definida (rode `make db-local`)
+SKIPPED [1] tests/test_uc03_valores_limite.py:821: TEST_DATABASE_URL nao definida (rode `make db-local`)
+SKIPPED [1] tests/test_uc03_valores_limite.py:861: TEST_DATABASE_URL nao definida (rode `make db-local`)
+SKIPPED [2] tests/test_uc03_valores_limite.py:896: TEST_DATABASE_URL nao definida (rode `make db-local`)
+SKIPPED [2] tests/test_uc03_valores_limite.py:1020: TEST_DATABASE_URL nao definida (rode `make db-local`)
+SKIPPED [1] tests/test_uc03_valores_limite.py:1117: TEST_DATABASE_URL nao definida (rode `make db-local`)
+SKIPPED [1] tests/test_uc03_valores_limite.py:1165: TEST_DATABASE_URL nao definida (rode `make db-local`)
+SKIPPED [1] tests/test_uc03_valores_limite.py:1235: TEST_DATABASE_URL nao definida (rode `make db-local`)
+[exit=0, 1 s]
+
+# fim: 2026-09-24T21:02:50-03:00

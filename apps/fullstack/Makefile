@@ -314,7 +314,11 @@ test-worker: ## Testes dos workers de ingestao
 
 .PHONY: test-backend
 test-backend: ## Testes da API de leitura
-	cd $(BACKEND) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-$(PG_TEST_URL)} $(UV) pytest
+	@# O backend declara pytest e ruff em [project.optional-dependencies].dev,
+	@# e nao em [dependency-groups].dev como os outros apps. `uv run` nao
+	@# instala extras sozinho: sem `--extra dev`, num clone limpo o alvo
+	@# morre com "Failed to spawn: pytest".
+	cd $(BACKEND) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-$(PG_TEST_URL)} $(UV) --extra dev pytest
 
 .PHONY: test-simulator
 test-simulator: ## Testes do relogio e do emissor do simulador
@@ -365,7 +369,7 @@ lint: ## Verifica estilo sem alterar arquivos
 	cd $(SIMULATOR) && $(UV) ruff check src
 	cd $(PROCESSING) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(LOADER) && $(UV) ruff check src
-	cd $(BACKEND) && $(UV) ruff check src tests
+	cd $(BACKEND) && $(UV) --extra dev ruff check src tests
 	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff check handler.py tests
 	cd $(FRONTEND) && npm run lint
 	cd $(INFRA) && terraform fmt -check -recursive
@@ -380,7 +384,7 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(SIMULATOR) && ($(UV) ruff check --fix src || true) && $(UV) ruff format src
 	cd $(PROCESSING) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(LOADER) && ($(UV) ruff check --fix src || true) && $(UV) ruff format src
-	cd $(BACKEND) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
+	cd $(BACKEND) && ($(UV) --extra dev ruff check --fix src tests || true) && $(UV) --extra dev ruff format src tests
 	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff format handler.py tests
 	cd $(INFRA) && terraform fmt -recursive
 
