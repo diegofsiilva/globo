@@ -117,7 +117,7 @@ make k8s-kubeconfig
 make k8s-bootstrap      # IngressClass do ALB
 
 # 2. Imagens, segredo, migrations, aplicação
-make k8s-push           # backend e frontend multi-arquitetura
+make k8s-push           # backend, frontend e processing multi-arquitetura
 make k8s-secret
 make k8s-migrate        # dois Jobs, em sequência: schema e login argus_api
 make k8s-apply

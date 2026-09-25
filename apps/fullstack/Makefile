@@ -1387,16 +1387,17 @@ KIND_CLUSTER  ?= argus
 INGRESS_NGINX_VERSAO ?= controller-v1.13.3
 METRICS_SERVER_VERSAO ?= v0.8.0
 
-# As duas imagens que o cluster SERVE. Sao as unicas que `k8s-push` publica:
-# `processing` ja sai no `make push` junto com as do caminho assincrono.
-K8S_IMAGES := backend frontend
+# As tres imagens que o cluster EXECUTA: backend e frontend servem trafego, e
+# `processing` e a imagem dos Jobs de `k8s-migrate` (ela embarca db/migrations/
+# e tools/migrate.py). Ficar sem ela aqui fazia o Job de migration terminar em
+# ImagePullBackOff num ECR de lab recem-criado, porque so `make push` a publicava.
+K8S_IMAGES := backend frontend processing
 
-# O que o cluster LOCAL precisa ter carregado: as duas acima mais a de
-# `processing`, que e a imagem do Job de migration (ela embarca db/migrations/ e
-# tools/migrate.py). Listas separadas porque os dois conjuntos divergem, e
-# escrever a segunda a mao foi o que fez `make kind-load` falhar com "image not
-# present locally" depois de um `k8s-images` que nunca a construiu.
-K8S_IMAGES_LOCAIS := $(K8S_IMAGES) processing
+# O que o cluster LOCAL precisa ter carregado: hoje o mesmo conjunto. A lista
+# existe separada porque escreve-la a mao foi o que fez `make kind-load` falhar
+# com "image not present locally" depois de um `k8s-images` que nunca construiu
+# a de `processing`.
+K8S_IMAGES_LOCAIS := $(K8S_IMAGES)
 
 .PHONY: eks-roles
 eks-roles: ## Mostra os ARNs dos papeis LabEks* desta sessao do lab
@@ -1435,9 +1436,9 @@ k8s-bootstrap: ## Instala o que o cluster precisa antes da aplicacao
 k8s-images: $(addprefix image-,$(K8S_IMAGES_LOCAIS)) ## Constroi as imagens do cluster para uso local
 
 .PHONY: k8s-push
-k8s-push: ## Publica backend e frontend multi-arquitetura no ECR
-	@# Atalho para quem mexeu so no caminho sincrono. `make push` publica as
-	@# seis imagens; este alvo publica as duas que o cluster executa.
+k8s-push: ## Publica backend, frontend e processing multi-arquitetura no ECR
+	@# Atalho para quem mexeu so no cluster. `make push` publica as seis
+	@# imagens; este alvo publica as tres que o cluster executa.
 	@$(MAKE) --no-print-directory push IMAGES="$(K8S_IMAGES)"
 
 .PHONY: k8s-secret
