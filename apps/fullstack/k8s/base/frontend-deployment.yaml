@@ -41,10 +41,8 @@ spec:
         fsGroup: 101
         seccompProfile:
           type: RuntimeDefault
-      # So a de zona, diferente do backend, que tambem espalha por host: servir
-      # HTML estatico nao tem estado nem dependencia externa, entao duas
-      # replicas no mesmo no continuam absorvendo a queda de uma delas. O que
-      # importa aqui e sobreviver a perda de uma zona.
+      # A base prefere zonas distintas sem bloquear o cluster kind de um no.
+      # No overlay AWS as replicas minimas tambem exigem hosts distintos.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone

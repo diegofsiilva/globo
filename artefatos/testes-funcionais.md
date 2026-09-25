@@ -853,10 +853,10 @@ que nada estivesse errado no sistema.
 | Requisitos | RF01, ingestão por uma API única; RF06, armazenar para consulta; RNF05, não perder o que já foi aceito; RNF09, acesso apenas a autorizados; RNF10, não expor dado pessoal |
 | Caso de uso | Um dispositivo publica um evento na API e o operador o encontra no painel |
 | Componentes envolvidos | Rota `POST /v1/events` no API Gateway, Lambda authorizer, fila SQS `argus-events`, event-worker no ECS Fargate, tabela `bronze.event` no RDS, ETL de bronze para silver, tabela `silver.session_event` e a rota `GET /api/v1/events` em Lambda |
-| Pré-condições | Pilha publicada e no ar; `ARGUS_INGEST_URL`, `ARGUS_API_URL`, `ARGUS_INGEST_TOKEN` e `ARGUS_READ_TOKEN` no ambiente; event-worker e ETL em execução. Faltando qualquer uma, o teste é pulado, e não quebrado |
+| Pré-condições | Pilha publicada e no ar; `ARGUS_INGEST_URL`, `ARGUS_API_URL`, `ARGUS_INGEST_TOKEN` e `ARGUS_READ_TOKEN` no ambiente; event-worker e ETL em execução. Na suíte geral, a falta deles pula o TI-05; no alvo de entrega `test-implantacao`, ela reprova a execução. |
 | Dados de entrada | Um evento de erro único por execução, na sessão `ti05-` seguida de identificador aleatório, carimbado um minuto atrás do instante virtual lido em `GET /api/v1/clock` |
-| Procedimento | `cd apps/fullstack/backend && uv run --extra dev pytest tests/integration/test_implantacao.py -v -rs`, com o `.env` carregado no ambiente |
-| Situação | 1 caso aprovado e 1 reprovado, em 310 s, na execução de 17/09 às 17:23 UTC (14:23 em Brasília). A correção do TI-05.2, a migration 030 (commit `b2f003f`, de 17/09 às 16:18 em Brasília), foi escrita e validada localmente no mesmo dia, depois dessa execução, e reconfirmada em 24/09; a reexecução na AWS continua pendente |
+| Procedimento | Carregar `apps/fullstack/.env` no ambiente e executar `make -C apps/fullstack test-implantacao`. O alvo define `TI05_REQUIRED=1` e executa `tests/integration/test_implantacao.py`; somente o resultado real dos dois casos permite alterar a situação acima. |
+| Situação | 1 caso aprovado e 1 reprovado, em 310 s, na execução de 17/09 às 17:23 UTC (14:23 em Brasília). A correção do TI-05.2, a migration 030 (commit `b2f003f`, de 17/09 às 16:18 em Brasília), foi escrita e validada localmente no mesmo dia, depois dessa execução, e reconfirmada em 24/09; a reexecução na AWS continua pendente. O alvo `make -C apps/fullstack test-implantacao` exige URLs e tokens e falha se faltarem, impedindo aprovação por teste pulado. |
 | Evidência | Bloco TI-05 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt), com a saída do pytest e as medições de cada fronteira |
 
 | Caso | Entrada | Resultado esperado | Resultado obtido | Situação |

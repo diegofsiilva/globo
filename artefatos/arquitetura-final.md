@@ -12,7 +12,10 @@
 
 <p align="center"><sup>Fonte: autoria própria (2026).</sup></p>
 
-O diagrama representa a arquitetura final em uso na Sprint 4. O caminho síncrono é
+O diagrama registra a arquitetura observada até 24/09/2026. A correção de
+25/09/2026 acrescenta API Gateway HTTPS e Lambda na frente do ALB, torna o
+ALB interno e deixa o S3 privado; esses componentes ainda precisam ser
+implantados e ensaiados na AWS. O caminho síncrono é
 orquestrado pelo Amazon Elastic Kubernetes Service (EKS) Auto Mode, que provisiona e
 remove automaticamente instâncias EC2 gerenciadas. Essas instâncias atuam como
 *worker nodes* e hospedam os pods do frontend e do backend. O pipeline assíncrono
@@ -82,15 +85,15 @@ estratégias de escala diferentes.
 | **Amazon SQS e DLQs** | Mantém filas independentes para eventos e mudanças, ambas com política de redrive para DLQ após cinco tentativas. | Desacopla recepção e processamento, absorve rajadas e preserva mensagens problemáticas para diagnóstico e reprocessamento sem bloquear toda a ingestão. |
 | **Amazon ECS Fargate** | Executa os serviços `event_worker`, `merge_worker`, `processing` e `simulator`, além da task avulsa `loader`. | O pipeline assíncrono já recebe estado desejado, reinicialização e isolamento por task sem administrar servidores. Ele permanece no Fargate porque os consumidores precisam de IAM por task para acessar SQS, S3 e outros serviços AWS. |
 | **Amazon EKS Auto Mode** | Orquestra o caminho síncrono no namespace `argus`, provisiona instâncias EC2 gerenciadas como *worker nodes* e reúne os Deployments do frontend e do backend, Services, Ingress, Horizontal Pod Autoscalers (HPAs), Pod Disruption Budgets (PDBs) e os Jobs `argus-db-migrate` e `argus-db-reader`. | Fornece reconciliação contínua, reposição de pods, escalonamento e *rolling update*; a escala dos pods pelo HPA depende do add-on `metrics-server`, ausente no ensaio de 21/09, declarado em `eks.tf` como `aws_eks_addon` e ativo no ensaio de 24/09 (seção 4). Quando faltam recursos para pods pendentes, o Auto Mode cria novos nós EC2 e, quando a capacidade deixa de ser necessária, pode removê-los. Ele também fornece rede e controlador de ALB gerenciados, compatíveis com as restrições de IAM do Learner Lab. |
-| **Ingress + Application Load Balancer** | O Ingress cria um ALB que encaminha `/` para `argus-frontend` e `/api` e `/health` para `argus-backend`, registrando diretamente os IPs dos pods. | A origem única elimina o CORS entre dashboard e API, enquanto o registro direto dos IPs evita um salto adicional por `NodePort`. Com a remoção do caminho EC2 da Sprint 3 (seção 1.3), este ALB do Ingress é o único balanceador público do caminho de leitura. |
+| **Entrada HTTPS + Ingress + Application Load Balancer** | A HTTP API invoca a Lambda de entrada; ela tenta o ALB interno do Ingress, que encaminha `/` ao frontend e `/api` e `/health` ao backend, registrando os IPs dos pods. | O navegador usa uma origem HTTPS. Se o ALB falha, a Lambda usa a API de leitura e o S3 privado. A correção está no código, sem ensaio AWS ainda. |
 | **Frontend** | O `Deployment argus-frontend` serve o export estático do Next.js em nginx, com 2 réplicas mínimas, HPA até 4, sondas, PDB e atualização gradual. | O nginx no EKS permite compartilhar a origem com a API e manter a mesma imagem em diferentes ambientes. |
 | **API de leitura** | O `Deployment argus-backend` executa a API Flask + gunicorn na porta 5000, com 2 a 6 pods, HPA por CPU, probes, PDB e `preStop`. Além das consultas determinísticas, expõe `POST /api/v1/hypotheses/{id}/refinement`. A Lambda Flask atrás de API Gateway continua provisionada como contingência do caminho de leitura (seção 3.2.3). | O EKS oferece reposição de pods, escala horizontal e *rolling update* para o caminho síncrono principal. No cluster do lab de 21/09 o HPA ficou em `cpu: <unknown>` porque o Auto Mode não trazia a API `metrics.k8s.io` ([registro](evidencias/carga-kubernetes.txt), linhas 17 a 23). Com o add-on `metrics-server` declarado em [`eks.tf`](../apps/fullstack/infra/eks.tf) como `aws_eks_addon`, o ensaio de 24/09 (commit `0ff97f4b0130`) registrou `ScalingActive True ValidMetricFound` e `cpu: 0%/60%` ([registro](evidencias/carga-kubernetes-2026-09-24/hpa-e-cluster.txt)). O caminho da métrica está comprovado, mas um aumento de réplicas no EKS ainda não foi observado: a carga de 100 VUs manteve a CPU abaixo do alvo e o Deployment em 2 pods (seções 3.5 e 4). |
 | **Ollama remoto (opcional)** | Refina a explicação apresentada ao usuário com base exclusiva na hipótese publicada e em suas evidências. O backend abre uma sessão SSH com o servidor externo e executa nele a chamada HTTP ao Ollama; cada afirmação retornada precisa citar uma fonte válida. | Mantém o modelo fora do motor determinístico: ele não cria hipóteses, não altera score ou evidências e não grava dados. Falha de rede, resposta inválida ou fonte inexistente resulta em `503`, sem resposta parcialmente fundamentada. A integração só é ativada quando `OLLAMA_URL` e as variáveis `OLLAMA_SSH_*` são fornecidas; os manifests Kubernetes base ainda não as injetam. |
 | **Migration e login de leitura** | O `Job argus-db-migrate` usa a imagem `processing` para aplicar as migrations. Em seguida, o `Job argus-db-reader`, com a mesma imagem, executa `migrate.py criar-leitor --usuario argus_api` para criar ou atualizar o usuário de leitura usado pelo backend. `make k8s-migrate` roda os dois em sequência. | Migration e criação de login são execuções finitas, portanto Jobs representam melhor seu ciclo de vida no Kubernetes. A separação existe porque `aplicar` não cria o login: no lab limpo de 18/09, só com a migration o backend ficou `0/1` por falha de autenticação de `argus_api`. |
 | **Amazon RDS PostgreSQL 16** | Mantém as camadas `bronze`, `silver`, `gold`, `etl`, `detect`, o relógio `sim.now()` e as views `v_*`, com um DB subnet group que abrange as duas zonas de disponibilidade (AZs) e permite habilitar o modo Multi-AZ. | O modelo relacional preserva transações, constraints, MERGE por LSN e consultas analíticas, enquanto a instância privada e o usuário de leitura com menor privilégio reduzem a exposição. No laboratório, mantivemos o Multi-AZ desligado por custo, mas em produção ele deve ser habilitado. |
-| **VPC, sub-redes, Network Address Translation (NAT) e Internet Gateway** | Mantém as tasks Fargate (`assign_public_ip = false`) e o RDS (`publicly_accessible = false`, DB subnet group só com as privadas) nas sub-redes privadas, enquanto o ALB do Ingress, o NAT e, se habilitado, o bastion ficam nas públicas. **Limitação conhecida:** o cluster EKS recebe as quatro sub-redes (`subnet_ids = concat(local.private_subnet_ids, local.public_subnet_ids)` em [`eks.tf`](../apps/fullstack/infra/eks.tf)) e não há NodeClass própria restringindo onde o Auto Mode cria nós, enquanto as públicas têm `map_public_ip_on_launch = true`; no ensaio de 24/09 os dois nós ficaram nas sub-redes públicas `10.0.0.0/24` e `10.0.1.0/24`, com IP público (`EXTERNAL-IP`), e os pods receberam IPs de `10.0.1.0/24` ([registro](evidencias/carga-kubernetes-2026-09-24/hpa-e-cluster.txt)). | A topologia em duas zonas reduz o domínio de falha, e o banco continua sem entrada direta da internet: a porta 5432 só aceita os security groups das tasks ECS, do cluster EKS e do bastion (e, se preenchido, `db_allowed_cidr`). O Terraform não declara regra de entrada da internet para os nós, que usam o security group do cluster criado pelo EKS, mas eles ficam endereçáveis publicamente. A correção prevista, sem mudança de código nesta sprint, é uma NodeClass própria com `subnetSelectorTerms` apenas das privadas (seção 3.5). As tags `kubernetes.io/role/*` indicam ao EKS onde criar o ALB. |
+| **VPC, sub-redes, NAT e Internet Gateway** | Tasks Fargate e RDS ficam nas sub-redes privadas. O ensaio de 24/09 encontrou nós EKS com IP público ([registro](evidencias/carga-kubernetes-2026-09-24/hpa-e-cluster.txt)). A correção em [`eks.tf`](../apps/fullstack/infra/eks.tf) passa apenas as sub-redes privadas ao cluster e coloca o ALB interno nelas. | A VPC continua em duas zonas. A mudança de posicionamento ainda precisa ser aplicada e conferida na AWS; o resultado observado de 24/09 permanece evidência do risco anterior. |
 | **Bastion Host** | É um componente opcional, criado somente quando `bastion_key_name` é preenchido. Quando habilitado, permite SSH e acesso administrativo controlado aos recursos privados. | Mantém um caminho administrativo sem expor o RDS diretamente. O bastion não faz parte obrigatória de toda implantação. |
-| **Amazon Simple Storage Service (S3)** | O bucket `origem` ([`s3_origem.tf`](../apps/fullstack/infra/s3_origem.tf)) armazena os Parquets e o manifesto usados na carga inicial. O bucket do website do dashboard ([`frontend_s3.tf`](../apps/fullstack/infra/frontend_s3.tf), outputs `frontend_bucket` e `frontend_url`) hospeda o export estático do Next.js publicado por `make frontend-deploy` e é a contingência do dashboard. Buckets separados ([`vpc_logs.tf`](../apps/fullstack/infra/vpc_logs.tf)) recebem os VPC Flow Logs e os access logs de ALB. | O S3 oferece alta durabilidade para objetos imutáveis e evidências operacionais. O dashboard do caminho principal é servido pelo nginx no EKS; o website S3 só entra quando o Ingress está indisponível (seção 3.2.3). |
+| **Amazon Simple Storage Service (S3)** | O bucket `origem` ([`s3_origem.tf`](../apps/fullstack/infra/s3_origem.tf)) armazena os Parquets usados na carga inicial. O bucket privado do dashboard ([`frontend_s3.tf`](../apps/fullstack/infra/frontend_s3.tf), output `frontend_bucket`) recebe o export estático de `frontend-deploy`. Buckets separados recebem Flow Logs e access logs de ALB. | Na falha do Ingress, a Lambda de entrada lê os objetos pelo SDK e responde na mesma URL HTTPS (seção 3.2.3). |
 | **Amazon ECR** | Armazena seis imagens: `backend`, `frontend`, `worker`, `simulator`, `processing` e `loader`, publicadas com tag derivada do SHA. | A versão explícita torna o deploy rastreável e permite rollback sem a ambiguidade de `latest`. `backend`, `frontend` e `processing` são publicados para `amd64` e `arm64` (`IMAGES_MULTIARCH` no [`Makefile`](../apps/fullstack/Makefile)), pois os nós EKS e o Fargate usam arquiteturas diferentes e a imagem `processing` roda nos dois, como serviço Fargate e como Job de migration no EKS. As demais imagens são publicadas apenas para `arm64`. |
 | **CloudWatch + SNS** | Mantém alarmes e logs dos componentes AWS. O SNS envia notificações quando `alarm_email` está preenchido e a assinatura foi confirmada. Os VPC Flow Logs são enviados para S3 por padrão, embora o destino CloudWatch possa ser configurado. Os pods EKS não possuem coleta centralizada de logs e métricas por padrão. | A observabilidade cobre principalmente filas, ECS, RDS, API Gateway, Lambda e infraestrutura Terraform; o dashboard CloudWatch `main` permanece em `observability.tf`, sem os widgets de ALB e ASG do caminho EC2 removido. O ambiente ainda depende de uma configuração adicional para acompanhar o EKS de forma centralizada. |
 | **IAM + Secrets Manager + Secret do Kubernetes** | O IAM define os papéis de acesso e o Secrets Manager protege credenciais e hashes. O comando `make k8s-secret` cria o Secret `argus-backend` no cluster sem versionar esse recurso Kubernetes. Alguns valores relacionados ao EKS aparecem em outputs sensíveis e continuam no Terraform state. | IRSA e Pod Identity são bloqueados no Learner Lab. Por isso, os workloads EKS não chamam APIs AWS e os workers continuam usando IAM por task no Fargate. |
@@ -116,10 +119,9 @@ Scaling Group e um ALB próprio (`asg.tf`, `alb.tf`, `asg_observability.tf` e as
 variáveis `asg_*`, `app_instance_type` e `instance_profile_name`), foi removido,
 pois duplicava a API de leitura
 que o EKS já atende e mantinha um segundo balanceador público pago em paralelo.
-Com isso, o único balanceador público do caminho de leitura é o ALB criado pelo
-Ingress do EKS, e a contingência desse caminho passa a ser a Lambda de leitura
-atrás do API Gateway (output `read_api_url`, mantida em `api_read.tf`) com o
-website S3 do dashboard (`frontend_s3.tf`, mantido), conforme a seção 3.2.3.
+Na correção de 25/09, o ALB do Ingress passa a ser interno. A entrada pública
+HTTPS é o API Gateway com Lambda de roteamento (`edge.tf`); a contingência é a
+API de leitura (`read_api_url`) e o bucket S3 privado, conforme a seção 3.2.3.
 
 O Ollama entra somente depois que a API recupera uma hipótese já publicada. O
 frontend solicita automaticamente sua explicação refinada, o backend limita o contexto
@@ -149,12 +151,14 @@ A ingestão e o processamento assíncrono continuam no ECS Fargate. As decisões
 e os comandos estão detalhados no [inventário de contêineres](conteineres-final.md)
 e no [runbook do Kubernetes](../apps/fullstack/k8s/README.md).
 
-No diagrama fornecido para a seção 1, o ALB público recebe o tráfego HTTP do
+No diagrama histórico da seção 1, o ALB público recebe o tráfego HTTP do
 navegador e encaminha `/` ao frontend e `/api` e `/health` ao backend no EKS
 Auto Mode. As tasks Fargate e o RDS ficam nas sub-redes privadas. Os nós EC2
 gerenciados deveriam ficar nelas também, mas, como o cluster recebe as sub-redes
 públicas e privadas sem NodeClass que as restrinja, o ensaio de 24/09 registrou
-os dois nós nas sub-redes públicas, com IP público (limitação da seção 1.2). Os
+os dois nós nas sub-redes públicas, com IP público (limitação da seção 1.2). A
+correção de 25/09 usa API Gateway HTTPS na entrada, ALB interno e apenas
+sub-redes privadas no cluster; sua implantação na AWS ainda não foi verificada. Os
 dois caminhos compartilham o PostgreSQL, mas têm entradas e ciclos de escala
 distintos. O desenho representa duas zonas de disponibilidade. No ensaio de
 24/09, os dois nós estavam em sub-redes de zonas diferentes, mas os quatro pods
@@ -248,7 +252,7 @@ criados por `kubectl apply`.
 | [`apps/fullstack/k8s/base/frontend-service.yaml`](../apps/fullstack/k8s/base/frontend-service.yaml) | Cria `Service argus-frontend` `ClusterIP`, porta 80 para a porta 8080 do contêiner. | Destino interno do Ingress para `/`. |
 | [`apps/fullstack/k8s/base/frontend-hpa.yaml`](../apps/fullstack/k8s/base/frontend-hpa.yaml) | Cria `HPA argus-frontend`: 2 a 4 réplicas, alvo de CPU de 70%. | Escala declarada do dashboard no caminho síncrono. |
 | [`apps/fullstack/k8s/base/frontend-pdb.yaml`](../apps/fullstack/k8s/base/frontend-pdb.yaml) | Cria `PDB argus-frontend` com `minAvailable: 1` para interrupções voluntárias. | Preserva uma réplica do dashboard durante drenagem planejada. |
-| [`apps/fullstack/k8s/base/ingress.yaml`](../apps/fullstack/k8s/base/ingress.yaml) | Cria `Ingress argus` com `/api` e `/health` para backend:5000 e `/` para frontend:80, na mesma origem. | Entrada lógica do ALB público representado no diagrama. |
+| [`apps/fullstack/k8s/base/ingress.yaml`](../apps/fullstack/k8s/base/ingress.yaml) | Cria `Ingress argus` com `/api` e `/health` para backend:5000 e `/` para frontend:80, na mesma origem. | Entrada lógica do ALB interno na configuração corrigida. |
 | [`apps/fullstack/k8s/base/kustomization.yaml`](../apps/fullstack/k8s/base/kustomization.yaml) | Compõe Namespace, ConfigMap, Deployments, Services, HPAs, PDBs e Ingress. Não inclui o Job de migration. | Define a base comum da aplicação EKS e do equivalente local. |
 
 **Migration separada**
@@ -264,7 +268,7 @@ criados por `kubectl apply`.
 | Arquivo | Recurso e configuração principal | Relação com o diagrama |
 |---|---|---|
 | [`apps/fullstack/k8s/overlays/aws/ingressclass.yaml`](../apps/fullstack/k8s/overlays/aws/ingressclass.yaml) | Cria `IngressClassParams` e `IngressClass argus-alb` para `eks.amazonaws.com/alb`, com esquema público. | Vincula o Ingress ao ALB gerenciado pelo EKS Auto Mode. |
-| [`apps/fullstack/k8s/overlays/aws/ingress-patch.yaml`](../apps/fullstack/k8s/overlays/aws/ingress-patch.yaml) | Altera `Ingress argus`: ALB público (`internet-facing`), alvos por IP de pod, listener HTTP 80, health check `/health/live` a cada 15 s (2 sucessos para saudável, 3 falhas para não saudável) e `deregistration_delay` de 30 s. | Liga o ALB às duas aplicações sem expor seus Services diretamente. |
+| [`apps/fullstack/k8s/overlays/aws/ingress-patch.yaml`](../apps/fullstack/k8s/overlays/aws/ingress-patch.yaml) | Altera `Ingress argus`: ALB interno, alvos por IP de pod, listener HTTP 80, health check `/health/live` a cada 15 s e `deregistration_delay` de 30 s. | Liga o ALB às duas aplicações sem expor seus Services diretamente. |
 | [`apps/fullstack/k8s/overlays/aws/kustomization.yaml`](../apps/fullstack/k8s/overlays/aws/kustomization.yaml) | Compõe a base, a classe de Ingress e o patch. As imagens ECR são injetadas pelo Makefile. Não gera o Secret. | Seleciona a implantação AWS do caminho síncrono. |
 
 **Overlay kind**
@@ -309,7 +313,8 @@ materializa.
 | [`ecs_processing.tf`](../apps/fullstack/infra/ecs_processing.tf), [`ecs_simulator.tf`](../apps/fullstack/infra/ecs_simulator.tf) | Task definition e service de `processing` e de `simulator`, uma task cada quando habilitados. | ECS Fargate (processamento e simulador). |
 | [`ecs_loader.tf`](../apps/fullstack/infra/ecs_loader.tf), [`ecs_migration.tf`](../apps/fullstack/infra/ecs_migration.tf) | Task definitions avulsas do `loader` e da migration alternativa por ECS, executadas pelos outputs `loader_run_command` e `migration_run_command`. | ECS Fargate (carga inicial); alternativa ao Job de migration do EKS. |
 | [`eks.tf`](../apps/fullstack/infra/eks.tf) | `aws_eks_cluster main` em Auto Mode (`create_eks`, `eks_version`, `eks_node_pools`), access entry e policy association dos administradores, papéis descobertos por `data aws_iam_roles` e, a partir desta sprint, `aws_eks_addon metrics-server`. | Amazon EKS Auto Mode. |
-| [`frontend_s3.tf`](../apps/fullstack/infra/frontend_s3.tf) | Website hosting, criptografia, public access block e policy de leitura do bucket do dashboard; o bucket em si nasce fora do Terraform por restrição da SCP do lab. | Contingência do dashboard (website S3). |
+| [`frontend_s3.tf`](../apps/fullstack/infra/frontend_s3.tf) | Criptografia e bloqueio de acesso público do bucket do dashboard; o bucket em si nasce fora do Terraform por restrição da SCP do lab. | Contingência privada do dashboard, lida pela Lambda de entrada. |
+| [`edge.tf`](../apps/fullstack/infra/edge.tf) e [`edge/handler.py`](../apps/fullstack/edge/handler.py) | API Gateway HTTPS, Lambda de roteamento, parâmetro SSM do ALB interno e acesso ao S3/API de leitura. | Entrada única e comutação automática; ainda sem validação AWS. |
 | [`iam.tf`](../apps/fullstack/infra/iam.tf) | Papéis `task-execution` e `task` do ECS com as policies `worker`, `db-secret` e `ingest-token`. | IAM (identidade por task no Fargate). |
 | [`locals.tf`](../apps/fullstack/infra/locals.tf) | Nome do stack, seleção de VPC e sub-redes, lista de imagens e URIs no ECR, ARNs de papéis, `database_url`, variáveis comuns dos contêineres, origens do dashboard e nomes dos buckets; `data` de conta, região e VPC padrão. | Transversal. |
 | [`observability.tf`](../apps/fullstack/infra/observability.tf) | `aws_sns_topic alarms` com assinatura por e-mail, 17 blocos `aws_cloudwatch_metric_alarm` (DLQs, backlog das filas, serviços fora do ar, 5xx da API, RDS, análise, `lag_sim` e fonte silenciosa) e o dashboard CloudWatch `main`, sem widgets de ALB e ASG. | CloudWatch + SNS. |
@@ -386,7 +391,7 @@ reenviada pelo produtor e não está coberta pelo RPO do pipeline.
 | Um pod de frontend ou backend | Sem interrupção percebida | Até 2 min para recuperar a réplica | 0 para o serviço sem estado | Outra réplica `Ready`, capacidade livre e dependências saudáveis. |
 | Perda abrupta de um nó | Sem interrupção percebida | Até 5 min para reagendar as réplicas | 0 para o serviço sem estado | Réplicas efetivamente distribuídas e capacidade em outro nó. O PDB não protege a queda abrupta. |
 | Publicação defeituosa | Até 10 min | Até 10 min após rollback executado pelo operador | 0 para o serviço sem estado | Revisão anterior e imagem preservadas. Não há reversão automática no Deployment. |
-| Falha completa do Ingress ou cluster | Até 30 min | Depende do reparo ou do fallback manual | 0 para frontend e backend sem estado | Destino S3/Lambda previamente implantado e testado, além de RDS disponível. A meta ainda não foi comprovada. |
+| Falha completa do Ingress ou cluster | Até 30 min | Depende da implantação e do ensaio da comutação automática | 0 para frontend e backend sem estado | Entrada HTTPS, destino S3/Lambda e RDS disponíveis. A meta ainda não foi comprovada. |
 | Queda de task ECS consumidora | Até 5 min para retomar o consumo | Até 5 min para repor a task | 0 para mensagens retidas e reconciliadas | Serviço habilitado, retenção remanescente suficiente e operações idempotentes. |
 | Todos os consumidores indisponíveis | Até 30 min para reativar o consumo | Drenagem depende do backlog | 0 somente para mensagens ainda retidas ou na DLQ e reconciliadas | Medir a idade da mensagem mais antiga no início da falha. |
 | Falha de instância ou zona do RDS | Até 15 min em produção | Failover depende do Multi-AZ | 0 no failover Multi-AZ | `db_multi_az = true`. O ambiente `dev` atual não tem essa configuração. |
@@ -428,7 +433,7 @@ dados.
 |---|---|---|---|
 | Frontend no Kubernetes | Deployment com 2 réplicas, Service `ClusterIP`, `RollingUpdate`, HPA declarado de 2 a 4 pods, PDB e preferência de distribuição por zona | o Service remove pods não prontos. O ReplicaSet recria pods e o scheduler os reposiciona em nós saudáveis | manifests de Deployment, Service, HPA e PDB do frontend |
 | Backend no Kubernetes | Deployment com 2 réplicas, Service `ClusterIP`, `RollingUpdate`, HPA declarado de 2 a 6 pods, PDB e preferência de distribuição por zona e nó (`ScheduleAnyway`, não garantida: em 24/09 as duas réplicas ficaram no mesmo nó, seção 3.5) | requisições seguem apenas para pods `Ready`. O Deployment recompõe réplicas sem estado | manifests de Deployment, Service, ConfigMap, Secret, HPA e PDB do backend |
-| Entrada HTTP | Ingress cria um ALB público de origem única: `/api` e `/health` seguem para o backend. `/` e demais caminhos seguem para o frontend | elimina URL fixa no bundle e concentra a troca de destino. Falha da entrada afeta os dois serviços e é tratada como SEV-1 | manifest de Ingress e configuração do controlador do EKS Auto Mode |
+| Entrada HTTPS | API Gateway e Lambda roteiam para o ALB interno; `/api` e `/health` seguem para o backend, e `/` para o frontend. Falha do ALB aciona API Lambda/S3 | mantém a mesma URL e evita uma troca manual de DNS; ainda exige ensaio AWS | `edge.tf`, `edge/handler.py`, manifest de Ingress e controlador do EKS Auto Mode |
 | Ollama remoto opcional | Backend usa uma sessão SSH para solicitar o refinamento e valida as fontes da resposta. A integração depende de configuração fora dos manifests base | falha de rede, resposta inválida ou fonte inexistente afeta apenas a rota de refinamento, que responde `503`. Hipóteses publicadas e evidências continuam consultáveis | `apps/fullstack/backend/src/telemetry/infrastructure/ollama.py`, `apps/fullstack/backend/README.md` |
 | API de ingestão | API Gateway integra diretamente com duas filas SQS independentes | a borda não depende da disponibilidade dos workers. Eventos e mudanças acumulam separadamente | `apps/fullstack/infra/apigateway.tf`, `apps/fullstack/infra/apigateway_changes.tf`, `apps/fullstack/infra/sqs.tf`, `apps/fullstack/infra/sqs_changes.tf` |
 | `event-worker` e `merge-worker` | serviços ECS Fargate mantêm o número desejado de tasks. Filas persistem trabalho pendente | a queda do consumidor não interrompe a aceitação. A mensagem volta a ficar visível se não for confirmada | `apps/fullstack/infra/ecs.tf` |
@@ -512,39 +517,27 @@ a três revisões nos manifests. Se a revisão ou a imagem não estiver disponí
 publicar uma imagem conhecida de forma controlada. O circuit breaker do ECS
 não executa esse rollback do Kubernetes.
 
-**Fallback S3/Lambda, executado pelo operador.** Terraform declara o website
-S3 em [`frontend_s3.tf`](../apps/fullstack/infra/frontend_s3.tf) e a API de
-leitura Lambda/API Gateway em [`api_read.tf`](../apps/fullstack/infra/api_read.tf).
-Com a remoção do caminho EC2 da Sprint 3 nesta sprint, não há mais ASG nem ALB
-próprio como alternativa: esses dois destinos são a única contingência do
-caminho de leitura.
-Os registros da seção 4 não comprovam que esses destinos estavam implantados
-ou saudáveis no ensaio EKS. O procedimento requer credenciais AWS com acesso
-ao estado Terraform e ao bucket, perfil `g4` no laboratório, região
-`us-east-1` e acesso ao cluster para validar o retorno. Antes de depender dos
-destinos, verificar no estado
-Terraform os outputs `frontend_url`, `frontend_bucket` e `read_api_url` e
-testar seus endpoints. Se os recursos não existirem, preparar o pacote Lambda
-e aplicar a infraestrutura pelo fluxo `make -C apps/fullstack tf-apply`, sujeito
-à revisão do plano Terraform. Esse preparo deve ocorrer antes do incidente
-para tornar viável a meta de 30 min.
+**Contingência automática preparada em 25/09.** A entrada HTTPS é a HTTP API
+de [`edge.tf`](../apps/fullstack/infra/edge.tf), no domínio padrão da AWS. Sua
+Lambda tenta primeiro o ALB **interno** do Ingress. Se ele não responde ou
+devolve 502/503/504, consultas `GET` e `HEAD` de `/api` e `/health` seguem
+para a API de leitura Lambda; escritas com resultado incerto retornam 503 para
+evitar repetição de um `POST` já processado;
+as páginas e os assets são lidos do bucket S3 privado. O navegador permanece
+na mesma URL e não precisa trocar de DNS. O export é publicado por
+`frontend-deploy` com URL relativa de API. O ALB é registrado no SSM por
+`k8s-edge-register` após a criação do Ingress. Os registros da seção 4 são
+anteriores a esta correção e **não comprovam** o fallback na AWS.
 
-1. Confirmar que RDS e rede estão disponíveis, que a Lambda alcança o banco e
-   que o token Bearer de leitura existe. O fallback compartilha o RDS.
-2. Obter `read_api_url` e `frontend_url` com `terraform output -raw` em
-   `apps/fullstack/infra`. Validar `GET /api/v1/clock` com token válido e sem
-   token. A resposta sem token deve ser `401` quando a autenticação está ativa.
-3. Definir `ARGUS_API_URL` como `read_api_url` e executar
-   `make -C apps/fullstack frontend-deploy`. O build grava essa URL no frontend
-   estático e publica os arquivos no bucket `frontend_bucket`.
-4. Validar a página no `frontend_url`, as rotas do dashboard, as chamadas à API
-   com Bearer e os dados de leitura. Registrar horário, respostas e latência.
-5. Alterar manualmente o endereço apresentado ao usuário, ou o DNS se houver
-   um registro operacional, para o `frontend_url`. Não há alternância de DNS
-   automatizada nos arquivos atuais.
-6. Depois da recuperação do EKS, validar pods, Ingress, RDS, autenticação e
-   consultas pela origem principal. Restaurar manualmente o endereço do EKS
-   e repetir o smoke test. Registrar o período de operação no fallback.
+1. Antes de depender da contingência, aplicar o Terraform após revisar o
+   plano, executar `frontend-deploy`, `k8s-apply` e `k8s-edge-register`.
+2. Obter `frontend_url` e `read_api_url` dos outputs. Na URL HTTPS principal,
+   validar páginas e `GET /api/v1/clock` com Bearer; sem token, esperar 401.
+3. Em ensaio controlado, indisponibilizar o Ingress ou o serviço primário e
+   repetir as mesmas requisições **na mesma URL**. Registrar respostas,
+   horários e latência. A API de contingência compartilha o RDS.
+4. Restaurar o serviço, repetir o smoke test e verificar que o roteador voltou
+   à origem principal após o cache do SSM expirar (até 10 s).
 
 Evitar girar tokens durante a troca, pois `auth-rotate` invalida credenciais
 anteriores. A contingência cobre leitura e dashboard. Ela não substitui a
@@ -681,10 +674,9 @@ pontual do RDS cria outra instância e outro endpoint, como descreve a
 
 A recuperação somente pode ser declarada depois de todos os passos aplicáveis:
 
-1. Confirmar pelo endereço do Ingress as rotas `/` e `/api/v1/clock`, a
+1. Confirmar pelo `frontend_url` HTTPS as rotas `/` e `/api/v1/clock`, a
    autenticação e uma consulta de leitura. `make -C apps/fullstack smoke` testa
-   a URL informada em `ARGUS_API_URL` e confere o CORS a partir de
-   `frontend_url` (website S3); sozinho, não prova a recuperação do EKS.
+   a API informada em `ARGUS_API_URL`; sozinho, não prova o retorno do EKS.
 2. Deployments, Services, Endpoints, Ingress e ECS apresentam capacidade
    saudável igual à desejada por pelo menos duas janelas de métrica.
 3. A idade da mensagem mais antiga diminui continuamente, as filas drenam e
@@ -756,10 +748,10 @@ seção 4.
 | Limitação | Impacto | Ação necessária | Prioridade |
 |---|---|---|---|
 | Recuperação Kubernetes ainda não ensaiada integralmente. | RTOs de nó, readiness, rollback e Ingress continuam metas. | Executar e registrar os exercícios da seção 3.4 com eventos e horários. | Alta |
-| Distribuição por zona e nó é preferida com `ScheduleAnyway`, não garantida. No EKS em 24/09, com dois nós prontos, os quatro pods de frontend e backend ficaram no mesmo nó `i-00a465e34dd02fa77` ([registro](evidencias/carga-kubernetes-2026-09-24/hpa-e-cluster.txt)). PDB atua só no `drain`. | A perda desse nó derrubaria todas as réplicas das duas aplicações. | Registrar nós e zonas dos pods, reservar capacidade e testar `drain` e perda abrupta separadamente. | Alta |
+| Em 24/09, os quatro pods ficaram no mesmo nó ([registro](evidencias/carga-kubernetes-2026-09-24/hpa-e-cluster.txt)). O overlay AWS agora exige dois hosts distintos para as réplicas mínimas; ainda falta revalidar no EKS. | A distribuição real e a sobrevivência à perda de nó não foram medidas depois da correção. | Registrar nós e zonas dos pods, testar `drain` e perda abrupta separadamente. | Alta |
 | HPA do EKS lê a métrica (`ScalingActive True` em 24/09), mas nenhum aumento de réplicas foi observado no EKS. | Escala automática sob carga real continua não demonstrada no EKS. | Repetir a carga até a CPU passar de 60% da *request* e registrar o evento `SuccessfulRescale`, réplicas, latência e erros. | Alta |
-| Nós EKS nas sub-redes públicas com IP público (ensaio de 24/09), porque o cluster recebe as quatro sub-redes e não há NodeClass própria. | Os nós ficam endereçáveis da internet; a proteção passa a depender só dos security groups. O RDS continua privado. | Criar uma NodeClass do Auto Mode com `subnetSelectorTerms` apenas das sub-redes privadas e referenciá-la no node pool. | Alta |
-| Fallback S3/Lambda não foi comprovado como implantado e não troca a entrada automaticamente. | Falha do Ingress pode exceder a meta de recuperação. | Pré-implantar, validar autenticação e destino e ensaiar o runbook da seção 3.2.3. Avaliar DNS com health check. | Alta |
+| Nós EKS receberam IP público no ensaio de 24/09. `eks.tf` agora oferece só as sub-redes privadas aos pools padrão; a mudança ainda não foi aplicada no lab. | Até nova implantação, os nós observados continuam com o risco anterior. | Aplicar em sessão válida e confirmar os endereços e rotas dos novos nós. | Alta |
+| Fallback automático foi implementado no código, mas não implantado nem ensaiado na AWS. | A meta de recuperação segue não comprovada. | Aplicar, validar autenticação e ensaiar a seção 3.2.3. | Alta |
 | RDS `dev` usa Single-AZ e backup de um dia. | Failover Multi-AZ e RPO de restauração não se aplicam ao ambiente atual. | Exigir Multi-AZ em produção, ampliar retenção e ensaiar restore completo. | Alta |
 | ECS repõe tasks somente com `desired_count > 0` e não tem auto scaling declarado. | Uma task única pode deixar consumo parado e ampliar a idade da fila. | Definir capacidade mínima e escala por idade da mensagem, respeitando exclusão dos consumidores. | Alta |
 | Reconciliação de alto volume e frescor da ETL incompletos. | Contagem agregada pode ocultar perda ou duplicidade. TI-05 não atingiu o prazo. | Reconciliar IDs e duplicidades, drenar ou recomputar backlog e repetir TI-05. | Alta |

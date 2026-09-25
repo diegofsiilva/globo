@@ -60,11 +60,8 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 
-      # Espalha as replicas pelas duas zonas da VPC. `ScheduleAnyway` e nao
-      # `DoNotSchedule` porque no EKS Auto Mode o no so nasce DEPOIS de o pod
-      # ficar Pending: exigir a zona certa faria o pod de surge esperar um no
-      # novo por 1 a 2 minutos a cada rolling update. Numa conta de producao,
-      # com no ja quente, `DoNotSchedule` seria a escolha correta.
+      # A base prefere distribuicao entre zonas e nos sem bloquear o kind.
+      # O overlay AWS exige dois hosts distintos para as replicas minimas.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone

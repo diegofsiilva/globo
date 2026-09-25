@@ -121,13 +121,9 @@ locals {
   # 60: um unico minuto de parede processando um lote ja da 3600 s virtuais.
   lag_sim_limite = var.alarm_lag_sim_wall_seconds * var.simulator_speed
 
-  # Origens aceitas no CORS da API de leitura. O endpoint HTTP do website S3
-  # entra sozinho; a lista adicional continua reservada ao desenvolvimento
-  # local. Nao use `*`, porque a API recebe um token Bearer do navegador.
-  dashboard_origins = concat(
-    ["http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"],
-    var.dashboard_origins_extra,
-  )
+  # A entrada HTTPS e a API estao na mesma origem. CORS e necessario apenas
+  # para os ambientes locais informados explicitamente pelo desenvolvedor.
+  dashboard_origins = var.dashboard_origins_extra
 
   # Buckets de origem/frontend criados FORA do Terraform (aws s3api
   # create-bucket), pela mesma razao de flow_logs/alb_logs: a SCP do AWS
@@ -136,7 +132,7 @@ locals {
   # do provider isso nao da so erro -- derruba o Terraform com panic ao tentar
   # serializar o estado do bucket recem-criado. O nome continua deterministico
   # (nome + conta), so o resource `aws_s3_bucket` que deixa de existir; os
-  # sub-recursos (versioning, encryption, PAB, policy, website) continuam
+  # sub-recursos (versioning, encryption, PAB) continuam
   # gerenciados aqui, referenciando o nome direto.
   frontend_bucket_name = "${local.name}-site-${data.aws_caller_identity.current.account_id}"
   origem_bucket_name   = "${local.name}-origem-${data.aws_caller_identity.current.account_id}"

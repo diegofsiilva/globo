@@ -16,6 +16,7 @@ resources:
 
 patches:
   - path: ingress-patch.yaml
+  - path: placement-patch.yaml
 
 # Os placeholders IMAGE_BACKEND, IMAGE_FRONTEND e IMAGE_PROCESSING sao
 # substituidos por `make k8s-apply` pela referencia completa da imagem, lida de

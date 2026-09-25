@@ -26,6 +26,7 @@ BACKEND    := backend
 INFRA      := infra
 TOOLS      := tools
 FRONTEND   := frontend
+EDGE       := edge
 POSTMAN    := ../../artefatos/postman
 OBSERVABILITY := observability
 TESTES_CARGA := tests/carga
@@ -280,7 +281,15 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-edge test-frontend test-observabilidade test-hypothesis-batch ## Roda as suites que tem teste
+
+.PHONY: test-edge
+test-edge: ## Testa a comutacao entre ALB interno, API Lambda e S3
+	cd $(EDGE) && { if command -v py >/dev/null 2>&1; then py -3 -m unittest discover -s tests -v; else python3 -m unittest discover -s tests -v; fi; }
+
+.PHONY: test-implantacao
+test-implantacao: ## Executa TI-05 na AWS; falha se URLs ou tokens faltarem
+	cd $(BACKEND) && TI05_REQUIRED=1 $(UV) --extra dev pytest tests/integration/test_implantacao.py -v
 
 .PHONY: test-hypothesis-batch
 test-hypothesis-batch: ## Valida o lote CDC sem usar AWS ou banco
@@ -364,6 +373,7 @@ test-frontend-e2e: ## Teste integrado dashboard -> Flask -> PostgreSQL local
 .PHONY: lint
 lint: ## Verifica estilo sem alterar arquivos
 	cd $(TOOLS) && $(UV) ruff check . && $(UV) ruff format --check .
+	cd $(TOOLS) && $(UV) ruff check ../$(EDGE)/handler.py ../$(EDGE)/tests && $(UV) ruff format --check ../$(EDGE)/handler.py ../$(EDGE)/tests
 	cd $(COMMON) && uv run --quiet --with ruff ruff check src
 	cd $(WORKER) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(SIMULATOR) && $(UV) ruff check src
@@ -561,15 +571,17 @@ tf-destroy: ## Remove TODA a infraestrutura
 	cd $(INFRA) && terraform destroy
 
 .PHONY: lambda-build
-lambda-build: ## Empacota a API de leitura e o authorizer para a Lambda
+lambda-build: ## Empacota a API de leitura, o authorizer e a entrada HTTPS
 	cd $(BACKEND) && ./scripts/build_lambda.sh
 	cd $(AUTHORIZER) && ./scripts/build_lambda.sh
+	cd $(EDGE) && ./scripts/build_lambda.sh
 
 .PHONY: lambda-hash
 lambda-hash: lambda-build ## Imprime o hash local dos zips (compare com o CodeSha256 publicado)
 	@echo "commit:     $(GIT_SHA)"
 	@echo "read-api:   $$(openssl dgst -sha256 -binary $(BACKEND)/dist/telemetry-read-api.zip | openssl base64)"
 	@echo "authorizer: $$(openssl dgst -sha256 -binary $(AUTHORIZER)/dist/argus-authorizer.zip | openssl base64)"
+	@echo "edge:       $$(openssl dgst -sha256 -binary $(EDGE)/dist/argus-edge.zip | openssl base64)"
 	@echo
 	@echo "Publicado na AWS:"
 	@$(call require_env,AWS_PROFILE)
@@ -815,10 +827,11 @@ frontend-build: frontend-build-info ## Gera o site estatico do dashboard
 	  npm run build -- $(NEXT_BUILD_ARGS)
 
 .PHONY: frontend-deploy
-frontend-deploy: frontend-build ## Publica o dashboard no website S3
+frontend-deploy: ## Publica a copia privada do dashboard usada no fallback
 	@$(call require_env,AWS_PROFILE)
+	$(MAKE) --no-print-directory frontend-build ARGUS_API_URL=/
 	aws s3 sync $(FRONTEND)/out/ \
-	  "s3://$$(cd $(INFRA) && terraform output -raw frontend_bucket)/" --delete
+	  "s3://$$(cd $(INFRA) && terraform output -raw frontend_bucket)/" --delete --profile $$AWS_PROFILE
 	@echo
 	@echo "Dashboard no ar: $$(cd $(INFRA) && terraform output -raw frontend_url)"
 
@@ -1563,6 +1576,27 @@ k8s-rollout: ## Publica as imagens e espera o rollout terminar
 	$(MAKE) --no-print-directory k8s-apply
 	$(KUBECTL) -n $(K8S_NAMESPACE) rollout status deployment/argus-backend --timeout=300s
 	$(KUBECTL) -n $(K8S_NAMESPACE) rollout status deployment/argus-frontend --timeout=300s
+	$(MAKE) --no-print-directory k8s-edge-register
+
+.PHONY: k8s-edge-register
+k8s-edge-register: ## Registra o ALB interno na entrada HTTPS apos o Ingress nascer
+	@$(call require_env,AWS_PROFILE)
+	@set -e; \
+	parametro=$$(cd $(INFRA) && terraform output -raw edge_primary_host_parameter); \
+	[ -n "$$parametro" ] || { echo "erro: entrada HTTPS ausente do state" >&2; exit 1; }; \
+	host=""; \
+	for tentativa in $$(seq 1 40); do \
+	  host=$$($(KUBECTL) -n $(K8S_NAMESPACE) get ingress argus \
+	    -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true); \
+	  [ -n "$$host" ] && break; \
+	  sleep 5; \
+	done; \
+	case "$$host" in internal-*.elb.amazonaws.com) ;; \
+	  *) echo "erro: o Ingress ainda nao tem ALB interno valido" >&2; exit 1;; esac; \
+	aws ssm put-parameter --name "$$parametro" --type String \
+	  --value "$$host" --overwrite --profile $$AWS_PROFILE \
+	  --region $${AWS_REGION:-us-east-1} >/dev/null; \
+	echo "ALB interno registrado. Entrada: $$(cd $(INFRA) && terraform output -raw frontend_url)"
 
 .PHONY: k8s-status
 k8s-status: ## Pods, HPA, PDB e Ingress numa tela so
@@ -1572,20 +1606,8 @@ k8s-status: ## Pods, HPA, PDB e Ingress numa tela so
 	@echo; $(KUBECTL) -n $(K8S_NAMESPACE) get ingress
 
 .PHONY: k8s-url
-k8s-url: ## Imprime o endereco publico do Ingress
-	@set -e; \
-	host=$$($(KUBECTL) -n $(K8S_NAMESPACE) get ingress argus \
-	  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null); \
-	if [ -z "$$host" ]; then \
-	  host=$$($(KUBECTL) -n $(K8S_NAMESPACE) get ingress argus \
-	    -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
-	fi; \
-	if [ -z "$$host" ]; then \
-	  echo "erro: o Ingress ainda nao tem endereco." >&2; \
-	  echo "      Na AWS o ALB leva 2 a 4 minutos para nascer." >&2; \
-	  exit 1; \
-	fi; \
-	echo "http://$$host"
+k8s-url: ## Imprime a entrada publica HTTPS do dashboard e da API
+	@cd $(INFRA) && terraform output -raw frontend_url
 
 .PHONY: k8s-logs
 k8s-logs: ## Segue o log de um Deployment (APP=backend|frontend)

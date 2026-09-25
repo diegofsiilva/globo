@@ -41,10 +41,14 @@ O primeiro fluxo é o de **eventos de sessão**: o que o app de TV emite (`reque
 App de TV ──> API Gateway ──> SQS ──> ECS Fargate ─┐
              (ingestão)                (event      │
                                         worker)    │
-                                                   ├──> RDS PostgreSQL ──> EKS Auto Mode ──> ALB ──> Navegador
+                                                   ├──> RDS PostgreSQL ──> EKS Auto Mode ──> ALB interno
 Simulador ──> API Gateway ──> SQS ──> ECS Fargate ─┘   bronze/silver/gold   (Deployments     (Ingress:
  (ECS)       (mudanças)                (merge                                backend Flask e   / dashboard,
                                         worker)                              frontend nginx)   /api leitura)
+
+Navegador ──HTTPS──> API Gateway ──> Lambda de entrada ──> ALB interno
+                                           │
+                                           └── falha do ALB ──> API Lambda / S3 privado
 ```
 
 Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
@@ -69,9 +73,9 @@ Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
 | Carga inicial | Sobe as 33 tabelas a partir de Parquet, via `COPY FROM STDIN` | ECS Fargate (task one-shot) |
 | API de leitura | Filtros cumulativos, agregações, paginação por cursor e redação de dado pessoal | EKS Auto Mode (`Deployment argus-backend`, Flask + gunicorn, 2 a 6 pods por HPA) |
 | Dashboard | Visualização e investigação de incidentes | EKS Auto Mode (`Deployment argus-frontend`, nginx com o export estático do Next.js) |
-| Entrada pública | Um Ingress só: `/` vai para o dashboard, `/api` e `/health` para a API; mesma origem, sem CORS | ALB provisionado pelo Ingress do EKS |
-| Migrations | `Job argus-db-migrate`, com a imagem `processing`, aplica as 33 migrations e cria o usuário de leitura | EKS (Job one-shot) |
-| Compatibilidade | Lambda da API de leitura atrás de API Gateway e website S3 do dashboard continuam provisionados, sem tráfego principal | AWS Lambda + API Gateway, S3 |
+| Entrada pública | API Gateway HTTPS recebe `/`, `/api` e `/health`; Lambda encaminha ao ALB interno do Ingress | API Gateway + Lambda + ALB interno |
+| Migrations e login de leitura | `Job argus-db-migrate` aplica as 33 migrations; depois, `Job argus-db-reader` cria ou atualiza o usuário de leitura. Ambos usam a imagem `processing` | EKS (dois Jobs sequenciais) |
+| Contingência | Na falha do ALB, a entrada tenta a API de leitura Lambda e serve o export estático de um bucket S3 privado | AWS Lambda + API Gateway + S3 |
 
 ### O relógio virtual
 
@@ -85,9 +89,9 @@ Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências 
 
 ### Estado atual (Sprint 4): conteinerização e Kubernetes
 
-Na Sprint 4 o caminho síncrono passou a rodar num cluster **Amazon EKS Auto Mode**, criado pelo Terraform dentro da VPC do projeto (`create_eks = true`) e descrito pelos manifestos de [`apps/fullstack/k8s`](apps/fullstack/k8s). O namespace `argus` reúne dois Deployments (`argus-backend`, a API Flask + gunicorn, e `argus-frontend`, o nginx com o export estático do Next.js), cada um com Service, HorizontalPodAutoscaler e PodDisruptionBudget; um ConfigMap; um Ingress que provisiona o Application Load Balancer e encaminha `/` ao dashboard e `/api` e `/health` à API; e o Job `argus-db-migrate`, que usa a imagem `processing` para aplicar as migrations e criar o usuário de leitura antes de cada versão. O Auto Mode cria e remove os nós EC2 conforme os pods pendentes, e os overlays `aws` e `kind` executam o mesmo conjunto de manifestos na AWS e num cluster local.
+Na Sprint 4 o caminho síncrono passou a rodar num cluster **Amazon EKS Auto Mode**, criado pelo Terraform dentro da VPC do projeto (`create_eks = true`) e descrito pelos manifestos de [`apps/fullstack/k8s`](apps/fullstack/k8s). O namespace `argus` reúne dois Deployments (`argus-backend`, a API Flask + gunicorn, e `argus-frontend`, o nginx com o export estático do Next.js), cada um com Service, HorizontalPodAutoscaler e PodDisruptionBudget; um ConfigMap; um Ingress que provisiona o Application Load Balancer e encaminha `/` ao dashboard e `/api` e `/health` à API; e dois Jobs sequenciais com a imagem `processing`: `argus-db-migrate` aplica as migrations e `argus-db-reader` cria ou atualiza o login de leitura. O Auto Mode cria e remove os nós EC2 conforme os pods pendentes, e os overlays `aws` e `kind` executam o mesmo conjunto de manifestos na AWS e num cluster local.
 
-A ingestão não mudou de plataforma: API Gateway → SQS → ECS Fargate (merge worker, event worker, simulador, processamento e a task de carga) continua gravando no RDS PostgreSQL 16, porque esses serviços precisam de IAM por task para falar com SQS e S3, e o Learner Lab bloqueia IRSA e Pod Identity no EKS. O caminho de leitura em EC2 da Sprint 3 (Auto Scaling Group com Application Load Balancer próprio) foi removido: a leitura pública vem do ALB criado pelo Ingress do EKS. A Lambda da API de leitura e o website S3 seguem provisionados apenas como recurso de compatibilidade. Diagrama, justificativas, plano de recuperação de falhas e evidências estão em [`artefatos/arquitetura-final.md`](artefatos/arquitetura-final.md); as decisões de conteinerização e orquestração, em [`artefatos/conteineres-final.md`](artefatos/conteineres-final.md).
+A ingestão não mudou de plataforma: API Gateway → SQS → ECS Fargate (merge worker, event worker, simulador, processamento e a task de carga) continua gravando no RDS PostgreSQL 16, porque esses serviços precisam de IAM por task para falar com SQS e S3, e o Learner Lab bloqueia IRSA e Pod Identity no EKS. O caminho de leitura em EC2 da Sprint 3 (Auto Scaling Group com Application Load Balancer próprio) foi removido. Na correção de 25/09, o acesso público passa por API Gateway HTTPS e Lambda, que usam o ALB **interno** como origem principal e a API de leitura Lambda/S3 privado como contingência automática. Esta configuração ainda exige implantação e ensaio na AWS; as evidências anteriores descrevem o estado observado antes da correção. O [plano de correção](artefatos/plano-correcao-develop.md) registra as etapas e pendências. Diagrama, justificativas, plano de recuperação de falhas e evidências estão em [`artefatos/arquitetura-final.md`](artefatos/arquitetura-final.md); as decisões de conteinerização e orquestração, em [`artefatos/conteineres-final.md`](artefatos/conteineres-final.md).
 
 ### Histórico: arquitetura v4 da Sprint 3
 
@@ -321,10 +325,10 @@ O ambiente de entrega é o **AWS Academy Learner Lab**, que impõe concessões a
 | ECS Fargate | Quatro serviços ARM64 do caminho assíncrono (merge worker, event worker, simulador, processamento) e tasks one-shot (carga e migration) |
 | RDS PostgreSQL 16 | `db.t3.medium`, 100 GB gp3, 33 tabelas de origem, 6 particionadas por dia |
 | S3 (origem) | Bucket versionado com o dump e os Parquet que alimentam a carga inicial |
-| EKS (Auto Mode) | Cluster na VPC do projeto (`create_eks = true`) que orquestra o caminho síncrono: dashboard, API de leitura e o `Job` de migrations, atrás do ALB provisionado pelo Ingress; os nós usam o papel mínimo `LabEksNodeRole` |
+| EKS (Auto Mode) | Cluster na VPC do projeto (`create_eks = true`) que orquestra o caminho síncrono: dashboard, API de leitura e os Jobs de migrations e login de leitura, atrás do ALB provisionado pelo Ingress; os nós usam o papel mínimo `LabEksNodeRole` |
 | Bastion | Host de acesso administrativo ao RDS, que é privado |
-| Lambda + API Gateway | Recurso de compatibilidade da API de leitura, empacotado por `scripts/build_lambda.sh` (`make lambda-build`) |
-| S3 (site) | Bucket com website hosting; recurso de compatibilidade do dashboard, que hoje é servido pelo cluster |
+| Lambda + API Gateway | Entrada HTTPS com comutação automática e API de leitura de contingência; os pacotes são gerados por `make lambda-build` |
+| S3 (site) | Bucket privado com o export estático usado quando o Ingress falha |
 | CloudWatch | Namespace `Argus/Ingestion` com alarmes de fila, banco e atraso do relógio virtual |
 
 ### Passos de implantação
@@ -356,7 +360,7 @@ make -C apps/fullstack k8s-kubeconfig       # aponta o kubectl para o cluster
 make -C apps/fullstack k8s-bootstrap        # classe de Ingress do ALB
 make -C apps/fullstack k8s-secret           # lê os outputs do Terraform; nada toca o disco
 
-# 5. aplica as 33 migrations e cria o usuário de leitura, pelo Job dentro da VPC
+# 5. aplica as 33 migrations e cria o usuário de leitura, por dois Jobs em sequência
 make -C apps/fullstack k8s-migrate
 
 # 6. carga inicial: sobe o Parquet e dispara a task (20 a 30 min, 68,7 M linhas)
@@ -368,9 +372,11 @@ make -C apps/fullstack load
 cd apps/fullstack/infra && terraform apply
 cd ../../.. && make -C apps/fullstack sim-on
 
-# 8. sobe o dashboard e a API no cluster e gera o .env local
+# 8. publica o export de contingência, sobe a aplicação e registra o ALB interno
+make -C apps/fullstack frontend-deploy
 make -C apps/fullstack k8s-apply
-make -C apps/fullstack k8s-url              # http://<hostname do ALB>: dashboard em / e API em /api
+make -C apps/fullstack k8s-edge-register
+make -C apps/fullstack k8s-url              # HTTPS: dashboard em / e API em /api
 make -C apps/fullstack env                  # .env com as URLs, para smoke, postman e replay
 ```
 

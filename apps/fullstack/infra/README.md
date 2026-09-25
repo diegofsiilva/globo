@@ -81,7 +81,7 @@ make -C apps/fullstack tf-apply          #    aplica
 make -C apps/fullstack auth-rotate       # 3. gera os tokens (imprime UMA vez)
 make -C apps/fullstack migrate-status-aws
 make -C apps/fullstack migrate-aws       # 4. migrations pela VPC
-make -C apps/fullstack frontend-deploy   # 5. dashboard no website S3
+make -C apps/fullstack frontend-deploy   # 5. copia privada para contingencia
 make -C apps/fullstack smoke             # 6. 401/403/200, latência e tamanho
 ```
 
@@ -89,9 +89,11 @@ make -C apps/fullstack smoke             # 6. 401/403/200, latência e tamanho
 nasce vazio e o authorizer falha fechado, que é o comportamento correto e não um
 defeito. Faça os dois na mesma sessão.
 
-O `tf-apply` cria o endpoint de website do S3 e libera leitura pública somente
-dos objetos do dashboard. Entre o primeiro apply e o `frontend-deploy`, o
-endpoint existe, mas ainda não contém o build atual.
+O `tf-apply` cria a entrada HTTPS no domínio padrão do API Gateway e mantém o
+bucket do dashboard privado. Depois do `frontend-deploy`, o export estático
+fica disponível para a Lambda de entrada. Quando o Ingress estiver pronto,
+`make -C apps/fullstack k8s-edge-register` registra o hostname do ALB interno
+no Parameter Store. Sem esse registro, a entrada usa a contingência.
 
 Numa conta nova, onde o ECR nasce vazio e não há banco, acrescente antes do
 passo 3:

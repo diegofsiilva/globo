@@ -33,6 +33,7 @@ crash.log
 apps/fullstack/backend/dist/
 apps/fullstack/backend/instance/
 apps/fullstack/authorizer/dist/
+apps/fullstack/edge/dist/
 
 # Gerado por `make frontend-build-info` a cada build. Versionar traria um
 # conflito de merge em todo commit, e o valor util e o do artefato publicado,

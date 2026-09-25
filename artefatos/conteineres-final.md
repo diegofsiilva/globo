@@ -430,6 +430,7 @@ aws rds start-db-instance --db-instance-identifier argus-events-dev --profile g4
 make -C apps/fullstack tf-apply            # create_eks = true no terraform.tfvars
 make -C apps/fullstack k8s-kubeconfig k8s-bootstrap
 make -C apps/fullstack k8s-push k8s-secret k8s-migrate k8s-apply
+make -C apps/fullstack frontend-deploy k8s-edge-register
 make -C apps/fullstack k8s-url
 ```
 

@@ -1,0 +1,47 @@
+# Duas replicas de cada servico devem sobreviver a perda de um no.
+# minDomains=2 impede que a segunda replica entre no primeiro no enquanto
+# o Auto Mode provisiona capacidade. O overlay kind usa uma replica e nao
+# recebe esta restricao.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-backend
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: argus-backend
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: argus-backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-frontend
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: argus-frontend
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: argus-frontend

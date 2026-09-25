@@ -9,7 +9,7 @@ kind: Ingress
 metadata:
   name: argus
   annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/scheme: internal
 
     # `ip` e nao `instance`: o ALB registra o IP do POD direto, sem passar pelo
     # NodePort. Sem isso o preStop nao adiantaria -- o alvo seria o no, que

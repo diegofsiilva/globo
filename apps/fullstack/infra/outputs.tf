@@ -232,8 +232,8 @@ output "ingest_api_id" {
 }
 
 output "frontend_url" {
-  description = "Endereco HTTP temporario do dashboard no website S3."
-  value       = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
+  description = "Entrada HTTPS unica do dashboard e da API, com fallback automatico."
+  value       = var.create_network ? aws_apigatewayv2_api.edge[0].api_endpoint : ""
 }
 
 output "frontend_bucket" {

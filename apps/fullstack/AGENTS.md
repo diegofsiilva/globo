@@ -69,13 +69,14 @@ Quando só uma área mudou, o alvo específico basta: `test-backend`,
 | `simulator` | Relógio virtual `sim.now()` e reemissão das mudanças |
 | `loader` | Carga inicial das 33 tabelas, Parquet → PostgreSQL |
 | `common` | Conexão, observabilidade e ciclo de vida compartilhados |
-| `frontend` | Dashboard Next.js, export estático servido por S3 |
+| `frontend` | Dashboard Next.js, export estático servido pelo EKS e copiado no S3 privado para contingência |
+| `edge` | Lambda de entrada HTTPS: ALB interno como origem principal, API Lambda/S3 como contingência |
 | `infra` | Terraform de toda a infraestrutura AWS |
 | `tools` | `migrate.py`, `gen_ddl.py`, `etl_dump.py`, `replay_events.py` |
 
-Caminho EC2 (ASG+ALB) da Sprint 3 removido na Sprint 4; a leitura pública vem
-do Ingress do EKS (ver `k8s/README.md`) e, como contingência, da Lambda
-`read_api_url`.
+Caminho EC2 (ASG+ALB) da Sprint 3 removido na Sprint 4; a leitura pública
+passa pelo API Gateway HTTPS e pela Lambda de entrada (`edge/`), que usa o ALB
+interno do Ingress e, como contingência, a Lambda `read_api_url` e o S3 privado.
 
 ## Como o dado anda
 

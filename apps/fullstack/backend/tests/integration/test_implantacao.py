@@ -27,6 +27,8 @@ PRE-CONDICAO: a pilha implantada e um Learner Lab, cuja sessao expira. O teste
 LE endpoints e tokens do ambiente e e PULADO quando faltam -- a mesma regra dos
 testes que dependem de banco local: sem a dependencia, pula; nao quebra. Com
 isso `make test-backend` continua verde numa maquina sem lab.
+O alvo `make test-implantacao` define TI05_REQUIRED=1 e falha quando faltam
+esses dados, para que um gate de entrega nao confunda teste pulado com aprovado.
 
     make -C apps/fullstack env     # escreve .env a partir dos outputs do Terraform
     set -a && . apps/fullstack/.env && set +a
@@ -79,11 +81,14 @@ def _ambiente() -> dict[str, str]:
     }
     faltando = sorted(nome for nome, valor in valores.items() if not valor)
     if faltando:
-        pytest.skip(
+        mensagem = (
             "pilha implantada indisponivel: faltam "
             + ", ".join(faltando)
             + " (rode `make -C apps/fullstack env` e carregue o .env)"
         )
+        if os.getenv("TI05_REQUIRED") == "1":
+            pytest.fail(mensagem)
+        pytest.skip(mensagem)
     return valores
 
 

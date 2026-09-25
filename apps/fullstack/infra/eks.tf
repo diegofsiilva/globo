@@ -108,10 +108,11 @@ resource "aws_eks_cluster" "main" {
   }
 
   vpc_config {
-    # Privadas para os nos e para alcancar o RDS; publicas para que o ALB do
-    # Ingress tenha onde nascer. O controlador escolhe uma ou outra pela tag
-    # kubernetes.io/role/* que vpc.tf aplica.
-    subnet_ids = concat(local.private_subnet_ids, local.public_subnet_ids)
+    # Os node pools padrao do Auto Mode escolhem entre as sub-redes do cluster.
+    # Oferecer tambem as publicas lhes deu IP publico no ensaio de 24/09. O ALB
+    # descobre as sub-redes publicas pela tag kubernetes.io/role/elb em vpc.tf;
+    # elas nao precisam integrar a lista de sub-redes dos nos.
+    subnet_ids = local.private_subnet_ids
 
     endpoint_private_access = true
 

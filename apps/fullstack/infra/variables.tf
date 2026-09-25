@@ -751,10 +751,8 @@ variable "hypothesis_feedback_throttle_burst_limit" {
 
 variable "dashboard_origins_extra" {
   description = <<-EOT
-    Origens ADICIONAIS aceitas no CORS da API de leitura, alem do website S3.
-
-    O dominio do dashboard entra sozinho
-    (`aws_s3_bucket_website_configuration`); esta lista existe para o
+    Origens aceitas no CORS da API de leitura. A entrada HTTPS usa a mesma
+    origem para dashboard e API, entao esta lista existe para o
     desenvolvimento local, onde a origem e
     `http://localhost:3000`. Deixe vazia no ambiente de entrega.
 

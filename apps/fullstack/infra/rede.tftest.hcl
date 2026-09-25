@@ -221,9 +221,41 @@ run "eks_traz_metrics_server" {
     create_eks = true
   }
 
+  override_resource {
+    target          = aws_subnet.private[0]
+    values          = { id = "subnet-priv-a" }
+    override_during = plan
+  }
+
+  override_resource {
+    target          = aws_subnet.private[1]
+    values          = { id = "subnet-priv-b" }
+    override_during = plan
+  }
+
   assert {
     condition     = length(aws_eks_addon.metrics_server) == 1
     error_message = "create_eks = true precisa declarar o add-on metrics-server; sem ele o HPA fica em <unknown>."
+  }
+
+  assert {
+    condition     = aws_eks_cluster.main[0].vpc_config[0].subnet_ids == toset(aws_subnet.private[*].id)
+    error_message = "Os node pools do EKS so devem receber sub-redes privadas."
+  }
+
+  assert {
+    condition     = length(aws_apigatewayv2_api.edge) == 1 && length(aws_lambda_function.edge) == 1
+    error_message = "A entrada HTTPS com fallback precisa existir na rede dedicada."
+  }
+
+  assert {
+    condition     = aws_s3_bucket_public_access_block.frontend.block_public_policy
+    error_message = "O bucket de contingencia nao pode aceitar policy publica."
+  }
+
+  assert {
+    condition     = length(aws_security_group_rule.edge_to_alb) == 1 && aws_security_group_rule.edge_to_alb[0].from_port == 80
+    error_message = "A Lambda precisa de saida HTTP para o ALB interno."
   }
 
   assert {

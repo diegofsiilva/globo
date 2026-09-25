@@ -113,8 +113,9 @@ flow_logs_destination = "s3"
 # --- Camada de aplicacao ----------------------------------------------------
 # O caminho EC2 da Sprint 3 (Auto Scaling Group + ALB; variaveis asg_*,
 # app_instance_type e instance_profile_name) foi removido na Sprint 4. A
-# leitura publica vem do Ingress do cluster EKS (create_eks, abaixo) e, como
-# contingencia, da Lambda (`terraform output read_api_url`).
+# leitura publica vem do API Gateway HTTPS (`terraform output frontend_url`),
+# cujo roteador usa o ALB interno do EKS e, como contingencia, a API Lambda
+# (`terraform output read_api_url`) e o bucket S3 privado.
 
 # --- Servicos ---------------------------------------------------------------
 worker_desired_count = 1
@@ -141,7 +142,7 @@ user_id_hash_salt = "troque-este-valor"
 # --- Kubernetes (EKS Auto Mode) ---------------------------------------------
 #
 # O cluster orquestra o caminho SINCRONO: dashboard, API de leitura e o Job de
-# migration. O caminho assincrono (workers de SQS, processing, simulator,
+# migrations e criacao do login de leitura. O caminho assincrono (workers de SQS, processing, simulator,
 # loader) continua no ECS Fargate, sem alteracao -- ver o cabecalho de eks.tf.
 #
 # Desligado por padrao: o control plane cobra por hora existindo, e o orcamento

@@ -48,9 +48,9 @@ Um arquivo por recurso, sem módulos: `vpc.tf`, `vpc_logs.tf`, `bastion.tf`,
 `variables.tf`, `outputs.tf`, `locals.tf`, `providers.tf` e `versions.tf`.
 
 Caminho EC2 (ASG+ALB) da Sprint 3 removido na Sprint 4; a leitura pública vem
-do Ingress do EKS (ver `../k8s/README.md`) e, como contingência, da Lambda
-`read_api_url`. Não recrie `asg.tf`/`alb.tf`: o ALB do cluster nasce do
-Ingress, fora do estado do Terraform.
+do API Gateway HTTPS e da Lambda de `edge.tf`. Ela usa o ALB interno do Ingress
+e, como contingência, a Lambda `read_api_url` e o S3 privado. Não recrie
+`asg.tf`/`alb.tf`: o ALB do cluster nasce do Ingress, fora do estado do Terraform.
 
 A rede toda passa por três valores de `locals.tf`: `vpc_id`, `subnet_ids` e
 `public_subnet_ids`. Os arquivos que consomem rede leem esses locals e não sabem

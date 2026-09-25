@@ -120,11 +120,13 @@ make k8s-bootstrap      # IngressClass do ALB
 make k8s-push           # backend, frontend e processing multi-arquitetura
 make k8s-secret
 make k8s-migrate        # dois Jobs, em sequência: schema e login argus_api
+make frontend-deploy    # export estatico no S3 privado para contingencia
 make k8s-apply
+make k8s-edge-register  # registra o ALB interno na entrada HTTPS
 
 # 3. Verificação
 make k8s-status
-make k8s-url            # http://<hostname do ALB>
+make k8s-url            # endpoint HTTPS do API Gateway
 ```
 
 O `metrics-server` **não vem** com o Auto Mode: um cluster recém-criado nasce

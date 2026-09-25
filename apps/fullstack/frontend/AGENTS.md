@@ -10,7 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md — dashboard
 
-Next.js 16 (App Router) com export estático servido por S3. React 19, Tailwind
+Next.js 16 (App Router) com export estático servido pelo EKS e copiado no S3
+privado para contingência. React 19, Tailwind
 CSS v4 CSS-first, TanStack Query e primitivas shadcn/ui sobre Radix. O contrato
 HTTP que a interface consome está em `rotas-frontend.md`; a organização em
 detalhe, no `README.md` deste diretório.

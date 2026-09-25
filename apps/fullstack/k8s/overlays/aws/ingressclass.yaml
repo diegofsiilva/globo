@@ -14,7 +14,9 @@ kind: IngressClassParams
 metadata:
   name: argus-alb
 spec:
-  scheme: internet-facing
+  # O navegador fala somente com o API Gateway HTTPS. A Lambda de entrada
+  # alcanca este ALB pela VPC, sem listener HTTP publico com Bearer.
+  scheme: internal
 ---
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
