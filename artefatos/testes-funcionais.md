@@ -38,7 +38,7 @@ inválidas e valores nas fronteiras.
 | Versão no backend | pytest 8.4.2 |
 | Versão nos demais serviços | pytest 9.1.1 |
 | Dependências externas | Nenhuma para os arquivos unitários selecionados |
-| Evidência textual | [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt) |
+| Evidência textual | [`evidencias/testes-unitarios.txt`](evidencias/testes-unitarios.txt)[^basica] |
 
 #### O que é uma unidade nos scripts pytest
 
@@ -404,12 +404,22 @@ limite também está incluída neste artefato, na seção de testes do UC03.
 ### Instruções para reprodução
 
 &emsp; Os comandos partem da raiz do repositório e usam os ambientes declarados em
-cada `pyproject.toml`:
+cada `pyproject.toml`. Num clone limpo o `uv run` monta o ambiente sozinho a partir
+do `uv.lock` de cada app. A exceção é o backend, que declara `pytest` e `ruff` em
+`[project.optional-dependencies].dev`, e não em `[dependency-groups].dev` como os
+outros apps: o comando precisa de `--extra dev`, ou de um `make -C apps/fullstack
+install` prévio. Sem isso ele morre com `error: Failed to spawn: pytest`, como
+registrado no início de
+[`evidencias/testes-suites-2026-09-24.txt`](evidencias/testes-suites-2026-09-24.txt).
+Os alvos `make -C apps/fullstack test-*` carregam a opção certa de cada app desde
+24/09, e são o caminho recomendado. A mesma sequência está sendo automatizada numa
+pipeline em `apps/fullstack/.gitlab-ci.yml`, que roda `make check` com um
+PostgreSQL de serviço.
 
 ```bash
-# Backend: 63 testes unitários
+# Backend: 63 testes unitários (pytest vem do extra `dev`)
 cd apps/fullstack/backend
-uv run --quiet pytest tests/unit --tb=no
+uv run --quiet --extra dev pytest tests/unit --tb=no
 
 # Worker: 33 testes unitários selecionados
 cd ../worker
@@ -475,7 +485,7 @@ a uma correção, em vez de ser contornada afrouxando o prazo. A correção foi
 validada localmente pelo plano de execução, mas o fluxo completo na infraestrutura
 publicada ainda não foi reexecutado. A execução original, com a saída bruta de
 cada suíte, está em
-[`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt).
+[`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt)[^basica].
 
 &emsp; Este relatório usa os mesmos três estados adotados em
 [`testes-carga-inicial.md`](testes-carga-inicial.md), para que uma afirmação forte e
@@ -483,6 +493,38 @@ uma fraca não pareçam iguais a quem lê rápido. Um teste preparado é aquele 
 cenário e automação existem no repositório. Um teste executado foi de fato rodado, e
 sua saída está registrada na evidência. Um teste aprovado é o que, além de
 executado, satisfez todos os critérios de aceite do caso.
+
+### Testes de contrato entre camadas
+
+&emsp; Duas suítes menores verificam o contrato entre camadas sem atravessá-las, e
+por isso ficam entre o teste unitário e o de integração. Elas não substituem o
+TI-01, que confirma o contrato contra o banco real; o que fazem é falhar cedo e sem
+infraestrutura quando uma das pontas muda de forma.
+
+&emsp; No backend, [`tests/test_openapi.py`](../apps/fullstack/backend/tests/test_openapi.py)
+confere a especificação OpenAPI servida em `/openapi.json` contra as rotas que o Flask
+registra de fato: toda rota da aplicação está na spec e a spec não documenta rota
+inexistente; os valores aceitos por faceta e agrupamento vêm das constantes do código
+e não de uma lista copiada; só os `POST` de hipótese estão documentados; nenhum campo
+sensível aparece como filtrável; o esquema Bearer está declarado, apenas as rotas
+públicas conhecidas dispensam token, toda rota de dado documenta 401 e 403 e a
+sonda de prontidão não é pública. São 12 testes, e o contrato que eles protegem é o
+que o dashboard e o Swagger UI leem.
+
+&emsp; No frontend, [`tests/contracts/`](../apps/fullstack/frontend/tests/contracts/)
+tem seis arquivos em Vitest, um por área do dashboard (`acesso`, `agora`,
+`comparar`, `explorar`, `hipoteses` e `recorte-timeline`), que exercitam as funções de
+leitura da API contra respostas no formato que o backend produz, e conferem a
+conversão para o que a tela desenha, os parâmetros de consulta que a tela envia e
+o comportamento diante de erro e de token ausente.
+
+| Suíte | Comando | Resultado em 24/09 |
+|---|---|---|
+| Contrato spec ↔ rotas, backend | `cd apps/fullstack/backend && uv run --extra dev pytest tests/test_openapi.py -v` | 12 aprovados, em 7,7 s |
+| Contratos do dashboard, frontend | `cd apps/fullstack/frontend && npx vitest run tests/contracts` | 25 aprovados, nos 6 arquivos |
+
+A saída dos dois comandos está em
+[`evidencias/testes-suites-2026-09-24.txt`](evidencias/testes-suites-2026-09-24.txt).
 
 ### Componentes envolvidos e resultado esperado da interação
 
@@ -814,13 +856,13 @@ que nada estivesse errado no sistema.
 | Pré-condições | Pilha publicada e no ar; `ARGUS_INGEST_URL`, `ARGUS_API_URL`, `ARGUS_INGEST_TOKEN` e `ARGUS_READ_TOKEN` no ambiente; event-worker e ETL em execução. Faltando qualquer uma, o teste é pulado, e não quebrado |
 | Dados de entrada | Um evento de erro único por execução, na sessão `ti05-` seguida de identificador aleatório, carimbado um minuto atrás do instante virtual lido em `GET /api/v1/clock` |
 | Procedimento | `cd apps/fullstack/backend && uv run pytest tests/integration/test_implantacao.py -v -rs`, com o `.env` carregado no ambiente |
-| Situação | 1 caso aprovado e 1 reprovado, em 310 s |
+| Situação | 1 caso aprovado e 1 reprovado, em 310 s, na execução de 18/09. A correção do TI-05.2, a migration 030, foi validada localmente em 17/09 e reconfirmada em 24/09; a reexecução na AWS continua pendente |
 | Evidência | Bloco TI-05 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt), com a saída do pytest e as medições de cada fronteira |
 
 | Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
 |---|---|---|---|---|
 | TI-05.1 | Quatro requisições à mesma rota de leitura: sem token; com token de forma válida e valor desconhecido; com o token da audiência errada, o de ingestão; e com o token correto | As três primeiras recusadas com 401 ou 403 pelo authorizer, antes de alcançarem a Lambda da aplicação; a quarta responde 200 com o corpo do relógio | As três recusadas; a quarta com 200 e o campo `sim_now` presente | Aprovado |
-| TI-05.2 | Evento enviado por `POST /v1/events` com o token de ingestão, seguido de consulta repetida a `GET /api/v1/events?session_id=...` até aparecer ou esgotar o prazo de 300 s | A borda aceita com 2xx e o evento aparece na leitura dentro do prazo, com `event_name` e `device_id` preservados e sem `user_id` na resposta | A borda aceitou e o evento foi gravado no banco, mas não apareceu na leitura em 300 s, ao longo de 29 tentativas | Reprovado |
+| TI-05.2 | Evento enviado por `POST /v1/events` com o token de ingestão, seguido de consulta repetida a `GET /api/v1/events?session_id=...` até aparecer ou esgotar o prazo de 300 s | A borda aceita com 2xx e o evento aparece na leitura dentro do prazo, com `event_name` e `device_id` preservados e sem `user_id` na resposta | A borda aceitou e o evento foi gravado no banco, mas não apareceu na leitura em 300 s, ao longo de 29 tentativas | Reprovado em 18/09; correção (migration 030, commit `b2f003f`) validada localmente em 17/09 por `test_plano_da_etl.py` e reconfirmada em 24/09 na suíte do processamento; reexecução na AWS pendente |
 
 &emsp; O primeiro caso é o tipo de asserção que nenhum teste local consegue fazer,
 porque o authorizer só existe na borda do API Gateway e o Flask local roda sem ele.
@@ -973,27 +1015,45 @@ uv run pytest tests/integration/test_implantacao.py -v -rs
 ### Execução das suítes
 
 &emsp; Para confirmar que os testes novos não quebraram nada, e que a migration do
-índice não alterou comportamento, todas as suítes do repositório foram executadas na
-mesma sessão de trabalho.
+índice não alterou comportamento, todas as suítes do repositório foram executadas
+outra vez em 24/09/2026, no commit `75a4889`, num clone limpo (sem `.venv` nem
+`node_modules` prévios, ambientes montados pelo `uv sync` e pelo `npm ci` a partir
+dos lockfiles), em macOS 15 com Apple M2, Python 3.14.7, pytest 9.1.1, Node 25.8 e
+um PostgreSQL 16.15 descartável em Docker (`postgres:16`, porta 55498). A saída
+bruta de cada linha, com o comando e o tempo, está em
+[`evidencias/testes-suites-2026-09-24.txt`](evidencias/testes-suites-2026-09-24.txt).
+Esta tabela substitui a que estava aqui sem data, com os números das rodadas de 17
+a 23/09 (72 no processamento, 227 no backend), que ficaram para trás quando o UC03
+ganhou os casos CT30–CT54 e o backend ganhou os testes de contrato da spec.
 
-| Suíte | Comando | Resultado |
-|---|---|---|
-| Worker de ingestão | `make -C apps/fullstack test-worker` | 77 aprovados |
-| Simulador | `make -C apps/fullstack test-simulator` | 2 aprovados |
-| Processamento e ETL | `make -C apps/fullstack test-processing` | 72 aprovados |
-| API de leitura | `make -C apps/fullstack test-backend` | 227 aprovados, 2 pulados |
-| Autorizador | `make -C apps/fullstack test-authorizer` | 18 aprovados |
-| Frontend, contratos e componentes | `make -C apps/fullstack test-frontend` | 24 aprovados |
-| Frontend integrado, com Playwright | `make -C apps/fullstack test-frontend-e2e` | 12 aprovados |
-| Pilha publicada, o TI-05 | `uv run pytest tests/integration/test_implantacao.py` | 1 aprovado, 1 reprovado |
-| Manifests do Kubernetes | `make -C apps/fullstack k8s-validate` | 5 conjuntos renderizados sem erro |
+&emsp; A coluna "sem banco" é a mesma suíte com `TEST_DATABASE_URL` apontando para uma
+porta sem servidor: as fixtures pulam os testes de banco em vez de quebrar, que é o
+comportamento esperado numa máquina sem Docker.
 
-&emsp; São 432 testes aprovados nas suítes que rodam sem credencial de nuvem, mais o
-TI-05, que executado com credencial aprovou um caso e reprovou outro. Os 227 do
-backend incluem os 63 testes unitários do backend e os 3 casos do TI-02. Os 2
-pulados naquela linha são justamente os casos do TI-05, que ficam de fora quando
-`make test-backend` roda sem os tokens da pilha publicada, e por isso o TI-05 tem
-linha própria na tabela.
+| Suíte | Comando | Com banco | Sem banco |
+|---|---|---|---|
+| API de leitura | `make -C apps/fullstack test-backend` | 246 aprovados, 2 pulados, em 349 s | 87 aprovados, 161 pulados |
+| Worker de ingestão | `make -C apps/fullstack test-worker` | 110 aprovados, em 79 s | 79 aprovados, 31 pulados |
+| Processamento e ETL | `make -C apps/fullstack test-processing` | 142 aprovados, 3 reprovados, em 659 s (medido na execução com `--cov`) | 96 aprovados, 49 pulados |
+| Simulador | `make -C apps/fullstack test-simulator` | 22 aprovados | não usa banco |
+| Autorizador | `make -C apps/fullstack test-authorizer` | 18 aprovados | não usa banco |
+| Ferramentas, lote CDC | `make -C apps/fullstack test-hypothesis-batch` | 3 aprovados, em `unittest` | não usa banco |
+| Frontend, contratos e componentes | `make -C apps/fullstack test-frontend` | 28 aprovados, 25 de contrato e 3 de componente | não usa banco |
+| Frontend integrado, com Playwright | `make -C apps/fullstack test-frontend-e2e` | Não executado nesta rodada: exige `next build`, Flask local e o Chromium do Playwright, e a evidência vigente é a dos 12 casos no cluster `kind` em 21/09, em [`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) | — |
+| Pilha publicada, o TI-05 | `uv run --extra dev pytest tests/integration/test_implantacao.py` | Não executado nesta rodada, por não usar credencial da AWS; último resultado, de 18/09: 1 aprovado, 1 reprovado | — |
+| Manifests do Kubernetes | `make -C apps/fullstack k8s-validate` | 3 de 5 conjuntos renderizados (`base`, `migrate` e `overlays/aws`); `overlays/kind` parou por falta do `secret.env` local, não versionado, e `overlays/kind/migrate` não foi alcançado | — |
+
+&emsp; São 569 testes aprovados e 3 reprovados nas suítes que rodam sem credencial
+de nuvem. Os 3 reprovados estão todos no processamento, em testes do UC03 que
+afirmam a visibilidade de hipótese só depois da publicação do manifesto, regra que
+as migrations 032 e 033 mudaram em 24/09; a seção do UC03 detalha a divergência e
+a decisão pendente. Os 2 pulados do backend com banco são os casos do TI-05, que
+ficam de fora quando `make test-backend` roda sem os tokens da pilha publicada, e
+por isso o TI-05 tem linha própria na tabela. A suíte do processamento cresceu de
+105 para 145 desde a evidência de 23/09: 16 extremos CT39–CT54 do UC03 e 24 testes
+que entraram no tronco com a integração de 24/09. A linha dos manifests reflete o clone
+limpo: `overlays/kind` lê um `secret.env` local, não versionado, e sem ele o
+`kustomize` para nesse overlay; os três conjuntos anteriores renderizaram.
 
 &emsp; A última linha não entra nessas contagens, porque não é uma suíte de casos: o
 alvo `k8s-validate` renderiza os cinco conjuntos de manifests (`base`, `migrate`,
@@ -1026,6 +1086,28 @@ como esse passo não está no runbook de nenhum artefato, fica registrado aqui: 
 tipo de detalhe que transforma um portão de qualidade em falha de CI no primeiro
 ambiente limpo em que ele rodar.
 
+### Cobertura de código por serviço
+
+&emsp; A cobertura de linhas foi medida em 24/09 com `pytest-cov`, com o banco de teste
+disponível, nos três serviços que têm suíte com banco; o simulador e o authorizer
+têm suítes pequenas e o número não acrescentaria leitura. O worker já declarava
+`pytest-cov`; o processing ganhou a dependência no grupo `dev` nesta rodada. O
+alvo `--cov=src` cobre o pacote de cada serviço (`telemetry`, `argus_worker` e
+`argus_processing`). A medida do processing saiu da mesma execução em que os 3
+testes de visibilidade do UC03 reprovaram; a linha coberta não depende da asserção.
+A saída bruta, com a tabela por módulo, está em
+[`evidencias/cobertura-2026-09-24.txt`](evidencias/cobertura-2026-09-24.txt).
+
+| Serviço | Comando, no diretório do serviço | Linhas | Não cobertas | Cobertura |
+|---|---|---:|---:|---:|
+| API de leitura, `backend/src` | `uv run --extra dev pytest --cov=src --cov-report=term` | 1.751 | 219 | 87% |
+| Worker de ingestão, `worker/src` | `uv run pytest --cov=src --cov-report=term` | 512 | 65 | 87% |
+| Processamento e ETL, `processing/src` | `uv run pytest --cov=src --cov-report=term` | 1.121 | 172 | 85% |
+
+&emsp; O número mede o que a suíte executa, não o que ela verifica: uma linha coberta
+por um teste sem asserção conta igual. Ele serve para apontar onde não há teste
+nenhum, e é assim que deve ser lido.
+
 ### Cobertura do caminho orquestrado por Kubernetes
 
 &emsp; Os testes iniciais deste artefato foram executados em 17 e 18 de setembro de
@@ -1050,7 +1132,8 @@ que foi medido do que não foi, nos três estados usados no restante do artefato
 |---|---|---|
 | Carga da API de leitura nos três níveis | ALB e grupo de auto scaling, 2 instâncias `t4g.small` | Executado também no cluster em 21/09; ver [Rodada no cluster](#rodada-no-cluster-kubernetes) |
 | Elasticidade sob carga | Target tracking em 60 requisições por instância por minuto | Tentado no cluster e impossível de medir: o HPA ficou sem métrica de CPU durante toda a rodada |
-| Contrato entre dashboard e API, o TI-01 | Duas origens, com CORS | Executado em origem única no cluster local, 3 casos aprovados |
+| Contrato entre dashboard e API, o TI-01 | Duas origens, com CORS | Executado em origem única no cluster local em 21/09, 3 casos aprovados; saída em [`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) |
+| Dashboard integrado de ponta a ponta, os 9 casos E2E-00 a E2E-08 de [`frontend-integrado.spec.ts`](../apps/fullstack/frontend/tests/e2e/frontend-integrado.spec.ts) | Flask e PostgreSQL locais, via `make test-frontend-e2e` | Executado no cluster `kind` em 21/09, pelo Ingress em origem única: 12 aprovados em 16,8 s somando os 3 do TI-01; saída em [`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) |
 | Autorização na borda, o TI-05.1 | API Gateway e Lambda authorizer | Não se aplica: o Ingress não passa pelo authorizer |
 | Manifests do cluster | `kubectl kustomize`, sem cluster | Executado, sem erro |
 | Sondas, implantação sem queda e autocura | Cluster `kind` local | Executado, e registrado na seção 5 de [`conteineres-final.md`](conteineres-final.md), não aqui |
@@ -1214,12 +1297,41 @@ A análise começa pelos pontos em que uma diferença pequena muda a classifica�
 | CT30 | Contradição abaixo do descarte determinante | contradiction 0,79, com score e cobertura reais suficientes | `generated`, sem truncamento | `generated`, com penalidade −23,70 e truncamento zero | **Aprovado** |
 | CT31 | Contradição no limite do descarte determinante | contradiction 0,80, com score e cobertura reais suficientes | `discarded`, sem truncamento | `discarded`, com penalidade −24,00 e truncamento zero | **Aprovado** |
 | CT32 | Contradição acima do descarte determinante | contradiction 0,81, com score e cobertura reais suficientes | `discarded`, sem truncamento | `discarded`, com penalidade −24,30 e truncamento zero | **Aprovado** |
+| CT39 | Contradição no extremo 1,00, clamp inferior do score | todas as features 0,25 (base 25) e contradiction 1,00 | score 0,00 e `low` | score 0,00, penalidade −30,00 e `low` | **Aprovado** |
+| CT40 | Contradição no extremo 1,00, sem clamp | todas as features 1,00 (base 100) e contradiction 1,00 | score 70,00 e `low` | score 70,00, penalidade −30,00 e `low` | **Aprovado** |
+| CT41 | Contradição negativa, clamp superior do score | todas as features 1,00 e contradiction −0,01 | score 100,00 e `high` | score 100,00, penalidade +0,30 e `high` | **Aprovado** |
+| CT42 | Feature no máximo, 1,00 | todas as features 1,00 | normalizada 1,00 e score 100,00 | normalizada 1,00 e score 100,00 | **Aprovado** |
+| CT43 | Feature acima do máximo, 1,01 | todas as features 1,01 | normalizada 1,00 e score 100,00 | normalizada 1,00, contribuição igual ao peso e score 100,00 | **Aprovado** |
+| CT44 | Feature negativa, −0,01 | todas as features −0,01 | normalizada 0,00 e score 0,00 | normalizada 0,00, contribuição 0 e score 0,00 | **Aprovado** |
+| CT45 | Cobertura zero | todas as features `unavailable` | coverage 0,00, score 0,00 e `low` | coverage 0,00, score 0,00 e `low` | **Aprovado** |
+| CT46 | Nenhuma feature aplicável | todas as features `not_applicable` | coverage 1,00 por convenção, score 0,00 e `low` | coverage 1,00, score 0,00 e `low` | **Aprovado** |
+| CT47 | Qualidade negativa, −0,01 | quality −0,01 e demais features 1,00 | Q normalizado 0,00, score 95,00 e `medium` | Q 0,00, score 95,00 e `medium` | **Aprovado** |
+| CT48 | Qualidade acima do máximo, 1,01 | quality 1,01 e demais features 1,00 | Q normalizado 1,00, score 100,00 e `high` | Q 1,00, score 100,00 e `high` | **Aprovado** |
+| CT49 | Score no máximo, no classificador | score 100,00 e coverage 1,00 injetados | `generated` | `generated` | **Aprovado** |
+| CT50 | Score acima do máximo, no classificador | score 100,01 e coverage 1,00 injetados | `generated`, sem validação de faixa | `generated` | **Aprovado** |
+| CT51 | Score negativo, no classificador | score −0,01 e coverage 1,00 injetados | `discarded` | `discarded` | **Aprovado** |
+| CT52 | Cobertura zero, no classificador | score 40,00 e coverage 0,00 injetados | `discarded` | `discarded` | **Aprovado** |
+| CT53 | Cobertura negativa, no classificador | score 40,00 e coverage −0,01 injetados | `discarded` | `discarded` | **Aprovado** |
+| CT54 | Cobertura acima de 1, no classificador | score 40,00 e coverage 1,01 injetados | `generated`, sem validação de faixa | `generated` | **Aprovado** |
 
 Os casos CT02 a CT07 e CT16 a CT24 estão parametrizados em [`test_uc03_valores_limite.py`](../apps/fullstack/processing/tests/test_uc03_valores_limite.py), por isso cada valor aparece separadamente durante a execução. Os casos CT25 a CT27 são três verificações explícitas dentro do teste de contradição determinante.
 
 Nos casos CT02–CT07, o retorno do cálculo de score é controlado para observar apenas a classificação. Já os casos CT16–CT24 executam `score_features`. Para alcançar exatamente as coberturas de 0,79, 0,80 e 0,81, CT19–CT21 também controlam os pesos usados no cálculo. Dessa forma, é possível verificar a fronteira da decisão mesmo quando esses valores não surgem com os pesos padrão.
 
 CT30–CT32 executam o cálculo real, com candidata de `backend_internal`, fonte saudável e evidência contrária de força variável. As demais entradas são iguais. Além do estado, cada parâmetro verifica `score >= 40`, `coverage >= 0,50`, a penalidade `−30 × contradiction`, uma candidata avaliada e zero truncamentos. Isso distingue o descarte por contradição de um descarte causado por score, cobertura ou quantidade. O limite de 0,80 é diferente do limite de confiança de 0,50 coberto por CT25–CT27.
+
+Os casos CT39–CT54, acrescentados em 24/09, saem dos trios (limite, −1, +1) e vão
+até os extremos fora de faixa: os dois clamps de `score_features`, o de cada feature
+em 0..1 (linha 30 de `scoring.py`) e o do score final em 0..100 (linha 40), e o
+classificador de A1 recebendo valores que o scoring nunca produz. Três coisas ficaram
+registradas. Contradição 1,00 só zera o score quando a base é menor que 30, porque a
+penalidade máxima é −30; sobre base 100 o resultado é 70 sem clamp. Uma contradição
+negativa é a única forma de acionar o clamp superior, já que a base nunca passa de
+100. E o classificador é um limiar puro, que aceita 100,01 e 1,01 e rejeita −0,01,
+de modo que a validação de faixa mora no scoring e não nas regras. A guarda de
+confiança lê a qualidade bruta, não a normalizada, e por isso −0,01 impede `high`
+mesmo com o Q da feature gravado como 0,00. Cada caso tem docstring com o valor e a
+razão, e todos rodam em memória (pré-condição P1).
 
 ### Fluxo principal, fluxos alternativos e exceções
 
@@ -1317,7 +1429,7 @@ Pré-condições compartilhadas, referenciadas individualmente na matriz:
 
 Os prefixos dos nós abaixo são abreviações de arquivos em `apps/fullstack/processing/tests/`: **U** = [`test_uc03_valores_limite.py`](../apps/fullstack/processing/tests/test_uc03_valores_limite.py), **F** = [`test_familias.py`](../apps/fullstack/processing/tests/test_familias.py), **R** = [`test_rules.py`](../apps/fullstack/processing/tests/test_rules.py), **G** = [`test_analysisctl.py`](../apps/fullstack/processing/tests/test_analysisctl.py) e **T** = [`test_fencing.py`](../apps/fullstack/processing/tests/test_fencing.py).
 
-As verificações da matriz foram executadas na [ampliação de cobertura](#ampliação-de-cobertura-dos-oito-passos-e-dos-tetos-reais), incluindo os novos CT01b e CT30–CT38. A última coluna resume a evidência observada em cada caso. Para reproduzir uma linha, substitua o prefixo pelo nome do arquivo, acrescente `tests/` e execute o nó indicado a partir da raiz do repositório:
+As verificações da matriz foram executadas na [ampliação de cobertura](#ampliação-de-cobertura-dos-oito-passos-e-dos-tetos-reais), incluindo os novos CT01b e CT30–CT38. Os extremos CT39–CT54 entraram em 24/09 e foram executados na reexecução registrada em [`evidencias/uc03-ampliacao-ambiente-2026-09-24.txt`](evidencias/uc03-ampliacao-ambiente-2026-09-24.txt). A última coluna resume a evidência observada em cada caso. Para reproduzir uma linha, substitua o prefixo pelo nome do arquivo, acrescente `tests/` e execute o nó indicado a partir da raiz do repositório:
 
 ```bash
 # Exemplo: CT03. Troque NO pelo nó da linha que deseja reproduzir.
@@ -1374,6 +1486,22 @@ P2–P6 exigem o banco local preparado pelo comando da próxima seção. Se a li
 | CT36 | E2: aceitar 9.999 candidatas no total | P1, 11 famílias e ausência obrigatória controlada | Avaliar: `U::test_e2_limite_real_de_10000_candidatas_totais[abaixo]` | 9.999 avaliadas e zero truncadas |
 | CT37 | E2: aceitar 10.000 candidatas no total | P1, 11 famílias e ausência obrigatória controlada | Avaliar: `U::test_e2_limite_real_de_10000_candidatas_totais[no-limite]` | 10.000 avaliadas e zero truncadas |
 | CT38 | E2: cortar excedente em 10.001 candidatas no total | P1, 11 famílias e ausência obrigatória controlada | Avaliar: `U::test_e2_limite_real_de_10000_candidatas_totais[acima]` | 10.000 avaliadas e uma truncada |
+| CT39 | Extremo: contradição 1,00 zera o score pelo clamp inferior | P1 | Calcular: `U::test_extremos_de_contradicao[um-clamp-inferior]` | Score 0,00, penalidade −30,00 e `low` |
+| CT40 | Extremo: contradição 1,00 sobre base 100 não aciona o clamp | P1 | Calcular: `U::test_extremos_de_contradicao[um-sem-clamp]` | Score 70,00 e `low` |
+| CT41 | Extremo: contradição −0,01 aciona o clamp superior | P1 | Calcular: `U::test_extremos_de_contradicao[negativa-clamp-superior]` | Score 100,00 e `high` |
+| CT42 | Extremo: feature 1,00 | P1 | Calcular: `U::test_extremos_de_valor_de_feature[um]` | Normalizada 1,00 e score 100,00 |
+| CT43 | Extremo: feature 1,01 é normalizada a 1,00 | P1 | Calcular: `U::test_extremos_de_valor_de_feature[acima-de-um]` | Normalizada 1,00 e score 100,00 |
+| CT44 | Extremo: feature −0,01 é normalizada a 0,00 | P1 | Calcular: `U::test_extremos_de_valor_de_feature[negativa]` | Normalizada 0,00, contribuição 0 e score 0,00 |
+| CT45 | Extremo: cobertura 0,00 com tudo indisponível | P1 | Calcular: `U::test_extremos_de_cobertura[zero]` | Coverage 0,00, score 0,00 e `low` |
+| CT46 | Extremo: nada aplicável dá cobertura 1,00 por convenção | P1 | Calcular: `U::test_extremos_de_cobertura[nenhuma-aplicavel]` | Coverage 1,00, score 0,00 e `low` |
+| CT47 | Extremo: qualidade −0,01 impede confiança alta | P1 | Calcular: `U::test_extremos_de_qualidade[negativa]` | Q 0,00, score 95,00 e `medium` |
+| CT48 | Extremo: qualidade 1,01 é normalizada e admite alta | P1 | Calcular: `U::test_extremos_de_qualidade[acima-de-um]` | Q 1,00, score 100,00 e `high` |
+| CT49 | A1: score 100,00 gera | P1 | Classificar: `U::test_a1_extremos_fora_da_faixa[score-maximo]` | Status `generated` |
+| CT50 | A1: score 100,01 gera, sem validação de faixa | P1 | Classificar: `U::test_a1_extremos_fora_da_faixa[score-acima-do-maximo]` | Status `generated` |
+| CT51 | A1: score −0,01 descarta | P1 | Classificar: `U::test_a1_extremos_fora_da_faixa[score-negativo]` | Status `discarded` |
+| CT52 | A1: cobertura 0,00 descarta | P1 | Classificar: `U::test_a1_extremos_fora_da_faixa[cobertura-zero]` | Status `discarded` |
+| CT53 | A1: cobertura −0,01 descarta | P1 | Classificar: `U::test_a1_extremos_fora_da_faixa[cobertura-negativa]` | Status `discarded` |
+| CT54 | A1: cobertura 1,01 gera, sem validação de faixa | P1 | Classificar: `U::test_a1_extremos_fora_da_faixa[cobertura-acima-de-um]` | Status `generated` |
 
 ### Execução e evidências
 
@@ -1482,7 +1610,7 @@ Esta rodada usou WSL/Linux, Python 3.12.3, pytest 9.1.1 e PostgreSQL 16.15. O ba
 - [`evidencias/uc03-ampliacao-pytest.txt`](evidencias/uc03-ampliacao-pytest.txt): saída original da execução completa, com cada nó e sua situação.
 - [`evidencias/uc03-ampliacao-junit.xml`](evidencias/uc03-ampliacao-junit.xml): relatório produzido pelo pytest, com contagens e tempos por teste.
 - [`evidencias/uc03-ampliacao-ruff.txt`](evidencias/uc03-ampliacao-ruff.txt): saída da análise estática e da verificação de formatação.
-- [`evidencias/uc03-ampliacao-ambiente.txt`](evidencias/uc03-ampliacao-ambiente.txt): data, ambiente, comandos, commit base e SHA-256 do arquivo de testes executado. A execução inclui alterações locais sobre o commit base, explicitadas no registro.
+- [`evidencias/uc03-ampliacao-ambiente.txt`](evidencias/uc03-ampliacao-ambiente.txt)[^basica]: data, ambiente, comandos, commit base e SHA-256 do arquivo de testes executado. A execução inclui alterações locais sobre o commit base, explicitadas no registro. Por isso o SHA-256 ali registrado, `EBD928…`, não corresponde a nenhuma versão versionada do arquivo: o commit base `4a23a7e` tem SHA `9D15CF…`, e as alterações locais daquela sessão entraram em seguida no commit `51de9d5`, cujo arquivo tem SHA `FE3D00…`. A reexecução de 24/09, abaixo, registra o SHA do arquivo versionado no commit em que rodou.
 
 | Verificação da ampliação | Resultado obtido | Situação |
 |---|---|---|
@@ -1507,6 +1635,65 @@ uv run ruff format --check --no-cache src tests
 ```
 
 O caminho do JUnit é relativo ao diretório `processing`, pois o alvo do Makefile entra nessa pasta antes de chamar o pytest. Nesta rodada, foi reaproveitado o banco de teste existente.
+
+#### Extremos fora de faixa e reexecução de 24/09, 55 testes
+
+Em 24/09 o arquivo ganhou os dezesseis casos CT39–CT54, que levam o cálculo aos
+extremos fora de faixa descritos na seção de valores-limite: contradição 1,00 e −0,01,
+feature 1,01 e −0,01, cobertura 0,00 e 1,00 por convenção, qualidade −0,01 e 1,01, e o
+classificador com score 100,00, 100,01 e −0,01 e cobertura 0,00, −0,01 e 1,01. O
+arquivo passou de 39 para **55 testes**, e a suíte do processamento de 105 para
+**121**. Todos os novos casos rodam em memória.
+
+A suíte específica do UC03 foi reexecutada com e sem banco no commit `75a4889`, em
+macOS 15 (Darwin 25.6.0, Apple M2), Python 3.14.7, pytest 9.1.1 e PostgreSQL 16.15
+num container `postgres:16` descartável. As evidências desta rodada são:
+
+- [`evidencias/uc03-ampliacao-ambiente-2026-09-24.txt`](evidencias/uc03-ampliacao-ambiente-2026-09-24.txt): data e hora, commit, SHA-256 do arquivo de testes (`01E2AD669CC33E2BB8FBCCA962F808D3CB7517D8B51AFEB8D6AD60EC92A075B6`), versões de Python, pytest e PostgreSQL, o comando executado e, na sequência, a saída completa do pytest em `-v`, com cada nó e sua situação, e a saída do Ruff.
+- [`evidencias/uc03-ampliacao-junit-2026-09-24.xml`](evidencias/uc03-ampliacao-junit-2026-09-24.xml): relatório JUnit da mesma execução, com contagens e tempos por teste.
+
+| Verificação da reexecução | Resultado obtido | Situação |
+|---|---|---|
+| `test_uc03_valores_limite.py` com banco, 55 testes | 52 aprovados, 3 reprovados, em 152,7 s | 3 reprovados, todos anteriores a esta rodada; ver abaixo |
+| Os 16 casos novos, CT39–CT54 | 16 aprovados, com e sem banco | Aprovado |
+| `test_uc03_valores_limite.py` sem banco | 45 aprovados, 10 pulados | Aprovado, com os pulos esperados |
+| Suíte completa do processamento com banco, 145 testes | 142 aprovados, 3 reprovados, em 659 s (medido na execução com `--cov`) | Os mesmos 3 reprovados |
+| Ruff, análise estática | `All checks passed!` | Aprovado |
+| Ruff, formatação | `31 files already formatted` | Aprovado |
+
+Os três reprovados são CT01b (`test_fluxo_principal_oito_passos_com_persistencia`),
+CT29 (`test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto`) e
+CT13c[acima] (`test_e2_motor_persiste_truncamento_e_cli_decide_promocao[acima]`).
+Os três afirmam que uma hipótese gerada só aparece em `gold.v_hypothesis` depois da
+publicação do manifesto, e foi isso que mudou entre a evidência de 23/09 e esta: as
+migrations 032 (`hypotheses_visible_on_generation`) e 033
+(`all_generated_hypothesis_revisions`), integradas ao tronco em 24/09, reescrevem a
+view para expor toda hipótese de execução concluída, respeitando só o relógio
+virtual, com o histórico de publicação mantido apenas para auditoria. O arquivo de
+testes não mudou entre os dois commits, então a divergência é entre o teste e a
+regra nova, e não entre duas versões do teste. As asserções que falham são
+`assert rows == []` antes da promoção e `assert count == 0` quando o portão recusa
+o manifesto por truncamento. Os demais passos dos três testes, incluindo a
+persistência e a recusa do portão, continuam passando até a asserção de
+visibilidade. A decisão pendente é de produto, não de teste: se a exposição sem
+publicação é a regra final, CT01b, CT29 e CT13c passam a afirmar a visibilidade
+imediata e a matriz de rastreabilidade muda nas três linhas; se o portão volta a
+filtrar a leitura, a migration é que muda. Esta rodada não altera os testes para
+não esconder a divergência.
+
+Para reproduzir, a partir da raiz do repositório e com Docker disponível:
+
+```bash
+docker run -d --name argus-uc03-pg -e POSTGRES_USER=argus -e POSTGRES_PASSWORD=x \
+  -e POSTGRES_DB=argus_test -p 55498:5432 postgres:16
+cd apps/fullstack/processing
+TEST_DATABASE_URL=postgresql://argus:x@localhost:55498/argus_test \
+  uv run pytest tests/test_uc03_valores_limite.py -v -p no:cacheprovider \
+  --junitxml=../../../artefatos/evidencias/uc03-ampliacao-junit-2026-09-24.xml
+uv run ruff check --no-cache src tests
+uv run ruff format --check --no-cache src tests
+docker rm -f argus-uc03-pg
+```
 
 ### O que os resultados mostraram
 
@@ -1665,6 +1852,15 @@ sozinho e reprova a execução se não forem atendidos, foram estes, por nível:
 | p99 do tempo de resposta por requisição | Menor que 5 s | RNF02, o limite do requisito |
 | p95 do tempo para abrir a tela inteira | Menor que 5 s | RNF02 aplicado ao que o operador vê |
 | Telas completas | Mais de 99% | Toda rota da tela com 200 |
+| Taxa de erro por requisição, por tela | Menor que 1% em cada uma das seis telas | `http_req_failed{nivel,tela}` em `carga_ui.js` |
+| p95 do tempo de resposta por requisição, por tela | Menor que 3 s em cada tela | `http_req_duration{nivel,tela}` em `carga_ui.js` |
+| p95 do tempo para abrir a tela, por tela | Menor que 5 s em cada tela | `tela_ms{nivel,tela}` em `carga_ui.js` |
+
+&emsp; As três últimas linhas são os limiares por tela, declarados em
+[`carga_ui.js`](../apps/fullstack/tests/carga/carga_ui.js) (linhas 79 a 88) para cada
+combinação de nível e tela. Eles existem para que o agregado não esconda uma tela
+lenta atrás de cinco rápidas, e são o que reprova um nível cujo p95 agregado ainda
+passa, como aconteceu com 200 usuários na rodada do cluster.
 
 ### Resultados
 
@@ -1839,11 +2035,11 @@ plataforma não custou desempenho.
 &emsp; A segunda rodada procurou o teto, com 200, 450 e 900 usuários simultâneos. O k6
 terminou com código de saída 99, que é como ele sinaliza limiar ultrapassado:
 
-| Nível | Usuários | Requisições | Erros | p95 | Telas completas | Situação |
-|---|---:|---:|---:|---:|---:|---|
-| 1 | 200 | 29.448 | 0% | 2.766 ms | 100% | Reprovado: viola limiares por tela |
-| 2 | 450 | 37.254 | 15,21% | 9.486 ms | 78,77% | Reprovado |
-| 3 | 900 | 31.171 | 24,80% | 30.001 ms | 69,51% | Reprovado por esgotamento do prazo |
+| Nível | Usuários | Requisições | Erros | p50 | p95 | p99 | Tela p95 | Telas completas | Situação |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 1 | 200 | 29.448 | 0% | 405 ms | 2.766 ms | 3.870 ms | 3.076 ms | 100% | Reprovado: viola limiares por tela |
+| 2 | 450 | 37.254 | 15,21% | 1.104 ms | 9.486 ms | 11.236 ms | 10.166 ms | 78,77% | Reprovado |
+| 3 | 900 | 31.171 | 24,80% | 4.406 ms | 30.001 ms | 30.007 ms | 30.120 ms | 69,51% | Reprovado por esgotamento do prazo |
 
 &emsp; O maior nível aprovado observado foi o de 100 usuários, e o primeiro nível
 reprovado foi o de 200. Portanto, o intervalo experimental do limite está entre
@@ -1851,6 +2047,23 @@ reprovado foi o de 200. Portanto, o intervalo experimental do limite está entre
 exato. O resultado de 200 não pode ser aprovado pelos critérios completos, apesar
 do p95 agregado de 2.766 ms: a tela Agora excedeu 5 s na abertura e 3 s nas requisições, e Recorte excedeu 3 s nas
 requisições.
+
+&emsp; Por tela, no degrau de 200 usuários, contra os limiares de `carga_ui.js` (p95 da
+tela abaixo de 5 s e p95 da requisição abaixo de 3 s):
+
+| Tela | Tela p50 | Tela p95 | Requisição p95 | Erros | Situação |
+|---|---:|---:|---:|---:|---|
+| Agora | 617 ms | 5.075 ms | 4.441 ms | 0% | Reprovado nos dois limiares |
+| Timeline | 9 ms | 898 ms | 809 ms | 0% | Aprovado |
+| Comparar | 6 ms | 438 ms | 354 ms | 0% | Aprovado |
+| Explorar | 644 ms | 2.284 ms | 1.796 ms | 0% | Aprovado |
+| Recorte | 2.240 ms | 3.411 ms | 3.189 ms | 0% | Reprovado no p95 da requisição |
+| Hipóteses | 751 ms | 2.972 ms | 2.840 ms | 0% | Aprovado |
+
+Os valores por tela vêm de
+[`evidencias/carga-kubernetes/rodada-b-resultado.json`](evidencias/carga-kubernetes/rodada-b-resultado.json),
+em `niveis.nivel_1.telas`; os agregados da tabela anterior, do mesmo arquivo e de
+[`evidencias/carga-kubernetes.txt`](evidencias/carga-kubernetes.txt).
 
 &emsp; A ressalva é grande, porém, e precisa vir junto do número. O teto medido é o de
 duas réplicas, porque o autoescalador nunca entrou em ação. O autoescalador passou os 36 minutos de cluster no ar reportando `FailedGetResourceMetric`,
@@ -1989,6 +2202,13 @@ mas o HPA permaneceu sem métrica e as duas réplicas iniciais atenderam sozinha
 
 &emsp; Assim, integração entre camadas, carga pelo ALB e carga pelo Ingress do EKS
 foram efetivamente executadas.
+
+[^basica]: As evidências capturadas até 23/09 (`testes-unitarios.txt`,
+    `testes-integracao.txt`, `k8s-validate.txt` e os arquivos `uc03-ampliacao-*` da
+    primeira rodada) citam caminhos `apps/basica/...`. O app foi renomeado para
+    `apps/fullstack/` em 24/09 (commit `602d3a3`, "refactor: renomeia app basica
+    para fullstack"). Os logs foram mantidos como capturados; todo caminho
+    `apps/basica/X` lido neles corresponde hoje a `apps/fullstack/X`.
 
 ## Referências
 
