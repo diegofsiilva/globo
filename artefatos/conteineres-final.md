@@ -35,6 +35,12 @@ sem orquestrador nenhum.
 escala continuam no estado do Terraform, de modo que voltar atrás é trocar dois valores
 no `terraform.tfvars`, e não refazer o provisionamento.
 
+&emsp; Essa reversibilidade cumpriu o seu papel durante a sprint e agora sai de cena: esta
+sprint remove o caminho EC2 da Sprint 3
+(`infra/asg.tf`, `alb.tf` e `asg_observability.tf`). A leitura pública passa a vir só do
+ALB que o Ingress do EKS provisiona; a contingência, com o cluster desligado, é a Lambda
+`read_api_url` com o website do S3 (decisão 13 da seção 3.1).
+
 ---
 
 ## 2. Arquitetura distribuída
@@ -56,10 +62,42 @@ que justifica plataformas diferentes.
 |---|---|---|
 | `Deployment argus-frontend` | `argus-events-dev-frontend` (nginx + export estático) | Serve o dashboard |
 | `Deployment argus-backend` | `argus-events-dev-backend` (Flask + gunicorn) | API de leitura, porta 5000 |
-| `Job argus-db-migrate` | `argus-events-dev-processing` | Aplica as 29 migrations e termina |
-| `Ingress argus` | Não aplicável | Entrada única: `/` para o dashboard, `/api` para a API |
-| `HorizontalPodAutoscaler` | Não aplicável | 2 a 6 réplicas da API, por CPU |
-| `PodDisruptionBudget` | Não aplicável | Impede que uma consolidação de nó tire todas as réplicas |
+| `Job argus-db-migrate` | `argus-events-dev-processing` | Aplica as 33 migrations e termina |
+| `Ingress argus` | Não aplicável | Entrada única: `/` para o dashboard, `/api` e `/health` para a API |
+| `HorizontalPodAutoscaler argus-backend` | Não aplicável | 2 a 6 réplicas da API, a 60% de CPU (`backend-hpa.yaml`) |
+| `HorizontalPodAutoscaler argus-frontend` | Não aplicável | 2 a 4 réplicas do dashboard, a 70% de CPU (`frontend-hpa.yaml`) |
+| `PodDisruptionBudget argus-backend` e `argus-frontend` | Não aplicável | `minAvailable: 1` em cada um: impede que uma consolidação de nó tire todas as réplicas |
+
+### 2.2 Os componentes fora do cluster em execução
+
+&emsp; O vídeo cobre o que roda no Kubernetes. Os quatro componentes que ficaram no
+Fargate continuam em execução, e a prova está em comandos que qualquer integrante do
+grupo pode repetir com o perfil `g4` (os alvos do `Makefile` exigem `AWS_PROFILE`; o
+`count` exige `DATABASE_URL`):
+
+```bash
+aws ecs list-tasks --cluster argus-events-dev --desired-status RUNNING --profile g4
+# saída esperada: uma task RUNNING por serviço (merge_worker, event_worker, processing)
+make -C apps/fullstack logs SERVICO=worker      # também simulator | processing | loader
+make -C apps/fullstack count                    # linhas em bronze, silver e gold: o loader e o worker gravaram
+make -C apps/fullstack dlq                      # filas de rejeitados; vazias, o worker está drenando
+make -C apps/fullstack k8s-status               # pods, HPA, PDB e Ingress do lado do cluster
+```
+
+&emsp; A tabela abaixo fecha o inventário: cada imagem, o seu repositório no ECR
+(`${name_prefix}-${environment}-<imagem>`, criados por `for_each` em `infra/ecr.tf`),
+onde ela executa, com quantas réplicas, para quais arquiteturas é publicada e qual
+sonda a vigia. Os valores vêm dos `Dockerfile`, do `Makefile` (`IMAGES` e
+`IMAGES_MULTIARCH`), de `infra/variables.tf` e de `k8s/base/`.
+
+| Imagem | Registro ECR | Onde roda | Réplicas | Plataformas | Sonda |
+|---|---|---|---|---|---|
+| `worker` | `argus-events-dev-worker` | ECS Fargate: serviços `merge_worker` e `event_worker` | 1 task cada (`worker_desired_count`) | `arm64` (`worker_cpu_architecture = "ARM64"`) | `HEALTHCHECK` por arquivo de batimento |
+| `simulator` | `argus-events-dev-simulator` | ECS Fargate: serviço `simulator` | 0 ou 1 (`simulator_desired_count`; dois relógios virtuais brigariam pelo mesmo `sim.clock`) | `arm64` | `HEALTHCHECK` por arquivo de batimento |
+| `processing` | `argus-events-dev-processing` | ECS Fargate: serviço `processing` (ETL e motor de hipóteses); EKS: `Job argus-db-migrate` | 1 task (`processing_desired_count`); o `Job` roda uma vez, com `backoffLimit: 2` | `arm64` + `amd64` | `HEALTHCHECK` por arquivo de batimento; no `Job`, a conclusão em `1/1` é a sonda |
+| `loader` | `argus-events-dev-loader` | ECS Fargate: task avulsa disparada por `make load` | 0 em repouso; uma task enquanto carrega | `arm64` | Nenhuma, de propósito: a carga termina |
+| `backend` | `argus-events-dev-backend` | EKS: `Deployment argus-backend` | 2, com HPA de 2 a 6 | `arm64` + `amd64` | `HEALTHCHECK` em `/health/live`; sondas de partida e de vida em `/health/live`, de prontidão em `/health/ready` |
+| `frontend` | `argus-events-dev-frontend` | EKS: `Deployment argus-frontend` | 2, com HPA de 2 a 4 | `arm64` + `amd64` | `HEALTHCHECK` em `/healthz`; as três sondas em `/healthz` |
 
 ---
 
@@ -107,10 +145,11 @@ API compilada dentro do bundle. Um Ingress único elimina as duas coisas de uma 
 | 6 | Ingress único com origem única | Um `Service` do tipo `LoadBalancer` por aplicação | Simplicidade: elimina CORS e desacopla a imagem do ambiente | Uma regra de roteamento errada afeta os dois serviços | Um balanceador em vez de dois | Separar em dois `Ingress` |
 | 7 | Sonda de vida em `/health/live` | `/health/ready`, que consulta o banco | Disponibilidade | Uma queda do RDS mataria **todos** os pods ao mesmo tempo | Não aplicável | Trocar o `path` da sonda |
 | 8 | Sem limite de CPU nos contêineres | `limits.cpu` declarado | Latência previsível | Cota CFS provoca estrangulamento em rajada, invisível nas métricas usuais | Nó pode precisar ser maior | Acrescentar `limits.cpu` |
-| 9 | Escala por CPU | Requisições por alvo, como fazia o ASG | Disponibilidade da métrica sem componente extra | A métrica não é a mesma do ASG; a comparação entre plataformas precisa dizer isso | Não aplicável | KEDA, ou o adaptador de métricas externas |
-| 10 | Imagens multi-arquitetura para as duas do cluster | Somente `arm64`, como as quatro do Fargate | Compatibilidade: as node pools padrão do Auto Mode são `amd64` | `CrashLoopBackOff` com `exec format error` | ~2 min a mais no build | Node pool customizada `arm64` |
+| 9 | Escala por CPU | Requisições por alvo, como fazia o ASG | Métrica nativa de `metrics.k8s.io`, sem adaptador externo; no EKS do laboratório ela exige o add-on `metrics-server` (5.5) | A métrica não é a mesma do ASG; a comparação entre plataformas precisa dizer isso. Sem o `metrics-server` o HPA fica em `<unknown>`, como aconteceu em 21/09 | Não aplicável | KEDA, ou o adaptador de métricas externas |
+| 10 | Imagens multi-arquitetura para as três que rodam no cluster (`backend`, `frontend` e `processing`) | Somente `arm64`, como as três que só rodam no Fargate | Compatibilidade: as node pools padrão do Auto Mode são `amd64` | `CrashLoopBackOff` com `exec format error` | ~2 min a mais no build | Node pool customizada `arm64` |
 | 11 | `topologySpreadConstraints` com `ScheduleAnyway` | `DoNotSchedule` | Velocidade de implantação | Distribuição entre zonas deixa de ser garantida | Não aplicável | Trocar para `DoNotSchedule` quando houver nó quente |
 | 12 | Segredo montado por `kubectl` a partir do Terraform | Provider `kubernetes` no Terraform, ou arquivo `.env` | Segurança: o valor não toca disco, repositório nem estado | Exige `rollout restart` após rotação; automatizado no alvo do Makefile | Não aplicável | Operador de segredos externos, se houver IRSA |
+| 13 | Remover o caminho EC2 da Sprint 3 (`asg.tf`, `alb.tf`, `asg_observability.tf`), substituindo a decisão 5 | Manter o ASG zerado no estado | Simplicidade e custo: o Auto Mode cria o ALB pelo Ingress; dois balanceadores custavam em dobro e confundiam qual era a origem pública | A volta atrás deixa de ser dois valores no `tfvars`; a contingência passa a ser a Lambda `read_api_url` com o website do S3 | Nenhum: um balanceador a menos | Restaurar os três arquivos removidos e reaplicar |
 
 ---
 
@@ -231,6 +270,26 @@ consolida nós de forma agressiva para reduzir custo, e esvazia o nó escolhido 
 cerimônia. Sem esse objeto, ele pode tirar todas as réplicas da API ao mesmo tempo
 durante uma operação que deveria ser invisível.
 
+### 5.5 Escala automática: a métrica não veio de graça
+
+&emsp; O HPA escala por CPU (decisão 9) e depende da API `metrics.k8s.io`, servida pelo
+`metrics-server`. A premissa de que o EKS Auto Mode já a traria, registrada no alvo
+`k8s-bootstrap` do `Makefile`, **não se confirmou no cluster do laboratório**: nas
+rodadas de carga de 21/09 os dois HPAs ficaram em `cpu: <unknown>` durante os 36 minutos
+do ensaio, com o evento `FailedGetResourceMetric ... the server could not find the
+requested resource (get pods.metrics.k8s.io)`, e o `APIService v1beta1.metrics.k8s.io`
+não existia no cluster
+([`evidencias/carga-kubernetes.txt`](evidencias/carga-kubernetes.txt), linhas 17–23).
+As réplicas ficaram no mínimo de 2, e a rodada B, de saturação, registrou dois reinícios
+por pod do backend com o HPA sem poder reagir.
+
+&emsp; A correção é declarativa: a partir desta sprint o add-on `metrics-server` é
+declarado como `aws_eks_addon` em `infra/eks.tf`, de
+modo que o cluster nasce com a métrica. No ambiente local o `kind-up` já instalava o
+`metrics-server` v0.8.0, razão pela qual o HPA do kind reporta CPU
+([`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) mostra
+`cpu: 20%/60%` e `117%/70%`).
+
 ---
 
 ## 6. Conteinerização
@@ -239,7 +298,8 @@ durante uma operação que deveria ser invisível.
 
 | Imagem | Base | Padrão |
 |---|---|---|
-| `worker`, `simulator`, `processing`, `loader` | `uv` + `python:3.12-slim` | Multi-estágio, usuário sem privilégio uid 10001, `HEALTHCHECK` por arquivo de batimento |
+| `worker`, `simulator`, `processing` | `uv` + `python:3.12-slim` | Multi-estágio, usuário sem privilégio uid 10001, `HEALTHCHECK` por arquivo de batimento |
+| `loader` | `uv` + `python:3.12-slim` | Mesmo padrão, **sem `HEALTHCHECK`**, de propósito: a carga é one-shot e termina, e uma sonda marcaria o encerramento normal como falha |
 | `backend` | `uv` + `python:3.12-slim` | Multi-estágio, usuário sem privilégio, `HEALTHCHECK` em `/health/live` |
 | `frontend` | `node:20` + `nginx:1.27-alpine` | Multi-estágio, usuário sem privilégio uid 101, `HEALTHCHECK` em `/healthz` |
 
@@ -258,9 +318,13 @@ nem chega a escutar na porta.
 ### 6.2 Multi-arquitetura
 
 &emsp; As node pools padrão do Auto Mode são `amd64`; as máquinas do time e o Fargate
-são `arm64`. As duas imagens do cluster são publicadas para as duas arquiteturas, numa
-lista de manifestos. Publicar só `arm64` coloca o pod em `CrashLoopBackOff` com
-`exec format error`, a mesma falha que já apareceu no ASG.
+são `arm64`. As três imagens que rodam no cluster (`backend`, `frontend` e `processing`,
+esta pelo `Job` de migrations, que cai em nós `amd64`) são publicadas para as duas
+arquiteturas, numa lista de manifestos: é a variável
+`IMAGES_MULTIARCH := backend frontend processing` do `Makefile`. As outras três
+(`worker`, `simulator` e `loader`) seguem só em `arm64`, porque só rodam no Fargate.
+Publicar só `arm64` coloca o pod em `CrashLoopBackOff` com `exec format error`, a mesma
+falha que já apareceu no ASG.
 
 &emsp; Por isso a publicação usa `docker buildx build --push`, e não `docker build`
 seguido de `docker push`: uma lista de manifestos só existe no registro, e o `push`
@@ -346,9 +410,13 @@ make -C apps/fullstack k8s-push k8s-secret k8s-migrate k8s-apply
 make -C apps/fullstack k8s-url
 ```
 
-&emsp; O alvo `make check` passou a incluir `k8s-validate`, que renderiza os seis
-conjuntos de manifestos sem tocar em cluster nenhum, e é o portão que impede um erro de
-YAML de chegar à entrega.
+&emsp; O alvo `make check` passou a incluir `k8s-validate`, que renderiza as cinco
+kustomizations (`base`, `migrate`, `overlays/aws`, `overlays/kind` e
+`overlays/kind/migrate`; saída em
+[`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt)) sem tocar em cluster
+nenhum e, em seguida, roda o verificador `verifica_manifests.py` para as invariantes que
+o kustomize não alcança: ordem das regras do Ingress, arquitetura das imagens e chaves
+do Secret. É o portão que impede um erro de YAML de chegar à entrega.
 
 ---
 
@@ -362,9 +430,10 @@ make -C apps/fullstack k8s-scale-zero   # sem pod pendente, os nós são consoli
 make -C apps/fullstack k8s-delete       # remove o namespace e, com ele, o balanceador
 ```
 
-&emsp; Para derrubar o cluster inteiro, `create_eks = false` e `make tf-apply`. ECS,
-RDS, balanceador e ASG não referenciam nada dele e continuam de pé, o que é, também,
-a demonstração prática da decisão 5.
+&emsp; Para derrubar o cluster inteiro, `create_eks = false` e `make tf-apply`. ECS e
+RDS não referenciam nada dele e continuam de pé; o balanceador e o ASG da Sprint 3, o
+mesmo, até a remoção descrita na decisão 13. É, também, a demonstração prática
+da decisão 5.
 
 ---
 
@@ -374,20 +443,36 @@ a demonstração prática da decisão 5.
 índice: a primeira coluna dá o instante, a segunda diz o que aparece na tela e a
 terceira aponta a seção deste artefato que aquele trecho sustenta.
 
-**Link:** [Vídeo no Drive](https://drive.google.com/file/d/1XFad3iP95uWSyXMZs26mPbUz7NWT7i-4/view?usp=sharing)
+**Link:** [Vídeo no Drive](https://drive.google.com/file/d/19DgDxN_cqHcZNQNFGKcaMAjAmcMVvx5W/view?usp=sharing)
 
 | Tempo | O que o vídeo mostra | Evidência na tela |
 |---|---|---|
-| 0:00–0:30 | Apresentação do grupo e do recorte da sprint | Não aplicável |
-| 0:30–1:40 | **Código em contêiner**: os seis `Dockerfile`, o multi-estágio, o usuário sem privilégio e a base fixada por resumo | `USER argus` uid 10001 e `USER nginx` uid 101; `HEALTHCHECK` em cada imagem; `@sha256:` nas bases (6.1) |
-| 1:40–2:30 | O build multi-arquitetura e a lista de manifestos no ECR | `docker buildx build --platform linux/amd64,linux/arm64`; `docker manifest inspect` listando as duas arquiteturas (6.2) |
-| 2:30–3:30 | **Kubernetes**: o cluster no console, os nós e os objetos aplicados | `kubectl get nodes`; `kubectl -n argus get pods,svc,ingress,hpa,pdb` (2.1) |
-| 3:30–4:10 | O Ingress de origem única | O dashboard em `/` e o relógio virtual em `/api/v1/clock`, no mesmo endereço, sem CORS (4) |
-| 4:10–4:40 | O `Job` de migrations | `kubectl get job` em `1/1`; as 29 migrations no registro do contêiner (2.1) |
-| 4:40–5:30 | **Resiliência: autocura**. Remoção de um pod da API | Pod reagendado e `Ready` em segundos, contra os 300 s do ASG (5.3) |
-| 5:30–6:30 | **Resiliência: implantação sem queda sob carga** | `rollout restart` com o teste de carga rodando; zero erro no relatório (5.2) |
-| 6:30–6:50 | Escala automática | `kubectl get hpa -w` com as réplicas subindo e descendo (3.1, decisão 9) |
-| 6:50–7:00 | Encerramento | Não aplicável |
+| 0:00–0:35 | Apresentação do objetivo e visão geral da arquitetura | Introdução falada aos fluxos de ingestão e leitura |
+| 0:35–1:40 | **Código em contêiner:** Dockerfiles do backend e frontend, build em estágios, usuário sem privilégio e health check | Dockerfile do backend com `@sha256`, `USER argus` UID 10001 e `HEALTHCHECK`; Dockerfile do frontend e arquivos de deployment |
+| 1:40–2:30 | **Kubernetes no EKS:** contexto do cluster, nó e configuração do Deployment | `kubectl get nodes` com nó `Ready`; YAML do backend com `replicas: 2` |
+| 2:30–3:15 | Pods do backend e frontend em execução e chamadas à aplicação | `kubectl get pods -o wide` com dois pods de cada serviço, todos `Running` e `1/1`; logs com respostas HTTP 200 |
+| 3:15–4:07 | **Resiliência:** atualização controlada do backend e explicação das sondas | `kubectl rollout restart` e `kubectl rollout status`; pods novos iniciam, pods antigos terminam e o rollout conclui |
+| 4:07–5:14 | Processamento assíncrono com workers, ECS/Fargate e SQS | Dockerfile de worker; explicação de como a fila absorve picos e os consumidores processam eventos |
+| 5:14–5:50 | Build local da imagem Docker do backend | `docker build -t argus-backend:demo ...` e saída de build concluído |
+| 5:50–6:18 | Execução local do backend e do PostgreSQL em contêineres separados | `docker ps` mostra os dois contêineres saudáveis; backend acessível pela porta 5000 |
+| 6:18–6:54 | Verificação de saúde e chamada à API | `/health/live` e `/health/ready` retornam `200`; `/api/v1/clock` retorna JSON |
+| 6:54–6:58 | Encerramento | Conclusão da demonstração |
+
+---
+
+## 11. Evidências
+
+&emsp; As saídas brutas dos ensaios ficam em [`evidencias/`](evidencias/), com URLs e
+identificadores de conta substituídos. Cada arquivo diz a data, o ambiente e o comando
+que o produziu.
+
+| Arquivo | O que registra | Sustenta |
+|---|---|---|
+| [`evidencias/carga-kubernetes.txt`](evidencias/carga-kubernetes.txt) | Rodadas A (5, 25 e 100 usuários) e B (200, 450 e 900) de carga contra o Ingress do EKS real, em 21/09: cluster Auto Mode 1.33, nós `amd64`, estado final dos objetos e o diagnóstico do HPA sem métrica | 2.1, 5.5, 6.2 |
+| [`evidencias/carga-kubernetes/`](evidencias/carga-kubernetes/) | Os arquivos de cada rodada: `rodada-{a,b}-saida-k6.txt`, `-summary-k6.json`, `-resultado.json` e `-instancia.log` | 5.5 |
+| [`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) | TI-01 e a suíte e2e (12 testes, todos aprovados) contra o caminho orquestrado no cluster kind local, em 21/09, pela origem única do Ingress | 4, 5.1 |
+| [`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt) | `make k8s-validate` renderizando as cinco kustomizations sem tocar em cluster | 8 |
+| [`evidencias/resiliencia-kind-01-autocura.txt`](evidencias/resiliencia-kind-01-autocura.txt), [`resiliencia-kind-02-rollout-e-undo.txt`](evidencias/resiliencia-kind-02-rollout-e-undo.txt), [`resiliencia-kind-03-perda-do-banco.txt`](evidencias/resiliencia-kind-03-perda-do-banco.txt) e [`resiliencia-kind/`](evidencias/resiliencia-kind/) | Ensaios executados em 24/09 no kind local: autocura (`kubectl delete pod`), implantação sob carga (`rollout restart` com k6, deploy defeituoso e `rollout undo`) e queda do Postgres, com saída bruta, timestamps e os scripts k6 que os reproduzem; são as medições de 5.2 e 5.3 | 5.2, 5.3 |
 
 ---
 
@@ -404,4 +489,5 @@ terceira aponta a seção deste artefato que aquele trecho sustenta.
 | `apps/fullstack/k8s/overlays/kind/` | Banco local, ingress-nginx, uma réplica por carga |
 | `apps/fullstack/frontend/Dockerfile` | Imagem do dashboard |
 | `apps/fullstack/frontend/nginx.conf` | Servidor do export estático, preparado para raiz somente-leitura |
-| `apps/fullstack/Makefile` | Alvos `k8s-*` e `kind-*` |
+| `apps/fullstack/Makefile` | Alvos `k8s-*` e `kind-*`; `IMAGES` e `IMAGES_MULTIARCH` |
+| `artefatos/evidencias/` | Saídas brutas dos ensaios (seção 11) |

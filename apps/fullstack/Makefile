@@ -49,6 +49,19 @@ PG_PORT      ?= 55432
 PG_URL       := postgresql://argus:argus@localhost:$(PG_PORT)/argus
 PG_TEST_URL  := postgresql://argus:argus@localhost:$(PG_PORT)/argus_test
 
+# Portas do `make dev`. Variaveis, e nao numeros fixos nas receitas, porque no
+# macOS o AirPlay Receiver escuta em 5000 e responde 403 no lugar da API -- o
+# sintoma parece "a API subiu mas o dashboard nao autentica". `make dev
+# API_PORT=5001` resolve sem tocar em arquivo nenhum.
+API_PORT ?= 5000
+WEB_PORT ?= 3000
+
+# Token da tela de acesso no ambiente LOCAL. A API local sobe com
+# AUTH_REQUIRED=0 e ignora o valor; a tela do dashboard so exige o FORMATO de
+# 64 hexadecimais (lib/api/session.ts). Nao e segredo: e o que qualquer clone
+# usa, e nunca vale contra a API publicada.
+DEV_TOKEN := 0000000000000000000000000000000000000000000000000000000000000000
+
 # `uv run` monta o ambiente sozinho a partir do pyproject de cada app.
 UV := uv run --quiet
 
@@ -58,10 +71,10 @@ UV := uv run --quiet
 # contexto em apps/fullstack/ -- e nao na pasta de cada app -- porque todas
 # dependem de common/.
 #
-# `backend` entrou quando a API de leitura saiu da Lambda e passou a rodar nas
-# instancias do Auto Scaling Group (infra/asg.tf): o que antes era um zip agora
-# e uma imagem que a instancia puxa do ECR no boot. Ele NAO depende de common/,
-# entao constroi com contexto so em backend/, que e muito menor.
+# `backend` entrou quando a API de leitura saiu da Lambda e passou a rodar como
+# container: primeiro nas instancias EC2 da Sprint 3 (caminho removido na
+# Sprint 4), hoje como Deployment no cluster Kubernetes (k8s/). Ele NAO depende
+# de common/, entao constroi com contexto so em backend/, que e muito menor.
 #
 # `frontend` entrou na Sprint 4, quando o dashboard passou a ser servido por um
 # nginx dentro do cluster em vez de pelo website do S3. Tambem nao depende de
@@ -76,8 +89,9 @@ CONTEXTO = $(if $(filter backend frontend,$(1)),$(1),.)
 # As node pools padrao do EKS Auto Mode sao amd64, enquanto o Fargate do caminho
 # assincrono e as maquinas do time sao arm64 (Apple Silicon). Publicar so arm64
 # colocaria o pod em CrashLoopBackOff com `exec format error` -- a mesma falha
-# que ja mordeu o time no ASG. As tres imagens que rodam SO no Fargate seguem
-# arm64, que custa ~20% menos e dispensa emulacao no build.
+# que ja mordeu o time na Sprint 3, quando a API rodava em EC2. As tres imagens
+# que rodam SO no Fargate seguem arm64, que custa ~20% menos e dispensa emulacao
+# no build.
 #
 # `processing` entrou nesta lista em 21/09/2026. Sao TRES as imagens que o
 # cluster executa, e nao duas: alem do backend e do frontend, o `Job` de
@@ -135,15 +149,11 @@ install: ## Instala as dependencias de todos os apps Python
 env: ## Cria o .env a partir dos outputs do Terraform
 	@test -f .env && { echo ".env ja existe — apague antes se quiser regerar."; exit 1; } || true
 	@echo "Lendo os endpoints do Terraform..."
-	@# ARGUS_API_URL prefere o ALB quando ele existe.
-	@#
-	@# Durante a migracao os dois caminhos de leitura coexistem: o HTTP API da
-	@# Lambda (`read_api_url`) e o Application Load Balancer (`api_url_alb`).
-	@# O ALB e o destino definitivo, entao ele vence; enquanto `create_network`
-	@# for falso o output vem vazio e o valor antigo continua valendo.
+	@# ARGUS_API_URL e o HTTP API da Lambda de leitura (`read_api_url`): o
+	@# caminho de contingencia, que sempre existe no estado. O endereco publico
+	@# do cluster vem do Ingress e nao passa pelo Terraform -- `make k8s-url`.
 	@{ \
-	  echo "ARGUS_API_URL=$$(cd $(INFRA) && { terraform output -raw api_url_alb 2>/dev/null \
-	    || terraform output -raw read_api_url 2>/dev/null; })"; \
+	  echo "ARGUS_API_URL=$$(cd $(INFRA) && terraform output -raw read_api_url 2>/dev/null)"; \
 	  echo "ARGUS_INGEST_URL=$$(cd $(INFRA) && terraform output -raw ingest_url 2>/dev/null)"; \
 	  echo "ARGUS_CHANGES_URL=$$(cd $(INFRA) && terraform output -raw changes_url 2>/dev/null)"; \
 	  echo "HYPOTHESES_SOURCE=api"; \
@@ -190,6 +200,27 @@ db-local: ## Sobe um PostgreSQL 16 local e aplica as migrations
 .PHONY: db-stop
 db-stop: ## Derruba o PostgreSQL local
 	docker rm -f $(PG_CONTAINER) >/dev/null 2>&1 || true
+
+# `db-local` recria o container do zero (`docker rm -f`), e com ele vai embora
+# o que `dev-seed` levou minutos para carregar. `db-ensure` e o que `make dev`
+# chama: cria so quando nao existe, religa quando esta parado (reboot da
+# maquina) e, em qualquer caso, aplica as migrations pendentes -- que e a parte
+# idempotente por construcao (tools/migrate.py registra o que ja rodou).
+#
+# Receita em linhas separadas de proposito: a primeira e a ultima contem
+# $(MAKE) e por isso EXECUTAM sob `make -n`; as do meio (docker start, espera)
+# tem efeito colateral e ficam fora delas para que o dry-run continue seco.
+.PHONY: db-ensure
+db-ensure: ## Garante o PostgreSQL local no ar e migrado, sem recriar o que ja existe
+	@docker container inspect $(PG_CONTAINER) >/dev/null 2>&1 || $(MAKE) --no-print-directory db-local
+	@docker start $(PG_CONTAINER) >/dev/null
+	@for i in $$(seq 1 60); do \
+	  docker exec $(PG_CONTAINER) psql -h 127.0.0.1 -U argus -d argus -qc "SELECT 1" >/dev/null 2>&1 && break; \
+	  sleep 1; \
+	done
+	@docker exec $(PG_CONTAINER) psql -h 127.0.0.1 -U argus -d argus -qc "SELECT 1" >/dev/null 2>&1 \
+	  || { echo "o container $(PG_CONTAINER) existe mas nao responde; 'make db-local' recria do zero"; exit 1; }
+	@$(MAKE) --no-print-directory migrate DATABASE_URL=$(PG_URL)
 
 .PHONY: db-psql
 db-psql: ## Abre um psql no banco local
@@ -377,8 +408,58 @@ frontend-build-check: ## Compila o dashboard com URL de placeholder (portao de C
 # --------------------------------------------------------------------------- #
 
 .PHONY: api
-api: ## Sobe a API de leitura local contra o banco local
-	cd $(BACKEND) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} $(UV) python lambda_handler.py
+api: ## Sobe a API de leitura local contra o banco local (porta API_PORT)
+	cd $(BACKEND) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} PORT=$(API_PORT) $(UV) python lambda_handler.py
+
+# `dev` e o caminho de UM comando: banco, API e dashboard no mesmo terminal, e
+# Ctrl-C derruba os tres. A orquestracao (subir em paralelo, esperar a API
+# responder antes do dashboard, matar a ARVORE de processos na saida) vive em
+# scripts/dev.sh, que so encadeia alvos deste Makefile -- nenhum passo e
+# reproduzido la. Nao usa `make -j2 api frontend-dev` porque o -j nao espera a
+# API antes de subir o Next, nao imprime URL nem token no fim, e ao morrer
+# deixa python e node orfaos presos nas portas.
+#
+# O banco e SEMPRE o local: `dev` passa DATABASE_URL explicitamente, para que
+# um .env com a URL do RDS nao faca a API local apontar para a nuvem em
+# silencio. Quem quer a API publicada usa `frontend-dev` com ARGUS_API_URL.
+#
+# Sem $(MAKE) nesta linha, de proposito: o GNU Make executa de verdade qualquer
+# linha de receita que o contenha, mesmo sob `make -n` -- e o dry-run subiria
+# tudo. O script chama `make` pelo PATH.
+.PHONY: dev
+dev: ## Sobe banco local, API e dashboard juntos; Ctrl-C derruba tudo
+	@API_PORT=$(API_PORT) WEB_PORT=$(WEB_PORT) \
+	  PG_CONTAINER=$(PG_CONTAINER) PG_URL=$(PG_URL) DEV_TOKEN=$(DEV_TOKEN) \
+	  DEV_API_URL="$(DEV_API_URL)" scripts/dev.sh
+
+# Amostra para as telas nao abrirem vazias. O unico dado real e o do parceiro
+# (4 GB, nao redistribuivel -- AGENTS.md regra 9), que nao vem no clone: quem
+# tem o dump gera o Parquet uma vez (`make parquet`) e este alvo o carrega no
+# banco local, reconstroi silver e gold e posiciona o relogio virtual no ultimo
+# evento -- toda view filtra `available_at <= sim.now()`, e com o relogio no
+# inicio do dump as telas continuariam vazias mesmo com o banco cheio.
+#
+# `make replay` NAO serve aqui: ele reenvia os seis eventos de exemplo a API de
+# ingestao PUBLICADA (API Gateway -> SQS -> worker), que nao existe localmente.
+#
+# Condicional de make, e nao `if` de shell: a guarda e a carga precisam ficar
+# em linhas separadas (uma so linha com $(MAKE) executaria o psql sob -n), e
+# um `exit 0` na linha da guarda nao impediria as seguintes de rodar.
+.PHONY: dev-seed
+dev-seed: ## Carrega a amostra do parceiro no banco local (precisa de ../../data/parquet)
+ifeq (,$(wildcard $(PARQUET_DIR)/*.parquet))
+	@echo "sem amostra: $(PARQUET_DIR) nao existe neste clone, entao o banco segue vazio."
+	@echo "  O dado e do parceiro (4 GB, nao redistribuivel). Quem tem o dump gera o Parquet"
+	@echo "  com 'make parquet' e roda 'make dev-seed' de novo. 'make replay' nao substitui"
+	@echo "  isto: ele fala com a API de ingestao publicada, que nao existe localmente."
+else
+	@$(MAKE) --no-print-directory load-local DATABASE_URL=$(PG_URL)
+	@echo "reconstruindo silver e gold a partir da bronze..."
+	@docker exec $(PG_CONTAINER) psql -U argus -d argus -qc "SELECT * FROM gold.rebuild_tudo();"
+	@docker exec $(PG_CONTAINER) psql -U argus -d argus -qc \
+	  "SELECT sim.set_clock(COALESCE((SELECT max(ts) FROM silver.session_event), sim.now()));"
+	@echo "amostra carregada; relogio virtual posicionado no ultimo evento."
+endif
 
 .PHONY: docs
 docs: ## Abre a documentacao Swagger da API publicada
@@ -404,9 +485,9 @@ parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
 # Imagens
 # --------------------------------------------------------------------------- #
 
-# ARM64 em todas: a Lambda e arm64, as tasks Fargate sao arm64 e as instancias
-# do ASG sao Graviton (t4g). Construir x86 aqui faria a instancia falhar com
-# "exec format error" no `docker run` do user_data.
+# ARM64 no build local: a Lambda e arm64 e as tasks Fargate sao arm64. As
+# imagens que o cluster executa (IMAGES_MULTIARCH) ganham tambem amd64 no
+# `push` -- ver o comentario no topo do arquivo.
 .PHONY: images
 images: $(addprefix image-,$(IMAGES)) ## Constroi as imagens (ARM64)
 
@@ -738,12 +819,12 @@ frontend-deploy: frontend-build ## Publica o dashboard no website S3
 	@echo "Dashboard no ar: $$(cd $(INFRA) && terraform output -raw frontend_url)"
 
 .PHONY: frontend-dev
-frontend-dev: ## Sobe o dashboard local contra a API publicada
+frontend-dev: ## Sobe o dashboard local contra a API de ARGUS_API_URL (porta WEB_PORT)
 	@$(call require_env,ARGUS_API_URL)
 	cd $(FRONTEND) && \
 	  NEXT_PUBLIC_API_URL="$(ARGUS_API_URL)" \
 	  NEXT_PUBLIC_HYPOTHESES_SOURCE="$(HYPOTHESES_SOURCE)" \
-	  npm run dev
+	  npm run dev -- --port $(WEB_PORT)
 
 # --------------------------------------------------------------------------- #
 # Testes de API (Postman)
@@ -1337,9 +1418,11 @@ k8s-kubeconfig: ## Aponta o kubectl para o cluster EKS deste stack
 
 .PHONY: k8s-bootstrap
 k8s-bootstrap: ## Instala o que o cluster precisa antes da aplicacao
-	@# O EKS Auto Mode ja traz o metrics-server (verificado: kube-system tem o
-	@# Deployment de pe), entao aqui so falta a IngressClass do controlador de
-	@# ALB. No kind e o contrario -- ver `kind-up`.
+	@# O metrics-server NAO vem com o Auto Mode: um cluster recem-criado nasce
+	@# com kube-system vazio e o HPA fica em `<unknown>/60%` (lab de 18/09).
+	@# Ele e o add-on aws_eks_addon.metrics_server de infra/eks.tf, instalado
+	@# pelo `tf-apply` junto com o cluster; aqui so falta a IngressClass do
+	@# controlador de ALB. No kind o metrics-server entra pelo `kind-up`.
 	$(KUBECTL) apply -f $(K8S)/overlays/aws/ingressclass.yaml
 	@echo
 	@$(KUBECTL) get ingressclass
@@ -1410,6 +1493,7 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 # transformer nativo resolve, sem pipe.
 #
 # $(1) = diretorio do kustomize
+# $(2) = flags extras do `kubectl apply` (opcional; `k8s_roda_job` passa -l)
 define k8s_aplica_aws
 	set -e; \
 	urls=$$(cd $(INFRA) && terraform output -json ecr_repository_urls); \
@@ -1418,7 +1502,7 @@ define k8s_aplica_aws
 	  | sed "s|IMAGE_BACKEND|$$(ref backend):$(IMAGE_TAG)|g; \
 	         s|IMAGE_FRONTEND|$$(ref frontend):$(IMAGE_TAG)|g; \
 	         s|IMAGE_PROCESSING|$$(ref processing):$(IMAGE_TAG)|g" \
-	  | $(KUBECTL) apply -f -
+	  | $(KUBECTL) apply -f - $(2)
 endef
 
 .PHONY: k8s-apply
@@ -1430,20 +1514,40 @@ k8s-apply: ## Aplica o overlay no cluster corrente (K8S_OVERLAY=aws|kind)
 	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY); \
 	fi
 
-.PHONY: k8s-migrate
-k8s-migrate: ## Aplica as migrations no cluster (Job one-shot)
-	@# delete antes do apply porque `spec.template` de Job e imutavel: sem isso,
-	@# rodar de novo com uma tag nova falha com "field is immutable".
-	@set -e; \
-	$(KUBECTL) delete job argus-db-migrate -n $(K8S_NAMESPACE) --ignore-not-found; \
+# Roda um dos Jobs de k8s/migrate/ ate o fim e mostra o rabo do log.
+#
+# Os dois Jobs vivem no mesmo kustomization, mas NAO podem subir juntos: o de
+# leitor faz `GRANT argus_reader`, e esse papel nasce na migration 001. Num
+# banco novo, aplicar os dois de uma vez e uma corrida que o leitor perde. O
+# `-l` do kubectl filtra o YAML renderizado pelo label do Job, e e isso que
+# permite aplicar um de cada vez a partir de um unico diretorio.
+#
+# delete antes do apply porque `spec.template` de Job e imutavel: sem isso,
+# rodar de novo com uma tag nova falha com "field is immutable".
+#
+# $(1) = nome do Job (argus-db-migrate | argus-db-reader)
+define k8s_roda_job
+	set -e; \
+	$(KUBECTL) delete job $(1) -n $(K8S_NAMESPACE) --ignore-not-found; \
 	if [ "$(K8S_OVERLAY)" = "aws" ]; then \
-	  $(call k8s_aplica_aws,$(K8S)/migrate); \
+	  $(call k8s_aplica_aws,$(K8S)/migrate,-l app.kubernetes.io/name=$(1)); \
 	else \
-	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY)/migrate; \
+	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY)/migrate \
+	    -l app.kubernetes.io/name=$(1); \
 	fi; \
-	$(KUBECTL) wait --for=condition=complete job/argus-db-migrate \
-	  -n $(K8S_NAMESPACE) --timeout=600s
-	@$(KUBECTL) logs job/argus-db-migrate -n $(K8S_NAMESPACE) --tail=20
+	$(KUBECTL) wait --for=condition=complete job/$(1) \
+	  -n $(K8S_NAMESPACE) --timeout=600s; \
+	$(KUBECTL) logs job/$(1) -n $(K8S_NAMESPACE) --tail=20
+endef
+
+.PHONY: k8s-migrate
+k8s-migrate: ## Aplica as migrations e cria o login de leitura (dois Jobs, em sequencia)
+	@# Primeiro o schema, depois o login: `migrate.py aplicar` NAO cria
+	@# `argus_api` -- `criar-leitor` e subcomando a parte. So com o primeiro
+	@# Job, num banco novo o backend fica 0/1 com PoolTimeout e, por baixo,
+	@# "password authentication failed for user argus_api" (lab de 18/09).
+	@$(call k8s_roda_job,argus-db-migrate)
+	@$(call k8s_roda_job,argus-db-reader)
 
 .PHONY: k8s-rollout
 k8s-rollout: ## Publica as imagens e espera o rollout terminar
@@ -1484,9 +1588,11 @@ k8s-logs: ## Segue o log de um Deployment (APP=backend|frontend)
 
 .PHONY: k8s-scale-zero
 k8s-scale-zero: ## Zera os Deployments para economizar credito do lab
-	@# Sem pod pendente o Karpenter do Auto Mode consolida os nos ate zero em
-	@# poucos minutos. O ALB continua de pe -- para remove-lo tambem, use
-	@# `make k8s-delete`. E o equivalente do `make pause` para o cluster.
+	@# Sem pod da aplicacao o Karpenter do Auto Mode consolida os nos em poucos
+	@# minutos -- mas nao ate zero: os pods do metrics-server (add-on em
+	@# infra/eks.tf) ficam em kube-system e seguram um no pequeno. O ALB
+	@# continua de pe -- para remove-lo tambem, use `make k8s-delete`. E o
+	@# equivalente do `make pause` para o cluster.
 	$(KUBECTL) -n $(K8S_NAMESPACE) scale deployment --all --replicas=0
 	@$(KUBECTL) -n $(K8S_NAMESPACE) get deploy
 
@@ -1536,8 +1642,9 @@ kind-up: ## Cria o cluster local com ingress-nginx, metrics-server e Postgres
 	@# "no matching resources found" quando roda antes de o Deployment criar o
 	@# primeiro pod, e o apply acima retorna sem esperar por isso.
 	$(KUBECTL) -n ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=300s
-	@# Diferente do EKS Auto Mode, o kind nao traz metrics-server -- e sem ele o
-	@# HPA fica em `<unknown>/60%` e nao escala nada. O --kubelet-insecure-tls e
+	@# Nenhum cluster traz metrics-server sozinho -- nem o kind nem o EKS Auto
+	@# Mode (la ele e o add-on de infra/eks.tf). Sem ele o HPA fica em
+	@# `<unknown>/60%` e nao escala nada. O --kubelet-insecure-tls e
 	@# obrigatorio: os certificados de kubelet do kind sao autoassinados.
 	$(KUBECTL) apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/$(METRICS_SERVER_VERSAO)/components.yaml
 	$(KUBECTL) -n kube-system patch deployment metrics-server --type=json \

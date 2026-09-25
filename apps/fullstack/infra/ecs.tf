@@ -17,9 +17,9 @@ resource "aws_ecs_cluster" "main" {
 # cinco containers e ilegivel exatamente na hora em que se precisa dele.
 resource "aws_cloudwatch_log_group" "servicos" {
   # `backend` esta em `container_images` para ganhar repositorio no ECR, mas nao
-  # roda no ECS -- ele executa nas instancias do Auto Scaling Group e loga em
-  # `/argus/<name>/app` (ver asg.tf). Um log group `/ecs/<name>/backend` aqui
-  # ficaria vazio para sempre.
+  # roda no ECS -- ele executa como Deployment no cluster EKS (k8s/), e a Lambda
+  # de contingencia tem log group proprio (api_read.tf). Um log group
+  # `/ecs/<name>/backend` aqui ficaria vazio para sempre.
   for_each = setsubtract(local.container_images, ["backend"])
 
   name              = "/ecs/${local.name}/${each.key}"

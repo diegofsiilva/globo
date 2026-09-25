@@ -449,3 +449,45 @@ resource "aws_cloudwatch_metric_alarm" "fonte_silenciosa" {
   alarm_actions = [aws_sns_topic.alarms.arn]
   ok_actions    = [aws_sns_topic.alarms.arn]
 }
+
+# --------------------------------------------------------------------------- #
+# Painel
+# --------------------------------------------------------------------------- #
+
+# Nasceu na Sprint 3, em asg_observability.tf, com quatro linhas: carga no ALB,
+# tempo de resposta, escalonamento do ASG e o banco por tras. O caminho EC2
+# (ASG+ALB) foi removido na Sprint 4 e com ele as tres primeiras linhas; sobrou
+# a que nao dependia dele. O caminho sincrono agora e observado no ALB do
+# Ingress do EKS e no HPA (ver k8s/README.md), que nao passam por este estado.
+resource "aws_cloudwatch_dashboard" "main" {
+  dashboard_name = local.name
+
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Banco"
+          region = var.region
+          view   = "timeSeries"
+          metrics = [
+            ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", aws_db_instance.main.identifier, { stat = "Average" }],
+            [".", "DatabaseConnections", ".", ".", { stat = "Average" }],
+          ]
+        }
+      },
+    ]
+  })
+}
+
+# O painel deixou de ser condicional a `create_network` junto com o caminho
+# EC2: o RDS existe sempre. O `moved` preserva o painel ja aplicado em vez de
+# destruir e recriar sob o mesmo nome.
+moved {
+  from = aws_cloudwatch_dashboard.main[0]
+  to   = aws_cloudwatch_dashboard.main
+}

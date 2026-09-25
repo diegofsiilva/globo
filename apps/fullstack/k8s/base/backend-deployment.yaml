@@ -1,6 +1,6 @@
 # API de leitura do Argus.
 #
-# Substitui o Auto Scaling Group de infra/asg.tf, onde o container era iniciado
+# Substitui o ASG da Sprint 3 (removido na Sprint 4), onde o container era iniciado
 # a mao pelo user_data (`dnf install docker && docker pull && docker run`). O que
 # se ganha aqui e exatamente o que faltava la: rolling update sem queda de
 # capacidade, reposicao do container por health em segundos em vez dos 300s do
