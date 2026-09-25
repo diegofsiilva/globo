@@ -72,9 +72,8 @@ que justifica plataformas diferentes.
 
 ### 2.2 Os componentes fora do cluster em execução
 
-&emsp; O vídeo mostra o cluster em execução; os workers do Fargate aparecem no trecho de
-4:07, pelo Dockerfile e pela explicação da fila, mas não rodando. Os quatro componentes
-que ficaram no Fargate continuam em execução, e a prova está em comandos que qualquer integrante do
+&emsp; O vídeo cobre o que roda no Kubernetes. Os quatro componentes que ficaram no
+Fargate continuam em execução, e a prova está em comandos que qualquer integrante do
 grupo pode repetir com o perfil `g4` (os alvos do `Makefile` exigem `AWS_PROFILE`; o
 `count` exige `DATABASE_URL`):
 
