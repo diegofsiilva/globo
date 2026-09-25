@@ -141,7 +141,7 @@ implementação: o próprio teste calcula o SHA-256 esperado e confronta o resul
 
 ```bash
 cd apps/fullstack/backend
-uv run pytest tests/unit/test_redaction.py::TestHashUserId::test_deve_gerar_hash_deterministico_de_32_hex -v
+uv run --extra dev pytest tests/unit/test_redaction.py::TestHashUserId::test_deve_gerar_hash_deterministico_de_32_hex -v
 ```
 
 #### TU-02 - Rejeitar data em formato desconhecido
@@ -170,7 +170,7 @@ horário incorreto ou avançar silenciosamente pelo pipeline.
 
 ```bash
 cd apps/fullstack/backend
-uv run pytest tests/unit/test_normalization.py::TestParseDatetime::test_deve_levantar_erro_para_formato_desconhecido -v
+uv run --extra dev pytest tests/unit/test_normalization.py::TestParseDatetime::test_deve_levantar_erro_para_formato_desconhecido -v
 ```
 
 #### TU-03 - Amostrar série um ponto acima do limite
@@ -199,7 +199,7 @@ para que a Timeline não apresente uma janela diferente daquela consultada.
 
 ```bash
 cd apps/fullstack/backend
-uv run pytest tests/unit/test_timeline.py::TestAmostrarRaia::test_serie_um_acima_do_limite_e_truncada -v
+uv run --extra dev pytest tests/unit/test_timeline.py::TestAmostrarRaia::test_serie_um_acima_do_limite_e_truncada -v
 ```
 
 #### TU-04 - Ignorar sinal que deixou de exceder o limiar
@@ -228,7 +228,7 @@ de apresentar ou descartar o sinal.
 
 ```bash
 cd apps/fullstack/backend
-uv run pytest tests/unit/test_signals.py::TestGenerateSignals::test_deve_ignorar_grupo_cujo_ultimo_bucket_esta_abaixo_do_limiar -v
+uv run --extra dev pytest tests/unit/test_signals.py::TestGenerateSignals::test_deve_ignorar_grupo_cujo_ultimo_bucket_esta_abaixo_do_limiar -v
 ```
 
 #### TU-05 - Rejeitar JSON inválido recebido pelo worker
@@ -371,7 +371,7 @@ token Bearer válido.
 
 ```bash
 cd apps/fullstack/backend
-uv run pytest tests/unit/test_use_cases_logic.py::TestAuthHelpers::test_token_do_cabecalho_rejeita_formatos_invalidos -v
+uv run --extra dev pytest tests/unit/test_use_cases_logic.py::TestAuthHelpers::test_token_do_cabecalho_rejeita_formatos_invalidos -v
 ```
 
 ### Resultado consolidado da execução
@@ -412,9 +412,9 @@ install` prévio. Sem isso ele morre com `error: Failed to spawn: pytest`, como
 registrado no início de
 [`evidencias/testes-suites-2026-09-24.txt`](evidencias/testes-suites-2026-09-24.txt).
 Os alvos `make -C apps/fullstack test-*` carregam a opção certa de cada app desde
-24/09, e são o caminho recomendado. A mesma sequência está sendo automatizada numa
-pipeline em `apps/fullstack/.gitlab-ci.yml`, que roda `make check` com um
-PostgreSQL de serviço.
+24/09, e são o caminho recomendado. Ainda não há pipeline de CI versionada nesta
+branch: a automação da sequência está em preparação na branch `feat/ci-gitlab`,
+ainda não integrada, e até lá o `make check` roda à mão.
 
 ```bash
 # Backend: 63 testes unitários (pytest vem do extra `dev`)
@@ -606,8 +606,8 @@ comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 | [`apps/fullstack/processing/tests/test_plano_da_etl.py`](../apps/fullstack/processing/tests/test_plano_da_etl.py) | Teste que sustenta essa correção |
 | [`apps/fullstack/Makefile`](../apps/fullstack/Makefile) | Alvos `db-local`, `env`, `auth-show-ingest`, `test-backend`, `test-worker`, `test-processing`, `test-frontend-e2e` e `k8s-validate` |
 | [`apps/fullstack/k8s/`](../apps/fullstack/k8s/) | Manifests do caminho síncrono, renderizados pelo `k8s-validate` |
-| [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) | Saída bruta da execução dos cinco testes |
-| [`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt) | Saída da renderização dos cinco conjuntos de manifests |
+| [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt)[^basica] | Saída bruta da execução dos cinco testes |
+| [`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt)[^basica] | Saída da renderização dos cinco conjuntos de manifests, com o `secret.env` copiado de `secret.env.example` como pré-condição |
 
 ### Pré-condição comum
 
@@ -705,7 +705,7 @@ divirjam em silêncio sobre o formato da linha. Um `INSERT` próprio testaria o
 | Componentes envolvidos | `telemetry.interfaces`, `telemetry.application.use_cases`, `telemetry.ports`, `telemetry.infrastructure.postgres.PostgresEventRepository` e a tabela `silver.session_event` |
 | Pré-condições | Banco no ar com migrations aplicadas; tabelas truncadas antes de cada caso; relógio da simulação congelado em 2026-07-14T12:00Z |
 | Dados de entrada | Um evento de erro sintético na sessão `sessao-ti02`, dispositivo `device-ti02`, usuário `usuario-ti02`, sistema `NetRange`, fabricante `Philco`, gravado por `argus_worker.keys.build_row` |
-| Procedimento | `cd apps/fullstack/backend && TEST_DATABASE_URL=... uv run pytest tests/integration -v` |
+| Procedimento | `cd apps/fullstack/backend && TEST_DATABASE_URL=... uv run --extra dev pytest tests/integration -v` |
 | Situação | Aprovado nos 3 casos, em 4,64 s |
 | Evidência | Bloco TI-02 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt) |
 
@@ -725,7 +725,7 @@ despercebida.
 make -C apps/fullstack db-local
 cd apps/fullstack/backend
 TEST_DATABASE_URL=postgresql://argus:argus@localhost:55432/argus_test \
-  uv run pytest tests/integration -v
+  uv run --extra dev pytest tests/integration -v
 ```
 
 &emsp; O alvo `make -C apps/fullstack test-backend` executa esta suíte junto com as
@@ -855,14 +855,14 @@ que nada estivesse errado no sistema.
 | Componentes envolvidos | Rota `POST /v1/events` no API Gateway, Lambda authorizer, fila SQS `argus-events`, event-worker no ECS Fargate, tabela `bronze.event` no RDS, ETL de bronze para silver, tabela `silver.session_event` e a rota `GET /api/v1/events` em Lambda |
 | Pré-condições | Pilha publicada e no ar; `ARGUS_INGEST_URL`, `ARGUS_API_URL`, `ARGUS_INGEST_TOKEN` e `ARGUS_READ_TOKEN` no ambiente; event-worker e ETL em execução. Faltando qualquer uma, o teste é pulado, e não quebrado |
 | Dados de entrada | Um evento de erro único por execução, na sessão `ti05-` seguida de identificador aleatório, carimbado um minuto atrás do instante virtual lido em `GET /api/v1/clock` |
-| Procedimento | `cd apps/fullstack/backend && uv run pytest tests/integration/test_implantacao.py -v -rs`, com o `.env` carregado no ambiente |
-| Situação | 1 caso aprovado e 1 reprovado, em 310 s, na execução de 18/09. A correção do TI-05.2, a migration 030, foi validada localmente em 17/09 e reconfirmada em 24/09; a reexecução na AWS continua pendente |
+| Procedimento | `cd apps/fullstack/backend && uv run --extra dev pytest tests/integration/test_implantacao.py -v -rs`, com o `.env` carregado no ambiente |
+| Situação | 1 caso aprovado e 1 reprovado, em 310 s, na execução de 17/09 às 17:23 UTC (14:23 em Brasília). A correção do TI-05.2, a migration 030 (commit `b2f003f`, de 17/09 às 16:18 em Brasília), foi escrita e validada localmente no mesmo dia, depois dessa execução, e reconfirmada em 24/09; a reexecução na AWS continua pendente |
 | Evidência | Bloco TI-05 de [`evidencias/testes-integracao.txt`](evidencias/testes-integracao.txt), com a saída do pytest e as medições de cada fronteira |
 
 | Caso | Entrada | Resultado esperado | Resultado obtido | Situação |
 |---|---|---|---|---|
 | TI-05.1 | Quatro requisições à mesma rota de leitura: sem token; com token de forma válida e valor desconhecido; com o token da audiência errada, o de ingestão; e com o token correto | As três primeiras recusadas com 401 ou 403 pelo authorizer, antes de alcançarem a Lambda da aplicação; a quarta responde 200 com o corpo do relógio | As três recusadas; a quarta com 200 e o campo `sim_now` presente | Aprovado |
-| TI-05.2 | Evento enviado por `POST /v1/events` com o token de ingestão, seguido de consulta repetida a `GET /api/v1/events?session_id=...` até aparecer ou esgotar o prazo de 300 s | A borda aceita com 2xx e o evento aparece na leitura dentro do prazo, com `event_name` e `device_id` preservados e sem `user_id` na resposta | A borda aceitou e o evento foi gravado no banco, mas não apareceu na leitura em 300 s, ao longo de 29 tentativas | Reprovado em 18/09; correção (migration 030, commit `b2f003f`) validada localmente em 17/09 por `test_plano_da_etl.py` e reconfirmada em 24/09 na suíte do processamento; reexecução na AWS pendente |
+| TI-05.2 | Evento enviado por `POST /v1/events` com o token de ingestão, seguido de consulta repetida a `GET /api/v1/events?session_id=...` até aparecer ou esgotar o prazo de 300 s | A borda aceita com 2xx e o evento aparece na leitura dentro do prazo, com `event_name` e `device_id` preservados e sem `user_id` na resposta | A borda aceitou e o evento foi gravado no banco, mas não apareceu na leitura em 300 s, ao longo de 29 tentativas | Reprovado em 17/09, às 14:23 em Brasília; correção (migration 030, commit `b2f003f`, 16:18 do mesmo dia) validada localmente em 17/09 por `test_plano_da_etl.py` e reconfirmada em 24/09 na suíte do processamento; reexecução na AWS pendente |
 
 &emsp; O primeiro caso é o tipo de asserção que nenhum teste local consegue fazer,
 porque o authorizer só existe na borda do API Gateway e o Flask local roda sem ele.
@@ -1009,7 +1009,7 @@ export ARGUS_READ_TOKEN=...
 # 3. rodar
 cd apps/fullstack/backend
 set -a && . ../.env && set +a
-uv run pytest tests/integration/test_implantacao.py -v -rs
+uv run --extra dev pytest tests/integration/test_implantacao.py -v -rs
 ```
 
 ### Execução das suítes
@@ -1034,34 +1034,38 @@ comportamento esperado numa máquina sem Docker.
 |---|---|---|---|
 | API de leitura | `make -C apps/fullstack test-backend` | 246 aprovados, 2 pulados, em 349 s | 87 aprovados, 161 pulados |
 | Worker de ingestão | `make -C apps/fullstack test-worker` | 110 aprovados, em 79 s | 79 aprovados, 31 pulados |
-| Processamento e ETL | `make -C apps/fullstack test-processing` | 142 aprovados, 3 reprovados, em 659 s (medido na execução com `--cov`) | 96 aprovados, 49 pulados |
+| Processamento e ETL | `make -C apps/fullstack test-processing` | 145 aprovados, em 86,6 s, após a [regra de visibilidade](#regra-de-visibilidade-das-migrations-032-e-033); a rodada anterior deu 142 aprovados e 3 reprovados, em 659 s com `--cov` | 96 aprovados, 49 pulados |
 | Simulador | `make -C apps/fullstack test-simulator` | 22 aprovados | não usa banco |
 | Autorizador | `make -C apps/fullstack test-authorizer` | 18 aprovados | não usa banco |
 | Ferramentas, lote CDC | `make -C apps/fullstack test-hypothesis-batch` | 3 aprovados, em `unittest` | não usa banco |
 | Frontend, contratos e componentes | `make -C apps/fullstack test-frontend` | 28 aprovados, 25 de contrato e 3 de componente | não usa banco |
 | Frontend integrado, com Playwright | `make -C apps/fullstack test-frontend-e2e` | Não executado nesta rodada: exige `next build`, Flask local e o Chromium do Playwright, e a evidência vigente é a dos 12 casos no cluster `kind` em 21/09, em [`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) | — |
-| Pilha publicada, o TI-05 | `uv run --extra dev pytest tests/integration/test_implantacao.py` | Não executado nesta rodada, por não usar credencial da AWS; último resultado, de 18/09: 1 aprovado, 1 reprovado | — |
-| Manifests do Kubernetes | `make -C apps/fullstack k8s-validate` | 3 de 5 conjuntos renderizados (`base`, `migrate` e `overlays/aws`); `overlays/kind` parou por falta do `secret.env` local, não versionado, e `overlays/kind/migrate` não foi alcançado | — |
+| Pilha publicada, o TI-05 | `uv run --extra dev pytest tests/integration/test_implantacao.py` | Não executado nesta rodada, por não usar credencial da AWS; último resultado, de 17/09: 1 aprovado, 1 reprovado | — |
+| Manifests do Kubernetes | `make -C apps/fullstack k8s-validate` | 3 de 5 conjuntos renderizados (`base`, `migrate` e `overlays/aws`); `overlays/kind` parou por falta do `secret.env` local, não versionado, e `overlays/kind/migrate` não foi alcançado. Com o `secret.env` copiado de `secret.env.example`, os cinco renderizam, como na execução de 21/09 | — |
 
-&emsp; São 569 testes aprovados e 3 reprovados nas suítes que rodam sem credencial
-de nuvem. Os 3 reprovados estão todos no processamento, em testes do UC03 que
-afirmam a visibilidade de hipótese só depois da publicação do manifesto, regra que
-as migrations 032 e 033 mudaram em 24/09; a seção do UC03 detalha a divergência e
-a decisão pendente. Os 2 pulados do backend com banco são os casos do TI-05, que
+&emsp; São 572 testes aprovados e nenhum reprovado nas suítes que rodam sem
+credencial de nuvem. A primeira rodada de 24/09 teve 3 reprovados no processamento,
+em testes do UC03 que afirmavam a visibilidade de hipótese só depois da publicação
+do manifesto, regra que as migrations 032 e 033 mudaram; a seção do UC03 registra a
+divergência, a decisão de adotar a regra nova e a reexecução com os 145 aprovados.
+Os 2 pulados do backend com banco são os casos do TI-05, que
 ficam de fora quando `make test-backend` roda sem os tokens da pilha publicada, e
 por isso o TI-05 tem linha própria na tabela. A suíte do processamento cresceu de
 105 para 145 desde a evidência de 23/09: 16 extremos CT39–CT54 do UC03 e 24 testes
 que entraram no tronco com a integração de 24/09. A linha dos manifests reflete o clone
 limpo: `overlays/kind` lê um `secret.env` local, não versionado, e sem ele o
-`kustomize` para nesse overlay; os três conjuntos anteriores renderizaram.
+`kustomize` para nesse overlay, o quarto; os três conjuntos anteriores renderizaram.
 
 &emsp; A última linha não entra nessas contagens, porque não é uma suíte de casos: o
 alvo `k8s-validate` renderiza os cinco conjuntos de manifests (`base`, `migrate`,
 `overlays/aws`, `overlays/kind` e `overlays/kind/migrate`) sem contactar cluster
 nenhum, e existe para que um erro de YAML não chegue à entrega. Ele entrou no
 `make check` junto com os manifests e é, hoje, a única verificação automatizada que
-toca no caminho do Kubernetes. Execução registrada em
-[`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt).
+toca no caminho do Kubernetes. A pré-condição é o `secret.env` do overlay `kind`,
+copiado de `secret.env.example` como descrito adiante. A execução de 21/09, feita
+com essa cópia, renderizou os cinco conjuntos e está registrada em
+[`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt)[^basica]; a de 24/09,
+sem ela, parou no quarto, como mostra a tabela.
 
 &emsp; Uma observação de ambiente, registrada por honestidade de relatório: o alvo
 `test-authorizer` interrompe a coleta com `NoRegionError` quando a variável
@@ -1081,8 +1085,9 @@ cp apps/fullstack/k8s/overlays/kind/secret.env.example \
 ```
 
 &emsp; Com o arquivo no lugar, os cinco conjuntos renderizam. Sem ele, o alvo para no
-terceiro com `evalsymlink failure`. Como o `k8s-validate` é portão do `make check`, e
-como esse passo não está no runbook de nenhum artefato, fica registrado aqui: é o
+quarto, `overlays/kind`, com `evalsymlink failure`. Como o `k8s-validate` é portão do
+`make check`, e como esse passo só aparece no roteiro do cluster local, em
+[`conteineres-final.md`](conteineres-final.md), fica registrado também aqui: é o
 tipo de detalhe que transforma um portão de qualidade em falha de CI no primeiro
 ambiente limpo em que ele rodar.
 
@@ -1121,8 +1126,10 @@ de auto scaling, no cluster local e no cluster publicado.
 continuam em ECS Fargate porque assim foi decidido, e a razão está documentada: o
 Learner Lab nega `iam:CreateOpenIDConnectProvider` e `eks-auth:AssumeRoleForPodIdentity`,
 o que torna IRSA e Pod Identity impossíveis e tira do cluster a única vantagem que ele
-teria ali. O TI-03 e o TI-04 medem a pilha que está no ar. O TI-05.2 também foi
-executado na pilha publicada, mas reprovou; sua correção ainda não foi reconfirmada
+teria ali. O TI-03 e o TI-04 cobrem o código desse caminho, o worker e a ETL, mas
+rodam localmente, com o SQS dublado pelo `moto` no TI-03 e um PostgreSQL em
+contêiner; não medem a pilha que está no ar. Só o TI-05 foi executado na pilha
+publicada, e o TI-05.2 reprovou; sua correção ainda não foi reconfirmada
 remotamente.
 
 &emsp; O caminho síncrono é onde a cobertura ficou para trás. A tabela separa o
@@ -1131,11 +1138,11 @@ que foi medido do que não foi, nos três estados usados no restante do artefato
 | Afirmação | Plataforma em que foi medida | Estado quanto ao EKS |
 |---|---|---|
 | Carga da API de leitura nos três níveis | ALB e grupo de auto scaling, 2 instâncias `t4g.small` | Executado também no cluster em 21/09; ver [Rodada no cluster](#rodada-no-cluster-kubernetes) |
-| Elasticidade sob carga | Target tracking em 60 requisições por instância por minuto | Tentado no cluster e impossível de medir: o HPA ficou sem métrica de CPU durante toda a rodada |
+| Elasticidade sob carga | Target tracking em 60 requisições por instância por minuto | Em 21/09, impossível de medir: o HPA ficou sem métrica de CPU durante toda a rodada. Em 24/09, com o `metrics-server` instalado, o HPA leu a CPU (`ScalingActive=True`), mas não escalou: as duas réplicas atenderam os 100 usuários sem passar de 60% da CPU requisitada, e o aumento de réplicas segue sem medição; ver [Rodada A repetida em 24 de setembro](#rodada-a-repetida-em-24-de-setembro-com-a-métrica-do-autoescalador) |
 | Contrato entre dashboard e API, o TI-01 | Duas origens, com CORS | Executado em origem única no cluster local em 21/09, 3 casos aprovados; saída em [`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) |
 | Dashboard integrado de ponta a ponta, os 9 casos E2E-00 a E2E-08 de [`frontend-integrado.spec.ts`](../apps/fullstack/frontend/tests/e2e/frontend-integrado.spec.ts) | Flask e PostgreSQL locais, via `make test-frontend-e2e` | Executado no cluster `kind` em 21/09, pelo Ingress em origem única: 12 aprovados em 16,8 s somando os 3 do TI-01; saída em [`evidencias/testes-kubernetes.txt`](evidencias/testes-kubernetes.txt) |
 | Autorização na borda, o TI-05.1 | API Gateway e Lambda authorizer | Não se aplica: o Ingress não passa pelo authorizer |
-| Manifests do cluster | `kubectl kustomize`, sem cluster | Executado, sem erro |
+| Manifests do cluster | `kubectl kustomize`, sem cluster | Executado em 21/09, sem erro, com o `secret.env` do overlay `kind` copiado de `secret.env.example`; sem essa cópia, o clone limpo de 24/09 parou em `overlays/kind` |
 | Sondas, implantação sem queda e autocura | Cluster `kind` local | Executado, e registrado na seção 5 de [`conteineres-final.md`](conteineres-final.md), não aqui |
 
 &emsp; A última linha pede duas notas, porque é a que mais facilmente seria lida com
@@ -1153,9 +1160,11 @@ grupo de auto scaling carrega essa ressalva.
 no [`variables.tf`](../apps/fullstack/infra/variables.tf), porque o cluster cobra por
 hora existindo, e o `terraform.tfvars` do repositório mantém o grupo de auto scaling
 em duas instâncias: esse continua sendo o caminho que sobe por padrão. A rodada de
-21 de setembro fechou a comparação de desempenho contra o Ingress. O que permanece
-pendente é repetir o ensaio com o `metrics-server` instalado, para medir a
-elasticidade do HPA em vez do limite das duas réplicas iniciais.
+21 de setembro fechou a comparação de desempenho contra o Ingress, e a de 24 de
+setembro, já com o `metrics-server` instalado, mostrou o HPA lendo a CPU, mas sem
+escalar, porque as duas réplicas iniciais não passaram de 60% da CPU requisitada.
+O que permanece pendente é uma carga acima da rodada B, para medir a elasticidade
+do HPA em vez do limite das duas réplicas iniciais.
 
 ## Testes do UC03 e análise de valor-limite
 
@@ -1174,7 +1183,7 @@ anomalias do UC02 -> regras das famílias -> score e cobertura
 
 No final, cada candidata fica como `generated`, `discarded` ou `insufficient_evidence`. Como essa decisão depende de valores numéricos, foi possível testar não só exemplos comuns, mas também o valor imediatamente abaixo, o valor exato e o valor imediatamente acima de cada fronteira.
 
-Em A1, os casos CT02–CT07 verificam quando a candidata recebe a classificação `generated`. A publicação aparece em um teste separado, o CT29, que acompanha a hipótese avaliada e persistida até o evento `published` e sua exibição na view. Esse teste chama `promote_manifest` diretamente. O CT13c complementa a verificação ao executar o comando real de promoção, com aprovação no limite de 500 candidatas e recusa quando o motor produz truncamento.
+Em A1, os casos CT02–CT07 verificam quando a candidata recebe a classificação `generated`. A visibilidade e a publicação aparecem em um teste separado, o CT29, que acompanha a hipótese avaliada e persistida até a view e até o evento `published`. Pela regra das migrations 032 e 033, a hipótese gerada já aparece na view quando a execução conclui, e a promoção só grava o evento de auditoria. Esse teste chama `promote_manifest` diretamente. O CT13c complementa a verificação ao executar o comando real de promoção, com aprovação no limite de 500 candidatas e recusa quando o motor produz truncamento.
 
 #### Regras principais
 
@@ -1238,7 +1247,8 @@ Os testes ficam em [`apps/fullstack/processing/tests`](../apps/fullstack/process
 - [`test_budgets_e_detector.py`](../apps/fullstack/processing/tests/test_budgets_e_detector.py) cobre os limites por família, o limite total e a estabilidade do corte
 - [`test_analysisctl.py`](../apps/fullstack/processing/tests/test_analysisctl.py) verifica que o portão de qualidade recusa execuções truncadas
 - [`test_fencing.py`](../apps/fullstack/processing/tests/test_fencing.py) confere a reversão quando ocorre uma falha na persistência
-- [`test_analysis_pipeline.py`](../apps/fullstack/processing/tests/test_analysis_pipeline.py) verifica que o resultado só aparece depois da publicação do manifesto
+- [`test_analysis_pipeline.py`](../apps/fullstack/processing/tests/test_analysis_pipeline.py) verifica que a execução concluída aparece na leitura sem depender do portão
+- [`test_generated_visibility.py`](../apps/fullstack/processing/tests/test_generated_visibility.py) verifica que toda revisão gerada fica visível e que descartadas e não avaliáveis ficam fora da view
 
 ### CT01b - cobertura dos oito passos do fluxo principal
 
@@ -1259,11 +1269,11 @@ O CT01 continua verificando a família `backend_internal`. O **CT01b**, relacion
 | 5. Calcular os seis fatores | Conferir A, T, C, E, I e Q, incluindo estados indisponível/não aplicável | A=0,90, C=0,856, E=1 e Q=1. Para o deploy, T=`2^(-5/15)`. Para o RPaaS, I=`ln(51)/ln(10001)` | Valores e estados esperados confirmados com tolerância numérica | Aprovado |
 | 6. Aplicar penalidades, score, cobertura e confiança | Comparar valores calculados com expectativas numéricas independentes e conferir contribuições | No backend principal, contribuição C=0,1712, score≈91,7231, cobertura=0,8125 e confiança alta. No backend RPaaS, penalidade X=−27 | Valores esperados confirmados e todas as contribuições preservadas no banco | Aprovado |
 | 7. Classificar as candidatas | Conferir os estados das hipóteses de backend, deploy e autorização | Cinco `generated`, uma `discarded` por contradição e uma `insufficient_evidence` por volume insuficiente | Estados esperados no retorno e na estatística persistida | Aprovado |
-| 8. Ordenar e persistir resultados para publicação e análise humana | Conferir prioridade por força, repetir com candidatas invertidas e consultar hipóteses, fatores, evidências, grupos, estatística e execução | Sete hipóteses salvas sem perda de conteúdo e com ordem estável. A execução deve estar concluída e vinculada ao manifesto, sem confirmação humana automática | Ordem de origens `[0,0,2,2,2,1,1]` preservada, dados iguais aos avaliados, estatística 7/7/0 e zero feedback | Aprovado |
+| 8. Ordenar e persistir resultados para publicação e análise humana | Conferir prioridade por força, repetir com candidatas invertidas e consultar hipóteses, fatores, evidências, grupos, estatística e execução | Sete hipóteses salvas sem perda de conteúdo e com ordem estável. A execução deve estar concluída e vinculada ao manifesto, sem confirmação humana automática | Ordem de origens `[0,0,2,2,2,1,1]` preservada, dados iguais aos avaliados, estatística 7/7/0, zero feedback, zero eventos de publicação e as cinco geradas, e só elas, visíveis em `gold.v_hypothesis` | Aprovado em 24/09, com a regra da migration 032 |
 
-A sequência de avaliação segue a prioridade do motor por força, impacto e desempate canônico. Como o banco não garante uma ordem implícita das linhas, as consultas de persistência comparam as identidades e o conteúdo dos resultados. Ao final do fluxo básico, as candidatas estão salvas em modo sombra, com zero eventos de publicação e view vazia. A publicação de A1 continua coberta por CT29 e CT13c.
+A sequência de avaliação segue a prioridade do motor por força, impacto e desempate canônico. Como o banco não garante uma ordem implícita das linhas, as consultas de persistência comparam as identidades e o conteúdo dos resultados. Ao final do fluxo básico, as candidatas estão salvas, sem nenhum evento de publicação, e as cinco geradas já aparecem na view, conforme a regra das migrations 032 e 033; descartada e não avaliável ficam fora da leitura. Até 23/09 o teste esperava a view vazia nesse ponto, e a [reexecução com a regra de visibilidade](#regra-de-visibilidade-das-migrations-032-e-033) registra a mudança. A publicação de A1 continua coberta por CT29 e CT13c.
 
-**Evidências:** o nó CT01b aparece como `PASSED` no [log da ampliação](evidencias/uc03-ampliacao-pytest.txt) e no [relatório JUnit](evidencias/uc03-ampliacao-junit.xml). Para reproduzir, a partir da raiz e com o banco de teste preparado:
+**Evidências:** o nó CT01b aparece como `PASSED` no [log da ampliação](evidencias/uc03-ampliacao-pytest.txt)[^basica] e no [relatório JUnit](evidencias/uc03-ampliacao-junit.xml), da regra anterior, e no [log da regra de visibilidade](evidencias/uc03-regra-032-pytest-2026-09-24.txt), da regra atual. Para reproduzir, a partir da raiz e com o banco de teste preparado:
 
 ```bash
 PYTEST_ADDOPTS='-vv -p no:cacheprovider tests/test_uc03_valores_limite.py::test_fluxo_principal_oito_passos_com_persistencia' \
@@ -1340,7 +1350,7 @@ As tabelas mostram o que cada cenário conseguiu verificar. A situação **Aprov
 | ID | Fluxo | Como foi testado | Esperado | Obtido | Situação |
 |---|---|---|---|---|---|
 | CT01 | Principal | Execução de `test_familias.py::test_backend_internal` com uma falha interna válida | Hipótese operacional `generated` com corroboração | Hipótese gerada com corroboração | **Aprovado** |
-| CT01b | Principal, oito passos | Formação, avaliação, ordenação e persistência de candidatas a partir de oito fatos capturados | Sete hipóteses com fatores, evidências, grupos, estados e estatísticas preservados | Cinco geradas, uma descartada e uma não avaliável. A tabela específica detalha a verificação das oito etapas | **Aprovado** |
+| CT01b | Principal, oito passos | Formação, avaliação, ordenação e persistência de candidatas a partir de oito fatos capturados | Sete hipóteses com fatores, evidências, grupos, estados e estatísticas preservados | Cinco geradas, uma descartada e uma não avaliável; as cinco geradas visíveis na view sem publicação. A tabela específica detalha a verificação das oito etapas | **Aprovado** (24/09, regra da migration 032) |
 | CT02–CT07 | A1, classificação | Variação de score e coverage imediatamente abaixo, no limite e acima dos limiares de geração | `generated` quando score e coverage atingem os limites e `discarded` quando um deles fica abaixo | Os seis casos produziram as classificações esperadas. A publicação é verificada separadamente em CT29 | **Aprovado** |
 | CT08 | A2 | Avaliação com score máximo e evidência obrigatória ausente nos testes de limite e de regras | `insufficient_evidence` sem criar contradição | `insufficient_evidence` e contradição zero | **Aprovado** |
 | CT09a | A3, classificação | Score máximo injetado e contradiction 0,80 em `test_a3_contradicao_determinante_prevalece_sobre_score` | `discarded`, apesar do score 100 | `discarded`. A preservação no banco é verificada em CT09b | **Aprovado** |
@@ -1351,13 +1361,13 @@ As tabelas mostram o que cada cenário conseguiu verificar. A situação **Aprov
 | CT12b | E1, manifesto inválido | Um ciclo do worker com hash divergente do conteúdo canônico do manifesto | Registrar a rejeição antes de criar a execução ou publicar | Log de nível `ERROR` com `worker de analise: erro no ciclo` e `ValueError` explicando a divergência, com zero execuções, manifestos e eventos | **Aprovado** |
 | CT13a | E2, limite de geração | Avaliador recebe 499, 500 e 501 candidatas com score controlado | Quantidades geradas 499/500/500 e truncamentos 0/0/1 | Quantidades e contadores retornados conforme esperado, sem persistência nesse teste | **Aprovado** |
 | CT13b | E2, avaliação do portão | Inserção manual de execução concluída e estatística com `truncated=true`, seguida de chamada a `evaluate` | Identificar uma execução truncada e reprovar o critério | `truncated_runs == 1`, motivo `ha runs truncados` e zero eventos. O comando de promoção não foi executado | **Aprovado** |
-| CT13c | E2, motor até a decisão de publicação | Avaliação real de 500 e 501 candidatas, persistência do resultado e execução de `analysisctl evaluate-and-promote` | Publicar com 500 e impedir a promoção com 501 por causa do truncamento persistido | Com 500, saída 0, evento `published` e 500 hipóteses visíveis. Com 501, saída 2, único motivo `ha runs truncados`, zero eventos e zero hipóteses visíveis | **Aprovado** |
+| CT13c | E2, motor até a decisão de publicação | Avaliação real de 500 e 501 candidatas, persistência do resultado e execução de `analysisctl evaluate-and-promote` | Publicar com 500 e impedir a promoção com 501 por causa do truncamento persistido; nos dois casos, as 500 geradas ficam visíveis para revisão e a recusa fica registrada | Com 500, saída 0, evento `published` e 500 hipóteses visíveis. Com 501, saída 2, único motivo `ha runs truncados`, zero eventos e as mesmas 500 hipóteses visíveis, com o truncamento em `gold.hypothesis_run_stats` | **Aprovado** (24/09, regra da migration 032) |
 | CT14a | E3, `deploy_regression` | Deploy de `billing` diante de efeito em `playback` | Não formar candidata de regressão por deploy | `candidatos == []` em `test_deploy_regression` | **Aprovado** |
 | CT14b | E3, `backend_internal` | Sinal de `apollo/billing` diante de anomalia em `newrelic/playback` | Não usar o sinal alheio como corroboração | `_feature(distante[0], "C").applicability == "unavailable"` para a hipótese formada | **Aprovado** |
 | CT15a | E4, transação protegida | Exceção após inserir uma anomalia em `commit_protegido` | Reverter anomalia e manter execução não concluída | Zero anomalias parciais e execução `running`. Uma nova tentativa conclui | **Aprovado** |
 | CT15b | E4, persistência completa | Falha SQL na estatística após gravar hipótese, fatores e evidências, com manifesto em sombra ou previamente publicado | Reverter os resultados, não expor a execução e não acrescentar publicação | Zero resultados parciais, execução `running`, views vazias para o run e eventos anteriores preservados | **Aprovado** |
 | CT28 | Pós-condições | Persistência dos três estados seguida da consulta de hipóteses, metadados, fatores, evidências e avaliações humanas | Estados e metadados preservados, um fator e uma evidência por hipótese, zero feedback | Três estados com score, cobertura, confiança e vínculos esperados. Contagens iguais a 1 e zero feedback | **Aprovado** |
-| CT29 | A1, publicação explícita | Avaliação e persistência reais, seguidas de chamada direta a `promote_manifest` | Hipótese invisível antes da promoção e visível depois do evento | Mesmo `hypothesis_id` aparece na view após evento `published` | **Aprovado** |
+| CT29 | A1, visibilidade e publicação explícita | Avaliação e persistência reais, seguidas de chamada direta a `promote_manifest` | Hipótese visível assim que a execução conclui; a promoção grava o evento `published` sem mudar a leitura | Mesmo `hypothesis_id` na view antes e depois do evento `published` | **Aprovado** (24/09, regra da migration 032) |
 
 O CT12a acompanha o tratamento do catálogo inválido no processo principal. O teste lê o log JSON emitido em `stdout` e confere a mensagem, o nível e a exceção registrada. Também verifica o código de saída e consulta o banco para confirmar que nenhum worker chegou a produzir uma execução ou publicação. A única substituição no subprocesso é o diretório de entrada do catálogo.
 
@@ -1412,7 +1422,7 @@ Os casos CT15a e CT15b observam o que acontece quando a persistência falha. O p
 
 Como os eventos de publicação pertencem ao manifesto, o CT15b considera duas situações. Quando o manifesto está em sombra, a falha mantém a contagem de eventos em zero. Quando ele já foi publicado, o evento anterior permanece e nenhum novo evento é criado. Nos dois casos, a execução que falhou fica sem exposição parcial.
 
-O CT29 acompanha separadamente a publicação de uma hipótese concluída. O teste `test_analysis_pipeline.py::test_pipeline_captura_checkpoint_commita_e_so_publica_depois_do_gate` complementa essa verificação com a captura e a visibilidade da execução. Ambos promovem o manifesto diretamente.
+O CT29 acompanha separadamente a visibilidade e a publicação de uma hipótese concluída. O teste `test_analysis_pipeline.py::test_pipeline_captura_checkpoint_e_expõe_run_concluido_sem_gate` complementa essa verificação com a captura e a visibilidade da execução sem passar pelo portão, e `test_generated_visibility.py` cobre a exibição de todas as revisões geradas.
 
 ### Matriz de rastreabilidade e reprodução por caso
 
@@ -1442,7 +1452,7 @@ P2–P6 exigem o banco local preparado pelo comando da próxima seção. Se a li
 | ID | Fluxo e objetivo | Pré-condições | Procedimento / nó pytest | Verificação na versão final |
 |---|---|---|---|---|
 | CT01 | Principal: gerar explicação de backend com corroboração | P1 | Avaliar família: `F::test_backend_internal` | `generated` e fator C disponível |
-| CT01b | Principal: verificar cada um dos oito passos até o banco | P6 | Formar, avaliar e persistir: `U::test_fluxo_principal_oito_passos_com_persistencia` | Sete resultados salvos com conteúdo conferido. A tabela específica relaciona cada passo às asserções |
+| CT01b | Principal: verificar cada um dos oito passos até o banco | P6 | Formar, avaliar e persistir: `U::test_fluxo_principal_oito_passos_com_persistencia` | Sete resultados salvos com conteúdo conferido e as cinco geradas visíveis na view. A tabela específica relaciona cada passo às asserções |
 | CT02 | A1: rejeitar score 39,99 | P1 | Classificar: `U::test_a1_limites_de_geracao[score-imediatamente-abaixo]` | Status `discarded` |
 | CT03 | A1: aceitar score 40,00 | P1 | Classificar: `U::test_a1_limites_de_geracao[score-no-limite]` | Status `generated` |
 | CT04 | A1: aceitar score 40,01 | P1 | Classificar: `U::test_a1_limites_de_geracao[score-imediatamente-acima]` | Status `generated` |
@@ -1458,7 +1468,7 @@ P2–P6 exigem o banco local preparado pelo comando da próxima seção. Se a li
 | CT12b | E1: registrar erro de manifesto sem publicar | P5 | Executar ciclo do worker, capturar log e consultar tabelas: `U::test_e1_manifesto_invalido_registra_erro_sem_publicar` | Log `ERROR` com `ValueError` e justificativa da divergência, com três contagens zero |
 | CT13a | E2: respeitar teto de 500 geradas | P1 | Avaliar 499/500/501: `U::test_e2_limite_de_500_hipoteses_geradas` | Geradas 499/500/500 e truncamentos 0/0/1 |
 | CT13b | E2: reprovar critério de truncamento no portão | P2 | Inserir estatística e avaliar: `G::test_portao_reprova_cada_criterio_operacional_do_plano` | `truncated_runs == 1`, motivo de reprovação e zero eventos |
-| CT13c | E2: levar o truncamento do motor até o comando de promoção | P3, candidatas das 11 famílias e demais critérios do portão aprovados | Avaliar, persistir, executar CLI e consultar: `U::test_e2_motor_persiste_truncamento_e_cli_decide_promocao[no-limite]` e `[acima]` | Estatísticas gravadas pelo motor, publicação com 500 e recusa exclusivamente por truncamento com 501 |
+| CT13c | E2: levar o truncamento do motor até o comando de promoção | P3, candidatas das 11 famílias e demais critérios do portão aprovados | Avaliar, persistir, executar CLI e consultar: `U::test_e2_motor_persiste_truncamento_e_cli_decide_promocao[no-limite]` e `[acima]` | Estatísticas gravadas pelo motor, publicação com 500 e recusa exclusivamente por truncamento com 501, sem ocultar as 500 geradas |
 | CT14a | E3: deploy alheio não forma candidata | P1 | Avaliar `deploy_regression`: `F::test_deploy_regression` | `candidatos == []` para `billing` |
 | CT14b | E3: sinal alheio não corrobora backend | P1 | Avaliar `backend_internal`: `F::test_backend_internal` | Hipótese existente com C `unavailable` no cenário `distante` |
 | CT15a | E4: reverter transação protegida | P2 | Inserir anomalia e lançar exceção: `T::test_falha_na_persistencia_reverte_resultado_e_estado` | Zero anomalias, run `running` e retomada concluída |
@@ -1476,7 +1486,7 @@ P2–P6 exigem o banco local preparado pelo comando da próxima seção. Se a li
 | CT26 | Confiança: contradição 0,50 impede alta | P1 | Calcular no laço: `U::test_a3_contradicao_determinante_prevalece_sobre_score` | Cenário 0,50 produz `medium` |
 | CT27 | Confiança: contradição 0,51 impede alta | P1 | Calcular no laço: `U::test_a3_contradicao_determinante_prevalece_sobre_score` | Cenário 0,51 produz `medium` |
 | CT28 | Pós-condições: persistir estados e metadados sem confirmação humana | P2 | Persistir hipóteses sintéticas e consultar: `U::test_pos_condicao_persiste_estados_metadados_e_sem_confirmacao` | Três estados, metadados, contagens de fatores/evidências e zero feedback |
-| CT29 | A1: publicar explicitamente hipótese concluída | P3, manifesto em sombra | Avaliar, persistir, promover e consultar: `U::test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto` | Evento `published` e mesmo ID visível após promoção |
+| CT29 | A1: hipótese gerada visível e publicação auditada | P3, manifesto em sombra | Avaliar, persistir, consultar, promover e consultar de novo: `U::test_a1_hipotese_gerada_fica_visivel_e_publicacao_fica_auditada` | Mesmo ID visível antes e depois da promoção, e evento `published` gravado |
 | CT30 | A3: contradição 0,79 ainda admite geração | P1 | Avaliar: `U::test_a3_limite_de_contradicao_determinante[abaixo]` | `generated`, score/cobertura suficientes e penalidade −23,70 |
 | CT31 | A3: contradição 0,80 determina descarte | P1 | Avaliar: `U::test_a3_limite_de_contradicao_determinante[no-limite]` | `discarded`, score/cobertura suficientes e penalidade −24,00 |
 | CT32 | A3: contradição 0,81 mantém descarte | P1 | Avaliar: `U::test_a3_limite_de_contradicao_determinante[acima]` | `discarded`, score/cobertura suficientes e penalidade −24,30 |
@@ -1601,13 +1611,13 @@ As imagens abaixo reproduzem a saída do terminal da execução apresentada nest
 
 *Figura 6 - Suíte completa do processamento e verificações de análise estática e formatação aprovadas na versão final.*
 
-#### Versão final de 39 testes
+#### Ampliação de cobertura dos oito passos e dos tetos reais
 
 Nessa versão foram acrescentados dez casos executáveis: CT01b, que verifica os oito passos no mesmo cenário até a persistência, e os nove parâmetros de CT30–CT38. O arquivo específico do UC03 passou de 29 para **39 testes**, e a suíte completa de processamento passou de 95 para **105 testes**. A análise, os limites e as regras de produção foram preservados.
 
 Esta rodada usou WSL/Linux, Python 3.12.3, pytest 9.1.1 e PostgreSQL 16.15. O banco local `argus_test` já estava disponível na porta 55432. A fixture `_migrated` cuidou da verificação e aplicação das migrations necessárias, e `db` limpou os dados antes de cada caso. As evidências estão nos seguintes arquivos:
 
-- [`evidencias/uc03-ampliacao-pytest.txt`](evidencias/uc03-ampliacao-pytest.txt): saída original da execução completa, com cada nó e sua situação.
+- [`evidencias/uc03-ampliacao-pytest.txt`](evidencias/uc03-ampliacao-pytest.txt)[^basica]: saída original da execução completa, com cada nó e sua situação.
 - [`evidencias/uc03-ampliacao-junit.xml`](evidencias/uc03-ampliacao-junit.xml): relatório produzido pelo pytest, com contagens e tempos por teste.
 - [`evidencias/uc03-ampliacao-ruff.txt`](evidencias/uc03-ampliacao-ruff.txt): saída da análise estática e da verificação de formatação.
 - [`evidencias/uc03-ampliacao-ambiente.txt`](evidencias/uc03-ampliacao-ambiente.txt)[^basica]: data, ambiente, comandos, commit base e SHA-256 do arquivo de testes executado. A execução inclui alterações locais sobre o commit base, explicitadas no registro. Por isso o SHA-256 ali registrado, `EBD928…`, não corresponde a nenhuma versão versionada do arquivo: o commit base `4a23a7e` tem SHA `9D15CF…`, e as alterações locais daquela sessão entraram em seguida no commit `51de9d5`, cujo arquivo tem SHA `FE3D00…`. A reexecução de 24/09, abaixo, registra o SHA do arquivo versionado no commit em que rodou.
@@ -1654,32 +1664,28 @@ num container `postgres:16` descartável. As evidências desta rodada são:
 
 | Verificação da reexecução | Resultado obtido | Situação |
 |---|---|---|
-| `test_uc03_valores_limite.py` com banco, 55 testes | 52 aprovados, 3 reprovados, em 152,7 s | 3 reprovados, todos anteriores a esta rodada; ver abaixo |
+| `test_uc03_valores_limite.py` com banco, 55 testes | 52 aprovados, 3 reprovados, em 152,7 s | 3 reprovados pela mudança de regra das migrations 032 e 033; resolvidos na [reexecução seguinte](#regra-de-visibilidade-das-migrations-032-e-033) |
 | Os 16 casos novos, CT39–CT54 | 16 aprovados, com e sem banco | Aprovado |
 | `test_uc03_valores_limite.py` sem banco | 45 aprovados, 10 pulados | Aprovado, com os pulos esperados |
-| Suíte completa do processamento com banco, 145 testes | 142 aprovados, 3 reprovados, em 659 s (medido na execução com `--cov`) | Os mesmos 3 reprovados |
+| Suíte completa do processamento com banco, 145 testes | 142 aprovados, 3 reprovados, em 659 s (medido na execução com `--cov`) | Os mesmos 3 reprovados, resolvidos na reexecução seguinte |
 | Ruff, análise estática | `All checks passed!` | Aprovado |
 | Ruff, formatação | `31 files already formatted` | Aprovado |
 
 Os três reprovados são CT01b (`test_fluxo_principal_oito_passos_com_persistencia`),
 CT29 (`test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto`) e
 CT13c[acima] (`test_e2_motor_persiste_truncamento_e_cli_decide_promocao[acima]`).
-Os três afirmam que uma hipótese gerada só aparece em `gold.v_hypothesis` depois da
+Os três afirmavam que uma hipótese gerada só aparece em `gold.v_hypothesis` depois da
 publicação do manifesto, e foi isso que mudou entre a evidência de 23/09 e esta: as
 migrations 032 (`hypotheses_visible_on_generation`) e 033
 (`all_generated_hypothesis_revisions`), integradas ao tronco em 24/09, reescrevem a
 view para expor toda hipótese de execução concluída, respeitando só o relógio
 virtual, com o histórico de publicação mantido apenas para auditoria. O arquivo de
-testes não mudou entre os dois commits, então a divergência é entre o teste e a
-regra nova, e não entre duas versões do teste. As asserções que falham são
+testes não mudou entre os dois commits, então a divergência era entre o teste e a
+regra nova, e não entre duas versões do teste. As asserções que falhavam eram
 `assert rows == []` antes da promoção e `assert count == 0` quando o portão recusa
-o manifesto por truncamento. Os demais passos dos três testes, incluindo a
-persistência e a recusa do portão, continuam passando até a asserção de
-visibilidade. A decisão pendente é de produto, não de teste: se a exposição sem
-publicação é a regra final, CT01b, CT29 e CT13c passam a afirmar a visibilidade
-imediata e a matriz de rastreabilidade muda nas três linhas; se o portão volta a
-filtrar a leitura, a migration é que muda. Esta rodada não altera os testes para
-não esconder a divergência.
+o manifesto por truncamento; os demais passos dos três testes, incluindo a
+persistência e a recusa do portão, passavam. A rodada registrou as falhas sem
+alterar os testes, e a decisão de produto veio a seguir.
 
 Para reproduzir, a partir da raiz do repositório e com Docker disponível:
 
@@ -1695,11 +1701,54 @@ uv run ruff format --check --no-cache src tests
 docker rm -f argus-uc03-pg
 ```
 
+#### Regra de visibilidade das migrations 032 e 033
+
+&emsp; A equipe manteve a regra nova: a hipótese gerada fica visível para revisão
+humana assim que a execução conclui, e a publicação do manifesto passa a ser registro
+de auditoria do portão de qualidade. A regra continua sem marcar nenhuma hipótese
+como causa confirmada, que é o requisito do parceiro. A especificação do UC03 em
+[`modelagem.md`](modelagem.md) foi atualizada nos itens 8, A1, E1, E2 e E4, com uma
+nota de revisão, e os três testes passaram a afirmar a regra atual:
+
+| Caso | Asserção até 23/09 | Asserção atual |
+|---|---|---|
+| CT01b | View vazia ao fim do fluxo básico | As cinco geradas, e só elas, na view; zero eventos de publicação |
+| CT29 | Invisível antes da promoção, visível depois | Visível antes da promoção; a promoção grava `published` e a view não muda. O teste foi renomeado para `test_a1_hipotese_gerada_fica_visivel_e_publicacao_fica_auditada` |
+| CT13c[acima] | Zero hipóteses visíveis após a recusa | As 500 geradas visíveis; recusa registrada pela saída 2, pelo motivo `ha runs truncados`, pela ausência de evento `published` e pelo truncamento em `gold.hypothesis_run_stats` |
+
+&emsp; A reexecução rodou em 24/09 às 23:35 em Brasília (25/09, 02:35 UTC) sobre o commit base `c5bea8b` com as
+alterações da branch `fix/revisao-sprint4`, em macOS (Darwin 25.6.0), Python 3.14.7,
+pytest 9.1.1 e PostgreSQL 16 num container descartável. O SHA-256 do arquivo de
+testes executado é `BE3E0E538F0CCB6E21453EA152CA4B2E14CDBD32BD7479C69ED029EDC25BFBBF`.
+
+- [`evidencias/uc03-regra-032-pytest-2026-09-24.txt`](evidencias/uc03-regra-032-pytest-2026-09-24.txt): saída do pytest, com cada nó e sua situação.
+- [`evidencias/uc03-regra-032-junit-2026-09-24.xml`](evidencias/uc03-regra-032-junit-2026-09-24.xml): relatório JUnit da mesma execução.
+- [`evidencias/processing-suite-regra-032-2026-09-24.txt`](evidencias/processing-suite-regra-032-2026-09-24.txt) e [`evidencias/processing-suite-regra-032-junit-2026-09-24.xml`](evidencias/processing-suite-regra-032-junit-2026-09-24.xml): suíte completa do processamento com banco, com cada nó e o relatório JUnit.
+
+| Verificação | Resultado obtido | Situação |
+|---|---|---|
+| `test_uc03_valores_limite.py` com banco, 55 testes | 55 aprovados, em 19,6 s, incluindo CT01b, CT29 e CT13c[acima] | Aprovado |
+| Suíte completa do processamento com banco, 145 testes | 145 aprovados, em 86,6 s | Aprovado |
+| Ruff, análise estática | `All checks passed!` | Aprovado |
+| Ruff, formatação | `31 files already formatted` | Aprovado |
+
+Para reproduzir, a partir da raiz do repositório e com Docker disponível:
+
+```bash
+docker run -d --name argus-uc03-pg -e POSTGRES_USER=argus -e POSTGRES_PASSWORD=x \
+  -e POSTGRES_DB=argus_test -p 55498:5432 postgres:16
+cd apps/fullstack/processing
+TEST_DATABASE_URL=postgresql://argus:x@localhost:55498/argus_test \
+  uv run pytest tests/test_uc03_valores_limite.py -o addopts=--strict-markers -v -rs -p no:cacheprovider \
+  --junitxml=../../../artefatos/evidencias/uc03-regra-032-junit-2026-09-24.xml
+docker rm -f argus-uc03-pg
+```
+
 ### O que os resultados mostraram
 
 A versão inicial verificou as decisões do motor, os valores-limite e parte da persistência dos resultados. Para finalizar os testes do UC03, essa base foi ampliada com novas verificações que acompanham a justificativa do descarte, o tratamento de erros e a publicação das hipóteses.
 
-Os novos casos confirmaram que a justificativa contrária permanece no banco depois do descarte e que uma hipótese gerada só aparece na view após a publicação do manifesto. Também confirmaram a reversão dos resultados quando a gravação falha, inclusive quando o manifesto já estava publicado. Essas verificações deram evidência direta para comportamentos que antes eram sustentados apenas por partes separadas da suíte.
+Os novos casos confirmaram que a justificativa contrária permanece no banco depois do descarte e que uma hipótese gerada aparece na view assim que a execução conclui, com a publicação do manifesto registrada como auditoria, regra adotada pelas migrations 032 e 033 em 24/09. Também confirmaram a reversão dos resultados quando a gravação falha, inclusive quando o manifesto já estava publicado. Essas verificações deram evidência direta para comportamentos que antes eram sustentados apenas por partes separadas da suíte.
 
 A separação de CT13 e CT14 ajudou a distinguir resultados que tinham sido reunidos na mesma descrição. No CT13, os testes isolados passaram a ser complementados por uma execução integrada, com a publicação no limite e a recusa acima dele. No CT14, ficou claro por que uma família deixa de formar a candidata enquanto outra mantém a hipótese com a corroboração indisponível.
 
@@ -1866,7 +1915,7 @@ passa, como aconteceu com 200 usuários na rodada do cluster.
 
 | Nível | Usuários | Erros | p50 | p95 | p99 | Máximo | Tela p95 | Telas completas | Situação | Ressalva |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
-| 1 | 5 | 0 de 1.040 | 9 ms | 94 ms | 278 ms | 889 ms | 157 ms | 100% | Aprovado | O p95 inclui o aquecimento das instâncias e é maior que o do nível 2 |
+| 1 | 5 | 0 de 1.040 | 9 ms | 94 ms | 278 ms | 889 ms | 157 ms | 100% | Aprovado | Captura o aquecimento das instâncias: o p95 da tela, 157 ms, e o máximo, 889 ms, ficam acima dos 148 ms e 548 ms do nível 2, embora o p95 por requisição, 94 ms, fique abaixo dos 96 ms do nível 2 |
 | 2 | 25 | 0 de 5.208 | 9 ms | 96 ms | 309 ms | 548 ms | 148 ms | 100% | Aprovado | — |
 | 3 | 100 | 0 de 19.253 | 23 ms | 802 ms | 1.302 ms | 1.656 ms | 964 ms | 100% | Aprovado | O auto scaling disparou, mas não entrou em serviço dentro da janela: os 100 usuários foram atendidos pelas duas instâncias originais |
 
@@ -2077,7 +2126,8 @@ diz que o `metrics-server` já vem no Auto Mode, diferente do `kind`, que precis
 instalá-lo. A observação em cluster mostra o contrário: o Auto Mode gerencia a
 capacidade de nós, e não instala o servidor de métricas, que continua sendo um
 complemento à parte. A decisão de escalar por CPU, registrada no artefato de
-conteinerização, portanto nunca chegou a funcionar na AWS. No `kind` funciona, porque
+conteinerização, portanto não funcionava na AWS até a rodada de 24/09, que instalou o
+add-on antes da carga. No `kind` funciona, porque
 o `make kind-up` instala o `metrics-server` explicitamente.
 
 &emsp; Dois efeitos colaterais apareceram junto. Os dois pods do backend reiniciaram
@@ -2214,6 +2264,16 @@ pessoas usando o dashboard ao mesmo tempo: 25.501 requisições de carga sem nen
 mais uma requisição de setup, com
 o percentil 95 abaixo de 100 ms até 25 usuários e de 802 ms com 100.
 
+&emsp; O caso de uso escolhido, o UC03, respondeu se o motor de hipóteses cumpre a
+especificação nos fluxos e nos limites: 55 testes cobrem o fluxo principal passo a
+passo, os fluxos A1–A5 e E1–E4, as pós-condições e os valores imediatamente abaixo,
+no limite e acima de cada faixa, e todos aprovam na reexecução de 24/09 à noite. A rodada
+anterior, da tarde de 24/09, reprovou três deles, CT01b, CT29 e CT13c[acima], quando as
+migrations 032 e 033 tornaram as hipóteses geradas visíveis sem esperar a
+publicação do manifesto. A equipe adotou a regra nova, atualizou a especificação
+em `modelagem.md` e só então as asserções, com as duas rodadas preservadas como
+evidência.
+
 &emsp; O valor deste conjunto está menos no número de aprovações do que nos dois
 defeitos que ele encontrou, e que nenhuma leitura de código encontraria. O primeiro
 veio da integração: o evento aceito pela borda levava horas para aparecer na leitura, porque a ETL varria a tabela `bronze.event` sem índice pelo
@@ -2230,10 +2290,13 @@ execuções registradas. A ETL precisa de uma métrica de distância entre o mar
 a ponta da sequência, para que um acúmulo apareça no dia em que começa e não num
 teste dias depois. A carga no grupo de auto scaling ainda se beneficia de um degrau
 de aquecimento e de um nível longo o bastante para observar a entrada das novas
-instâncias. E a elasticidade do Kubernetes deve ser medida novamente depois da
-instalação do `metrics-server`, pois a rodada no Ingress já comparou o desempenho
-das plataformas e localizou o intervalo de reprovação entre 100 e 200 usuários,
-mas o HPA permaneceu sem métrica e as duas réplicas iniciais atenderam sozinhas.
+instâncias. E a elasticidade do Kubernetes ainda precisa ser medida: a rodada de
+21/09 no Ingress comparou o desempenho das plataformas e localizou o intervalo de
+reprovação entre 100 e 200 usuários, com o HPA sem métrica; a de 24/09, com o
+`metrics-server` instalado, confirmou o HPA com `ScalingActive=True`, mas as duas
+réplicas iniciais atenderam os 100 usuários sem chegar a 60% da CPU requisitada e
+não houve aumento de réplicas. Falta uma carga acima da rodada B para ver o HPA
+subir réplicas.
 
 &emsp; Assim, integração entre camadas, carga pelo ALB e carga pelo Ingress do EKS
 foram efetivamente executadas.

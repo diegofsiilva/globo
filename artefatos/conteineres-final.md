@@ -30,16 +30,17 @@ sem orquestrador nenhum.
 | ETL e motor de hipóteses (`processing`) | ECS Fargate | **ECS Fargate, sem alteração** |
 | Simulador e carga inicial (`simulator`, `loader`) | ECS Fargate | **ECS Fargate, sem alteração** |
 
-&emsp; O Auto Scaling Group não foi destruído: foi zerado (`asg_min_size = 0`,
-`asg_desired_capacity = 0`). O `launch template`, o target group e as políticas de
-escala continuam no estado do Terraform, de modo que voltar atrás é trocar dois valores
-no `terraform.tfvars`, e não refazer o provisionamento.
+&emsp; Durante a migração, o Auto Scaling Group não foi destruído de imediato: foi zerado
+(`asg_min_size = 0`, `asg_desired_capacity = 0`), e o `launch template`, o target group
+e as políticas de escala ficaram no estado do Terraform, de modo que voltar atrás era
+trocar dois valores no `terraform.tfvars` (decisão 5 da seção 3.1).
 
-&emsp; Essa reversibilidade cumpriu o seu papel durante a sprint e agora sai de cena: esta
-sprint remove o caminho EC2 da Sprint 3
-(`infra/asg.tf`, `alb.tf` e `asg_observability.tf`). A leitura pública passa a vir só do
-ALB que o Ingress do EKS provisiona; a contingência, com o cluster desligado, é a Lambda
-`read_api_url` com o website do S3 (decisão 13 da seção 3.1).
+&emsp; Essa reversibilidade cumpriu o seu papel e saiu de cena: ao fim da sprint o caminho
+EC2 da Sprint 3 foi removido (`infra/asg.tf`, `alb.tf`, `asg_observability.tf` e
+`templates/user_data.sh.tftpl`, no commit `ae21485`). A leitura pública passou a vir só
+do ALB que o EKS Auto Mode provisiona a partir do Ingress
+(`k8s/overlays/aws/ingress-patch.yaml`); a contingência, com o cluster desligado, é a
+Lambda `read_api_url` com o website do S3 (decisão 13, que substitui a 5).
 
 ---
 
@@ -63,6 +64,7 @@ que justifica plataformas diferentes.
 | `Deployment argus-frontend` | `argus-events-dev-frontend` (nginx + export estático) | Serve o dashboard |
 | `Deployment argus-backend` | `argus-events-dev-backend` (Flask + gunicorn) | API de leitura, porta 5000 |
 | `Job argus-db-migrate` | `argus-events-dev-processing` | Aplica as 33 migrations e termina |
+| `Job argus-db-reader` | `argus-events-dev-processing` | Cria ou atualiza o login somente-leitura `argus_api` que o backend usa (`migrate.py criar-leitor`); `make k8s-migrate` o roda só depois de o `Job` de migrations concluir, porque o `GRANT` depende do papel criado na migration 001 |
 | `Ingress argus` | Não aplicável | Entrada única: `/` para o dashboard, `/api` e `/health` para a API |
 | `HorizontalPodAutoscaler argus-backend` | Não aplicável | 2 a 6 réplicas da API, a 60% de CPU (`backend-hpa.yaml`) |
 | `HorizontalPodAutoscaler argus-frontend` | Não aplicável | 2 a 4 réplicas do dashboard, a 70% de CPU (`frontend-hpa.yaml`) |
@@ -70,8 +72,9 @@ que justifica plataformas diferentes.
 
 ### 2.2 Os componentes fora do cluster em execução
 
-&emsp; O vídeo cobre o que roda no Kubernetes. Os quatro componentes que ficaram no
-Fargate continuam em execução, e a prova está em comandos que qualquer integrante do
+&emsp; O vídeo mostra o cluster em execução; os workers do Fargate aparecem no trecho de
+4:07, pelo Dockerfile e pela explicação da fila, mas não rodando. Os quatro componentes
+que ficaram no Fargate continuam em execução, e a prova está em comandos que qualquer integrante do
 grupo pode repetir com o perfil `g4` (os alvos do `Makefile` exigem `AWS_PROFILE`; o
 `count` exige `DATABASE_URL`):
 
@@ -94,7 +97,7 @@ sonda a vigia. Os valores vêm dos `Dockerfile`, do `Makefile` (`IMAGES` e
 |---|---|---|---|---|---|
 | `worker` | `argus-events-dev-worker` | ECS Fargate: serviços `merge_worker` e `event_worker` | 1 task cada (`worker_desired_count`) | `arm64` (`worker_cpu_architecture = "ARM64"`) | `HEALTHCHECK` por arquivo de batimento |
 | `simulator` | `argus-events-dev-simulator` | ECS Fargate: serviço `simulator` | 0 ou 1 (`simulator_desired_count`; dois relógios virtuais brigariam pelo mesmo `sim.clock`) | `arm64` | `HEALTHCHECK` por arquivo de batimento |
-| `processing` | `argus-events-dev-processing` | ECS Fargate: serviço `processing` (ETL e motor de hipóteses); EKS: `Job argus-db-migrate` | 1 task (`processing_desired_count`); o `Job` roda uma vez, com `backoffLimit: 2` | `arm64` + `amd64` | `HEALTHCHECK` por arquivo de batimento; no `Job`, a conclusão em `1/1` é a sonda |
+| `processing` | `argus-events-dev-processing` | ECS Fargate: serviço `processing` (ETL e motor de hipóteses); EKS: `Job argus-db-migrate` e `Job argus-db-reader` | 1 task (`processing_desired_count`); cada `Job` roda uma vez, com `backoffLimit: 2` | `arm64` + `amd64` | `HEALTHCHECK` por arquivo de batimento; no `Job`, a conclusão em `1/1` é a sonda |
 | `loader` | `argus-events-dev-loader` | ECS Fargate: task avulsa disparada por `make load` | 0 em repouso; uma task enquanto carrega | `arm64` | Nenhuma, de propósito: a carga termina |
 | `backend` | `argus-events-dev-backend` | EKS: `Deployment argus-backend` | 2, com HPA de 2 a 6 | `arm64` + `amd64` | `HEALTHCHECK` em `/health/live`; sondas de partida e de vida em `/health/live`, de prontidão em `/health/ready` |
 | `frontend` | `argus-events-dev-frontend` | EKS: `Deployment argus-frontend` | 2, com HPA de 2 a 4 | `arm64` + `amd64` | `HEALTHCHECK` em `/healthz`; as três sondas em `/healthz` |
@@ -116,16 +119,18 @@ credencial no cluster seria preciso conceder permissão ampla ao nó inteiro, tr
 papel por task, granular, por um papel compartilhado por todos os pods daquele nó.
 
 **No caminho síncrono, ele conserta bastante.** Até a Sprint 3 a API rodava assim, no
-`infra/templates/user_data.sh.tftpl` de cada instância do ASG:
+`infra/templates/user_data.sh.tftpl` de cada instância do ASG (arquivo removido nesta
+sprint com o resto do caminho EC2, no commit `ae21485`; só resta o exemplo
+`infra/ec2_api.tf.example`):
 
 ```bash
 dnf install docker  →  docker pull  →  docker run -p 5000:5000
 ```
 
-&emsp; Isso é orquestração de contêiner feita à mão numa máquina virtual. Não há
-implantação gradual: publicar uma versão nova significa substituir instâncias. Não há
+&emsp; Isso era orquestração de contêiner feita à mão numa máquina virtual. Não havia
+implantação gradual: publicar uma versão nova significava substituir instâncias. Não havia
 reposição do contêiner por saúde, apenas o target group derrubando a instância inteira.
-E o `health_check_grace_period = 300s` existe justamente para cobrir o tempo de boot,
+E o `health_check_grace_period = 300s` existia justamente para cobrir o tempo de boot,
 instalação e download da imagem.
 
 &emsp; Há ainda um efeito de desenho: como o dashboard vinha do S3 e a API do
@@ -141,7 +146,7 @@ API compilada dentro do bundle. Um Ingress único elimina as duas coisas de uma 
 | 2 | EKS em **Auto Mode** | Cluster com node group gerenciado + AWS Load Balancer Controller por Helm | Viabilidade: o controlador por Helm exige IRSA, bloqueado no lab | Sobretaxa de gerenciamento por hora de nó | Sobretaxa do Auto Mode | `compute_config.enabled = false` e um node group clássico |
 | 3 | Cluster na VPC do Argus, não na default | Reusar o cluster de laboratório já existente | Segurança: o RDS é privado e só é alcançável de dentro da VPC | Depende de `create_network = true` | Não aplicável | `create_eks = false` |
 | 4 | Nós com o papel `LabEksNodeRole` mínimo | `LabRole`, que traz SQS, S3 e Secrets Manager | Menor privilégio | Nenhuma: nenhum pod deste cluster fala com a AWS | Não aplicável | Trocar `node_role_arn` |
-| 5 | ASG zerado, não destruído | Remover `asg.tf` e `alb.tf` | Reversibilidade durante a sprint | Recurso ocioso no estado | Nenhum, com capacidade zero | Dois valores no `terraform.tfvars` |
+| 5 | ~~ASG zerado, não destruído~~ **Substituída pela decisão 13**; valeu durante a migração | Remover `asg.tf` e `alb.tf` | Reversibilidade durante a sprint | Recurso ocioso no estado | Nenhum, com capacidade zero | Enquanto valeu, dois valores no `terraform.tfvars` |
 | 6 | Ingress único com origem única | Um `Service` do tipo `LoadBalancer` por aplicação | Simplicidade: elimina CORS e desacopla a imagem do ambiente | Uma regra de roteamento errada afeta os dois serviços | Um balanceador em vez de dois | Separar em dois `Ingress` |
 | 7 | Sonda de vida em `/health/live` | `/health/ready`, que consulta o banco | Disponibilidade | Uma queda do RDS mataria **todos** os pods ao mesmo tempo | Não aplicável | Trocar o `path` da sonda |
 | 8 | Sem limite de CPU nos contêineres | `limits.cpu` declarado | Latência previsível | Cota CFS provoca estrangulamento em rajada, invisível nas métricas usuais | Nó pode precisar ser maior | Acrescentar `limits.cpu` |
@@ -273,8 +278,9 @@ durante uma operação que deveria ser invisível.
 ### 5.5 Escala automática: a métrica não veio de graça
 
 &emsp; O HPA escala por CPU (decisão 9) e depende da API `metrics.k8s.io`, servida pelo
-`metrics-server`. A premissa de que o EKS Auto Mode já a traria, registrada no alvo
-`k8s-bootstrap` do `Makefile`, **não se confirmou no cluster do laboratório**: nas
+`metrics-server`. A premissa de que o EKS Auto Mode já a traria, registrada à época no comentário do alvo
+`k8s-bootstrap` do `Makefile` (hoje corrigido: ele diz que o `metrics-server` **não**
+vem com o Auto Mode), **não se confirmou no cluster do laboratório**: nas
 rodadas de carga de 21/09 os dois HPAs ficaram em `cpu: <unknown>` durante os 36 minutos
 do ensaio, com o evento `FailedGetResourceMetric ... the server could not find the
 requested resource (get pods.metrics.k8s.io)`, e o `APIService v1beta1.metrics.k8s.io`
@@ -389,9 +395,26 @@ ao serviço gerenciado.
 
 &emsp; O runbook completo está em [`apps/fullstack/k8s/README.md`](../apps/fullstack/k8s/README.md).
 
+**Local, sem Kubernetes:**
+
+```bash
+make -C apps/fullstack dev    # scripts/dev.sh: PostgreSQL local já migrado, API em :5000 e dashboard em :3000; Ctrl-C derruba os três
+# ou só a API em contêiner, com um PostgreSQL próprio em 127.0.0.1:55433 (sobe vazio; o
+# comentário do compose.yaml traz o comando de migration):
+docker compose -f apps/fullstack/backend/compose.yaml up --build
+```
+
+&emsp; O `apps/fullstack/.devcontainer/` traz Python 3.12, uv, Node 20 e Docker prontos
+para o `make dev`: no VS Code, "Dev Containers: Open Folder in Container..." apontando
+para `apps/fullstack`. O Codespaces não o encontra, porque só procura `.devcontainer` na
+raiz do repositório, que é fixa.
+
 **Local, sem credencial da AWS:**
 
 ```bash
+# o overlay kind lê o Secret de secret.env, que é gitignored: sem esta cópia,
+# kind, k8s-apply e k8s-validate falham com "env source files: [secret.env]"
+cp apps/fullstack/k8s/overlays/kind/secret.env.example apps/fullstack/k8s/overlays/kind/secret.env
 make -C apps/fullstack kind-up
 make -C apps/fullstack k8s-images kind-load
 make -C apps/fullstack k8s-apply   K8S_OVERLAY=kind
@@ -403,6 +426,7 @@ make -C apps/fullstack k8s-migrate K8S_OVERLAY=kind
 **Na AWS:**
 
 ```bash
+export AWS_PROFILE=g4                      # os alvos da AWS abortam sem ele (require_env)
 aws rds start-db-instance --db-instance-identifier argus-events-dev --profile g4
 make -C apps/fullstack tf-apply            # create_eks = true no terraform.tfvars
 make -C apps/fullstack k8s-kubeconfig k8s-bootstrap
@@ -410,13 +434,20 @@ make -C apps/fullstack k8s-push k8s-secret k8s-migrate k8s-apply
 make -C apps/fullstack k8s-url
 ```
 
+&emsp; O `k8s-push` publica as três imagens que o cluster executa (`backend`, `frontend`
+e `processing`, a dos dois `Job`s de `k8s-migrate`), multi-arquitetura, conforme a
+seção 6.2. O `k8s-migrate` roda os dois `Job`s em sequência: primeiro as migrations,
+depois o login de leitura `argus_api`.
+
 &emsp; O alvo `make check` passou a incluir `k8s-validate`, que renderiza as cinco
 kustomizations (`base`, `migrate`, `overlays/aws`, `overlays/kind` e
 `overlays/kind/migrate`; saída em
 [`evidencias/k8s-validate.txt`](evidencias/k8s-validate.txt)) sem tocar em cluster
 nenhum e, em seguida, roda o verificador `verifica_manifests.py` para as invariantes que
 o kustomize não alcança: ordem das regras do Ingress, arquitetura das imagens e chaves
-do Secret. É o portão que impede um erro de YAML de chegar à entrega.
+do Secret. É o portão que impede um erro de YAML de chegar à entrega. Ele tem a mesma
+pré-condição do runbook local: sem o `secret.env` copiado do `secret.env.example`, a
+renderização de `overlays/kind` falha, e com ela o `make check`.
 
 ---
 
@@ -431,9 +462,10 @@ make -C apps/fullstack k8s-delete       # remove o namespace e, com ele, o balan
 ```
 
 &emsp; Para derrubar o cluster inteiro, `create_eks = false` e `make tf-apply`. ECS e
-RDS não referenciam nada dele e continuam de pé; o balanceador e o ASG da Sprint 3, o
-mesmo, até a remoção descrita na decisão 13. É, também, a demonstração prática
-da decisão 5.
+RDS não referenciam nada dele e continuam de pé. O ALB atual é criado pelo Auto Mode a
+partir do Ingress, e por isso o `k8s-delete` vem antes: é ele que o remove; o balanceador e o ASG da Sprint 3 já não
+existem desde a remoção descrita na decisão 13, e a leitura, com o cluster desligado,
+fica com a Lambda `read_api_url` e o website do S3.
 
 ---
 
@@ -484,10 +516,13 @@ que o produziu.
 | `apps/fullstack/infra/vpc.tf` | Etiquetas `kubernetes.io/role/*`, sem as quais o balanceador não é provisionado |
 | `apps/fullstack/infra/rds.tf` | Regra que autoriza os pods a alcançar o banco |
 | `apps/fullstack/k8s/base/` | `Deployment`, `Service`, `HPA`, `PDB`, `Ingress` e `ConfigMap` |
-| `apps/fullstack/k8s/migrate/` | `Job` de migrations, aplicado à parte porque o modelo de um `Job` é imutável |
+| `apps/fullstack/k8s/migrate/` | `Job`s de banco, aplicados à parte porque o modelo de um `Job` é imutável |
+| `apps/fullstack/k8s/migrate/job-db-migrate.yaml` | `Job argus-db-migrate`: aplica as migrations |
+| `apps/fullstack/k8s/migrate/job-db-reader.yaml` | `Job argus-db-reader`: cria o login somente-leitura `argus_api`; roda depois do anterior, por `make k8s-migrate` |
+| `apps/fullstack/k8s/overlays/kind/secret.env.example` | Modelo do `secret.env` (gitignored) que o overlay kind exige |
 | `apps/fullstack/k8s/overlays/aws/` | Classe de Ingress do balanceador e anotações |
 | `apps/fullstack/k8s/overlays/kind/` | Banco local, ingress-nginx, uma réplica por carga |
 | `apps/fullstack/frontend/Dockerfile` | Imagem do dashboard |
 | `apps/fullstack/frontend/nginx.conf` | Servidor do export estático, preparado para raiz somente-leitura |
-| `apps/fullstack/Makefile` | Alvos `k8s-*` e `kind-*`; `IMAGES` e `IMAGES_MULTIARCH` |
+| `apps/fullstack/Makefile` | Alvos `k8s-*`, `kind-*` e `dev`; `IMAGES`, `IMAGES_MULTIARCH` e `K8S_IMAGES` |
 | `artefatos/evidencias/` | Saídas brutas dos ensaios (seção 11) |
