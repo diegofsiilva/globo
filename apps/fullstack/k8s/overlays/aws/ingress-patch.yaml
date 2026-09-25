@@ -1,8 +1,9 @@
 # Anotacoes do ALB.
 #
-# Os valores de health check e de deregistration_delay sao os MESMOS de
-# infra/alb.tf, de proposito: assim a comparacao de carga entre o ASG e o
-# cluster isola a camada de orquestracao, e nao o tuning do balanceador.
+# Os valores de health check e de deregistration_delay sao os MESMOS que o ALB
+# do caminho EC2 da Sprint 3 usava (infra/alb.tf, removido na Sprint 4), de
+# proposito: assim a comparacao de carga entre o ASG e o cluster isola a camada
+# de orquestracao, e nao o tuning do balanceador.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -15,9 +16,9 @@ metadata:
     # continua saudavel enquanto o pod sai.
     alb.ingress.kubernetes.io/target-type: ip
 
-    # /health/live e nao /health/ready, pela mesma razao registrada em
-    # infra/alb.tf: `ready` consulta o PostgreSQL, e um banco fora do ar
-    # reprovaria TODOS os alvos de uma vez.
+    # /health/live e nao /health/ready, pela mesma razao que valia para o ALB
+    # do caminho EC2 da Sprint 3: `ready` consulta o PostgreSQL, e um banco
+    # fora do ar reprovaria TODOS os alvos de uma vez.
     #
     # Esta anotacao vale para os DOIS target groups (backend e frontend), e e
     # por isso que o nginx.conf do frontend tambem responde /health/live.

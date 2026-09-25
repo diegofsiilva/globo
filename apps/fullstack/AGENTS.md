@@ -73,6 +73,10 @@ Quando só uma área mudou, o alvo específico basta: `test-backend`,
 | `infra` | Terraform de toda a infraestrutura AWS |
 | `tools` | `migrate.py`, `gen_ddl.py`, `etl_dump.py`, `replay_events.py` |
 
+Caminho EC2 (ASG+ALB) da Sprint 3 removido na Sprint 4; a leitura pública vem
+do Ingress do EKS (ver `k8s/README.md`) e, como contingência, da Lambda
+`read_api_url`.
+
 ## Como o dado anda
 
 Dois fluxos de ingestão independentes desembocam no mesmo banco, e um fluxo de

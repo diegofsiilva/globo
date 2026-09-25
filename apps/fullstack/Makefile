@@ -71,10 +71,10 @@ UV := uv run --quiet
 # contexto em apps/fullstack/ -- e nao na pasta de cada app -- porque todas
 # dependem de common/.
 #
-# `backend` entrou quando a API de leitura saiu da Lambda e passou a rodar nas
-# instancias do Auto Scaling Group (infra/asg.tf): o que antes era um zip agora
-# e uma imagem que a instancia puxa do ECR no boot. Ele NAO depende de common/,
-# entao constroi com contexto so em backend/, que e muito menor.
+# `backend` entrou quando a API de leitura saiu da Lambda e passou a rodar como
+# container: primeiro nas instancias EC2 da Sprint 3 (caminho removido na
+# Sprint 4), hoje como Deployment no cluster Kubernetes (k8s/). Ele NAO depende
+# de common/, entao constroi com contexto so em backend/, que e muito menor.
 #
 # `frontend` entrou na Sprint 4, quando o dashboard passou a ser servido por um
 # nginx dentro do cluster em vez de pelo website do S3. Tambem nao depende de
@@ -89,8 +89,9 @@ CONTEXTO = $(if $(filter backend frontend,$(1)),$(1),.)
 # As node pools padrao do EKS Auto Mode sao amd64, enquanto o Fargate do caminho
 # assincrono e as maquinas do time sao arm64 (Apple Silicon). Publicar so arm64
 # colocaria o pod em CrashLoopBackOff com `exec format error` -- a mesma falha
-# que ja mordeu o time no ASG. As tres imagens que rodam SO no Fargate seguem
-# arm64, que custa ~20% menos e dispensa emulacao no build.
+# que ja mordeu o time na Sprint 3, quando a API rodava em EC2. As tres imagens
+# que rodam SO no Fargate seguem arm64, que custa ~20% menos e dispensa emulacao
+# no build.
 #
 # `processing` entrou nesta lista em 21/09/2026. Sao TRES as imagens que o
 # cluster executa, e nao duas: alem do backend e do frontend, o `Job` de
@@ -148,15 +149,11 @@ install: ## Instala as dependencias de todos os apps Python
 env: ## Cria o .env a partir dos outputs do Terraform
 	@test -f .env && { echo ".env ja existe — apague antes se quiser regerar."; exit 1; } || true
 	@echo "Lendo os endpoints do Terraform..."
-	@# ARGUS_API_URL prefere o ALB quando ele existe.
-	@#
-	@# Durante a migracao os dois caminhos de leitura coexistem: o HTTP API da
-	@# Lambda (`read_api_url`) e o Application Load Balancer (`api_url_alb`).
-	@# O ALB e o destino definitivo, entao ele vence; enquanto `create_network`
-	@# for falso o output vem vazio e o valor antigo continua valendo.
+	@# ARGUS_API_URL e o HTTP API da Lambda de leitura (`read_api_url`): o
+	@# caminho de contingencia, que sempre existe no estado. O endereco publico
+	@# do cluster vem do Ingress e nao passa pelo Terraform -- `make k8s-url`.
 	@{ \
-	  echo "ARGUS_API_URL=$$(cd $(INFRA) && { terraform output -raw api_url_alb 2>/dev/null \
-	    || terraform output -raw read_api_url 2>/dev/null; })"; \
+	  echo "ARGUS_API_URL=$$(cd $(INFRA) && terraform output -raw read_api_url 2>/dev/null)"; \
 	  echo "ARGUS_INGEST_URL=$$(cd $(INFRA) && terraform output -raw ingest_url 2>/dev/null)"; \
 	  echo "ARGUS_CHANGES_URL=$$(cd $(INFRA) && terraform output -raw changes_url 2>/dev/null)"; \
 	  echo "HYPOTHESES_SOURCE=api"; \
@@ -488,9 +485,9 @@ parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
 # Imagens
 # --------------------------------------------------------------------------- #
 
-# ARM64 em todas: a Lambda e arm64, as tasks Fargate sao arm64 e as instancias
-# do ASG sao Graviton (t4g). Construir x86 aqui faria a instancia falhar com
-# "exec format error" no `docker run` do user_data.
+# ARM64 no build local: a Lambda e arm64 e as tasks Fargate sao arm64. As
+# imagens que o cluster executa (IMAGES_MULTIARCH) ganham tambem amd64 no
+# `push` -- ver o comentario no topo do arquivo.
 .PHONY: images
 images: $(addprefix image-,$(IMAGES)) ## Constroi as imagens (ARM64)
 
@@ -1421,9 +1418,11 @@ k8s-kubeconfig: ## Aponta o kubectl para o cluster EKS deste stack
 
 .PHONY: k8s-bootstrap
 k8s-bootstrap: ## Instala o que o cluster precisa antes da aplicacao
-	@# O EKS Auto Mode ja traz o metrics-server (verificado: kube-system tem o
-	@# Deployment de pe), entao aqui so falta a IngressClass do controlador de
-	@# ALB. No kind e o contrario -- ver `kind-up`.
+	@# O metrics-server NAO vem com o Auto Mode: um cluster recem-criado nasce
+	@# com kube-system vazio e o HPA fica em `<unknown>/60%` (lab de 18/09).
+	@# Ele e o add-on aws_eks_addon.metrics_server de infra/eks.tf, instalado
+	@# pelo `tf-apply` junto com o cluster; aqui so falta a IngressClass do
+	@# controlador de ALB. No kind o metrics-server entra pelo `kind-up`.
 	$(KUBECTL) apply -f $(K8S)/overlays/aws/ingressclass.yaml
 	@echo
 	@$(KUBECTL) get ingressclass
@@ -1494,6 +1493,7 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 # transformer nativo resolve, sem pipe.
 #
 # $(1) = diretorio do kustomize
+# $(2) = flags extras do `kubectl apply` (opcional; `k8s_roda_job` passa -l)
 define k8s_aplica_aws
 	set -e; \
 	urls=$$(cd $(INFRA) && terraform output -json ecr_repository_urls); \
@@ -1502,7 +1502,7 @@ define k8s_aplica_aws
 	  | sed "s|IMAGE_BACKEND|$$(ref backend):$(IMAGE_TAG)|g; \
 	         s|IMAGE_FRONTEND|$$(ref frontend):$(IMAGE_TAG)|g; \
 	         s|IMAGE_PROCESSING|$$(ref processing):$(IMAGE_TAG)|g" \
-	  | $(KUBECTL) apply -f -
+	  | $(KUBECTL) apply -f - $(2)
 endef
 
 .PHONY: k8s-apply
@@ -1514,20 +1514,40 @@ k8s-apply: ## Aplica o overlay no cluster corrente (K8S_OVERLAY=aws|kind)
 	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY); \
 	fi
 
-.PHONY: k8s-migrate
-k8s-migrate: ## Aplica as migrations no cluster (Job one-shot)
-	@# delete antes do apply porque `spec.template` de Job e imutavel: sem isso,
-	@# rodar de novo com uma tag nova falha com "field is immutable".
-	@set -e; \
-	$(KUBECTL) delete job argus-db-migrate -n $(K8S_NAMESPACE) --ignore-not-found; \
+# Roda um dos Jobs de k8s/migrate/ ate o fim e mostra o rabo do log.
+#
+# Os dois Jobs vivem no mesmo kustomization, mas NAO podem subir juntos: o de
+# leitor faz `GRANT argus_reader`, e esse papel nasce na migration 001. Num
+# banco novo, aplicar os dois de uma vez e uma corrida que o leitor perde. O
+# `-l` do kubectl filtra o YAML renderizado pelo label do Job, e e isso que
+# permite aplicar um de cada vez a partir de um unico diretorio.
+#
+# delete antes do apply porque `spec.template` de Job e imutavel: sem isso,
+# rodar de novo com uma tag nova falha com "field is immutable".
+#
+# $(1) = nome do Job (argus-db-migrate | argus-db-reader)
+define k8s_roda_job
+	set -e; \
+	$(KUBECTL) delete job $(1) -n $(K8S_NAMESPACE) --ignore-not-found; \
 	if [ "$(K8S_OVERLAY)" = "aws" ]; then \
-	  $(call k8s_aplica_aws,$(K8S)/migrate); \
+	  $(call k8s_aplica_aws,$(K8S)/migrate,-l app.kubernetes.io/name=$(1)); \
 	else \
-	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY)/migrate; \
+	  $(KUBECTL) apply -k $(K8S)/overlays/$(K8S_OVERLAY)/migrate \
+	    -l app.kubernetes.io/name=$(1); \
 	fi; \
-	$(KUBECTL) wait --for=condition=complete job/argus-db-migrate \
-	  -n $(K8S_NAMESPACE) --timeout=600s
-	@$(KUBECTL) logs job/argus-db-migrate -n $(K8S_NAMESPACE) --tail=20
+	$(KUBECTL) wait --for=condition=complete job/$(1) \
+	  -n $(K8S_NAMESPACE) --timeout=600s; \
+	$(KUBECTL) logs job/$(1) -n $(K8S_NAMESPACE) --tail=20
+endef
+
+.PHONY: k8s-migrate
+k8s-migrate: ## Aplica as migrations e cria o login de leitura (dois Jobs, em sequencia)
+	@# Primeiro o schema, depois o login: `migrate.py aplicar` NAO cria
+	@# `argus_api` -- `criar-leitor` e subcomando a parte. So com o primeiro
+	@# Job, num banco novo o backend fica 0/1 com PoolTimeout e, por baixo,
+	@# "password authentication failed for user argus_api" (lab de 18/09).
+	@$(call k8s_roda_job,argus-db-migrate)
+	@$(call k8s_roda_job,argus-db-reader)
 
 .PHONY: k8s-rollout
 k8s-rollout: ## Publica as imagens e espera o rollout terminar
@@ -1568,9 +1588,11 @@ k8s-logs: ## Segue o log de um Deployment (APP=backend|frontend)
 
 .PHONY: k8s-scale-zero
 k8s-scale-zero: ## Zera os Deployments para economizar credito do lab
-	@# Sem pod pendente o Karpenter do Auto Mode consolida os nos ate zero em
-	@# poucos minutos. O ALB continua de pe -- para remove-lo tambem, use
-	@# `make k8s-delete`. E o equivalente do `make pause` para o cluster.
+	@# Sem pod da aplicacao o Karpenter do Auto Mode consolida os nos em poucos
+	@# minutos -- mas nao ate zero: os pods do metrics-server (add-on em
+	@# infra/eks.tf) ficam em kube-system e seguram um no pequeno. O ALB
+	@# continua de pe -- para remove-lo tambem, use `make k8s-delete`. E o
+	@# equivalente do `make pause` para o cluster.
 	$(KUBECTL) -n $(K8S_NAMESPACE) scale deployment --all --replicas=0
 	@$(KUBECTL) -n $(K8S_NAMESPACE) get deploy
 
@@ -1620,8 +1642,9 @@ kind-up: ## Cria o cluster local com ingress-nginx, metrics-server e Postgres
 	@# "no matching resources found" quando roda antes de o Deployment criar o
 	@# primeiro pod, e o apply acima retorna sem esperar por isso.
 	$(KUBECTL) -n ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=300s
-	@# Diferente do EKS Auto Mode, o kind nao traz metrics-server -- e sem ele o
-	@# HPA fica em `<unknown>/60%` e nao escala nada. O --kubelet-insecure-tls e
+	@# Nenhum cluster traz metrics-server sozinho -- nem o kind nem o EKS Auto
+	@# Mode (la ele e o add-on de infra/eks.tf). Sem ele o HPA fica em
+	@# `<unknown>/60%` e nao escala nada. O --kubelet-insecure-tls e
 	@# obrigatorio: os certificados de kubelet do kind sao autoassinados.
 	$(KUBECTL) apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/$(METRICS_SERVER_VERSAO)/components.yaml
 	$(KUBECTL) -n kube-system patch deployment metrics-server --type=json \

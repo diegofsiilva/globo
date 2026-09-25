@@ -1,6 +1,7 @@
 # Kubernetes — caminho síncrono do Argus
 
-O cluster orquestra **dashboard, API de leitura e o Job de migration**. O caminho
+O cluster orquestra **dashboard, API de leitura e os Jobs de banco** (migration
+e login de leitura). O caminho
 assíncrono — workers de SQS, `processing`, `simulator` e `loader` — continua no
 **ECS Fargate**, sem nenhuma alteração.
 
@@ -10,7 +11,7 @@ metade. As razões estão em [`infra/eks.tf`](../infra/eks.tf) e no artefato
 
 | Caminho | Onde roda | Por quê |
 |---|---|---|
-| Síncrono (dashboard + API) | **EKS Auto Mode** | Substitui o ASG, que subia o contêiner à mão pelo `user_data` e levava ~300s para repor uma instância. Ganha rolling update sem queda, reposição em segundos e escala por métrica. |
+| Síncrono (dashboard + API) | **EKS Auto Mode** | Substitui o ASG da Sprint 3 (removido do Terraform na Sprint 4), que subia o contêiner à mão pelo `user_data` e levava ~300s para repor uma instância. Ganha rolling update sem queda, reposição em segundos e escala por métrica. |
 | Assíncrono (ingestão, ETL, simulação) | **ECS Fargate** | Já entrega estado desejado, rolling deploy e health check — e **IAM por task**, que este cluster não consegue oferecer: o Learner Lab bloqueia IRSA e Pod Identity. |
 
 Nenhum pod deste cluster fala com a AWS. O backend não tem `boto3` (removido de
@@ -22,7 +23,7 @@ estático. É por isso que os nós usam o `LabEksNodeRole` mínimo, sem SQS nem 
 ```
 k8s/
 ├── base/        Deployments, Services, HPA, PDB, Ingress, ConfigMap
-├── migrate/     Job de migration, aplicado à parte (ver abaixo)
+├── migrate/     Jobs de migration e de login de leitura, à parte (ver abaixo)
 └── overlays/
     ├── aws/     IngressClass do ALB e anotações
     └── kind/    Postgres no cluster, ingress-nginx, imagens :dev
@@ -35,9 +36,18 @@ overlay `aws`, `make k8s-apply` troca cada um pela referência completa lida de
 `terraform output ecr_repository_urls`; no `kind`, o transformer `images:` do
 kustomize aponta para as imagens `:dev` locais.
 
-O `Job` fica **fora** da base de propósito: `spec.template` de um Job é imutável,
-então incluí-lo faria todo `make k8s-apply` com tag nova falhar com
+Os `Job`s ficam **fora** da base de propósito: `spec.template` de um Job é
+imutável, então incluí-los faria todo `make k8s-apply` com tag nova falhar com
 `field is immutable`. `make k8s-migrate` faz `delete` antes do `apply`.
+
+São dois Jobs porque `migrate.py aplicar` **não cria** o login `argus_api`:
+`criar-leitor` é subcomando à parte. `argus-db-migrate` aplica o schema;
+`argus-db-reader` cria (ou atualiza) o login, e só pode rodar depois, porque o
+`GRANT argus_reader` depende do papel que a migration 001 cria. O alvo aplica
+um de cada vez, filtrando o YAML renderizado por `-l app.kubernetes.io/name`,
+e espera o primeiro completar. Num banco novo, só o primeiro Job deixa o
+backend em `0/1` com `PoolTimeout` e, por baixo, `password authentication
+failed for user "argus_api"` — foi o que aconteceu no lab limpo de 18/09.
 
 ## A decisão central: uma origem só
 
@@ -109,7 +119,7 @@ make k8s-bootstrap      # IngressClass do ALB
 # 2. Imagens, segredo, migrations, aplicação
 make k8s-push           # backend e frontend multi-arquitetura
 make k8s-secret
-make k8s-migrate
+make k8s-migrate        # dois Jobs, em sequência: schema e login argus_api
 make k8s-apply
 
 # 3. Verificação
@@ -117,8 +127,13 @@ make k8s-status
 make k8s-url            # http://<hostname do ALB>
 ```
 
-O `metrics-server` **já vem** no Auto Mode — diferente do `kind`, que precisa
-instalá-lo no `kind-up`.
+O `metrics-server` **não vem** com o Auto Mode: um cluster recém-criado nasce
+com `kube-system` vazio e sem o APIService `v1beta1.metrics.k8s.io`, e o HPA
+fica em `<unknown>/60%` com `ScalingActive=False` — foi assim no lab limpo de
+18/09. Ele é o add-on `aws_eks_addon.metrics_server` declarado em
+[`infra/eks.tf`](../infra/eks.tf), instalado pelo `make tf-apply` junto com o
+cluster; `cpu: 0%/60%` aparece uns dois minutos depois. No `kind` é o
+`kind-up` que o instala.
 
 ### Multi-arquitetura
 
@@ -142,8 +157,8 @@ São cinco chaves, e duas delas são URLs de banco **diferentes**:
 | Chave | Usuário | Quem consome |
 |---|---|---|
 | `DATABASE_URL` | `argus_api` (só lê as views `v_*`) | Deployment do backend |
-| `DATABASE_URL_MASTER` | mestre | **Job de migration** |
-| `DB_READER_PASSWORD` | — | Job de migration, que cria o login de leitura |
+| `DATABASE_URL_MASTER` | mestre | **Jobs `argus-db-migrate` e `argus-db-reader`** |
+| `DB_READER_PASSWORD` | — | Job `argus-db-reader`, que cria o login de leitura com esta senha |
 | `USER_ID_HASH_SALT` | — | Deployment do backend |
 | `DASHBOARD_TOKEN_SHA256` | — | Deployment do backend |
 
@@ -194,4 +209,4 @@ make k8s-delete       # remove o namespace e, com ele, o ALB
 ```
 
 Para derrubar o cluster inteiro: `create_eks = false` no `terraform.tfvars` e
-`make tf-apply`. ECS, RDS, ALB e ASG não referenciam nada dele e continuam de pé.
+`make tf-apply`. ECS, RDS e a Lambda de leitura não referenciam nada dele e continuam de pé.

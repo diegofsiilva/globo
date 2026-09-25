@@ -1,7 +1,7 @@
 # Cluster Kubernetes que orquestra o caminho SINCRONO do Argus.
 #
 # O que ele substitui: ate a Sprint 3 a API de leitura rodava em instancias de
-# um Auto Scaling Group (asg.tf) que subiam o container a mao, pelo user_data
+# um ASG (asg.tf, removido na Sprint 4) que subiam o container a mao, pelo user_data
 # (`dnf install docker && docker pull && docker run`). Aquilo e orquestracao de
 # container feita numa VM: sem rolling deploy, sem reposicao do container por
 # health -- so o target group derrubando a instancia inteira -- e com
@@ -133,6 +133,49 @@ resource "aws_eks_cluster" "main" {
       error_message = "Papeis LabEks* nao encontrados nesta conta. Rode 'make -C .. eks-roles' e cole os ARNs em eks_cluster_role_arn / eks_node_role_arn no terraform.tfvars."
     }
   }
+}
+
+# metrics-server: o HPA depende dele e o Auto Mode NAO o instala.
+#
+# Um cluster recem-criado nasce com kube-system vazio e sem o APIService
+# v1beta1.metrics.k8s.io. Sem ele o HPA de k8s/base/backend-hpa.yaml fica em
+# `<unknown>/60%` com ScalingActive=False e nunca escala -- foi assim no lab
+# limpo de 18/09/2026 (artefatos/evidencias/carga-kubernetes.txt). O contorno
+# manual foi `aws eks create-addon --addon-name metrics-server`; aqui ele vira
+# parte do stack, e `cpu: 0%/60%` aparece uns dois minutos depois do apply.
+#
+# `bootstrap_self_managed_addons = false` no cluster nao conflita: aquele flag
+# so desliga os add-ons self-managed de rede (vpc-cni, kube-proxy, coredns),
+# que o Auto Mode substitui. Add-on gerenciado declarado por aws_eks_addon
+# continua permitido -- e e o unico jeito de instala-lo sem Helm nem IRSA.
+#
+# Sem `addon_version` de proposito: o provider escolhe a versao padrao
+# compativel com var.eks_version, e fixar uma aqui seria mais um numero a
+# atualizar a cada upgrade do cluster.
+#
+# Efeito colateral em `make k8s-scale-zero`: os pods do metrics-server ficam em
+# kube-system, entao o Karpenter mantem ao menos um no pequeno de pe mesmo com
+# a aplicacao zerada. Para chegar a zero nos e preciso destruir o cluster.
+resource "aws_eks_addon" "metrics_server" {
+  count = local.criar_eks ? 1 : 0
+
+  cluster_name = aws_eks_cluster.main[0].name
+  addon_name   = "metrics-server"
+
+  # OVERWRITE: se ja houver um metrics-server instalado a mao no cluster (um
+  # `kubectl apply` do components.yaml, como faz o `kind-up`), o add-on assume
+  # os objetos em vez de falhar em conflito de campo. Nao cobre add-on criado
+  # por `aws eks create-addon` -- esse precisa de `terraform import
+  # 'aws_eks_addon.metrics_server[0]' <cluster>:metrics-server`.
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = {
+    Name      = "${local.eks_name}-metrics-server"
+    Component = "kubernetes"
+  }
+
+  depends_on = [aws_eks_cluster.main]
 }
 
 # Acesso ao cluster para quem NAO aplicou o Terraform.

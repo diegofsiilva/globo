@@ -837,7 +837,7 @@ variable "create_network" {
   description = <<-EOT
     Cria a VPC dedicada, as sub-redes publica e privada em duas AZs, o Internet
     Gateway, o NAT Gateway e as tabelas de rota -- mais tudo que depende delas:
-    bastion, ALB e Auto Scaling Group.
+    bastion e o cluster EKS de `create_eks`, cujo Ingress cria o ALB.
 
     `false` mantem o comportamento anterior a esta sprint: todo o stack roda na
     VPC default da conta, com IP publico nas tasks. Existe para que a migracao
@@ -894,8 +894,8 @@ variable "public_subnet_cidrs" {
 
 variable "private_subnet_cidrs" {
   description = <<-EOT
-    Sub-redes privadas, uma por zona de disponibilidade. Executam as instancias
-    do Auto Scaling Group, as tasks Fargate e o subnet group do RDS. Sem rota
+    Sub-redes privadas, uma por zona de disponibilidade. Executam os nos do
+    cluster EKS, as tasks Fargate e o subnet group do RDS. Sem rota
     para o Internet Gateway: a saida e pelo NAT.
 
     Vazio (o padrao) deriva de `vpc_cidr`, com um salto de 10 no indice em
@@ -903,15 +903,15 @@ variable "private_subnet_cidrs" {
     salto e legibilidade pura -- olhando um IP num flow log, o terceiro octeto
     ja diz de que lado da rede ele veio.
 
-    Duas no minimo, porque o subnet group do RDS exige duas AZs e porque o ASG
-    precisa poder substituir instancia na zona que sobrou.
+    Duas no minimo, porque o subnet group do RDS exige duas AZs e porque o
+    cluster EKS precisa poder reagendar os pods na zona que sobrou.
   EOT
   type        = list(string)
   default     = []
 
   validation {
     condition     = length(var.private_subnet_cidrs) == 0 || length(var.private_subnet_cidrs) >= 2
-    error_message = "Deixe vazio para derivar de vpc_cidr, ou informe no minimo duas (RDS e ASG)."
+    error_message = "Deixe vazio para derivar de vpc_cidr, ou informe no minimo duas (RDS e EKS)."
   }
 }
 
@@ -978,151 +978,11 @@ variable "bastion_instance_type" {
     um psql eventual, entao qualquer coisa maior seria custo sem uso -- e uma
     maquina ociosa maior e superficie maior.
 
-    Familia `t4g` (Graviton, arm64) para casar com a AMI arm64 do bastion e do
-    ASG. Ver a nota sobre arquitetura em `app_instance_type`.
+    Familia `t4g` (Graviton, arm64) para casar com a AMI arm64 do bastion -- ver
+    a nota sobre arquitetura em bastion.tf.
   EOT
   type        = string
   default     = "t4g.micro"
-}
-
-# --------------------------------------------------------------------------- #
-# Camada de aplicacao: ALB e Auto Scaling Group
-# --------------------------------------------------------------------------- #
-
-variable "app_port" {
-  description = <<-EOT
-    Porta em que o gunicorn escuta na instancia, e para a qual o target group
-    encaminha. 5000 e a porta que backend/Dockerfile expoe -- mudar aqui sem
-    mudar la faz o health check reprovar todas as instancias.
-  EOT
-  type        = number
-  default     = 5000
-}
-
-variable "app_instance_type" {
-  description = <<-EOT
-    Tipo das instancias do Auto Scaling Group.
-
-    `small` e nao `micro`: o container roda gunicorn com 2 workers x 4 threads
-    mais o agente CloudWatch, e 1 GiB de memoria fica no limite durante o
-    `docker pull`. Nao e instancia grande de proposito -- a resposta a carga
-    aqui e horizontal, e nao vertical; e para isso que existe o grupo.
-
-    ARQUITETURA: familia `t4g`, que e Graviton (arm64). Isto NAO e escolha de
-    custo, e requisito de compatibilidade: `make push` constroi todas as imagens
-    com `--platform linux/arm64`, e uma instancia x86_64 nao executaria a imagem
-    -- o `docker run` do user_data falharia com "exec format error", e o sintoma
-    chegaria como instancia reprovando no health check, longe da causa.
-
-    Trocar por uma familia x86 (`t3`, `t2`) exige trocar junto a AMI em
-    bastion.tf e o `--platform` do Makefile.
-  EOT
-  type        = string
-  default     = "t4g.small"
-}
-
-variable "asg_min_size" {
-  description = <<-EOT
-    Minimo de instancias. Dois, e nao um: com uma instancia so, perde-la e
-    indisponibilidade total ate a substituta subir -- vaos de varios minutos,
-    contando boot e pull da imagem. Com duas em AZs distintas, a perda de uma
-    instancia ou de uma zona inteira degrada a capacidade sem derrubar o servico.
-
-    ZERO tambem e valido, e significa outra coisa: o caminho de leitura saiu
-    daqui e foi para o cluster Kubernetes (eks.tf). Nesse caso o grupo nao serve
-    ninguem, e manter duas instancias ligadas seria pagar duas vezes pela mesma
-    API. O grupo continua no estado -- launch template, target group e politicas
-    intactos --, entao voltar e trocar este valor, nao refazer o apply.
-  EOT
-  type        = number
-  default     = 2
-
-  validation {
-    # Um e o unico valor proibido: e o que parece alta disponibilidade e nao e.
-    # Zero e uma decisao explicita (o grupo esta desligado); dois ou mais e o
-    # grupo servindo com folga. Um e o meio-termo que so aparece como problema
-    # no dia em que a instancia cai.
-    condition     = var.asg_min_size == 0 || var.asg_min_size >= 2
-    error_message = "Use 0 (grupo desligado, caminho de leitura no cluster) ou >= 2 (a perda de uma instancia nao derruba o servico). O valor 1 nao e aceito: parece redundante e nao e."
-  }
-}
-
-variable "asg_max_size" {
-  description = <<-EOT
-    Teto de instancias. Existe para limitar o estrago de uma rajada anomala ou
-    de um laco de requisicao: sem teto, a politica escalaria ate esgotar o
-    credito do laboratorio. Seis cobre com folga a carga do rnf02.
-  EOT
-  type        = number
-  default     = 6
-}
-
-variable "asg_desired_capacity" {
-  description = <<-EOT
-    Tamanho inicial do grupo. Igual ao minimo: a politica de escalonamento
-    assume dali para cima, e comecar acima do minimo so anteciparia custo.
-  EOT
-  type        = number
-  default     = 2
-}
-
-variable "asg_target_requests_per_target" {
-  description = <<-EOT
-    Valor-alvo da politica de target tracking, em requisicoes por instancia por
-    minuto. O grupo cresce quando a media passa disso e encolhe quando fica
-    abaixo por tempo suficiente.
-
-    60 vem da carga do plano de teste: `tests/carga/rnf02_tempo_resposta.js`
-    sustenta ~600 consultas/min com 10 usuarios virtuais. Contra duas
-    instancias, sao 300 por alvo -- cinco vezes o alvo, o que faz a politica
-    disparar de forma observavel durante a gravacao, e nao no limite.
-
-    Baixo demais oscila o grupo (sobe e desce a cada variacao); alto demais so
-    escala quando a latencia ja subiu, e ai o escalonamento chega tarde.
-  EOT
-  type        = number
-  default     = 60
-}
-
-variable "asg_health_check_grace_period" {
-  description = <<-EOT
-    Segundos entre a instancia iniciar e o health check do ELB comecar a valer.
-    Serve tambem como `instance_warmup` do refresh e da politica.
-
-    300 s cobre boot do Amazon Linux + `dnf install` de docker e agente +
-    `docker pull` da imagem + subida do gunicorn. Curto demais e o pior modo de
-    falha desta configuracao: a instancia e morta antes de terminar de subir, a
-    substituta faz o mesmo, e o grupo entra em ciclo de reciclagem que parece
-    falha da aplicacao.
-  EOT
-  type        = number
-  default     = 300
-}
-
-variable "instance_profile_name" {
-  description = <<-EOT
-    Instance profile das instancias do ASG e do bastion. Precisa permitir pull
-    no ECR, leitura do segredo de tokens e escrita no CloudWatch Logs.
-
-    No AWS Academy Learner Lab o valor e `LabInstanceProfile`, que ja existe na
-    conta e vem anexado a LabRole -- pelo mesmo motivo de `existing_role_arn`:
-    o papel `voclabs` recusa `iam:CreateRole`.
-  EOT
-  type        = string
-  default     = "LabInstanceProfile"
-}
-
-variable "backend_image_tag" {
-  description = <<-EOT
-    Tag da imagem do backend que as instancias puxam do ECR. Vazio usa
-    `worker_image_tag`, mantendo backend e workers na mesma tag de commit.
-
-    Fixar uma tag por SHA e o que da sentido ao rollback: apontar o launch
-    template para a versao anterior so devolve a versao anterior do codigo se a
-    tag daquela versao ainda existir no ECR. `latest` quebraria isso.
-  EOT
-  type        = string
-  default     = ""
 }
 
 # A Lambda de leitura e o HTTP API que a expoe (api_read.tf, auth.tf) NAO foram
@@ -1134,10 +994,11 @@ variable "backend_image_tag" {
 # -- muita cirurgia em codigo que funciona, para uma flag cujo padrao (`true`)
 # nao mudaria nada hoje.
 #
-# Os dois caminhos coexistem de proposito durante a migracao: derrubar a Lambda
-# no mesmo apply que sobe o ASG deixaria o dashboard sem API caso o grupo nao
-# suba. O desligamento e um passo manual e posterior, descrito na secao 4 do
-# artefato de infraestrutura.
+# Os dois caminhos coexistem de proposito: derrubar a Lambda no mesmo apply
+# que sobe o cluster EKS deixaria o dashboard sem API caso o cluster nao suba.
+# A Lambda (`read_api_url`) e a contingencia do caminho de leitura desde que o
+# caminho EC2 da Sprint 3 (ASG+ALB) foi removido na Sprint 4; o desligamento
+# dela e um passo manual e posterior.
 
 # --------------------------------------------------------------------------- #
 # Observabilidade da rede e do caminho sincrono
@@ -1252,8 +1113,8 @@ variable "create_eks" {
 
     Desligado por padrao porque o cluster custa por hora existindo, e o
     orcamento do Learner Lab e finito. Ligar e uma linha no terraform.tfvars;
-    desligar destroi SO o cluster -- ECS, ALB, ASG e RDS nao referenciam nada
-    dele, entao continuam de pe.
+    desligar destroi SO o cluster -- ECS, RDS e a Lambda de leitura nao
+    referenciam nada dele, entao continuam de pe.
 
     Depende de create_network: o Auto Mode precisa das sub-redes privadas com
     saida por NAT para alcancar o RDS. Ver local.criar_eks em eks.tf.

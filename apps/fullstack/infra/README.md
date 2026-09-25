@@ -380,8 +380,8 @@ caminho de entrada.
 
 | Sub-rede | Quem mora lá |
 |---|---|
-| Pública | ALB, NAT Gateway, bastion — os únicos com motivo para ter endereço roteável |
-| Privada | instâncias do ASG, tasks Fargate, Lambda de leitura, subnet group do RDS |
+| Pública | ALB do Ingress do EKS, NAT Gateway, bastion — os únicos com motivo para ter endereço roteável |
+| Privada | nós do EKS, tasks Fargate, Lambda de leitura, subnet group do RDS |
 
 Antes desta camada, as tasks rodavam na VPC default com `assign_public_ip =
 true`. O único controle que impedia alguém de alcançá-las era o security group
@@ -399,8 +399,8 @@ cobra por GB trafegado.
 
 **Um NAT, não um por AZ.** A recomendação da AWS para produção é um por zona,
 para que a queda de uma não leve junto a saída da outra. Aqui é um só, por custo
-(~US$ 32/mês cada). A consequência está assumida: se a AZ do NAT cair, as
-instâncias da outra zona continuam servindo tráfego pelo ALB, porque o caminho de
+(~US$ 32/mês cada). A consequência está assumida: se a AZ do NAT cair, os nós
+da outra zona continuam servindo tráfego pelo ALB do Ingress, porque o caminho de
 leitura não passa pelo NAT, mas perdem a saída para a internet.
 
 **Trocar de rede recria o banco.** A AWS não move uma instância RDS entre VPCs, e
@@ -420,14 +420,14 @@ make -C .. migrate-status-aws
 make -C .. migrate-aws
 ```
 
-### Alternativa EC2 para a API de leitura (rubrica 2)
+### Caminho EC2 da Sprint 3 (removido na Sprint 4)
 
-O deploy padrão usa Lambda (`api_read.tf`) por custo no Learner Lab, mas o
-mesmo Flask roda em EC2 sem alteração de código — ver
-`ec2_api.tf.example` (ALB + ASG + launch template, `publicly_accessible = false`
-no RDS, mesma imagem ECR por SHA). O código é idêntico (`app.py` +
-`observability.py` com JSON + `X-Request-Id`), e o custo 24/7 de EC2
-(~US$ 7/mês t3.micro) é o motivo de o padrão ser FaaS no lab.
+Caminho EC2 (ASG+ALB) da Sprint 3 removido na Sprint 4; a leitura pública vem
+do Ingress do EKS (ver `../k8s/README.md`) e, como contingência, da Lambda
+(`terraform output read_api_url`). `ec2_api.tf.example` continua no repositório
+só como exemplo comentado da equivalência com EC2, e não faz parte do estado.
+
+### Saída da sub-rede privada: NAT ou endpoints
 
 Para exigência de subnet privada, `assign_public_ip = false` exige uma destas:
 
@@ -631,12 +631,10 @@ de propósito. Para remover mesmo, mude para `false`, aplique, e só então dest
 | `api_read.tf` | Lambda da API de leitura e o HTTP API na frente dela |
 | `frontend_s3.tf` | bucket do dashboard, com website hosting |
 | `iam.tf` | execution role e task role, separadas |
-| `observability.tf` | SNS e os 11 alarmes |
+| `observability.tf` | SNS, os 11 alarmes e o painel do CloudWatch |
 | `vpc.tf` | VPC dedicada, sub-redes, IGW, NAT, tabelas de rota e gateway endpoint de S3 |
 | `vpc_logs.tf` | VPC Flow Logs (S3 ou CloudWatch) e access logs do ALB |
 | `bastion.tf` | bastion host e as regras de acesso administrativo |
-| `alb.tf` | Application Load Balancer, target group e listener |
-| `asg.tf` | launch template, Auto Scaling Group e política de escalonamento |
-| `asg_observability.tf` | alarmes e painel do caminho síncrono |
+| `eks.tf` | cluster EKS Auto Mode do caminho síncrono (o ALB nasce do Ingress em `../k8s/`) |
 | `locals.tf` | resolução da rede, papéis e a lista de imagens |
 | `outputs.tf` | endpoints, nomes de recurso e comandos prontos (push, carga) |

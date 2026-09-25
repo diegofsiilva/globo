@@ -1,0 +1,90 @@
+# Cria (ou atualiza) o login somente-leitura `argus_api` que o backend usa.
+#
+# Existe porque `migrate.py aplicar` NAO cria esse login: `criar-leitor` e um
+# subcomando a parte (ver tools/migrate.py). Num banco novo, so o Job de
+# migration deixa o backend em 0/1 com PoolTimeout e, por baixo, "password
+# authentication failed for user argus_api" -- foi o que aconteceu no lab
+# limpo de 18/09/2026. E o mesmo papel do `db_reader_run_command` de
+# infra/outputs.tf no caminho ECS.
+#
+# Roda DEPOIS do Job de migration, nunca junto: o `GRANT argus_reader` que ele
+# faz depende do papel criado na migration 001. Quem garante a ordem e `make
+# k8s-migrate`, que aplica um Job de cada vez pelo label e espera o primeiro
+# completar. Mesma imagem, mesmo Secret e mesmo securityContext do
+# job-db-migrate.yaml -- o que muda e o subcomando.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: argus-db-reader
+  labels:
+    app.kubernetes.io/name: argus-db-reader
+    app.kubernetes.io/component: migration
+    app.kubernetes.io/part-of: argus
+spec:
+  # CREATE/ALTER ROLE e idempotente (o runner consulta pg_roles antes), entao o
+  # retry e seguro. Duas tentativas cobrem falha de rede ate o RDS.
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus-db-reader
+        app.kubernetes.io/part-of: argus
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: reader
+          image: IMAGE_PROCESSING
+          imagePullPolicy: IfNotPresent
+          command: ["python", "/app/tools/migrate.py"]
+          # O nome precisa ser o MESMO que esta na DATABASE_URL do backend
+          # (var.read_api_db_user no Terraform, `argus_api` por padrao). O
+          # runner nao le o nome de variavel de ambiente, so de --usuario.
+          args: ["criar-leitor", "--usuario", "argus_api"]
+          env:
+            # MESTRE: CREATE ROLE e GRANT exigem privilegio que `argus_api`
+            # nao tem -- e o proprio `argus_api` pode ainda nao existir.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DATABASE_URL_MASTER
+            # A senha que o runner grava no login. Tem de ser a mesma que
+            # `make k8s-secret` embutiu na DATABASE_URL do backend; as duas
+            # vem do mesmo output do Terraform.
+            - name: DB_READER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DB_READER_PASSWORD
+            - name: AWS_REGION
+              value: us-east-1
+            - name: LOG_LEVEL
+              value: INFO
+            - name: SERVICE_NAME
+              value: argus-db-reader
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

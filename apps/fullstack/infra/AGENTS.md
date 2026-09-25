@@ -42,11 +42,15 @@ adaptações do Learner Lab estão no `README.md` deste diretório.
 ## Organização
 
 Um arquivo por recurso, sem módulos: `vpc.tf`, `vpc_logs.tf`, `bastion.tf`,
-`alb.tf`, `asg.tf`, `asg_observability.tf`, `rds.tf`, `sqs.tf` /
-`sqs_changes.tf`, `apigateway.tf` / `apigateway_changes.tf`, `ecs.tf` e os
-`ecs_*.tf` por serviço, `api_read.tf`, `frontend_s3.tf`, `s3_origem.tf`,
-`ecr.tf`, `iam.tf`, `observability.tf`, mais `variables.tf`, `outputs.tf`,
-`locals.tf`, `providers.tf` e `versions.tf`.
+`eks.tf`, `rds.tf`, `sqs.tf` / `sqs_changes.tf`, `apigateway.tf` /
+`apigateway_changes.tf`, `ecs.tf` e os `ecs_*.tf` por serviço, `api_read.tf`,
+`frontend_s3.tf`, `s3_origem.tf`, `ecr.tf`, `iam.tf`, `observability.tf`, mais
+`variables.tf`, `outputs.tf`, `locals.tf`, `providers.tf` e `versions.tf`.
+
+Caminho EC2 (ASG+ALB) da Sprint 3 removido na Sprint 4; a leitura pública vem
+do Ingress do EKS (ver `../k8s/README.md`) e, como contingência, da Lambda
+`read_api_url`. Não recrie `asg.tf`/`alb.tf`: o ALB do cluster nasce do
+Ingress, fora do estado do Terraform.
 
 A rede toda passa por três valores de `locals.tf`: `vpc_id`, `subnet_ids` e
 `public_subnet_ids`. Os arquivos que consomem rede leem esses locals e não sabem

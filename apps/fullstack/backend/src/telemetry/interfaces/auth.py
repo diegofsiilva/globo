@@ -9,18 +9,20 @@ Ao mover a API de leitura para instâncias EC2 atrás de um Application Load
 Balancer, esse degrau desaparece — um ALB não tem authorizer. Sem o que está
 neste módulo, tirar o API Gateway do caminho deixaria toda a API aberta.
 
-## O que chega na instância
+## O que chega no container
 
-O **hash** do token, nunca o token. `DASHBOARD_TOKEN_SHA256` é lido do Secrets
-Manager pelo `user_data` no boot da instância (ver `infra/asg.tf`) e injetado
-como variável de ambiente do container. A aplicação não fala com a AWS — `boto3`
-foi removido dela de propósito (ver `backend/AGENTS.md`, regra 5) — então quem
-consulta o segredo é o script de boot, e não este código.
+O **hash** do token, nunca o token. `DASHBOARD_TOKEN_SHA256` chega como variável
+de ambiente do container, vinda do Secret do namespace que `make k8s-secret`
+monta a partir dos outputs do Terraform (ver `k8s/README.md`). A aplicação não
+fala com a AWS — `boto3` foi removido dela de propósito (ver `backend/AGENTS.md`,
+regra 5) — então quem entrega o segredo é o orquestrador, e não este código.
+(No caminho EC2 da Sprint 3, removido na Sprint 4, esse papel era do
+`user_data` da instância.)
 
-Consequência assumida: rotacionar o token com `make auth-rotate` exige um
-`start-instance-refresh` no Auto Scaling Group, porque o hash foi congelado no
-boot. Instâncias antigas continuam aceitando o token antigo até serem
-substituídas.
+Consequência assumida: rotacionar o token com `make auth-rotate` exige refazer o
+Secret e recriar os pods (`make k8s-secret` faz os dois), porque o hash foi
+congelado na subida do container. Pods antigos continuam aceitando o token
+antigo até serem substituídos.
 
 ## 401 e 403
 
@@ -149,8 +151,8 @@ def register_auth(app: Flask) -> None:
     if not esperado:
         raise RuntimeError(
             "AUTH_REQUIRED=1 sem DASHBOARD_TOKEN_SHA256. A API subiria sem "
-            "autenticacao nenhuma achando que esta protegida. O hash e lido do "
-            "Secrets Manager pelo user_data da instancia -- ver infra/asg.tf."
+            "autenticacao nenhuma achando que esta protegida. O hash chega pelo "
+            "Secret do namespace -- ver `make k8s-secret` e k8s/README.md."
         )
 
     @app.before_request
