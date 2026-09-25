@@ -1,0 +1,48 @@
+{
+  // Tasks do VS Code com apps/fullstack aberto como pasta do workspace. Cada
+  // uma e um alvo do Makefile; nada e reproduzido aqui (AGENTS.md regra 2).
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Ctrl/Cmd+Shift+B: banco, API e dashboard no mesmo terminal.
+      "label": "Argus: subir tudo",
+      "type": "shell",
+      "command": "make dev",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "build", "isDefault": true },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+      "runOptions": { "instanceLimit": 1 }
+    },
+    {
+      "label": "Argus: banco local",
+      "type": "shell",
+      "command": "make db-ensure",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Argus: carregar amostra",
+      "type": "shell",
+      "command": "make dev-seed",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Argus: testes",
+      "type": "shell",
+      "command": "make test",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Argus: check (o que a CI roda)",
+      "type": "shell",
+      "command": "make check",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}
