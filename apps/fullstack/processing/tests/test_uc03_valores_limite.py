@@ -753,14 +753,25 @@ def test_fluxo_principal_oito_passos_com_persistencia(db, inserir_change):
         "SELECT status, manifest_hash FROM detect.run WHERE run_id = %s", (run_id,)
     ) == {"status": "completed", "manifest_hash": catalog.manifest_hash}
     assert db.fetch_one("SELECT count(*) AS n FROM gold.hypothesis_feedback")["n"] == 0
-    assert (
-        db.fetch_all(
+    # Desde a migration 032, o fim do fluxo basico ja deixa as geradas prontas
+    # para revisao humana: a view expoe as cinco, e so elas, sem esperar a
+    # publicacao do manifesto. Descartada e insuficiente ficam fora da leitura.
+    generated_ids = {
+        row["hypothesis_id"]
+        for row in db.fetch_all(
+            """SELECT hypothesis_id FROM gold.hypothesis
+                WHERE run_id = %s AND evaluation_status = 'generated'""",
+            (run_id,),
+        )
+    }
+    assert len(generated_ids) == 5
+    assert {
+        row["hypothesis_id"]
+        for row in db.fetch_all(
             "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
         )
-        == []
-    )
-    # O fluxo basico termina com candidatos persistidos e prontos para publicar.
-    # Publicacao e filtragem da view sao exercitadas separadamente por CT29.
+    } == generated_ids
+    # A publicacao continua explicita e auditavel; CT29 a exercita.
     assert db.fetch_all("SELECT action FROM gold.manifest_publication_event") == []
 
 
@@ -858,7 +869,7 @@ def test_a3_descarte_preserva_justificativa_no_banco(db, uc03_execution):
     ]
 
 
-def test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto(db, uc03_execution):
+def test_a1_hipotese_gerada_fica_visivel_e_publicacao_fica_auditada(db, uc03_execution):
     catalog, captured, candidate, anomaly, quality = uc03_execution
     result = _evaluated_result(candidate, anomaly, quality, catalog)
     assert result.hypotheses[0].evaluation_status == "generated"
@@ -868,12 +879,11 @@ def test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto(db, uc03_execu
         "SELECT hypothesis_id FROM gold.hypothesis WHERE run_id = %s", (run_id,)
     )
     assert hypothesis is not None
-    assert (
-        db.fetch_all(
-            "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
-        )
-        == []
-    )
+    # Regra da migration 032: visivel para revisao assim que o run conclui,
+    # antes de qualquer evento de publicacao.
+    assert db.fetch_all(
+        "SELECT hypothesis_id FROM gold.v_hypothesis WHERE run_id = %s", (run_id,)
+    ) == [hypothesis]
     assert (
         db.fetch_all(
             "SELECT action FROM gold.manifest_publication_event WHERE manifest_hash = %s",
@@ -883,6 +893,7 @@ def test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto(db, uc03_execu
     )
 
     # A promocao e explicita: este teste nao avalia os criterios da CLI do portao.
+    # Ela grava o evento de auditoria e nao muda o que a leitura ja expunha.
     promote_manifest(db, catalog.manifest_hash, {"test": True})
     assert db.fetch_all(
         "SELECT action FROM gold.manifest_publication_event WHERE manifest_hash = %s",
@@ -1108,10 +1119,16 @@ def test_e2_motor_persiste_truncamento_e_cli_decide_promocao(
     assert events == (
         [] if quantity > 500 else [{"action": "published", "gate_metrics": metrics}]
     )
-    assert db.fetch_one(
-        "SELECT count(*) AS n FROM gold.v_hypothesis WHERE run_id = %s",
-        (captured.claim.run_id,),
-    )["n"] == (0 if quantity > 500 else 500)
+    # A recusa do portao fica registrada (codigo 2, nenhum evento `published`),
+    # mas nao esconde as 500 geradas: desde a migration 032 a publicacao e
+    # auditoria, e o truncamento aparece em gold.hypothesis_run_stats.
+    assert (
+        db.fetch_one(
+            "SELECT count(*) AS n FROM gold.v_hypothesis WHERE run_id = %s",
+            (captured.claim.run_id,),
+        )["n"]
+        == 500
+    )
 
 
 def test_e1_catalogo_invalido_registra_erro_sem_publicar(tmp_path, db, database_url):
