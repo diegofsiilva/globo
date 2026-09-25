@@ -2099,6 +2099,41 @@ autoescalador está em
 [`evidencias/carga-kubernetes.txt`](evidencias/carga-kubernetes.txt). Endereços,
 identificador de conta e token foram substituídos antes de versionar.
 
+#### Rodada A repetida em 24 de setembro, com a métrica do autoescalador
+
+&emsp; Em 24 de setembro a pilha foi recriada do zero numa conta nova do laboratório
+(cluster EKS Auto Mode 1.33, RDS carregado pelas 32 tabelas do manifesto, commit
+`0ff97f4b0130`), desta vez com o add-on `metrics-server` instalado antes da carga. A
+rodada A foi repetida com o mesmo roteiro `carga_ui.js` e os mesmos três níveis, com
+uma diferença de método que precisa ficar registrada: o gerador foi o k6 2.3.0 na
+máquina do desenvolvedor, fora da VPC, e não a EC2 descartável das rodadas de 18 e 21
+de setembro. A latência de rede até o ALB entra, portanto, nos números abaixo.
+
+| Nível | Usuários | Requisições | Erros | p50 | p95 | p99 | Tela p95 | Critérios |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 5 | 962 | 0,00% | 138 ms | 260 ms | 503 ms | 410 ms | aprovado |
+| 2 | 25 | 4.764 | 0,00% | 143 ms | 304 ms | 639 ms | 490 ms | aprovado |
+| 3 | 100 | 18.450 | 0,00% | 169 ms | 841 ms | 1.217 ms | 969 ms | aprovado |
+
+&emsp; Foram 24.177 requisições em 6 minutos de carga, nenhuma falha e 100% das
+telas completas nos três níveis, inclusive nos limiares por tela. A leitura mais
+importante, porém, é a do autoescalador: com o add-on presente, o HPA saiu de
+`cpu: <unknown>` para `cpu: 0%/60%`, com `ScalingActive=True` e o motivo
+`ValidMetricFound`, que era exatamente o que faltava em 21 de setembro. Não houve
+`SuccessfulRescale` porque as duas réplicas absorveram os 100 usuários sem passar
+de 60% da CPU requisitada, e os pods do backend terminaram a rodada com zero
+reinícios, ao contrário da rodada B anterior. A medição de elasticidade de fato
+(o HPA subindo réplicas) continua dependendo de uma carga acima da rodada B, o
+que fica registrado como pendência.
+
+&emsp; A evidência bruta está em
+[`evidencias/carga-kubernetes-2026-09-24/`](evidencias/carga-kubernetes-2026-09-24/):
+o resumo e o veredito do script (`carga-ui_resultado_*.json`), o resumo do k6
+(`carga-ui_summary_*.json`), a saída de texto com `✓`/`✗` por limiar
+(`carga-ui_output_*.txt`) e o estado do HPA, dos pods e dos nós antes e depois da
+rodada, com amostras a cada 15 segundos (`hpa-e-cluster.txt`). Endereço do ALB e
+identificador de conta foram substituídos antes de versionar.
+
 ### Onde está cada coisa e como reproduzir
 
 | Caminho | Papel |
