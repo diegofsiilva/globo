@@ -93,3 +93,85 @@ ausentes; não são convertidos em zero. Consultas agregadas devem trazer os
 identificadores dos fatos que contribuíram para o resultado ou uma referência
 estável ao conjunto, para permitir conferência posterior.
 
+## 3. Esboço da arquitetura alternativa
+
+```text
+bronze.change_log → silver.analysis_fact_version → checkpoint temporal
+                                                    │
+                              leitor de fatos com recorte imutável
+                                                    │
+                              ferramentas de investigação limitadas
+                                                    │
+                         agente IA: observar → consultar → contrastar
+                                                    │
+                            hipótese estruturada ou evidência insuficiente
+                                                    │
+                              validador de referências e tempo
+                                                    │
+                             registro experimental → revisão humana
+
+Em paralelo: checkpoint → detector → 11 regras → hipóteses do motor atual
+```
+
+O **leitor de fatos** é o seam principal do MVA. Sua interface recebe a
+identidade do checkpoint e devolve um recorte imutável mais funções de consulta
+limitadas; a implementação esconde SQL, versionamento e seleção temporal. O
+agente não recebe credenciais de banco nem SQL livre. A forma de acesso ao banco
+será definida no Dia 2; as permissões atuais do `argus_reader` cobrem apenas
+views públicas e não autorizam supor leitura direta de
+`silver.analysis_fact_version`.
+
+O **agente** decide o que investigar e quais explicações testar. Uma primeira
+interface pequena é `investigar(recorte, ferramentas) -> resultado`. Dentro dela,
+o ciclo pode consultar séries, comparar uma janela anterior e abrir fatos de
+contexto, sempre dentro do mesmo recorte. O modelo não recebe respostas do motor
+atual nem rótulos de incidentes. Limites de chamadas, linhas e tempo impedem
+uma investigação indefinida.
+
+O **validador** confere formato, IDs citados, proveniência, disponibilidade
+temporal e limites. Ele não decide se a causa sugerida é verdadeira. Afirmações
+causais sem lastro, contradições ignoradas ou ausência de observações devem
+seguir para revisão como limitação ou resultar em `insufficient_evidence`,
+conforme o contrato de saída a ser fechado no Dia 2.
+
+### Sequência mínima de uma investigação
+
+1. Selecionar um checkpoint e um recorte de tempo/escopo; registrar seu digest.
+2. Mostrar ao agente um inventário pequeno de fontes e métricas disponíveis,
+   incluindo lacunas de cobertura, sem classificação prévia de anomalias.
+3. O agente solicita consultas sobre os fatos e compara o período investigado
+   com contexto anterior causalmente disponível.
+4. O agente propõe uma causa candidata e tenta encontrar evidência contrária;
+   se não houver sustentação suficiente, responde `insufficient_evidence`.
+5. Validar as referências e guardar o resultado com modelo, versão do prompt,
+   parâmetros, consultas executadas, checkpoint e digest.
+6. Uma pessoa avalia se o resultado ajudou a investigação. Só então comparar
+   com a saída do motor determinístico para o mesmo checkpoint.
+
+## 4. Escopo do MVA e decisões seguintes
+
+**Valor a demonstrar:** em um caso selecionado, o agente produz uma explicação
+que um investigador consegue conferir abrindo as evidências citadas, ou expõe
+honestamente a falta de dados. O primeiro protótipo pode ser executado por CLI
+e registrar JSON/Markdown local; não precisa de tela, tabela de produção ou
+publicação automática.
+
+**Fora do Dia 1:** escolha de modelo/provedor, prompt final, novas permissões
+SQL, migração de banco, integração com a API/frontend e métrica de qualidade
+calculada. O refinador Ollama existente na API apenas redige respostas a partir
+de hipóteses já publicadas; a geração alternativa descrita aqui é um fluxo
+distinto.
+
+No Dia 2, fechar quatro decisões para implementação paralela por duas pessoas:
+
+| Decisão | Responsável sugerido | Critério de aceite |
+|---|---|---|
+| Interface e acesso ao recorte de fatos | Pessoa dos dados | Mesmo checkpoint produz o mesmo conjunto e não expõe futuro. |
+| Ferramentas de consulta e limites | Pessoa dos dados, com revisão conjunta | Cada resposta é limitada, paginável ou agregada e rastreável a fatos. |
+| Formato da hipótese e estratégia de investigação | Pessoa do agente | A saída cita fatos a favor/contra e admite insuficiência. |
+| Casos de avaliação | Ambas | Casos cobrem evidência suficiente, contraditória e fonte atrasada. |
+
+O protótipo deve permanecer em execução experimental separada. O guia do
+`apps/fullstack/processing` preserva o ciclo atual como determinístico; uma
+integração produtiva requer uma decisão arquitetural posterior e validação com
+os responsáveis pelo projeto.
