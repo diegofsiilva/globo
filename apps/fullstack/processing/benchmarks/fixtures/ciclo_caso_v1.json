@@ -1,0 +1,3099 @@
+{
+  "case": {
+    "baselines": [
+      {
+        "key": [
+          "cdn_live_errors",
+          "globo-rj",
+          "errors",
+          12
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T15:00:00+00:00",
+          "mean": 1.0,
+          "n": 12,
+          "variance": 0.01
+        }
+      },
+      {
+        "key": [
+          "cloudarmor",
+          "playback",
+          "blocked_rps",
+          12
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T15:00:00+00:00",
+          "mean": 0.6931471805599453,
+          "n": 12,
+          "variance": 0.01
+        }
+      },
+      {
+        "key": [
+          "newrelic",
+          "playback",
+          "error_rate_pct",
+          12
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T15:00:00+00:00",
+          "mean": 1.0,
+          "n": 12,
+          "variance": 0.01
+        }
+      },
+      {
+        "key": [
+          "npaw_geo",
+          "RJ",
+          "error_rate_pct",
+          12
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T15:00:00+00:00",
+          "mean": 1.0,
+          "n": 12,
+          "variance": 0.01
+        }
+      },
+      {
+        "key": [
+          "npaw_live_active",
+          "globo-rj",
+          "active_sessions",
+          12
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T15:00:00+00:00",
+          "mean": 6.90875477931522,
+          "n": 12,
+          "variance": 0.01
+        }
+      },
+      {
+        "key": [
+          "npaw_player",
+          "player-bad",
+          "error_rate_pct",
+          12
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T15:00:00+00:00",
+          "mean": 1.0,
+          "n": 12,
+          "variance": 0.01
+        }
+      },
+      {
+        "key": [
+          "origin_live_errors",
+          "globo-rj",
+          "errors",
+          11
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T14:59:00+00:00",
+          "mean": 1.0,
+          "n": 12,
+          "variance": 0.01
+        }
+      },
+      {
+        "key": [
+          "prometheus",
+          "qoe-service",
+          "latency_ms_avg",
+          12
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T15:00:00+00:00",
+          "mean": 2.3978952727983707,
+          "n": 12,
+          "variance": 0.01
+        }
+      },
+      {
+        "key": [
+          "rpaas",
+          "playback.video.globo.com",
+          "4xx_rate_pct",
+          12
+        ],
+        "value": {
+          "last_event_at": "2026-07-11T15:00:00+00:00",
+          "mean": 1.0,
+          "n": 12,
+          "variance": 0.01
+        }
+      }
+    ],
+    "expected": {
+      "anomalies": [
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 1.0,
+            "n": 12,
+            "sigma_effective": 0.25,
+            "transform": "identity",
+            "variance_transformed": 0.01
+          },
+          "deviation": 4.0,
+          "direction": "up",
+          "expected": 1.0,
+          "fact_key": "fact-5",
+          "observed": 5,
+          "persisted_id": null,
+          "strength": 1.0,
+          "z": 16.0
+        },
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 1.0,
+            "n": 12,
+            "sigma_effective": 0.25,
+            "transform": "identity",
+            "variance_transformed": 0.01
+          },
+          "deviation": 4.0,
+          "direction": "up",
+          "expected": 1.0,
+          "fact_key": "fact-4",
+          "observed": 5,
+          "persisted_id": null,
+          "strength": 1.0,
+          "z": 16.0
+        },
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 0.6931471805599453,
+            "n": 12,
+            "sigma_effective": 0.1,
+            "transform": "log1p",
+            "variance_transformed": 0.01
+          },
+          "deviation": 99.0,
+          "direction": "up",
+          "expected": 1.0,
+          "fact_key": "fact-8",
+          "observed": 100,
+          "persisted_id": null,
+          "strength": 1.0,
+          "z": 39.21973336281314
+        },
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 1.0,
+            "n": 12,
+            "sigma_effective": 0.25,
+            "transform": "identity",
+            "variance_transformed": 0.01
+          },
+          "deviation": 4.0,
+          "direction": "up",
+          "expected": 1.0,
+          "fact_key": "fact-1",
+          "observed": 5,
+          "persisted_id": null,
+          "strength": 1.0,
+          "z": 16.0
+        },
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 1.0,
+            "n": 12,
+            "sigma_effective": 0.25,
+            "transform": "identity",
+            "variance_transformed": 0.01
+          },
+          "deviation": 3.0,
+          "direction": "up",
+          "expected": 1.0,
+          "fact_key": "fact-6",
+          "observed": 4,
+          "persisted_id": null,
+          "strength": 1.0,
+          "z": 12.0
+        },
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 6.90875477931522,
+            "n": 12,
+            "sigma_effective": 0.345437738965761,
+            "transform": "log1p",
+            "variance_transformed": 0.01
+          },
+          "deviation": 4000.0,
+          "direction": "up",
+          "expected": 999.9999999999999,
+          "fact_key": "fact-13",
+          "observed": 5000,
+          "persisted_id": null,
+          "strength": 0.7761352291346527,
+          "z": 4.6568113748079165
+        },
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 1.0,
+            "n": 12,
+            "sigma_effective": 0.25,
+            "transform": "identity",
+            "variance_transformed": 0.01
+          },
+          "deviation": 3.0,
+          "direction": "up",
+          "expected": 1.0,
+          "fact_key": "fact-9",
+          "observed": 4,
+          "persisted_id": null,
+          "strength": 1.0,
+          "z": 12.0
+        },
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 2.3978952727983707,
+            "n": 12,
+            "sigma_effective": 0.11989476363991854,
+            "transform": "log1p",
+            "variance_transformed": 0.01
+          },
+          "deviation": 290.0,
+          "direction": "up",
+          "expected": 10.000000000000002,
+          "fact_key": "fact-11",
+          "observed": 300,
+          "persisted_id": null,
+          "strength": 1.0,
+          "z": 27.600996836601738
+        },
+        {
+          "baseline_snapshot": {
+            "mean_transformed": 1.0,
+            "n": 12,
+            "sigma_effective": 0.25,
+            "transform": "identity",
+            "variance_transformed": 0.01
+          },
+          "deviation": 4.0,
+          "direction": "up",
+          "expected": 1.0,
+          "fact_key": "fact-3",
+          "observed": 5,
+          "persisted_id": null,
+          "strength": 1.0,
+          "z": 16.0
+        }
+      ],
+      "baseline_updates": [
+        {
+          "key": [
+            "apollo",
+            "globo-rj",
+            "error_rate_pct",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 0.1,
+            "n": 1,
+            "variance": 0.0
+          }
+        },
+        {
+          "key": [
+            "apollo",
+            "qoe-service",
+            "error_rate_pct",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 0.1,
+            "n": 1,
+            "variance": 0.0
+          }
+        },
+        {
+          "key": [
+            "cdn_live_errors",
+            "globo-rj",
+            "errors",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 1.8,
+            "n": 13,
+            "variance": 2.568
+          }
+        },
+        {
+          "key": [
+            "cloudarmor",
+            "playback",
+            "blocked_rps",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 1.4775418478162083,
+            "n": 13,
+            "variance": 2.4690999760802534
+          }
+        },
+        {
+          "key": [
+            "newrelic",
+            "playback",
+            "error_rate_pct",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 1.8,
+            "n": 13,
+            "variance": 2.568
+          }
+        },
+        {
+          "key": [
+            "npaw_geo",
+            "RJ",
+            "error_rate_pct",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 1.6,
+            "n": 13,
+            "variance": 1.4480000000000004
+          }
+        },
+        {
+          "key": [
+            "npaw_geo",
+            "SP",
+            "error_rate_pct",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 1,
+            "n": 1,
+            "variance": 0.0
+          }
+        },
+        {
+          "key": [
+            "npaw_live_active",
+            "globo-rj",
+            "active_sessions",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 7.230482457735957,
+            "n": 13,
+            "variance": 0.4220347962479881
+          }
+        },
+        {
+          "key": [
+            "npaw_live_qoe",
+            "globo-rj",
+            "jointime_s_avg",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 0.6931471805599453,
+            "n": 1,
+            "variance": 0.0
+          }
+        },
+        {
+          "key": [
+            "npaw_player",
+            "player-bad",
+            "error_rate_pct",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 1.6,
+            "n": 13,
+            "variance": 1.4480000000000004
+          }
+        },
+        {
+          "key": [
+            "npaw_player",
+            "player-ok",
+            "error_rate_pct",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 1,
+            "n": 1,
+            "variance": 0.0
+          }
+        },
+        {
+          "key": [
+            "origin_live_errors",
+            "globo-rj",
+            "errors",
+            11
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T14:59:00+00:00",
+            "mean": 1.8,
+            "n": 13,
+            "variance": 2.568
+          }
+        },
+        {
+          "key": [
+            "prometheus",
+            "qoe-service",
+            "latency_ms_avg",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 3.059738271188472,
+            "n": 13,
+            "variance": 1.7601446180719966
+          }
+        },
+        {
+          "key": [
+            "rpaas",
+            "playback.video.globo.com",
+            "4xx_rate_pct",
+            12
+          ],
+          "value": {
+            "last_event_at": "2026-07-12T15:00:00+00:00",
+            "mean": 1.8,
+            "n": 13,
+            "variance": 2.568
+          }
+        }
+      ],
+      "candidates": [
+        {
+          "anomaly_index": 0,
+          "contrary": [],
+          "family": "origin_encoding",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "channel": "globo-rj"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-5",
+          "summary": "A origem degradou antes ou junto dos sinais de entrega e experiência.",
+          "supporting_fact_keys": [
+            "fact-4",
+            "fact-16"
+          ],
+          "temporal_score": null,
+          "title": "Possível falha de origem ou encoding"
+        },
+        {
+          "anomaly_index": 1,
+          "contrary": [],
+          "family": "cdn_degradation",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "channel": "globo-rj"
+          },
+          "specificity": 0.5,
+          "subject_fact_key": "fact-4",
+          "summary": "Erros de entrega aparecem no mesmo canal da degradação observada.",
+          "supporting_fact_keys": [
+            "fact-16"
+          ],
+          "temporal_score": null,
+          "title": "Possível degradação de CDN"
+        },
+        {
+          "anomaly_index": 2,
+          "contrary": [],
+          "family": "deploy_regression",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "service": "playback"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-8",
+          "summary": "A degradação começou depois de um deploy semanticamente relacionado.",
+          "supporting_fact_keys": [
+            "fact-2"
+          ],
+          "temporal_score": 0.7937005259840998,
+          "title": "Possível regressão após deploy em playback"
+        },
+        {
+          "anomaly_index": 2,
+          "contrary": [],
+          "family": "waf_block",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "application": "playback"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-8",
+          "summary": "O aumento de bloqueios antecede ou coincide com impacto na aplicação.",
+          "supporting_fact_keys": [
+            "fact-1",
+            "fact-3"
+          ],
+          "temporal_score": null,
+          "title": "Possível ataque ou bloqueio de WAF"
+        },
+        {
+          "anomaly_index": 3,
+          "contrary": [],
+          "family": "deploy_regression",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "service": "playback"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-1",
+          "summary": "A degradação começou depois de um deploy semanticamente relacionado.",
+          "supporting_fact_keys": [
+            "fact-2"
+          ],
+          "temporal_score": 0.7937005259840998,
+          "title": "Possível regressão após deploy em playback"
+        },
+        {
+          "anomaly_index": 3,
+          "contrary": [],
+          "family": "backend_internal",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "service": "playback"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-1",
+          "summary": "Sinais internos indicam erro, latência ou queda de saúde do serviço.",
+          "supporting_fact_keys": [
+            "fact-3"
+          ],
+          "temporal_score": null,
+          "title": "Possível falha interna em playback"
+        },
+        {
+          "anomaly_index": 4,
+          "contrary": [],
+          "family": "regional_or_isp",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "dimension_type": "uf",
+            "dimension_value": "RJ"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-6",
+          "summary": "A degradação está concentrada em um recorte com volume material.",
+          "supporting_fact_keys": [
+            "fact-7"
+          ],
+          "temporal_score": null,
+          "title": "Possível degradação por UF"
+        },
+        {
+          "anomaly_index": 5,
+          "contrary": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "experiência também degradou",
+              "fact_key": "fact-5",
+              "observed": 5,
+              "polarity": "contrary",
+              "quality": null,
+              "role": "supporting",
+              "strength": 1.0,
+              "version_lsn": 5
+            },
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "experiência também degradou",
+              "fact_key": "fact-4",
+              "observed": 5,
+              "polarity": "contrary",
+              "quality": null,
+              "role": "supporting",
+              "strength": 1.0,
+              "version_lsn": 4
+            }
+          ],
+          "family": "expected_live_peak",
+          "kind": "context",
+          "required_missing": [
+            "erro e QoE precisam permanecer normais"
+          ],
+          "scope": {
+            "channel": "globo-rj"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-13",
+          "summary": "O volume cresceu durante evento compatível sem degradação de experiência.",
+          "supporting_fact_keys": [
+            "fact-14"
+          ],
+          "temporal_score": null,
+          "title": "Pico esperado por evento ao vivo"
+        },
+        {
+          "anomaly_index": 6,
+          "contrary": [],
+          "family": "player_or_device",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "dimension_type": "player",
+            "dimension_value": "player-bad"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-9",
+          "summary": "O efeito está concentrado em um segmento enquanto os pares permanecem estáveis.",
+          "supporting_fact_keys": [
+            "fact-10"
+          ],
+          "temporal_score": null,
+          "title": "Possível regressão de player ou dispositivo"
+        },
+        {
+          "anomaly_index": 7,
+          "contrary": [],
+          "family": "backend_internal",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "service": "qoe-service"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-11",
+          "summary": "Sinais internos indicam erro, latência ou queda de saúde do serviço.",
+          "supporting_fact_keys": [
+            "fact-12"
+          ],
+          "temporal_score": null,
+          "title": "Possível falha interna em qoe-service"
+        },
+        {
+          "anomaly_index": 7,
+          "contrary": [],
+          "family": "qoe_without_error",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "entity": "qoe-service"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-11",
+          "summary": "A experiência piorou sem aumento correspondente das métricas de erro.",
+          "supporting_fact_keys": [
+            "fact-12"
+          ],
+          "temporal_score": null,
+          "title": "Possível degradação de QoE sem erro explícito"
+        },
+        {
+          "anomaly_index": 8,
+          "contrary": [],
+          "family": "deploy_regression",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "service": "playback"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-3",
+          "summary": "A degradação começou depois de um deploy semanticamente relacionado.",
+          "supporting_fact_keys": [
+            "fact-2"
+          ],
+          "temporal_score": 0.7937005259840998,
+          "title": "Possível regressão após deploy em playback.video.globo.com"
+        },
+        {
+          "anomaly_index": 8,
+          "contrary": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "4xx de RPaaS isolado pode ser comportamento estrutural",
+              "fact_key": "fact-3",
+              "observed": 5,
+              "polarity": "contrary",
+              "quality": null,
+              "role": "subject",
+              "strength": 0.9,
+              "version_lsn": 3
+            }
+          ],
+          "family": "backend_internal",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "service": "playback"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-3",
+          "summary": "Sinais internos indicam erro, latência ou queda de saúde do serviço.",
+          "supporting_fact_keys": [
+            "fact-1"
+          ],
+          "temporal_score": null,
+          "title": "Possível falha interna em playback.video.globo.com"
+        },
+        {
+          "anomaly_index": 8,
+          "contrary": [],
+          "family": "playback_authorization",
+          "kind": "operational",
+          "required_missing": [],
+          "scope": {
+            "entity": "playback.video.globo.com",
+            "flow": "playback"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": "fact-3",
+          "summary": "Erros de acesso ou inicialização se concentram no fluxo de playback.",
+          "supporting_fact_keys": [
+            "fact-1"
+          ],
+          "temporal_score": null,
+          "title": "Possível falha de playback ou autorização"
+        },
+        {
+          "anomaly_index": null,
+          "contrary": [],
+          "family": "source_data_delay",
+          "kind": "data_quality",
+          "required_missing": [],
+          "scope": {
+            "source": "tsuru"
+          },
+          "specificity": 1.0,
+          "subject_fact_key": null,
+          "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+          "supporting_fact_keys": [],
+          "temporal_score": null,
+          "title": "Possível falha ou atraso da fonte tsuru"
+        }
+      ],
+      "candidates_evaluated": 15,
+      "candidates_prefiltered": 15,
+      "candidates_truncated": 0,
+      "hypotheses": [
+        {
+          "anomaly_indexes": [
+            7
+          ],
+          "confidence": "high",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "abfa3bd46d3dc093c3a50db0c37766701c44eda5c2cdec744f741b60bb42f8d9",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 10.000000000000002,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-11",
+              "observed": 300,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 11
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-12",
+              "observed": 0.1,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 12
+            }
+          ],
+          "family": "backend_internal",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.5,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "6992fa8137d0865c93b7a8da611d08484ce6e5c7df04263f069b80a77f06f176",
+          "scope": {
+            "service": "qoe-service"
+          },
+          "score": 82.81438204373107,
+          "summary": "Sinais internos indicam erro, latência ou queda de saúde do serviço.",
+          "title": "Possível falha interna em qoe-service"
+        },
+        {
+          "anomaly_indexes": [
+            3,
+            8
+          ],
+          "confidence": "high",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "d73ce6195030f69f48e6398ddf001c920cc3d37b4da9e357e0e5b42bcf80b686",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-1",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 1
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-3",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 3
+            }
+          ],
+          "family": "backend_internal",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.2,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 1.0,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "e916d51c365877fe7f125ad799c8244818f8a5e790fa4e851d656c6089450539",
+          "scope": {
+            "service": "playback"
+          },
+          "score": 95.31438204373107,
+          "summary": "Sinais internos indicam erro, latência ou queda de saúde do serviço.",
+          "title": "Possível falha interna em playback"
+        },
+        {
+          "anomaly_indexes": [
+            1
+          ],
+          "confidence": "medium",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "272827e942c9199a2a292534fb680b9ee17be113bab4cb2bec808476c46487e3",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-4",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 4
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-16",
+              "observed": 1,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 16
+            }
+          ],
+          "family": "cdn_degradation",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.5,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.075,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 0.5,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "ccd34d3b30e22526e9449af7f9d954547bc37673dc170cf4c47c753070a4b269",
+          "scope": {
+            "channel": "globo-rj"
+          },
+          "score": 73.43938204373107,
+          "summary": "Erros de entrega aparecem no mesmo canal da degradação observada.",
+          "title": "Possível degradação de CDN"
+        },
+        {
+          "anomaly_indexes": [
+            3
+          ],
+          "confidence": "medium",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "391ad682d70aa52ac12eb26693d69519f146a32d2789dd54bb088ee789a0cea4",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-1",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 1
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-2",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 0.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 2
+            }
+          ],
+          "family": "deploy_regression",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15874010519681997,
+              "explanation": "proximidade da causa",
+              "name": "T",
+              "value": 0.7937005259840998,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.0,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.0,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "3f72919cd3d8160aaa5fb5eb0646c916b8488cce65128fcbe2903217c3f3556f",
+          "scope": {
+            "service": "playback"
+          },
+          "score": 72.12551615466685,
+          "summary": "A degradação começou depois de um deploy semanticamente relacionado.",
+          "title": "Possível regressão após deploy em playback"
+        },
+        {
+          "anomaly_indexes": [
+            2
+          ],
+          "confidence": "medium",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "8c21c3bc824125169cae2a15fca4d48774ba0b7b86668220051463d363390bf6",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-8",
+              "observed": 100,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 8
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-2",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 0.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 2
+            }
+          ],
+          "family": "deploy_regression",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15874010519681997,
+              "explanation": "proximidade da causa",
+              "name": "T",
+              "value": 0.7937005259840998,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.0,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.0,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "3f72919cd3d8160aaa5fb5eb0646c916b8488cce65128fcbe2903217c3f3556f",
+          "scope": {
+            "service": "playback"
+          },
+          "score": 72.12551615466685,
+          "summary": "A degradação começou depois de um deploy semanticamente relacionado.",
+          "title": "Possível regressão após deploy em playback"
+        },
+        {
+          "anomaly_indexes": [
+            0,
+            1
+          ],
+          "confidence": "high",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "edd98a3aaea99da2725d5be479f314beec4b3de5815db47792273b6c44b7a760",
+          "effect_end": "2026-07-12T14:59:00+00:00",
+          "effect_start": "2026-07-12T14:59:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-5",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 5
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-4",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 4
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-16",
+              "observed": 1,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 16
+            }
+          ],
+          "family": "origin_encoding",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.19655555555555557,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.9827777777777778,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "40f2d5ecd7bd142114f57dbdd521e27d294f1f545370ec0179f7ebc4ccd34a4d",
+          "scope": {
+            "channel": "globo-rj"
+          },
+          "score": 94.88382648817553,
+          "summary": "A origem degradou antes ou junto dos sinais de entrega e experiência.",
+          "title": "Possível falha de origem ou encoding"
+        },
+        {
+          "anomaly_indexes": [
+            7
+          ],
+          "confidence": "high",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "3390e15e906c100a104ede48a710af812e0e37aee2bc7b90b1fd9c21f6090fe8",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 10.000000000000002,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-11",
+              "observed": 300,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 11
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-12",
+              "observed": 0.1,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 12
+            }
+          ],
+          "family": "qoe_without_error",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.5,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "43caa4e81fcdbc6b8d715d9aff14bfd84f4952742ea0bac3a35e2e822daa50e5",
+          "scope": {
+            "entity": "qoe-service"
+          },
+          "score": 82.81438204373107,
+          "summary": "A experiência piorou sem aumento correspondente das métricas de erro.",
+          "title": "Possível degradação de QoE sem erro explícito"
+        },
+        {
+          "anomaly_indexes": [
+            2,
+            3,
+            8
+          ],
+          "confidence": "high",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "b4ed3919c8b4195b4cf12ae5164cb411747c7e70829b4ea15cbd9e30864c1497",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-8",
+              "observed": 100,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 8
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-1",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 1
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-3",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 3
+            }
+          ],
+          "family": "waf_block",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.2,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 1.0,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "e4cd93fa3d26f7166ac86398fd005e38fe11c0fcbbe170da39a78f9499087ed0",
+          "scope": {
+            "application": "playback"
+          },
+          "score": 95.31438204373107,
+          "summary": "O aumento de bloqueios antecede ou coincide com impacto na aplicação.",
+          "title": "Possível ataque ou bloqueio de WAF"
+        },
+        {
+          "anomaly_indexes": [
+            4
+          ],
+          "confidence": "high",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "f182223b45ccf03e5acc8ca84acb4a453b91151a8ef805e301af61fc9209d576",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-6",
+              "observed": 4,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 6
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-7",
+              "observed": 1,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 7
+            }
+          ],
+          "family": "regional_or_isp",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.5,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.10124281554507644,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.674952103633843,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "9335c3c00d685c727385000b362a5c0924b7bdb555a18fb6d161ba59c4e024d6",
+          "scope": {
+            "dimension_type": "uf",
+            "dimension_value": "RJ"
+          },
+          "score": 81.40535194313455,
+          "summary": "A degradação está concentrada em um recorte com volume material.",
+          "title": "Possível degradação por UF"
+        },
+        {
+          "anomaly_indexes": [
+            6
+          ],
+          "confidence": "medium",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "58e5ac7af58783be7651075be12cbcef31f90e6c5353e8c06d7c51d48e545fec",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-9",
+              "observed": 4,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 9
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-10",
+              "observed": 1,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 10
+            }
+          ],
+          "family": "player_or_device",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.5,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.08636891446157816,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.5757927630771877,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "5dd5476981d8eab9503d54767d7f28c180d8a3378bda43c75400cc6f1e54c387",
+          "scope": {
+            "dimension_type": "player",
+            "dimension_value": "player-bad"
+          },
+          "score": 79.54611430769727,
+          "summary": "O efeito está concentrado em um segmento enquanto os pares permanecem estáveis.",
+          "title": "Possível regressão de player ou dispositivo"
+        },
+        {
+          "anomaly_indexes": [
+            8,
+            3
+          ],
+          "confidence": "low",
+          "contradiction_strength": 0.9,
+          "coverage": 1.0,
+          "dedup_key": "7e581a8c1fee637255d8be5c3a109e3b8579c5549d72b5d066ab595b915ad452",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "discarded",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-3",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 3
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-1",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 1
+            },
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "4xx de RPaaS isolado pode ser comportamento estrutural",
+              "fact_key": "fact-3",
+              "observed": 5,
+              "polarity": "contrary",
+              "quality": null,
+              "role": "subject",
+              "strength": 0.9,
+              "version_lsn": 3
+            }
+          ],
+          "family": "backend_internal",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.2,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 1.0,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.07516123550490318,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.5010749033660212,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -27.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.9,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "e916d51c365877fe7f125ad799c8244818f8a5e790fa4e851d656c6089450539",
+          "scope": {
+            "service": "playback"
+          },
+          "score": 63.6451544381129,
+          "summary": "Sinais internos indicam erro, latência ou queda de saúde do serviço.",
+          "title": "Possível falha interna em playback.video.globo.com"
+        },
+        {
+          "anomaly_indexes": [
+            8
+          ],
+          "confidence": "medium",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "53c0486fb50a60809aa17f91e331ed744b55f9515832460492ef11d95ad2629a",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-3",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 3
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-2",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 0.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 2
+            }
+          ],
+          "family": "deploy_regression",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15874010519681997,
+              "explanation": "proximidade da causa",
+              "name": "T",
+              "value": 0.7937005259840998,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.0,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.0,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.07516123550490318,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.5010749033660212,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "3f72919cd3d8160aaa5fb5eb0646c916b8488cce65128fcbe2903217c3f3556f",
+          "scope": {
+            "service": "playback"
+          },
+          "score": 68.39013407017231,
+          "summary": "A degradação começou depois de um deploy semanticamente relacionado.",
+          "title": "Possível regressão após deploy em playback.video.globo.com"
+        },
+        {
+          "anomaly_indexes": [
+            8,
+            3
+          ],
+          "confidence": "high",
+          "contradiction_strength": 0.0,
+          "coverage": 1.0,
+          "dedup_key": "2ea643cd9ea3cf8c8abfae00899d046eb4a261bde928914bdc611002d624b859",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-3",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 1.0,
+              "version_lsn": 3
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-1",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 1
+            }
+          ],
+          "family": "playback_authorization",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.2,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 1.0,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.07516123550490318,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.5010749033660212,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "operational",
+          "lineage_key": "1db85e8356b3ccf76c4998d2a4e8493a58e5b7fe67c3b33e1eeb6734d23442e3",
+          "scope": {
+            "entity": "playback.video.globo.com",
+            "flow": "playback"
+          },
+          "score": 90.6451544381129,
+          "summary": "Erros de acesso ou inicialização se concentram no fluxo de playback.",
+          "title": "Possível falha de playback ou autorização"
+        },
+        {
+          "anomaly_indexes": [],
+          "confidence": "low",
+          "contradiction_strength": 0.0,
+          "coverage": 0.5625,
+          "dedup_key": "a32d6f2a20ffd9cc988c133dd97d2682e933e36729b90490f7c9b6fa9f29f885",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "generated",
+          "evidence": [],
+          "family": "source_data_delay",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.25,
+              "explanation": "severidade do canário",
+              "name": "A",
+              "value": 1.0,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "unavailable",
+              "contribution": null,
+              "explanation": "nenhuma fonte independente disponível",
+              "name": "C",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "unavailable",
+              "contribution": null,
+              "explanation": "volume afetado indisponível",
+              "name": "I",
+              "value": null,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.0,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 0.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -0.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 0.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "data_quality",
+          "lineage_key": "45dbdefab72e811d032e78d5431adc4a0df26560cfcfe2f77d197dd9d1c933ac",
+          "scope": {
+            "source": "tsuru"
+          },
+          "score": 88.88888888888889,
+          "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+          "title": "Possível falha ou atraso da fonte tsuru"
+        },
+        {
+          "anomaly_indexes": [
+            5
+          ],
+          "confidence": "low",
+          "contradiction_strength": 1.0,
+          "coverage": 1.0,
+          "dedup_key": "e44e8a874993bde051f4f49b250c17185a07c16209ef0624170fa846c1a6c939",
+          "effect_end": "2026-07-12T15:00:00+00:00",
+          "effect_start": "2026-07-12T15:00:00+00:00",
+          "evaluation_status": "discarded",
+          "evidence": [
+            {
+              "attributes": {},
+              "expected": 999.9999999999999,
+              "explanation": "anomalia que iniciou a avaliação",
+              "fact_key": "fact-13",
+              "observed": 5000,
+              "polarity": "favorable",
+              "quality": 1.0,
+              "role": "subject",
+              "strength": 0.7761352291346527,
+              "version_lsn": 13
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "fato temporal e semanticamente relacionado",
+              "fact_key": "fact-14",
+              "observed": 5,
+              "polarity": "favorable",
+              "quality": 0.35,
+              "role": "supporting",
+              "strength": 0.7,
+              "version_lsn": 14
+            },
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "experiência também degradou",
+              "fact_key": "fact-5",
+              "observed": 5,
+              "polarity": "contrary",
+              "quality": null,
+              "role": "supporting",
+              "strength": 1.0,
+              "version_lsn": 5
+            },
+            {
+              "attributes": {},
+              "expected": 1.0,
+              "explanation": "experiência também degradou",
+              "fact_key": "fact-4",
+              "observed": 5,
+              "polarity": "contrary",
+              "quality": null,
+              "role": "supporting",
+              "strength": 1.0,
+              "version_lsn": 4
+            },
+            {
+              "attributes": {},
+              "expected": null,
+              "explanation": "erro e QoE precisam permanecer normais",
+              "fact_key": null,
+              "observed": null,
+              "polarity": "missing",
+              "quality": null,
+              "role": "required",
+              "strength": null,
+              "version_lsn": null
+            }
+          ],
+          "family": "expected_live_peak",
+          "features": [
+            {
+              "applicability": "available",
+              "contribution": 0.19403380728366318,
+              "explanation": "força do desvio causal",
+              "name": "A",
+              "value": 0.7761352291346527,
+              "weight": 0.25
+            },
+            {
+              "applicability": "not_applicable",
+              "contribution": null,
+              "explanation": "família sem evento causal identificável",
+              "name": "T",
+              "value": null,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.03500000000000001,
+              "explanation": "fontes independentes relacionadas",
+              "name": "C",
+              "value": 0.17500000000000004,
+              "weight": 0.2
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.15,
+              "explanation": "especificidade semântica do escopo",
+              "name": "E",
+              "value": 1.0,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.1125150563498486,
+              "explanation": "volume afetado",
+              "name": "I",
+              "value": 0.7501003756656573,
+              "weight": 0.15
+            },
+            {
+              "applicability": "available",
+              "contribution": 0.05,
+              "explanation": "qualidade da fonte subject",
+              "name": "Q",
+              "value": 1.0,
+              "weight": 0.05
+            },
+            {
+              "applicability": "available",
+              "contribution": -30.0,
+              "explanation": "forca maxima das evidencias contrarias",
+              "name": "X",
+              "value": 1.0,
+              "weight": 0.0
+            }
+          ],
+          "kind": "context",
+          "lineage_key": "c202fee81233283a998660097904a3fa5d53122409e30b4e46c9f31d332f83b1",
+          "scope": {
+            "channel": "globo-rj"
+          },
+          "score": 37.69360795418898,
+          "summary": "O volume cresceu durante evento compatível sem degradação de experiência.",
+          "title": "Pico esperado por evento ao vivo"
+        }
+      ],
+      "quality": [
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "apollo",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "cdn_live_errors",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "cdn_vod_errors",
+          "status": "unknown",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "cloudarmor",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 3600,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "editorial",
+          "status": "unknown",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "newrelic",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 3600,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "npaw_device",
+          "status": "unknown",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 3600,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "npaw_error_attr",
+          "status": "unknown",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 3600,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "npaw_error_category",
+          "status": "unknown",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 3600,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "npaw_geo",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "npaw_live_active",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 3600,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "npaw_live_qoe",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 3600,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "npaw_player",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 3600,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "npaw_player_live",
+          "status": "unknown",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.06666666666666667,
+            "last_available_at": "2026-07-12T14:59:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T14:59:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "origin_live_errors",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "prometheus",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 1.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": 0.0,
+            "last_available_at": "2026-07-12T15:00:00+00:00"
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 1.0,
+          "last_observation_at": "2026-07-12T15:00:00+00:00",
+          "observed_buckets": 1,
+          "quality_score": 1.0,
+          "source": "rpaas",
+          "status": "healthy",
+          "validity": 1.0
+        },
+        {
+          "completeness": 0.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 1,
+          "expected_cadence_seconds": 60,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.0,
+          "source": "tsuru",
+          "status": "silent",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "youbora_device",
+          "status": "unknown",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "youbora_player",
+          "status": "unknown",
+          "validity": 0.0
+        },
+        {
+          "completeness": 1.0,
+          "consistency": 0.0,
+          "details": {
+            "evaluated_at": "2026-07-12T15:00:00+00:00",
+            "gap_cadences": null,
+            "last_available_at": null
+          },
+          "expected_buckets": 0,
+          "expected_cadence_seconds": 900,
+          "freshness": 0.0,
+          "last_observation_at": null,
+          "observed_buckets": 0,
+          "quality_score": 0.35,
+          "source": "youbora_player_live",
+          "status": "unknown",
+          "validity": 0.0
+        }
+      ]
+    },
+    "facts": [
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "playback",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-1",
+        "kind": "metric",
+        "metric": "error_rate_pct",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "newrelic",
+        "value": 5,
+        "version_lsn": 1
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "playback.video.globo.com",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-3",
+        "kind": "metric",
+        "metric": "4xx_rate_pct",
+        "role": "subject",
+        "sample_size": 100,
+        "source": "rpaas",
+        "value": 5,
+        "version_lsn": 3
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "globo-rj",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-4",
+        "kind": "metric",
+        "metric": "errors",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "cdn_live_errors",
+        "value": 5,
+        "version_lsn": 4
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T14:59:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "globo-rj",
+        "event_end": null,
+        "event_start": "2026-07-12T14:59:00+00:00",
+        "fact_key": "fact-5",
+        "kind": "metric",
+        "metric": "errors",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "origin_live_errors",
+        "value": 5,
+        "version_lsn": 5
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": "uf",
+        "dimension_value": "RJ",
+        "entity": "RJ",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-6",
+        "kind": "metric",
+        "metric": "error_rate_pct",
+        "role": "subject",
+        "sample_size": 500,
+        "source": "npaw_geo",
+        "value": 4,
+        "version_lsn": 6
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "playback",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-8",
+        "kind": "metric",
+        "metric": "blocked_rps",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "cloudarmor",
+        "value": 100,
+        "version_lsn": 8
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": "player",
+        "dimension_value": "player-bad",
+        "entity": "player-bad",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-9",
+        "kind": "metric",
+        "metric": "error_rate_pct",
+        "role": "subject",
+        "sample_size": 200,
+        "source": "npaw_player",
+        "value": 4,
+        "version_lsn": 9
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "qoe-service",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-11",
+        "kind": "metric",
+        "metric": "latency_ms_avg",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "prometheus",
+        "value": 300,
+        "version_lsn": 11
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "globo-rj",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-13",
+        "kind": "metric",
+        "metric": "active_sessions",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "npaw_live_active",
+        "value": 5000,
+        "version_lsn": 13
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T14:55:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "playback-api",
+        "event_end": null,
+        "event_start": "2026-07-12T14:55:00+00:00",
+        "fact_key": "fact-2",
+        "kind": "context",
+        "metric": "app.deploy",
+        "role": "context",
+        "sample_size": 1000,
+        "source": "tsuru",
+        "value": 5,
+        "version_lsn": 2
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": "uf",
+        "dimension_value": "SP",
+        "entity": "SP",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-7",
+        "kind": "metric",
+        "metric": "error_rate_pct",
+        "role": "subject",
+        "sample_size": 500,
+        "source": "npaw_geo",
+        "value": 1,
+        "version_lsn": 7
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": "player",
+        "dimension_value": "player-ok",
+        "entity": "player-ok",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-10",
+        "kind": "metric",
+        "metric": "error_rate_pct",
+        "role": "subject",
+        "sample_size": 200,
+        "source": "npaw_player",
+        "value": 1,
+        "version_lsn": 10
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "qoe-service",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-12",
+        "kind": "metric",
+        "metric": "error_rate_pct",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "apollo",
+        "value": 0.1,
+        "version_lsn": 12
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "globo",
+        "event_end": "2026-07-12T17:00:00+00:00",
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-14",
+        "kind": "context",
+        "metric": "live_event",
+        "role": "context",
+        "sample_size": 1000,
+        "source": "editorial",
+        "value": 5,
+        "version_lsn": 14
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "globo-rj",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-15",
+        "kind": "metric",
+        "metric": "error_rate_pct",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "apollo",
+        "value": 0.1,
+        "version_lsn": 15
+      },
+      {
+        "attributes": {},
+        "available_at": "2026-07-12T15:00:00+00:00",
+        "dimension_type": null,
+        "dimension_value": null,
+        "entity": "globo-rj",
+        "event_end": null,
+        "event_start": "2026-07-12T15:00:00+00:00",
+        "fact_key": "fact-16",
+        "kind": "metric",
+        "metric": "jointime_s_avg",
+        "role": "subject",
+        "sample_size": 1000,
+        "source": "npaw_live_qoe",
+        "value": 1,
+        "version_lsn": 16
+      }
+    ],
+    "id": "ciclo_misto_v1",
+    "simulator_end": "2026-07-12T15:00:00+00:00",
+    "window_end": "2026-07-12T15:00:00+00:00",
+    "window_start": "2026-07-12T14:59:00+00:00"
+  },
+  "catalog_manifest_hash": "88caf2b297af401908aab82c2eaefa044f63e95ff73c0685adcf0ee6b9309ad0",
+  "purpose": "Entrada sintetica fixa para o calculo qualidade, detector, regras e score.",
+  "schema_version": 1,
+  "source_revision": "534a9ca",
+  "source_test": "apps/fullstack/processing/tests/test_rules.py::test_as_onze_familias_formam_candidatos_em_cenarios_positivos"
+}
