@@ -30,6 +30,14 @@ class Config:
     # antes de terminar de desenhar.
     MAX_ITEMS_SCANNED = int(os.getenv("MAX_ITEMS_SCANNED", "20000"))
 
+    # Teto de duracao de UMA consulta, em milissegundos. O padrao de 15 s fica
+    # abaixo dos 30 s da Lambda: assim o erro chega como 500 legivel em vez do
+    # 502 que o API Gateway devolve quando a Lambda morre antes de responder.
+    # No Deployment do EKS nao existe esse teto de 30 s, e a tela Agora varre
+    # 7 dias de baseline -- num RDS burstable sem credito de CPU isso passa dos
+    # 15 s e a tela quebra com 500. La o valor e elevado pelo ambiente.
+    STATEMENT_TIMEOUT_MS = int(os.getenv("STATEMENT_TIMEOUT_MS", "15000"))
+
     # Origens do dashboard. A lista real vem de `dashboard_origins` no
     # Terraform e inclui o website S3 no fallback do Learner Lab; "*" e o
     # padrao apenas do desenvolvimento local, onde a porta do `next dev` muda
