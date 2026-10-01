@@ -4,6 +4,13 @@ Dashboard estático em Next.js App Router. A entrada `/` redireciona para
 `/agora`; as demais URLs públicas são `/explorar`, `/comparar`, `/hipoteses`,
 `/timeline` e `/recorte`.
 
+A ferramenta auxiliar `/ingestao/` é acessada diretamente pela URL e não tem
+entrada na sidebar. A primeira entrega permite selecionar CSV/Parquet,
+organizar o lote e validar extensão, tamanho e duplicatas localmente, usando
+os mesmos temas do dashboard. Leitura de conteúdo, mapeamento e envio continuam
+pendentes; o botão de revisão está desabilitado. O plano e a divisão de 50%
+estão em [plano-ingestao-arquivos.md](../../../artefatos/plano-ingestao-arquivos.md).
+
 O contrato HTTP que a interface já chama e o que ela espera da API de leitura
 e do motor de hipóteses está em [rotas-frontend.md](./rotas-frontend.md).
 
@@ -19,6 +26,7 @@ src/
 │   │   ├── comparar/
 │   │   ├── explorar/
 │   │   ├── hipoteses/
+│   │   ├── ingestao/           # ferramenta auxiliar sem item na sidebar
 │   │   ├── recorte/
 │   │   └── timeline/
 │   ├── globals.css             # Tailwind, tema, animações e reset

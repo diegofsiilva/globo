@@ -14,9 +14,9 @@ Não antecipar a segunda etapa para completar o fluxo.
 | Marco | Entrega | Semana | Estado |
 | --- | --- | --- | --- |
 | 1 | Documentar escopo, limites e critérios de aceite | Atual | Concluído |
-| 2 | Criar página auxiliar com a paleta existente, sem link na navegação | Atual | Pendente |
-| 3 | Selecionar/arrastar múltiplos CSV e Parquet, listar e remover arquivos | Atual | Pendente |
-| 4 | Validar seleção local e testar rejeições, duplicatas e interação | Atual | Pendente |
+| 2 | Criar página auxiliar com a paleta existente, sem link na navegação | Atual | Concluído |
+| 3 | Selecionar/arrastar múltiplos CSV e Parquet, listar e remover arquivos | Atual | Concluído |
+| 4 | Validar seleção local e testar rejeições, duplicatas e interação | Atual | Concluído |
 | 5 | Ler CSV e Parquet, detectar esquema e mostrar amostra limitada | Próxima | Pendente |
 | 6 | Mapear colunas à fonte de destino e validar tipos/campos obrigatórios | Próxima | Pendente |
 | 7 | Implementar envio autenticado e processamento assíncrono com idempotência | Próxima | Pendente |
@@ -54,3 +54,18 @@ Na próxima semana, continuar na mesma branch a partir do marco 5, revisando os
 limites antes de implementar o contrato de upload. Os arquivos selecionados
 nesta primeira versão existem apenas na memória da página e são descartados
 ao recarregar ou sair. Não prometer sucesso de ingestão nesta etapa.
+
+## Evidências da primeira entrega — 01/10/2026
+
+- `make -C apps/fullstack test-frontend`: 37 testes passaram em 10 arquivos;
+  9 cenários novos cobrem a preparação de arquivos e a ausência na navegação.
+- `npm run lint`: passou sem erros.
+- Build estático: passou, com `/ingestao` na relação de rotas exportadas.
+  `frontend-build-check` não executou no shell Windows porque seu recipe usa
+  atribuição POSIX de variáveis; executado o mesmo `npm run build` em PowerShell
+  com as variáveis de placeholder do alvo, sem alterar o Makefile.
+- Export servido localmente e verificado com Chrome headless: página carregou
+  com sessão sintética, temas claro/escuro e viewport móvel de 390 px.
+  Capturas inspecionadas; nenhuma rolagem horizontal no viewport móvel.
+- Não há parser, mapeamento, upload ou gravação de dados nesta entrega.
+  Os marcos 5–8 permanecem pendentes intencionalmente.
