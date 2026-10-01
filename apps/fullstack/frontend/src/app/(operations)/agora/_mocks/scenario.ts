@@ -25,6 +25,8 @@ export type SignalDeviation = {
   source: string;
   title: string;
   trend: number[];
+  /** Desvio em desvios-padrão, que é a chave de ordenação da lista. */
+  zScore?: string;
 };
 
 export type OpenDegradation = {
