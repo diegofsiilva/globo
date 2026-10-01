@@ -53,7 +53,18 @@ class WorkClaim:
 
 
 def _validar_texto(nome: str, valor: str) -> str:
-    """Valida e normaliza identificadores textuais da coordenacao."""
+    """Remove espaços externos e rejeita identificadores vazios.
+
+    Args:
+        nome: Nome do campo, usado na mensagem de erro.
+        valor: Texto fornecido pelo chamador.
+
+    Returns:
+        O texto sem espaços no início ou no fim.
+
+    Raises:
+        ValueError: Se o texto ficar vazio após a normalização.
+    """
     normalizado = valor.strip()
     if not normalizado:
         raise ValueError(f"{nome} nao pode ser vazio")
@@ -61,7 +72,18 @@ def _validar_texto(nome: str, valor: str) -> str:
 
 
 def _validar_lease(lease_seconds: int) -> int:
-    """Garante que o lease sempre crie uma janela operacional positiva."""
+    """Valida a duração inteira e positiva de um lease.
+
+    Args:
+        lease_seconds: Duração desejada em segundos.
+
+    Returns:
+        A duração validada, sem conversão implícita de tipo.
+
+    Raises:
+        TypeError: Se o valor não for inteiro ou for booleano.
+        ValueError: Se a duração for zero ou negativa.
+    """
     if isinstance(lease_seconds, bool) or not isinstance(lease_seconds, int):
         raise TypeError("lease_seconds precisa ser inteiro")
     if lease_seconds <= 0:
@@ -70,7 +92,14 @@ def _validar_lease(lease_seconds: int) -> int:
 
 
 def _claim_from_row(row: Mapping[str, Any]) -> WorkClaim:
-    """Converte uma linha de ``detect.run`` no contrato Python imutavel."""
+    """Converte uma linha persistida no contrato imutável de posse.
+
+    Args:
+        row: Linha de ``detect.run`` com os campos do claim e do run.
+
+    Returns:
+        Claim tipado com identidade, lease, fencing token e estado atuais.
+    """
     return WorkClaim(
         run_id=row["run_id"],
         checkpoint_id=row["checkpoint_id"],
@@ -280,7 +309,16 @@ def reivindicar_trabalho(
 
 
 def _bloquear_posse(cur: Any, claim: WorkClaim) -> Mapping[str, Any] | None:
-    """Bloqueia claim e run atuais na mesma ordem usada por takeover."""
+    """Bloqueia o claim e o run na mesma ordem usada pelo takeover.
+
+    Args:
+        cur: Cursor da transação ativa.
+        claim: Posse cuja identidade e fencing token serão conferidos.
+
+    Returns:
+        Linha bloqueada com estado e lease, ou ``None`` se a posse não
+        corresponder mais ao registro atual.
+    """
     cur.execute(
         """
         SELECT r.status, wc.claimed_by, wc.lease_expires_at,
@@ -305,7 +343,16 @@ def _bloquear_posse(cur: Any, claim: WorkClaim) -> Mapping[str, Any] | None:
 
 
 def _posse_valida(row: Mapping[str, Any] | None, claim: WorkClaim) -> bool:
-    """Confere owner, token e validade temporal depois de adquirir os locks."""
+    """Confere proprietário, fencing token e validade temporal do lease.
+
+    Args:
+        row: Registro bloqueado retornado por ``_bloquear_posse``.
+        claim: Posse esperada pelo worker.
+
+    Returns:
+        ``True`` somente quando proprietário e token coincidem e o lease
+        ainda não expirou.
+    """
     return bool(
         row is not None
         and row["claimed_by"] == claim.claimed_by
@@ -315,7 +362,16 @@ def _posse_valida(row: Mapping[str, Any] | None, claim: WorkClaim) -> bool:
 
 
 def iniciar_trabalho(db: Database, claim: WorkClaim) -> bool:
-    """Move uma posse valida de ``claimed`` para ``running``."""
+    """Transiciona uma posse ativa de ``claimed`` para ``running``.
+
+    Args:
+        db: Pool de conexões do Argus.
+        claim: Claim que precisa continuar sendo o proprietário ativo.
+
+    Returns:
+        ``True`` se a transição foi persistida; ``False`` se a posse expirou,
+        mudou ou já estava em outro estado.
+    """
     with db.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
         atual = _bloquear_posse(cur, claim)
         if not _posse_valida(atual, claim) or atual["status"] != "claimed":
@@ -332,7 +388,21 @@ def iniciar_trabalho(db: Database, claim: WorkClaim) -> bool:
 
 
 def renovar_lease(db: Database, claim: WorkClaim, *, lease_seconds: int = 60) -> bool:
-    """Renova heartbeat e lease sem emitir outro fencing token."""
+    """Atualiza heartbeat e vencimento sem trocar o fencing token.
+
+    Args:
+        db: Pool de conexões do Argus.
+        claim: Claim que será renovado.
+        lease_seconds: Nova duração do lease em segundos.
+
+    Returns:
+        ``True`` quando run e claim foram renovados; ``False`` quando o
+        chamador já perdeu a posse ou o estado não permite renovação.
+
+    Raises:
+        TypeError: Se ``lease_seconds`` não for inteiro.
+        ValueError: Se ``lease_seconds`` não for positivo.
+    """
     lease_seconds = _validar_lease(lease_seconds)
     with db.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
         atual = _bloquear_posse(cur, claim)
@@ -379,6 +449,13 @@ def commit_protegido(db: Database, claim: WorkClaim) -> Iterator[Connection]:
     Qualquer excecao faz rollback do estado ``committing`` e das linhas filhas.
     Um token antigo falha antes de entregar a conexao ao chamador.
 
+    Args:
+        db: Pool de conexões do Argus.
+        claim: Claim cuja posse será revalidada antes da escrita.
+
+    Yields:
+        Conexão dentro da transação protegida para inserir os resultados.
+
     Raises:
         FencingRejected: Quando o claim nao e mais o proprietario ativo.
     """
@@ -423,7 +500,20 @@ def commit_protegido(db: Database, claim: WorkClaim) -> Iterator[Connection]:
 
 
 def falhar_trabalho(db: Database, claim: WorkClaim, error_message: str) -> bool:
-    """Encerra como ``failed`` uma tentativa que ainda possui lease e token."""
+    """Marca como ``failed`` uma tentativa que ainda controla o claim.
+
+    Args:
+        db: Pool de conexões do Argus.
+        claim: Posse que será encerrada se ainda for válida.
+        error_message: Motivo não vazio a registrar no run.
+
+    Returns:
+        ``True`` se run e claim foram encerrados; ``False`` se o worker já
+        perdeu a posse ou o estado não permite falha.
+
+    Raises:
+        ValueError: Se a mensagem de erro estiver vazia.
+    """
     error_message = _validar_texto("error_message", error_message)
     with db.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
         atual = _bloquear_posse(cur, claim)
