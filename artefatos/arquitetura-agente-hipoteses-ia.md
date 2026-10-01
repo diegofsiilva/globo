@@ -93,62 +93,239 @@ ausentes; não são convertidos em zero. Consultas agregadas devem trazer os
 identificadores dos fatos que contribuíram para o resultado ou uma referência
 estável ao conjunto, para permitir conferência posterior.
 
-## 3. Esboço da arquitetura alternativa
+## 3. Arquitetura do piloto
 
-```text
-bronze.change_log → silver.analysis_fact_version → checkpoint temporal
-                                                    │
-                              leitor de fatos com recorte imutável
-                                                    │
-                              ferramentas de investigação limitadas
-                                                    │
-                         agente IA: observar → consultar → contrastar
-                                                    │
-                            hipótese estruturada ou evidência insuficiente
-                                                    │
-                              validador de referências e tempo
-                                                    │
-                             registro experimental → revisão humana
+Esta seção fixa o desenho do piloto: quais peças existem, por onde passa uma
+investigação e onde está a fronteira entre código determinístico e modelo. Dois
+termos aparecem o tempo todo. **Ferramenta** é uma função fechada que o agente
+pode chamar, com parâmetros declarados e resposta de formato conhecido — não é
+acesso ao banco nem SQL livre. **Teto** é um limite numérico aplicado pelo
+executor, fora do alcance do modelo, que encerra a investigação quando é
+atingido.
 
-Em paralelo: checkpoint → detector → 11 regras → hipóteses do motor atual
+### 3.1 Decisão de arquitetura do Dia 1 — grau de autonomia
+
+A decisão central do Dia 1 é quanta liberdade a investigação tem. O piloto adota
+**autonomia limitada por ferramentas e teto**: o agente escolhe o que investigar,
+em que ordem e quando parar, mas só enxerga os dados através de um conjunto
+pequeno de ferramentas declaradas e só age dentro de um número máximo de chamadas
+por caso.
+
+Duas alternativas foram descartadas:
+
+| Alternativa | Por que não entra no piloto |
+|---|---|
+| Entregar um bloco de contexto pronto e pedir a hipótese em uma única chamada | O agente não investigaria; quem escolheria as evidências seria quem montou o bloco, e a comparação com o motor atual mediria essa escolha, não o modelo. |
+| Dar acesso amplo, com SQL livre ou catálogo aberto de tabelas | Transformaria o piloto em plataforma genérica de agentes, abriria vazamento temporal e acesso a rótulos de incidente, e não cabe em sete dias. |
+
+A autonomia limitada preserva o que se quer testar — se o modelo encontra desvios
+e formula explicações próprias — sem abrir o banco nem o calendário do projeto.
+
+### 3.2 Diagrama de componentes
+
+```mermaid
+flowchart TD
+    subgraph dados["Dados — fora do piloto"]
+        CL["bronze.change_log"]
+        AFV["silver.analysis_fact_version"]
+    end
+
+    subgraph det["Código determinístico do piloto"]
+        REC["Recorte imutável: checkpoint_id, sim_now, input_lsn"]
+        LEI["Leitor de fatos: última versão por fact_key, filtro temporal, digest"]
+        FER["Ferramentas de investigação: inventário, série, contexto"]
+        LIM["Guardas: teto de chamadas, de linhas e de tempo"]
+        VAL["Validador: formato, IDs citados, proveniência, janela temporal"]
+        REG["Registro experimental em arquivo: entrada, consultas, saída, versões"]
+    end
+
+    subgraph ia["Decisão do modelo"]
+        AG["Agente: observar, consultar, contrastar, concluir"]
+        SAI["Hipótese estruturada ou evidência insuficiente"]
+    end
+
+    subgraph pessoa["Decisão humana"]
+        REV["Revisão: a hipótese ajudou a investigar?"]
+        COMP["Comparação com o motor atual sobre o mesmo checkpoint"]
+    end
+
+    subgraph motor["Motor atual — referência, isolado do agente"]
+        DET["Detector e 11 famílias de regras"]
+        HIP["gold.hypothesis_*"]
+    end
+
+    CL --> AFV
+    AFV --> REC
+    REC --> LEI
+    LEI --> FER
+    FER --> AG
+    AG -->|próxima consulta| FER
+    LIM -.->|interrompe| AG
+    AG --> SAI
+    SAI --> VAL
+    VAL -->|devolve com motivo| AG
+    VAL --> REG
+    REG --> REV
+    REV --> COMP
+    REC --> DET
+    DET --> HIP
+    HIP --> COMP
 ```
 
-O **leitor de fatos** é o seam principal do MVA. Sua interface recebe a
-identidade do checkpoint e devolve um recorte imutável mais funções de consulta
-limitadas; a implementação esconde SQL, versionamento e seleção temporal. O
-agente não recebe credenciais de banco nem SQL livre. A forma de acesso ao banco
-será definida no Dia 2; as permissões atuais do `argus_reader` cobrem apenas
-views públicas e não autorizam supor leitura direta de
-`silver.analysis_fact_version`.
+A seta tracejada do bloco de guardas é a única forma de o piloto parar o agente:
+nada no prompt depende de o modelo respeitar o próprio limite. A seta de
+`gold.hypothesis_*` chega apenas na comparação, depois da revisão humana — não há
+caminho dela para o agente, e é isso que impede o piloto de copiar a resposta do
+motor atual.
 
-O **agente** decide o que investigar e quais explicações testar. Uma primeira
-interface pequena é `investigar(recorte, ferramentas) -> resultado`. Dentro dela,
-o ciclo pode consultar séries, comparar uma janela anterior e abrir fatos de
-contexto, sempre dentro do mesmo recorte. O modelo não recebe respostas do motor
-atual nem rótulos de incidentes. Limites de chamadas, linhas e tempo impedem
-uma investigação indefinida.
+Duas interfaces concentram o desenho. O **leitor de fatos** é a costura principal
+do piloto — a única fronteira por onde os dados entram: recebe a identidade do
+checkpoint e devolve um recorte imutável com funções de consulta limitadas,
+escondendo SQL, versionamento e seleção temporal de todo o resto. O **agente**
+aparece atrás de uma assinatura igualmente pequena,
+`investigar(recorte, ferramentas) -> resultado`, o que permite trocar modelo,
+prompt ou estratégia sem mexer no restante do piloto. A seleção de trabalho em
+[`claim_and_capture`](../apps/fullstack/processing/src/argus_processing/analysis_repository.py)
+serve de referência para as invariantes temporais do recorte, mas o piloto não
+reaproveita seu cursor nem seu commit protegido.
 
-O **validador** confere formato, IDs citados, proveniência, disponibilidade
-temporal e limites. Ele não decide se a causa sugerida é verdadeira. Afirmações
-causais sem lastro, contradições ignoradas ou ausência de observações devem
-seguir para revisão como limitação ou resultar em `insufficient_evidence`,
-conforme o contrato de saída a ser fechado no Dia 2.
+### 3.3 Fluxo de uma investigação
 
-### Sequência mínima de uma investigação
+```mermaid
+sequenceDiagram
+    autonumber
+    participant E as Executor
+    participant L as Leitor de fatos
+    participant F as Ferramentas
+    participant A as Agente
+    participant V as Validador
+    participant P as Pessoa revisora
 
-1. Selecionar um checkpoint e um recorte de tempo/escopo; registrar seu digest.
-2. Mostrar ao agente um inventário pequeno de fontes e métricas disponíveis,
-   incluindo lacunas de cobertura, sem classificação prévia de anomalias.
-3. O agente solicita consultas sobre os fatos e compara o período investigado
-   com contexto anterior causalmente disponível.
-4. O agente propõe uma causa candidata e tenta encontrar evidência contrária;
-   se não houver sustentação suficiente, responde `insufficient_evidence`.
-5. Validar as referências e guardar o resultado com modelo, versão do prompt,
-   parâmetros, consultas executadas, checkpoint e digest.
-6. Uma pessoa avalia se o resultado ajudou a investigação. Só então comparar
-   com a saída do motor determinístico para o mesmo checkpoint.
+    E->>L: abrir recorte do checkpoint
+    L-->>E: recorte imutável e digest
+    E->>A: inventário de fontes, métricas e lacunas de cobertura
+    Note over E,A: o inventário não traz anomalias, score nem hipóteses do motor atual
+    A->>F: consultar série de uma métrica no período
+    F->>L: ler fatos elegíveis do recorte
+    L-->>F: fatos com fact_id e proveniência
+    F-->>A: linhas limitadas e rastreáveis
+    A->>F: comparar com janela anterior causalmente disponível
+    F-->>A: contexto do mesmo recorte
+    A->>A: propor causa candidata e procurar evidência contrária
+    Note over A,F: cada chamada consome o teto do caso
+    A-->>E: hipótese estruturada ou insufficient_evidence
+    E->>V: validar formato, IDs citados e janela temporal
+    V-->>E: aprovado ou devolvido com motivo
+    E->>P: resultado registrado com consultas, modelo e versões
+    P-->>E: julgamento de utilidade
+```
 
-## 4. Escopo do MVA e decisões seguintes
+O ciclo tem quatro fases, e o agente pode voltar da terceira para a segunda
+enquanto houver orçamento:
+
+1. **Orientação.** O agente recebe o inventário do recorte e escolhe por onde
+   começar. Nenhuma métrica vem marcada como suspeita.
+2. **Levantamento.** O agente pede séries e contexto. Toda resposta devolve os
+   identificadores dos fatos que a sustentam.
+3. **Contraste.** O agente propõe uma causa candidata e procura, no mesmo
+   recorte, uma observação que a derrube. Hipótese sem tentativa de refutação
+   registrada é tratada como incompleta.
+4. **Conclusão.** O agente entrega a hipótese com evidências a favor e contra, as
+   lacunas que encontrou e o histórico de consultas, ou declara
+   `insufficient_evidence`.
+
+A investigação termina por uma de quatro razões, todas registradas: conclusão do
+agente, declaração de evidência insuficiente, teto atingido ou saída rejeitada
+pelo validador mais de uma vez. As duas últimas viram limitação do piloto no
+registro, nunca hipótese apresentada.
+
+## 4. Responsabilidades e decisões
+
+### 4.1 Responsabilidade por componente
+
+| Componente | Decide | Não decide |
+|---|---|---|
+| Leitor de fatos | Quais fatos existem no recorte, por versão e disponibilidade temporal | O que é relevante, o que é anômalo |
+| Ferramentas | Que recortes podem ser pedidos, em que formato e com qual limite de linhas | Qual pergunta vale a pena fazer |
+| Guardas | Quando a investigação acaba por esgotamento de orçamento | Se a resposta obtida é boa |
+| Agente | O que investigar, em que ordem, qual explicação propor e quando parar | O que está disponível, o que é verdade, o que é publicado |
+| Validador | Se a saída é bem formada, citável e temporalmente legítima | Se a causa sugerida é correta |
+| Registro | O que fica gravado para auditoria e reexecução | Qualquer leitura de qualidade |
+| Pessoa revisora | Se a hipótese ajudou, se o piloto continua, qual ação tomar | Nada que o código já garante por construção |
+
+### 4.2 Decisões que cabem à IA
+
+- Por onde começar a investigação, a partir do inventário.
+- Qual consulta fazer em seguida, em função do que já observou.
+- Qual explicação candidata propor e com que escopo — serviço, região,
+  dispositivo ou canal.
+- Qual observação poderia derrubar a própria hipótese, e pedi-la.
+- Quando a evidência basta e quando responder `insufficient_evidence`.
+- Como redigir a justificativa, citando os fatos consultados.
+- Quais lacunas de dados declarar como limitação da investigação.
+
+### 4.3 Decisões que não cabem à IA
+
+| Decisão | Onde ela fica |
+|---|---|
+| O que é visível no recorte, incluindo o corte por `sim_now` e `input_lsn` | Leitor de fatos |
+| Quais ferramentas existem e o que cada uma devolve | Contrato de ferramentas, fechado no Dia 2 |
+| Quantas chamadas, quantas linhas e quanto tempo um caso pode consumir | Guardas do executor |
+| Se um `fact_id` citado existe e pertence ao recorte | Validador |
+| Qual é o formato aceito da resposta | Contrato de saída, fechado no Dia 2 |
+| Se a causa proposta é verdadeira | Pessoa revisora |
+| Se o resultado vira hipótese do produto | Decisão de projeto, fora do piloto |
+
+Três exclusões sustentam a comparação e precisam valer em código, não em
+instrução de prompt: o agente não recebe anomalias, candidatos, score ou
+hipóteses do motor atual; não recebe `incidents`, `incident_label` nem feedback
+humano; e não recebe fato algum com `available_at` posterior ao `sim_now` do
+recorte. Se qualquer uma falhar, o resultado da comparação perde sentido.
+
+## 5. Limites do piloto
+
+### 5.1 Limites de execução
+
+Os números abaixo são a proposta do Dia 1 e existem para forçar investigação
+curta e auditável. Eles podem ser ajustados no Dia 5, com o motivo registrado.
+
+| Limite | Valor proposto | Razão |
+|---|---|---|
+| Casos por execução | 1 checkpoint e 1 recorte | Mantém o digest do conjunto estável e a reexecução comparável. |
+| Ferramentas expostas | 3 | Inventário, série e contexto cobrem o ciclo sem virar plataforma. |
+| Chamadas de ferramenta por caso | 12 | Permite algumas idas e voltas e impede investigação indefinida. |
+| Linhas por resposta | 200, com agregação ou paginação acima disso | Evita despejar a janela inteira no modelo. |
+| Tempo de parede por caso | 5 minutos | Torna o lote do Dia 5 executável em uma sessão. |
+| Devoluções do validador | 1 nova tentativa | Separa erro de formatação de incapacidade de responder. |
+
+Ao atingir qualquer teto, o executor encerra o caso e grava o motivo. Um caso
+encerrado por teto não produz hipótese apresentável.
+
+### 5.2 Limites de acesso
+
+- Somente leitura. O piloto não escreve em `silver`, `gold` ou `detect`, não toma
+  posse do cursor de progresso e não reutiliza o commit protegido do motor
+  determinístico.
+- O modelo não recebe credenciais de banco, string de conexão nem SQL livre.
+- A forma de acesso ao banco fica para o Dia 2. As permissões atuais do
+  `argus_reader` cobrem apenas views públicas e não autorizam supor leitura
+  direta de `silver.analysis_fact_version`.
+- `attributes` só chega ao modelo com seleção explícita por fonte, sem
+  identificadores de usuário.
+- O registro do piloto é arquivo local em JSON ou Markdown. Nada é publicado em
+  tabela de produção, API ou frontend.
+
+### 5.3 Fora do piloto
+
+Ficam de fora, e seguem decisões de projeto posteriores: integração com a API e
+com o frontend, novas permissões de banco ou migração de schema, métrica de
+qualidade calculada automaticamente, treino ou ajuste de modelo, uso de rótulos
+de incidente como entrada, e qualquer ação operacional derivada de uma hipótese
+do agente. O refinador Ollama já presente na API continua apenas redigindo
+respostas a partir de hipóteses publicadas pelo motor atual, e não participa
+deste fluxo.
+
+## 6. Escopo do MVA e decisões seguintes
 
 **Valor a demonstrar:** em um caso selecionado, o agente produz uma explicação
 que um investigador consegue conferir abrindo as evidências citadas, ou expõe
@@ -156,11 +333,9 @@ honestamente a falta de dados. O primeiro protótipo pode ser executado por CLI
 e registrar JSON/Markdown local; não precisa de tela, tabela de produção ou
 publicação automática.
 
-**Fora do Dia 1:** escolha de modelo/provedor, prompt final, novas permissões
-SQL, migração de banco, integração com a API/frontend e métrica de qualidade
-calculada. O refinador Ollama existente na API apenas redige respostas a partir
-de hipóteses já publicadas; a geração alternativa descrita aqui é um fluxo
-distinto.
+**Fora do Dia 1:** escolha de modelo e provedor, prompt final e primeira
+execução ponta a ponta. Os limites gerais do piloto estão na seção 5; esta seção
+trata apenas do que o Dia 1 não fecha.
 
 No Dia 2, fechar quatro decisões para implementação paralela por duas pessoas:
 
