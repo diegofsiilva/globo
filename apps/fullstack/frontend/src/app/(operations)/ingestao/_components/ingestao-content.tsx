@@ -1,6 +1,7 @@
 /** Interface auxiliar, acessada por URL e ausente da navegação principal. */
 import { Database, Files, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SelecaoArquivos } from "./selecao-arquivos";
 
 /** Apresenta a primeira etapa sem prometer envio ainda não implementado. */
 export function IngestaoContent() {
@@ -33,7 +34,7 @@ export function IngestaoContent() {
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="grid gap-4 rounded-panel border border-border bg-surface p-5" aria-labelledby="arquivos-titulo">
             <h2 id="arquivos-titulo" className="flex items-center gap-2 text-section font-semibold"><Files className="size-4 text-primary" aria-hidden="true" /> Arquivos do lote</h2>
-            <p className="text-body text-muted-foreground">A seleção local será preparada nesta primeira entrega.</p>
+            <SelecaoArquivos />
           </section>
           <aside className="grid gap-4 rounded-panel border border-border bg-surface p-5" aria-labelledby="preparo-titulo">
             <h2 id="preparo-titulo" className="text-section font-semibold">Antes de começar</h2>
