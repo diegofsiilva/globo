@@ -239,6 +239,55 @@ agente, declaração de evidência insuficiente, teto atingido ou saída rejeita
 pelo validador mais de uma vez. As duas últimas viram limitação do piloto no
 registro, nunca hipótese apresentada.
 
+### 3.4 Contrato das ferramentas de leitura — Pessoa 1, Dia 2
+
+Esta seção especifica **três ferramentas propostas**, ainda não implementadas.
+Todas leem o mesmo `recorte_id` aberto pelo executor. O `recorte_id` é opaco para
+o modelo e resolve, no leitor, `checkpoint_id`, `sim_now`, `input_lsn`, digest e
+o conjunto de fatos elegíveis. Nenhuma ferramenta aceita SQL, nome de tabela,
+`run_id` do motor atual ou horário posterior ao recorte.
+
+O leitor monta a fotografia uma vez e a mantém estável durante o caso. Um
+`fact_id` é o par `(fact_key, version_lsn)`; sua representação textual deve ser
+inequívoca e validada pelo leitor, sem depender de separar uma string arbitrária
+por `:`. O campo `role` (`subject`, `context`, `quality`) vem da seleção de entrada
+do processamento, não de `silver.analysis_fact_version`. Para o piloto, a
+seleção pode inspirar-se nela sem consumir `detect.run_input_fact`: usar essa
+tabela amarraria a entrada do agente ao run do motor atual. O digest do piloto
+deve cobrir os `fact_id` e papéis efetivamente expostos, ordenados de modo
+canônico; não se deve chamar esse valor de `detect.run.input_digest`.
+
+**Envelope comum de resposta:** `recorte_id`, `tool`, `items`, `returned`,
+`has_more`, `next_cursor` e `limitations`. `items` nunca excede 200 elementos.
+O cursor é opaco, vinculado ao recorte e aos filtros, e a ordenação é estável;
+uma mudança de filtros com o mesmo cursor é erro. `limitations` distingue
+resultado vazio, campo nulo, fonte ausente e corte por limite. Paginação consome
+uma nova chamada do teto de 12 chamadas do caso. O executor mede os 5 minutos
+de parede; as ferramentas aplicam o limite de linhas independentemente do
+prompt. Parâmetros inválidos ou fora do recorte falham explicitamente, sem
+ampliar a janela em silêncio.
+
+#### Ferramenta 1 — `inventariar_fatos`
+
+**Finalidade:** orientar a investigação sem apontar uma anomalia. É a única
+ferramenta sem filtros escolhidos pelo agente: recebe apenas `recorte_id` e um
+cursor opcional. Devolve, por `source`, `kind`, `entity`, `metric` e
+`dimension_type`, a contagem de fatos elegíveis, menor/maior `event_start`,
+menor/maior `available_at` e indicação de valores ou amostras nulos. A
+ordenação é lexicográfica por esses cinco campos. Valores concretos de dimensão
+não entram no inventário inicial; o agente os consulta nas outras ferramentas.
+
+```json
+{"tool":"inventariar_fatos","recorte_id":"recorte-opaco","cursor":null}
+```
+
+O inventário não calcula `z`, baseline, score, ranking ou rótulo de suspeita.
+Contagem zero significa apenas ausência no recorte, nunca saúde da fonte. A
+resposta informa a janela e o `sim_now` do recorte para que o agente saiba o
+alcance das observações. Cada grupo traz uma referência estável ao conjunto de
+`fact_id` que contou; a resolução dessa referência fica no leitor e deve
+permitir conferência sem enviar milhares de IDs ao modelo.
+
 ## 4. Responsabilidades e decisões
 
 ### 4.1 Responsabilidade por componente
