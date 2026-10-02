@@ -55,7 +55,7 @@ describe("contrato da tela Agora", () => {
     expect(signal.trend).toEqual([4, 19, 34]);
   });
 
-  test("[TA-04] apresenta métrica em bytes na unidade, e não o número cru", () => {
+  test("[TA-14] apresenta métrica em bytes na unidade, e não o número cru", () => {
     const signal = toSignalDeviation({
       ...SIGNAL,
       metric: "memory",
@@ -74,7 +74,7 @@ describe("contrato da tela Agora", () => {
     });
   });
 
-  test("[TA-05] o card de degradação ativa nomeia a métrica e não inventa sessões", () => {
+  test("[TA-15] o card de degradação ativa nomeia a métrica e não inventa sessões", () => {
     const card = toActiveDegradation({ ...SIGNAL, sessions_impacted: null });
 
     expect(card).toMatchObject({
