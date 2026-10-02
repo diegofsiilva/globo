@@ -1,0 +1,21 @@
+{
+  "case_id": "degradacao_sintetica",
+  "origin": "synthetic",
+  "checkpoint_id": 101,
+  "sim_now": "2026-08-20T20:00:00Z",
+  "input_lsn": 20,
+  "facts": [
+    {"fact_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","version_lsn":10,"role":"subject","kind":"metric","event_start":"2026-08-20T19:30:00Z","event_end":null,"available_at":"2026-08-20T19:31:00Z","source":"prometheus","entity":"playback-api","metric":"error_rate_pct","dimension_type":null,"dimension_value":null,"value":1.0,"sample_size":1000,"attributes":{},"is_deleted":false},
+    {"fact_key":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","version_lsn":18,"role":"subject","kind":"metric","event_start":"2026-08-20T19:30:00Z","event_end":null,"available_at":"2026-08-20T19:32:00Z","source":"prometheus","entity":"playback-api","metric":"error_rate_pct","dimension_type":null,"dimension_value":null,"value":8.0,"sample_size":1000,"attributes":{},"is_deleted":false},
+    {"fact_key":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","version_lsn":12,"role":"context","kind":"metric","event_start":"2026-08-20T19:15:00Z","event_end":null,"available_at":"2026-08-20T19:16:00Z","source":"prometheus","entity":"playback-api","metric":"error_rate_pct","dimension_type":null,"dimension_value":null,"value":1.1,"sample_size":950,"attributes":{},"is_deleted":false},
+    {"fact_key":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","version_lsn":15,"role":"context","kind":"context","event_start":"2026-08-20T19:20:00Z","event_end":"2026-08-20T19:25:00Z","available_at":"2026-08-20T19:20:00Z","source":"tsuru","entity":"playback-api","metric":"deploy","dimension_type":null,"dimension_value":null,"value":null,"sample_size":null,"attributes":{},"is_deleted":false},
+    {"fact_key":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","version_lsn":16,"role":"context","kind":"metric","event_start":"2026-08-20T19:45:00Z","event_end":null,"available_at":"2026-08-20T20:30:00Z","source":"npaw","entity":"playback-api","metric":"startup_error_pct","dimension_type":null,"dimension_value":null,"value":12.0,"sample_size":300,"attributes":{},"is_deleted":false},
+    {"fact_key":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","version_lsn":11,"role":"context","kind":"metric","event_start":"2026-08-20T19:10:00Z","event_end":null,"available_at":"2026-08-20T19:11:00Z","source":"apollo","entity":"playback-api","metric":"latency_ms","dimension_type":null,"dimension_value":null,"value":90.0,"sample_size":500,"attributes":{},"is_deleted":false},
+    {"fact_key":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","version_lsn":19,"role":"context","kind":"metric","event_start":"2026-08-20T19:10:00Z","event_end":null,"available_at":"2026-08-20T19:12:00Z","source":"apollo","entity":"playback-api","metric":"latency_ms","dimension_type":null,"dimension_value":null,"value":null,"sample_size":null,"attributes":{},"is_deleted":true}
+  ],
+  "queries": [
+    {"tool":"inventariar_fatos","params":{}},
+    {"tool":"consultar_serie","params":{"source":"prometheus","entity":"playback-api","metric":"error_rate_pct","inicio":"2026-08-20T19:00:00Z","fim":"2026-08-20T20:00:00Z","limit":100}},
+    {"tool":"consultar_contexto","params":{"entity":"playback-api","inicio":"2026-08-20T19:20:00Z","fim":"2026-08-20T20:00:00Z","kinds":["context","metric"],"limit":100}}
+  ]
+}

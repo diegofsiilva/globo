@@ -359,6 +359,26 @@ Esses são critérios de implementação e de teste para os dias seguintes. A
 documentação não afirma que já existem permissões de leitura, adaptadores ou
 execuções do modelo para essas ferramentas.
 
+### 3.5 Casos reproduzíveis — Pessoa 1, Dia 3
+
+Os primeiros casos ficam em
+[`apps/fullstack/tools/tests/fixtures/agente_hipoteses`](../apps/fullstack/tools/tests/fixtures/agente_hipoteses).
+São **dados sintéticos**, criados para exercitar o contrato de leitura; não são
+incidentes do parceiro nem evidência de qualidade da IA. Cada arquivo fixa
+`checkpoint_id`, `sim_now`, `input_lsn`, versões de fatos e uma sequência de
+consultas. Os resultados esperados são:
+
+| Caso | O que deve aparecer | O que deve ficar de fora |
+|---|---|---|
+| `degradacao_sintetica` | Última versão da taxa de erro, valor anterior e evento de deploy disponível. | Versão antiga da taxa, fato NPAW disponível só após `sim_now` e fato removido por tombstone. |
+| `evidencia_insuficiente` | Métrica com `value=null`, sem inventar zero. | Fato NPAW atrasado; a consulta de contexto volta vazia. |
+
+Um executor local pode repetir as consultas declaradas nesses arquivos e
+registrar recorte, digest e respostas. Ele **não escolhe consultas nem gera
+hipóteses**: essa será a responsabilidade do agente da Pessoa 2. Antes de usar
+um checkpoint real, ainda é preciso implementar um leitor autorizado do banco
+com as mesmas regras temporais e selecionar casos sem usar rótulos como entrada.
+
 ## 4. Responsabilidades e decisões
 
 ### 4.1 Responsabilidade por componente

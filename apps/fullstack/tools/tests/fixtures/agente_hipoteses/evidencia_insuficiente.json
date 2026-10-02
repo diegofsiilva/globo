@@ -1,0 +1,16 @@
+{
+  "case_id": "evidencia_insuficiente",
+  "origin": "synthetic",
+  "checkpoint_id": 102,
+  "sim_now": "2026-08-20T20:00:00Z",
+  "input_lsn": 30,
+  "facts": [
+    {"fact_key":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","version_lsn":25,"role":"subject","kind":"metric","event_start":"2026-08-20T19:45:00Z","event_end":null,"available_at":"2026-08-20T19:46:00Z","source":"prometheus","entity":"player","metric":"error_rate_pct","dimension_type":null,"dimension_value":null,"value":null,"sample_size":null,"attributes":{},"is_deleted":false},
+    {"fact_key":"9999999999999999999999999999999999999999999999999999999999999999","version_lsn":27,"role":"context","kind":"metric","event_start":"2026-08-20T19:30:00Z","event_end":null,"available_at":"2026-08-21T23:30:00Z","source":"npaw","entity":"player","metric":"startup_error_pct","dimension_type":null,"dimension_value":null,"value":10.0,"sample_size":200,"attributes":{},"is_deleted":false}
+  ],
+  "queries": [
+    {"tool":"inventariar_fatos","params":{}},
+    {"tool":"consultar_serie","params":{"source":"prometheus","entity":"player","metric":"error_rate_pct","inicio":"2026-08-20T19:00:00Z","fim":"2026-08-20T20:00:00Z","limit":100}},
+    {"tool":"consultar_contexto","params":{"entity":"player","inicio":"2026-08-20T19:00:00Z","fim":"2026-08-20T20:00:00Z","kinds":["context"],"limit":100}}
+  ]
+}
