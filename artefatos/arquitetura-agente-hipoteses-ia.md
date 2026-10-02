@@ -1,6 +1,6 @@
 # Arquitetura inicial do agente de hipóteses com IA
 
-> Proposta de MVA — Dia 1. Este documento descreve uma alternativa experimental;
+> Proposta de MVA — Dias 1 e 2. Este documento descreve uma alternativa experimental;
 > não representa comportamento já implementado ou publicado no Argus.
 
 ## 1. Problema e primeira adição de valor
@@ -52,7 +52,8 @@ SQL arbitrário. A interface do agente deverá devolver somente campos
 selecionados, com identificador e proveniência. `attributes` exige seleção
 explícita por fonte antes de chegar ao modelo, para evitar carga irrelevante ou
 identificadores de usuário. O conjunto exato de métricas e atributos aceitos
-fica para o contrato de ferramentas do Dia 2.
+ainda depende de uma lista permitida por fonte; o contrato das três ferramentas
+está na seção 3.4.
 
 ### Limites semânticos dos dados
 
@@ -388,7 +389,7 @@ execuções do modelo para essas ferramentas.
 | Decisão | Onde ela fica |
 |---|---|
 | O que é visível no recorte, incluindo o corte por `sim_now` e `input_lsn` | Leitor de fatos |
-| Quais ferramentas existem e o que cada uma devolve | Contrato de ferramentas, fechado no Dia 2 |
+| Quais ferramentas existem e o que cada uma devolve | Contrato proposto na seção 3.4; implementação pendente |
 | Quantas chamadas, quantas linhas e quanto tempo um caso pode consumir | Guardas do executor |
 | Se um `fact_id` citado existe e pertence ao recorte | Validador |
 | Qual é o formato aceito da resposta | Contrato de saída, fechado no Dia 2 |
@@ -426,7 +427,7 @@ encerrado por teto não produz hipótese apresentável.
   posse do cursor de progresso e não reutiliza o commit protegido do motor
   determinístico.
 - O modelo não recebe credenciais de banco, string de conexão nem SQL livre.
-- A forma de acesso ao banco fica para o Dia 2. As permissões atuais do
+- A forma de acesso ao banco ainda precisa ser implementada. As permissões atuais do
   `argus_reader` cobrem apenas views públicas e não autorizam supor leitura
   direta de `silver.analysis_fact_version`.
 - `attributes` só chega ao modelo com seleção explícita por fonte, sem
@@ -456,12 +457,13 @@ publicação automática.
 execução ponta a ponta. Os limites gerais do piloto estão na seção 5; esta seção
 trata apenas do que o Dia 1 não fecha.
 
-No Dia 2, fechar quatro decisões para implementação paralela por duas pessoas:
+No Dia 2, a Pessoa 1 especificou as três ferramentas. As demais decisões
+permanecem como próximos passos para implementação paralela:
 
 | Decisão | Responsável sugerido | Critério de aceite |
 |---|---|---|
-| Interface e acesso ao recorte de fatos | Pessoa dos dados | Mesmo checkpoint produz o mesmo conjunto e não expõe futuro. |
-| Ferramentas de consulta e limites | Pessoa dos dados, com revisão conjunta | Cada resposta é limitada, paginável ou agregada e rastreável a fatos. |
+| Interface e acesso ao recorte de fatos | Pessoa dos dados | Contrato proposto; implementar acesso e provar que o mesmo checkpoint produz o mesmo conjunto sem expor futuro. |
+| Ferramentas de consulta e limites | Pessoa dos dados, com revisão conjunta | Três contratos especificados na seção 3.4; implementar e verificar respostas limitadas e rastreáveis. |
 | Formato da hipótese e estratégia de investigação | Pessoa do agente | A saída cita fatos a favor/contra e admite insuficiência. |
 | Casos de avaliação | Ambas | Casos cobrem evidência suficiente, contraditória e fonte atrasada. |
 
