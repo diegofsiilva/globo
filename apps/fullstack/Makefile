@@ -961,6 +961,11 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 # O envio e separado da preparacao para permitir
 # revisar as 52 mudancas antes de colocá-las na fila.
 .PHONY: hypothesis-batch-prepare hypothesis-batch-send hypothesis-batch-verify
+hypothesis-agent-case: ## Repete um caso sintético do agente (AGENT_CASE=degradacao_sintetica)
+	@case_name="$${AGENT_CASE:-degradacao_sintetica}"; \
+	cd $(TOOLS) && $(UV) python agente_hipoteses_caso.py \
+	  --case "tests/fixtures/agente_hipoteses/$${case_name}.json"
+
 hypothesis-batch-prepare: ## Prepara lote CDC (BATCH_FILE=/caminho/fora/do/repo.json)
 	@$(call require_env,DATABASE_URL)
 	@test -n "$(BATCH_FILE)" || { echo "defina BATCH_FILE" >&2; exit 1; }

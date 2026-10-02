@@ -379,6 +379,19 @@ hipóteses**: essa será a responsabilidade do agente da Pessoa 2. Antes de usar
 um checkpoint real, ainda é preciso implementar um leitor autorizado do banco
 com as mesmas regras temporais e selecionar casos sem usar rótulos como entrada.
 
+O executor sintético está em
+[`apps/fullstack/tools/agente_hipoteses_caso.py`](../apps/fullstack/tools/agente_hipoteses_caso.py).
+Para repetir os casos a partir da raiz do repositório:
+
+```bash
+make -C apps/fullstack hypothesis-agent-case AGENT_CASE=degradacao_sintetica
+make -C apps/fullstack hypothesis-agent-case AGENT_CASE=evidencia_insuficiente
+```
+
+Ele imprime JSON com `origin: synthetic`, `recorte_id`, `pilot_digest` e respostas das
+três ferramentas. Não consulta PostgreSQL nem executa modelo. Esse resultado
+verifica apenas o contrato local; não mede se uma hipótese é correta.
+
 ## 4. Responsabilidades e decisões
 
 ### 4.1 Responsabilidade por componente
