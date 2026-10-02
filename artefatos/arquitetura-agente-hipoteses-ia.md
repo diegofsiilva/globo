@@ -288,6 +288,76 @@ alcance das observações. Cada grupo traz uma referência estável ao conjunto 
 `fact_id` que contou; a resolução dessa referência fica no leitor e deve
 permitir conferência sem enviar milhares de IDs ao modelo.
 
+#### Ferramenta 2 — `consultar_serie`
+
+**Finalidade:** observar a evolução de uma métrica e comparar duas janelas
+consultadas separadamente. Recebe `recorte_id`, `source`, `entity`, `metric`,
+`inicio`, `fim`, `dimension_type` e `dimension_value` opcionais, `limit` entre 1
+e 200 e cursor opcional. `inicio` e `fim` são inclusivos, ambos em UTC,
+e `inicio < fim <= sim_now`. `source`, `entity` e `metric` devem corresponder a
+uma combinação anunciada pelo inventário. Dimensão só pode ser usada como par
+tipo/valor existente; `?` e `(desconhecido)` não são aceitos como recorte.
+
+```json
+{"tool":"consultar_serie","recorte_id":"recorte-opaco","source":"fonte-inventariada","entity":"entidade-inventariada","metric":"metrica-inventariada","inicio":"2026-08-20T19:00:00Z","fim":"2026-08-20T20:00:00Z","dimension_type":null,"dimension_value":null,"limit":100,"cursor":null}
+```
+
+A resposta devolve fatos `kind=metric` em ordem de `event_start`, `fact_key` e
+`version_lsn`, com `fact_id`, `source`, `entity`, `metric`, `event_start`,
+`available_at`, `value`, `sample_size`, dimensão e unidade catalogada quando
+existir. `value=null` continua nulo. A ferramenta não rotula pontos como
+anômalos, não calcula baseline e não faz junção entre dimensões marginais.
+Para comparar períodos, o agente faz duas consultas com os mesmos filtros e
+janelas explícitas; as duas respostas permanecem ligadas ao mesmo recorte.
+Uma janela sem fatos devolve `items=[]` e uma limitação de cobertura, não uma
+série de zeros. O leitor rejeita janela fora do recorte e combinações de
+dimensão que o catálogo não sustenta.
+
+#### Ferramenta 3 — `consultar_contexto`
+
+**Finalidade:** examinar fatos que possam sustentar ou contrariar uma causa
+proposta, como deploy, evento ao vivo, sinal de borda ou outra série. Recebe
+`recorte_id`, `inicio`, `fim`, `entity` opcional, `source` opcional,
+`kinds` opcional (subconjunto de `metric` e `context`), `limit` entre 1 e 200
+e cursor opcional. Pelo menos `entity` ou `source` deve estar presente; ambos
+precisam vir do inventário. A janela segue a mesma regra temporal da série.
+Não há busca textual livre nem expansão automática para entidades parecidas.
+
+```json
+{"tool":"consultar_contexto","recorte_id":"recorte-opaco","inicio":"2026-08-20T19:00:00Z","fim":"2026-08-20T20:00:00Z","entity":"entidade-inventariada","source":null,"kinds":["context","metric"],"limit":100,"cursor":null}
+```
+
+A resposta vem em ordem de `event_start`, `source`, `fact_key` e `version_lsn`.
+Cada item contém `fact_id`, `kind`, fonte, entidade, métrica ou tipo de evento,
+`event_start`, `event_end`, `available_at`, valor e dimensão quando aplicáveis.
+Somente atributos previamente permitidos para a fonte podem aparecer; campos
+de identificação pessoal e payload bruto ficam de fora. Para um evento com
+`event_end` conhecido, a busca inclui também eventos que **se sobrepõem** à
+janela (`event_start <= fim` e `event_end >= inicio`); sem fim conhecido, usa
+`event_start` na janela. Isso permite examinar um evento ao vivo ou deploy
+iniciado antes do efeito sem consultar o futuro.
+
+O agente pode fazer uma consulta de contexto para cada explicação rival. Uma
+resposta vazia não prova que o evento não ocorreu: ela informa os filtros,
+a cobertura do recorte e possíveis fontes atrasadas. O leitor não converte
+proximidade temporal em causalidade.
+
+#### Regras verificáveis das três ferramentas
+
+| Situação | Comportamento exigido |
+|---|---|
+| Fato tem `event_start` anterior, mas `available_at > sim_now` | Não aparece em inventário, série ou contexto. |
+| Há duas versões da mesma `fact_key` até `input_lsn` | Só a versão mais recente elegível compõe o recorte. |
+| Há versão de exclusão até `input_lsn` | O fato não é exposto por versão anterior. |
+| Consulta pede `fim > sim_now`, dimensão inválida ou cursor de outro filtro | Erro explícito; nenhuma ampliação silenciosa. |
+| Resultado ultrapassa `limit` | Página estável, `has_more=true` e cursor vinculado ao recorte e filtros. |
+| Fonte não tem observações na janela | `items=[]` com limitação de cobertura; sem inferência de normalidade. |
+| O agente cita um `fact_id` no resultado | O validador confirma sua presença no recorte e sua exposição em ao menos uma resposta registrada. |
+
+Esses são critérios de implementação e de teste para os dias seguintes. A
+documentação não afirma que já existem permissões de leitura, adaptadores ou
+execuções do modelo para essas ferramentas.
+
 ## 4. Responsabilidades e decisões
 
 ### 4.1 Responsabilidade por componente
