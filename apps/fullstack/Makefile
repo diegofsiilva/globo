@@ -119,6 +119,14 @@ IMAGE_TAG ?= $(GIT_SHA)
 # O Terraform le variavel por TF_VAR_*; `export` aqui vale para todos os alvos.
 export TF_VAR_worker_image_tag = $(IMAGE_TAG)
 
+# Os comandos `*_run_command` saem do `terraform output` com `--profile g4`
+# escrito no texto. Canalizados direto para o bash, os alvos `migrate-aws`,
+# `db-reader-aws` e `load` ignoravam o AWS_PROFILE do .env e da linha de
+# comando: com qualquer outro nome de profile a task nem era criada, e o erro
+# era `UnrecognizedClientException`, que manda procurar credencial vencida.
+# Este filtro troca o profile do texto pelo que o resto do Makefile ja usa.
+COM_PROFILE = sed "s/--profile g4/--profile $$AWS_PROFILE/"
+
 .PHONY: help
 help: ## Lista os alvos
 	@echo "Argus — alvos disponiveis:"
@@ -242,7 +250,7 @@ migrate-status: ## Mostra quais migrations ja rodaram (usa DATABASE_URL)
 .PHONY: migrate-aws
 migrate-aws: ## Aplica as migrations pendentes no RDS, pela VPC
 	@$(call require_env,AWS_PROFILE)
-	@cd $(INFRA) && terraform output -raw migration_run_command | bash
+	@cd $(INFRA) && terraform output -raw migration_run_command | $(COM_PROFILE) | bash
 	@echo
 	@echo "Acompanhe: make logs SERVICO=processing"
 
@@ -256,7 +264,7 @@ migrate-status-aws: ## Lista as migrations aplicadas no RDS, pela VPC
 .PHONY: db-reader-aws
 db-reader-aws: ## Cria/atualiza o usuario de leitura no RDS, pela VPC
 	@$(call require_env,AWS_PROFILE)
-	@cd $(INFRA) && terraform output -raw db_reader_run_command | bash
+	@cd $(INFRA) && terraform output -raw db_reader_run_command | $(COM_PROFILE) | bash
 	@echo
 	@echo "Acompanhe: make logs SERVICO=processing"
 
@@ -760,7 +768,7 @@ origem-sync: ## Sobe o dump e o Parquet para o bucket de origem
 load: ## Dispara a carga inicial das 33 tabelas no RDS
 	@$(call require_env,AWS_PROFILE)
 	@echo "Disparando a task de carga (20 a 30 min para 68,7 M linhas)..."
-	@cd $(INFRA) && terraform output -raw loader_run_command | bash
+	@cd $(INFRA) && terraform output -raw loader_run_command | $(COM_PROFILE) | bash
 
 .PHONY: load-local
 load-local: ## Carrega os Parquet no banco LOCAL (util para desenvolver)
