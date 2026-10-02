@@ -203,7 +203,7 @@ export function AgoraScreen() {
                   </div>
                 </div>
                 <Button asChild className={styles.primaryAction}>
-                  <Link href={hrefWithDemoState("/hipoteses")}>Ver hipóteses ranqueadas <span aria-hidden="true">→</span></Link>
+                  <Link href={hrefWithDemoState(activeDegradation.hypothesesPath)}>Ver hipóteses deste sinal <span aria-hidden="true">→</span></Link>
                 </Button>
               </>
             ) : (
@@ -385,7 +385,12 @@ export function AgoraScreen() {
                     ["Baseline", selectedSignal.baseline],
                     ["Limiar", selectedSignal.threshold],
                     ["Desvio", `z ${selectedSignal.zScore ?? "—"}`],
-                    ["Período observado", `${selectedSignal.detectedAt} — ${selectedSignal.lastObservedAt}`],
+                    // A API ainda não separa o último ponto observado do instante
+                    // da detecção; "05:30 — 05:30" parecia um período de zero
+                    // segundos. Enquanto os dois forem iguais, mostra só um.
+                    selectedSignal.detectedAt === selectedSignal.lastObservedAt
+                      ? ["Detectado às", selectedSignal.detectedAt]
+                      : ["Período observado", `${selectedSignal.detectedAt} — ${selectedSignal.lastObservedAt}`],
                     ["Recorte", selectedSignal.scope],
                     ...(hasSessions ? [["Sessões", selectedSignal.sessions]] : []),
                   ].map(([label, value]) => (
@@ -401,7 +406,10 @@ export function AgoraScreen() {
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button asChild><Link href={hrefWithDemoState(selectedSignal.relatedPaths.timeline)}>Abrir na Timeline</Link></Button>
-                  <Button asChild variant="outline"><Link href={hrefWithDemoState(selectedSignal.relatedPaths.cut)}>Ver no Recorte</Link></Button>
+                  {/* O Recorte é dispositivo × hora da fonte de player, e os sinais
+                      desta tela vêm das demais fontes: o link levava a uma
+                      grade vazia. O próximo passo útil é a hipótese. */}
+                  <Button asChild variant="outline"><Link href={hrefWithDemoState(selectedSignal.relatedPaths.hypotheses ?? "/hipoteses")}>Ver hipóteses</Link></Button>
                 </div>
               </div>
             </>

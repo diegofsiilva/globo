@@ -48,8 +48,10 @@ describe("contrato da tela Agora", () => {
       threshold: "10 (z ≥ 3)",
       scope: "playback-api",
       relatedPaths: {
-        timeline: "/timeline?sinal=signal-1",
+        // O instante da detecção vai junto: é o que centra a Timeline no desvio.
+        timeline: "/timeline?sinal=signal-1&t=2026-07-14T11%3A45%3A00.000Z",
         cut: "/recorte?sinal=signal-1",
+        hypotheses: "/hipoteses?source=prometheus&entity=playback-api",
       },
     });
     expect(signal.trend).toEqual([4, 19, 34]);
