@@ -98,7 +98,7 @@ export function AgoraScreen() {
   // ela aparece quando ao menos um sinal tiver o número.
   const hasSessions = sessionCounts.length > 0;
   const scopeSummary = signals.data
-    ? `${items.length} sinal(is) ativo(s)${
+    ? `${items.length} ${items.length === 1 ? "sinal ativo" : "sinais ativos"}${
         signals.data.truncated ? " (lista truncada)" : ""
       }${
         sessionCounts.length > 0
@@ -138,6 +138,9 @@ export function AgoraScreen() {
       filters={screenFilters}
       onFilterChange={(key, value) => updateFilter(key as FilterKey, value)}
       onClearFilters={clearFilters}
+      // Quantos filtros de fato restringem. Sem isto a moldura contava os quatro
+      // seletores, e a tela compacta dizia "4 filtros" com todos em "todos".
+      scopeFilterCount={Object.values(filters).filter((value) => value !== "all").length}
       scopeSummary={scopeSummary}
       operational={{
         state: signals.isLoading
