@@ -7,15 +7,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { Button } from "@/components/ui/button";
-import {
-  ScreenFrame,
-  type ScreenFilter,
-  type ScreenPeriod,
-} from "../../_components/screen-frame";
+import { ScreenFrame, type ScreenPeriod } from "../../_components/screen-frame";
 import { useOperationsUi } from "../../_components/operations-ui-context";
+import { ALL_SCOPE_VALUES } from "../../_lib/scope-filters";
 import { useSimClock, windowEndingAt } from "../../_lib/sim-clock";
 import { normalizeQueryFailure } from "@/lib/operational-state";
 import { fetchHypotheses } from "../_lib/hypotheses-source";
+import { HYPOTHESIS_FILTERS, type HypothesisFilterKey } from "../_lib/mapper";
 import { factorStrength } from "../_lib/score";
 import {
   hypothesisRefinementEnabled,
@@ -44,22 +42,46 @@ const factorShades = [
   "var(--rank-4)",
 ];
 
+type Filters = Record<HypothesisFilterKey, string>;
+
+const initialFilters: Filters = {
+  family: ALL_SCOPE_VALUES,
+  kind: ALL_SCOPE_VALUES,
+  confidence: ALL_SCOPE_VALUES,
+};
+
+/** Converte os rótulos escolhidos nos valores que a API valida. */
+function toApiScope(filters: Filters): Record<string, string> {
+  const scope: Record<string, string> = {};
+  for (const definition of HYPOTHESIS_FILTERS) {
+    const value = definition.options[filters[definition.key]];
+    if (value) scope[definition.key] = value;
+  }
+  return scope;
+}
+
 /** Causas prováveis do recorte, ranqueadas e com o score decomposto. */
 export function HipotesesScreen() {
   const { period: sharedPeriod } = useOperationsUi();
   const clock = useSimClock();
   const period = sharedPeriod ?? "30 min";
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Família, tipo e confiança são filtrados no SQL, e não aqui: a janela de
+  // 24 h passa de mil hipóteses, quase todas de qualidade de dado, e filtrar em
+  // memória obrigaria a paginar tudo antes de mostrar as dez que interessam.
+  const [filters, setFilters] = useState<Filters>(initialFilters);
+  const activeFilters = Object.values(filters).filter((value) => value !== ALL_SCOPE_VALUES).length;
   const currentWindow = useMemo(
     () => clock.snapshot ? windowEndingAt(clock.snapshot.simNow, periodMinutes[period]) : null,
     [clock.snapshot, period],
   );
 
   const report = useInfiniteQuery({
-    queryKey: ["hypotheses", period, currentWindow?.to],
+    queryKey: ["hypotheses", period, currentWindow?.to, filters],
     queryFn: ({ pageParam, signal }) => fetchHypotheses({
       ...currentWindow!,
       cursor: pageParam ?? undefined,
+      scope: toApiScope(filters),
     }, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -93,7 +115,15 @@ export function HipotesesScreen() {
 
   return (
     <ScreenFrame
-      filters={scopeFilters(loadedReport)}
+      filters={HYPOTHESIS_FILTERS.map((definition) => ({
+        key: definition.key,
+        label: definition.label,
+        value: filters[definition.key],
+        options: Object.keys(definition.options),
+      }))}
+      onFilterChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+      onClearFilters={() => setFilters(initialFilters)}
+      scopeFilterCount={activeFilters}
       scopeSummary={scopeSummary(loadedReport)}
       operational={{
         state: clock.error && !clock.snapshot
@@ -120,6 +150,9 @@ export function HipotesesScreen() {
           clock.refetch();
           report.refetch();
         },
+        // Só quando há filtro: sem nenhum, o vazio veio da janela, e "rever
+        // filtros" não teria o que rever.
+        onResetFilters: activeFilters > 0 ? () => setFilters(initialFilters) : undefined,
       }}
     >
       <header className={styles.header}>
@@ -191,6 +224,13 @@ function HypothesisItem({
           Hipótese {rank} · ID {hypothesis.id} · {hypothesis.category}
         </span>
         <span className={styles.title}>{hypothesis.title}</span>
+        {/* Quando, onde e com que confiança: é o que distingue duas hipóteses
+            de mesmo título e score sem precisar abrir cada uma. */}
+        <span className={styles.meta}>
+          {[hypothesis.effect, hypothesis.segment, `confiança ${hypothesis.confidence}`]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
         {/* A faixa tem o comprimento total do score e cada segmento vale a
             contribuição do seu fator: a comparação entre hipóteses e a
             composição de cada uma ficam legíveis na mesma marca. */}
@@ -248,6 +288,19 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
     <aside className={styles.panel} aria-label="Composição do score">
       <p className={styles.panelKicker}>Como este score foi calculado</p>
       <h2>{hypothesis.title}</h2>
+      {hypothesis.summary && <p className={styles.summary}>{hypothesis.summary}</p>}
+
+      <dl className={styles.facts}>
+        <div><dt>Efeito</dt><dd>{hypothesis.effect ?? "sem instante"}</dd></div>
+        <div><dt>Escopo</dt><dd>{hypothesis.segment}</dd></div>
+        {hypothesis.kind && <div><dt>Tipo</dt><dd>{hypothesis.kind}</dd></div>}
+        {hypothesis.coverage != null && (
+          <div>
+            <dt>Evidência disponível</dt>
+            <dd>{Math.round(hypothesis.coverage * 100)}% do exigido pela família</dd>
+          </div>
+        )}
+      </dl>
 
       <p className={styles.panelScore}>
         <strong className="text-gradient-emphasis">{hypothesis.score}</strong>
@@ -265,7 +318,7 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
               <span>
                 peso {factor.weight.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ·{" "}
                 {factor.applicability === "available"
-                  ? `contribui ${factor.contribution.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} pts`
+                  ? `contribui ${factor.contribution.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts`
                   : factor.applicability === "not_applicable"
                     ? "não se aplica"
                     : "indisponível"}
@@ -280,14 +333,26 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
       </ul>
 
       <p className={styles.panelKicker}>Evidências consultadas</p>
-      <ul className={styles.evidence}>
-        {hypothesis.evidence.map((item) => (
-          <li key={item.source}>
-            <b>{item.source}</b>
-            <span>{item.detail}</span>
-          </li>
-        ))}
-      </ul>
+      {hypothesis.evidence.length === 0 ? (
+        <p className={styles.evidenceEmpty}>
+          Nenhuma evidência registrada: a hipótese se apoia só nos fatores acima.
+        </p>
+      ) : (
+        <ul className={styles.evidence}>
+          {hypothesis.evidence.map((item) => (
+            <li key={item.source}>
+              <b>
+                {item.polarity && (
+                  <em className={clsx(item.polarity === "contra" && styles.contrary)}>{item.polarity}</em>
+                )}
+                {item.source}
+                {item.at && <small>{item.at}</small>}
+              </b>
+              <span>{item.detail}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {hypothesisRefinementEnabled && (
         <section className={styles.refinement} aria-live="polite">
@@ -335,16 +400,6 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
       </div>
     </aside>
   );
-}
-
-/** Converte os chips do relatório nos filtros exibidos na barra de escopo. */
-function scopeFilters(report?: HypothesesReport): ScreenFilter[] {
-  return (report?.scope ?? []).map((chip) => ({
-    key: chip.id,
-    label: chip.label,
-    value: chip.value,
-    options: [chip.value],
-  }));
 }
 
 /** Formata a volumetria do recorte exibida à direita da barra de escopo.

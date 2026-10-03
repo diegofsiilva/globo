@@ -15,6 +15,13 @@ export type HypothesisFactor = {
 export type EvidenceSource = {
   source: string;
   detail: string;
+  /**
+   * De que lado da hipótese a evidência está. Uma hipótese que só mostra o que
+   * a sustenta é um argumento, não um diagnóstico.
+   */
+  polarity?: "a favor" | "contra" | "ausente";
+  /** Instante do fato, já formatado. */
+  at?: string;
 };
 
 /** Hipótese de causa provável, ranqueada por score. */
@@ -28,6 +35,14 @@ export type Hypothesis = {
   evidence: EvidenceSource[];
   timelineAnchor: string;
   segment: string;
+  /** Frase do motor explicando a hipótese em linguagem corrente. */
+  summary?: string;
+  /** Quando o efeito foi observado, já formatado (`dd/mm hh:mm`). */
+  effect?: string;
+  /** Natureza da hipótese: operacional, contexto ou qualidade de dado. */
+  kind?: string;
+  /** Fração (0–1) da evidência exigida pela família que estava disponível. */
+  coverage?: number | null;
 };
 
 /** Hipótese avaliada e rejeitada, com o motivo do descarte. */
