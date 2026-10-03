@@ -111,7 +111,7 @@ describe("contratos das telas Recorte e Timeline", () => {
     });
   });
 
-  test("[TA-10] centra a janela na hipótese sem passar do presente virtual", () => {
+  test("[TA-16] centra a janela na hipótese sem passar do presente virtual", () => {
     const simNow = new Date("2026-07-14T12:00:00.000Z");
 
     // Instante antigo: fica no meio da janela de 3 h.
@@ -127,7 +127,7 @@ describe("contratos das telas Recorte e Timeline", () => {
     });
   });
 
-  test("[TA-11] posiciona a hipótese no eixo só quando ela cai na janela", () => {
+  test("[TA-17] posiciona a hipótese no eixo só quando ela cai na janela", () => {
     const response = {
       window: { from: "2026-07-14T09:00:00.000Z", to: "2026-07-14T12:00:00.000Z" },
       limit_per_lane: 100,
