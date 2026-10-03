@@ -2,11 +2,17 @@
  *
  * O escopo começa VAZIO e só é restringido quando a pessoa adiciona um filtro:
  * pré-selecionar o primeiro valor de cada faceta produzia um recorte
- * arbitrário (e quase sempre sem resultado) toda vez que a tela abria. */
+ * arbitrário (e quase sempre sem resultado) toda vez que a tela abria.
+ *
+ * O recorte vive na query string (`?source=…&entity=…&metric=…&tem_jogo=…`), e
+ * não em estado local. É o que faz ele sobreviver a recarregar a página, caber
+ * num link colado no chat do plantão e chegar pronto quando outra tela manda o
+ * operador para cá ("Ver no Recorte" de um sinal, por exemplo). */
 
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchFacets, type EventScope } from "@/lib/events/query";
@@ -56,19 +62,63 @@ export type ScopeFiltersState = {
   clear: () => void;
 };
 
+/**
+ * Monta a query string que abre uma tela já no recorte informado.
+ *
+ * @param scope Recorte a levar; chaves vazias são ignoradas.
+ * @returns Query string sem o `?`, ou vazio quando não há o que levar.
+ */
+export function scopeQuery(scope: EventScope): string {
+  const params = new URLSearchParams();
+  for (const filter of scopeFilterDefs) {
+    const value = scope[filter.field];
+    if (value) params.set(filter.field, value);
+  }
+  return params.toString();
+}
+
 /** Estado dos chips de escopo mais o objeto de filtros pronto para a API.
  *
  * `initialScope` só é usado quando a própria visualização exige uma fonte para
- * que sua dimensão tenha significado (por exemplo, dispositivo no Recorte).
+ * que sua dimensão tenha significado (por exemplo, dispositivo no Recorte). Ele
+ * vale enquanto a URL não disser nada sobre o campo: por isso "todos" num campo
+ * com padrão é ESCRITO na URL (`source=all`), em vez de apagar o parâmetro —
+ * apagar devolveria o padrão, e o filtro pareceria não aceitar a escolha.
+ *
+ * Passe um objeto estável (constante de módulo): ele entra nas dependências.
  */
 export function useScopeFilters(initialScope: EventScope = {}): ScopeFiltersState {
-  const [selection, setSelection] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      scopeFilterDefs.flatMap((filter) => {
-        const value = initialScope[filter.field];
-        return value ? [[filter.id, value]] : [];
-      }),
-    ),
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const selection = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const filter of scopeFilterDefs) {
+      const value = searchParams.get(filter.field) ?? initialScope[filter.field] ?? "";
+      if (value && value !== ALL_SCOPE_VALUES) result[filter.id] = value;
+    }
+    return result;
+  }, [initialScope, searchParams]);
+
+  // `replace` e não `push`: trocar um filtro não é uma página nova, e empilhar
+  // cada troca faria o botão Voltar percorrer filtros em vez de telas.
+  const writeScope = useCallback(
+    (mutate: (params: URLSearchParams) => void) => {
+      const params = new URLSearchParams(searchParams.toString());
+      mutate(params);
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const resetField = useCallback(
+    (params: URLSearchParams, field: (typeof scopeFilterDefs)[number]["field"]) => {
+      if (initialScope[field]) params.set(field, ALL_SCOPE_VALUES);
+      else params.delete(field);
+    },
+    [initialScope],
   );
 
   const facetsQuery = useQuery({
@@ -98,16 +148,25 @@ export function useScopeFilters(initialScope: EventScope = {}): ScopeFiltersStat
     return result;
   }, [selection]);
 
-  const onFilterChange = useCallback((id: string, value: string) => {
-    setSelection((current) => {
-      const next = { ...current };
-      if (value === ALL_SCOPE_VALUES) delete next[id];
-      else next[id] = value;
-      return next;
-    });
-  }, []);
+  const onFilterChange = useCallback(
+    (id: string, value: string) => {
+      const filter = scopeFilterDefs.find((candidate) => candidate.id === id);
+      if (!filter) return;
+      writeScope((params) => {
+        if (value === ALL_SCOPE_VALUES) resetField(params, filter.field);
+        else params.set(filter.field, value);
+      });
+    },
+    [resetField, writeScope],
+  );
 
-  const clear = useCallback(() => setSelection({}), []);
+  const clear = useCallback(
+    () =>
+      writeScope((params) => {
+        for (const filter of scopeFilterDefs) resetField(params, filter.field);
+      }),
+    [resetField, writeScope],
+  );
 
   const screenFilters: ScreenFilter[] = filters.map((filter) => ({
     key: filter.id,
