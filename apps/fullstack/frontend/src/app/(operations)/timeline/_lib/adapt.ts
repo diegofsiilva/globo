@@ -73,7 +73,7 @@ function laneEventText(lane: TimelineLane, point: AnyPoint | null): { event: str
 
   if (lane.lane_type === "series") {
     const series = point as SeriesPoint;
-    return { event: `${series.metric}: ${series.value}`, detail: series.entity };
+    return { event: `${series.metric}: ${formatValue(series.value)}`, detail: series.entity };
   }
 
   if (lane.lane_type === "events") {
@@ -89,6 +89,13 @@ function laneEventText(lane: TimelineLane, point: AnyPoint | null): { event: str
     event: incident.ref_id,
     detail: [incident.severity, incident.provenance].filter(Boolean).join(" · "),
   };
+}
+
+const valueFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
+
+/** Duas casas bastam para ler a série; o valor cru chega com dezesseis. */
+function formatValue(value: number): string {
+  return Number.isFinite(value) ? valueFormatter.format(value) : String(value);
 }
 
 function percentInWindow(iso: string, windowFrom: number, windowSpan: number): number {
