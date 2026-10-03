@@ -101,6 +101,60 @@ function formatHour(t: number): string {
   return new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDay(t: number): string {
+  return new Date(t).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+/**
+ * Dia e hora de um instante, no fuso do navegador.
+ *
+ * A cronologia mistura dias: um incidente aberto anteontem entra na janela de
+ * hoje porque ainda está em curso. Só com `hh:mm`, a lista ordenada por
+ * instante lê-se como fora de ordem ("13:59, 12:35, 08:42"), e o operador não
+ * tem como saber que são três dias diferentes.
+ *
+ * @param t Instante em milissegundos.
+ * @returns Rótulo `dd/mm hh:mm`.
+ */
+export function formatMoment(t: number): string {
+  return `${formatDay(t)} ${formatHour(t)}`;
+}
+
+/**
+ * Janela de `minutes` centrada em `anchor`, sem passar do presente virtual.
+ *
+ * Usada quando a tela é aberta a partir de uma hipótese: o instante dela fica
+ * no meio do eixo, com o antes e o depois visíveis. Se metade da janela cairia
+ * no futuro do relógio virtual, a janela recua até terminar em `simNow` — as
+ * views não devolvem nada além dele.
+ *
+ * @param anchor Instante que deve ficar em evidência.
+ * @param simNow Presente virtual.
+ * @param minutes Largura da janela.
+ * @returns Limites ISO da janela.
+ */
+export function windowAround(anchor: Date, simNow: Date, minutes: number) {
+  const span = minutes * 60_000;
+  const to = Math.min(anchor.getTime() + span / 2, simNow.getTime());
+  return { from: new Date(to - span).toISOString(), to: new Date(to).toISOString() };
+}
+
+/**
+ * Posição de um instante no eixo, em % da janela.
+ *
+ * @param response Resposta da timeline, que carrega a janela consultada.
+ * @param iso Instante a posicionar.
+ * @returns Percentual entre 0 e 100, ou `null` quando o instante está fora da
+ *   janela ou não é uma data.
+ */
+export function toMarker(response: TimelineApiResponse, iso: string): number | null {
+  const from = new Date(response.window.from).getTime();
+  const to = new Date(response.window.to).getTime();
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t) || to <= from || t < from || t > to) return null;
+  return ((t - from) / (to - from)) * 100;
+}
+
 /** Uma linha por raia, na ordem fixa das seis fontes, com posição calculada contra a janela. */
 export function toTimelineRows(response: TimelineApiResponse): TimelineRow[] {
   const windowFrom = new Date(response.window.from).getTime();
@@ -139,7 +193,7 @@ export function toChronology(response: TimelineApiResponse): ChronologyEntry[] {
       const { event, detail } = laneEventText(lane, point as AnyPoint);
       return {
         t: timestamp.getTime(),
-        hour: formatHour(timestamp.getTime()),
+        hour: formatMoment(timestamp.getTime()),
         source: lane.label.toUpperCase(),
         description: detail ? `${event} · ${detail}` : event,
       };
@@ -171,7 +225,10 @@ export type CorrelationWindow = {
  * de verdade, só o span onde há dado, que é o que dá pra sustentar sem o
  * motor de hipóteses.
  */
-export function toCorrelationWindow(response: TimelineApiResponse): CorrelationWindow {
+export function toCorrelationWindow(
+  response: TimelineApiResponse,
+  hypothesisId?: string | null,
+): CorrelationWindow {
   const windowFrom = new Date(response.window.from).getTime();
   const windowTo = new Date(response.window.to).getTime();
   const span = windowTo - windowFrom;
@@ -192,10 +249,11 @@ export function toCorrelationWindow(response: TimelineApiResponse): CorrelationW
       label: "1º chamado na janela",
       value: firstIncident ? formatHour(new Date(firstIncident.ts_start).getTime()) : "nenhum",
     },
-    // Sem o motor de hipóteses (outra frente do time), não há score de
-    // hipótese líder pra mostrar aqui -- fica explícito, não inventado.
-    { label: "Hipótese líder", value: "fora do escopo desta integração" },
   ];
+  // A hipótese só aparece quando a tela foi aberta a partir de uma: a rota de
+  // timeline não conhece o motor, e uma linha fixa dizendo isso expunha ao
+  // operador uma limitação de integração em vez de um fato do incidente.
+  if (hypothesisId) metrics.push({ label: "Hipótese em análise", value: `#${hypothesisId}` });
 
   if (timestamps.length === 0) {
     return {
@@ -209,9 +267,12 @@ export function toCorrelationWindow(response: TimelineApiResponse): CorrelationW
   const from = Math.min(...timestamps);
   const to = Math.max(...timestamps);
 
+  const sameDay = formatDay(from) === formatDay(to);
+
   return {
     label: `${formatHour(from)} → ${formatHour(to)}`,
     description:
+      (sameDay ? "" : `De ${formatDay(from)} a ${formatDay(to)}. `) +
       "Intervalo entre o primeiro e o último sinal registrado pelas seis raias na janela consultada.",
     band: {
       start: percentInWindow(new Date(from).toISOString(), windowFrom, span),
@@ -227,7 +288,12 @@ export function toTimeAxis(response: TimelineApiResponse): string[] {
   const from = new Date(response.window.from).getTime();
   const to = new Date(response.window.to).getTime();
   const steps = 5;
-  return Array.from({ length: steps }, (_, index) =>
-    formatHour(from + ((to - from) * index) / (steps - 1)),
+  const ticks = Array.from({ length: steps }, (_, index) => from + ((to - from) * index) / (steps - 1));
+  // O dia entra na primeira marca e em cada virada: uma janela de 24 h começa
+  // e termina na mesma hora, e sem o dia as duas pontas do eixo são iguais.
+  return ticks.map((tick, index) =>
+    index === 0 || formatDay(tick) !== formatDay(ticks[index - 1])
+      ? formatMoment(tick)
+      : formatHour(tick),
   );
 }
