@@ -47,6 +47,14 @@ const kindLabels: Record<string, string> = {
   data_quality: "qualidade de dado",
 };
 
+/** Rótulo pt-BR da revisão humana (`review_status` em 021_hypothesis_engine.sql). */
+const reviewLabels: Record<string, NonNullable<Hypothesis["reviewStatus"]>> = {
+  unreviewed: "não revisada",
+  confirmed: "confirmada",
+  partially_confirmed: "parcialmente confirmada",
+  rejected: "rejeitada",
+};
+
 const polarityLabels: Record<string, NonNullable<EvidenceSource["polarity"]>> = {
   favorable: "a favor",
   contrary: "contra",
@@ -62,6 +70,7 @@ export const HYPOTHESIS_FILTERS = [
   { key: "family", label: "família", options: invert(familyLabels) },
   { key: "kind", label: "tipo", options: invert(kindLabels) },
   { key: "confidence", label: "confiança", options: invert(confidenceLabels) },
+  { key: "review_status", label: "revisão", options: invert(reviewLabels) },
 ] as const;
 
 /** Chaves de filtro aceitas pela tela. */
@@ -122,6 +131,7 @@ function toHypothesis(item: ApiHypothesis): Hypothesis {
     effect: effectLabel(item.effect_start, item.effect_end),
     kind: kindLabels[item.kind] ?? item.kind,
     coverage: item.coverage,
+    reviewStatus: reviewLabels[item.review_status] ?? "não revisada",
   };
 }
 

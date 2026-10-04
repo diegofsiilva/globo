@@ -24,6 +24,8 @@ import type {
   Hypothesis,
   HypothesesReport,
 } from "../_lib/types";
+import { hypothesisFeedbackEnabled } from "../_lib/feedback";
+import { HypothesisVerdict } from "./hypothesis-verdict";
 import { hipotesesStyles as styles } from "./hipoteses.styles";
 
 /** Minutos de cada período, para converter o rótulo na janela consultada. */
@@ -48,6 +50,7 @@ const initialFilters: Filters = {
   family: ALL_SCOPE_VALUES,
   kind: ALL_SCOPE_VALUES,
   confidence: ALL_SCOPE_VALUES,
+  review_status: ALL_SCOPE_VALUES,
 };
 
 /** Converte os rótulos escolhidos nos valores que a API valida. */
@@ -227,7 +230,12 @@ function HypothesisItem({
         {/* Quando, onde e com que confiança: é o que distingue duas hipóteses
             de mesmo título e score sem precisar abrir cada uma. */}
         <span className={styles.meta}>
-          {[hypothesis.effect, hypothesis.segment, `confiança ${hypothesis.confidence}`]
+          {[
+            hypothesis.effect,
+            hypothesis.segment,
+            `confiança ${hypothesis.confidence}`,
+            hypothesis.reviewStatus !== "não revisada" && hypothesis.reviewStatus,
+          ]
             .filter(Boolean)
             .join(" · ")}
         </span>
@@ -383,6 +391,8 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
           )}
         </section>
       )}
+
+      {hypothesisFeedbackEnabled && <HypothesisVerdict hypothesis={hypothesis} />}
 
       {/* As duas ações encadeiam os fluxos: a hipótese viaja na URL para que a
           timeline e o recorte abram já centrados nela. */}
