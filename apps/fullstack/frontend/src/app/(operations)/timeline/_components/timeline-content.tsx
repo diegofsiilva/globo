@@ -18,6 +18,7 @@ const periodMinutes: Record<ScreenPeriod, number> = {
   "30 min": 30,
   "3 h": 180,
   "24 h": 1_440,
+  "72 h": 4_320,
 };
 
 /** Reconstrói a sequência do incidente com as fontes que a originaram. */

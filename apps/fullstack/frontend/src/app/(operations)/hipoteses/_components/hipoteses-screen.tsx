@@ -35,6 +35,7 @@ const periodMinutes: Record<ScreenPeriod, number> = {
   "30 min": 30,
   "3 h": 180,
   "24 h": 1_440,
+  "72 h": 4_320,
 };
 
 /** Tons da faixa de fatores, do mais para o menos determinante. */
@@ -84,6 +85,10 @@ export function HipotesesScreen() {
   }, [sourceParam, entityParam]);
   const signalLabel = Object.values(signalScope).join(" · ");
   const signalFilters = Object.keys(signalScope).length;
+  // Do curto para 24 h, e de 24 h para o teto: dois passos bastam para cobrir
+  // "agora há pouco", "hoje" e "nos últimos dias".
+  const widerPeriod: ScreenPeriod | null =
+    period === "72 h" ? null : period === "24 h" ? "72 h" : "24 h";
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Família, tipo e confiança são filtrados no SQL, e não aqui: a janela de
   // 24 h passa de mil hipóteses, quase todas de qualidade de dado, e filtrar em
@@ -183,10 +188,9 @@ export function HipotesesScreen() {
         // O motor publica hipóteses a cada janela de processamento, e não a
         // cada minuto: nos 30 min do padrão a lista costuma vir vazia mesmo
         // havendo hipóteses de horas atrás. O vazio oferece o próximo passo.
-        emptyAction:
-          period !== "24 h"
-            ? { label: "Ampliar para 24 h", onAction: () => setPeriod("24 h") }
-            : undefined,
+        emptyAction: widerPeriod
+          ? { label: `Ampliar para ${widerPeriod}`, onAction: () => setPeriod(widerPeriod) }
+          : undefined,
       }}
     >
       <header className={styles.header}>
