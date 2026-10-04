@@ -38,6 +38,12 @@ export type OperationalPresentation = {
   onRetry?: () => unknown | Promise<unknown>;
   onResetFilters?: () => void;
   onUseCached?: () => void;
+  /**
+   * Próximo passo oferecido no estado vazio quando o vazio não veio de filtro
+   * (ampliar o período, por exemplo). Sem isso a tela dizia "nenhum resultado"
+   * e deixava o operador adivinhar o que mudar.
+   */
+  emptyAction?: { label: string; onAction: () => void };
 };
 
 /**
@@ -99,6 +105,7 @@ export function OperationalStateBoundary({
         <EmptyState
           title={presentation.title}
           onReset={demoState !== null ? clearDemoState : presentation.onResetFilters}
+          action={demoState !== null ? undefined : presentation.emptyAction}
         />
       )}
       {state === "error" && (
@@ -162,7 +169,15 @@ function LoadingState({ title }: { title: string }) {
   );
 }
 
-function EmptyState({ title, onReset }: { title: string; onReset?: () => void }) {
+function EmptyState({
+  title,
+  onReset,
+  action,
+}: {
+  title: string;
+  onReset?: () => void;
+  action?: OperationalPresentation["emptyAction"];
+}) {
   return (
     <Alert className="my-6 max-w-3xl">
       <SearchX aria-hidden="true" />
@@ -172,10 +187,19 @@ function EmptyState({ title, onReset }: { title: string; onReset?: () => void })
           A consulta foi concluída, mas não encontrou dados neste recorte. Isso é diferente de uma
           falha de coleta ou de uma consulta interrompida.
         </p>
-        {onReset && (
-          <Button type="button" variant="outline" size="sm" onClick={onReset}>
-            Rever filtros
-          </Button>
+        {(onReset || action) && (
+          <div className="flex flex-wrap gap-2">
+            {action && (
+              <Button type="button" size="sm" onClick={action.onAction}>
+                {action.label}
+              </Button>
+            )}
+            {onReset && (
+              <Button type="button" variant="outline" size="sm" onClick={onReset}>
+                Rever filtros
+              </Button>
+            )}
+          </div>
         )}
       </AlertDescription>
     </Alert>

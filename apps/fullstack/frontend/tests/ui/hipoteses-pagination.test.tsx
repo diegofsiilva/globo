@@ -7,6 +7,10 @@ import { HipotesesScreen } from "@/app/(operations)/hipoteses/_components/hipote
 const { fetchHypotheses } = vi.hoisted(() => ({ fetchHypotheses: vi.fn() }));
 
 vi.mock("@/app/(operations)/hipoteses/_lib/hypotheses-source", () => ({ fetchHypotheses }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock("@/app/(operations)/_components/operations-ui-context", () => ({
   useOperationsUi: () => ({ period: "3 h", hrefWithDemoState: (href: string) => href }),
 }));
