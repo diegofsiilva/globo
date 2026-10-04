@@ -3,6 +3,7 @@
 from typing import Any
 
 from flask import Flask, g, jsonify, request
+from psycopg.errors import QueryCanceled
 from werkzeug.exceptions import BadRequest, HTTPException, RequestEntityTooLarge
 
 from telemetry.config import Config
@@ -215,6 +216,28 @@ def register_error_handlers(app: Flask) -> None:
     def handle_refinement_unavailable(error: RefinementUnavailableError):
         """Ollama ausente, indisponivel ou sem lastro valido -> 503."""
         return problem(503, "Refinement unavailable", str(error))
+
+    @app.errorhandler(QueryCanceled)
+    def handle_query_timeout(error: QueryCanceled):
+        """Consulta cancelada pelo `statement_timeout` -> 504, e não 500.
+
+        O timeout é o limite que a própria API impõe ao banco, não um defeito
+        inesperado: acontece quando o recorte pedido é largo demais para o
+        volume carregado (em `/signals`, uma fonte com milhares de séries). Como
+        500 "erro interno", o operador não tinha como saber que estreitar o
+        recorte resolve, e o dashboard não oferecia nova tentativa -- ele trata
+        504 como timeout repetível.
+
+        Registrado como aviso, sem traceback: é uma condição operacional, e a
+        linha de log já carrega a rota e o `request_id`.
+        """
+        app.logger.warning("query_timeout", extra={"path": request.path})
+        return problem(
+            504,
+            "Query timeout",
+            "A consulta excedeu o tempo limite do banco. Restrinja o recorte "
+            "(fonte, entidade ou janela) e tente de novo.",
+        )
 
     @app.errorhandler(BadRequest)
     def handle_bad_request(error: BadRequest):
