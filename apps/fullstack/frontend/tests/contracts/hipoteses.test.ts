@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { submitHypothesisFeedback } from "@/app/(operations)/hipoteses/_lib/feedback";
+import { groupHypotheses } from "@/app/(operations)/hipoteses/_lib/grouping";
 import { createHttpHypothesesSource } from "@/app/(operations)/hipoteses/_lib/http-source";
+import type { Hypothesis } from "@/app/(operations)/hipoteses/_lib/types";
 import { HYPOTHESIS_FILTERS } from "@/app/(operations)/hipoteses/_lib/mapper";
 import { refineHypothesis } from "@/app/(operations)/hipoteses/_lib/refinement";
 
@@ -190,5 +192,31 @@ describe("contrato HTTP da tela Hipóteses", () => {
     expect(JSON.parse(options.body)).toEqual({
       question: "Explique esta hipótese e as evidências que a sustentam.",
     });
+  });
+
+  test("agrupa ocorrências repetidas sem descartar nenhuma", () => {
+    const base = {
+      category: "QoE sem erro",
+      title: "Possível degradação de QoE sem erro explícito",
+      confidence: "média",
+      factors: [],
+      evidence: [],
+    } satisfies Partial<Hypothesis>;
+    const hipoteses: Hypothesis[] = [
+      { ...base, id: "3", score: 78, segment: "entity=globo-rib", timelineAnchor: "2026-08-04T02:00:00Z" },
+      { ...base, id: "9", score: 77, segment: "entity=globo-tap", timelineAnchor: "2026-08-04T01:00:00Z" },
+      { ...base, id: "5", score: 74, segment: "entity=globo-rib", timelineAnchor: "2026-08-04T06:00:00Z" },
+      { ...base, id: "1", score: 70, segment: "entity=globo-rib", timelineAnchor: "2026-08-03T22:00:00Z" },
+    ];
+
+    const grupos = groupHypotheses(hipoteses);
+
+    // Dois escopos, dois grupos, na ordem do melhor score de cada um.
+    expect(grupos.map((grupo) => grupo.lead.id)).toEqual(["3", "9"]);
+    // As três ocorrências continuam lá, da mais recente para a mais antiga.
+    expect(grupos[0].items.map((item) => item.id)).toEqual(["5", "3", "1"]);
+    expect(grupos[0].firstAt).not.toBe(grupos[0].lastAt);
+    expect(grupos[1].items).toHaveLength(1);
+    expect(grupos[1].firstAt).toBe(grupos[1].lastAt);
   });
 });
