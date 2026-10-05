@@ -44,6 +44,13 @@ spec:
                 name: argus-backend
                 port:
                   number: 5000
+          - path: /ingestion
+            pathType: Prefix
+            backend:
+              service:
+                name: argus-file-api
+                port:
+                  number: 5002
           - path: /
             pathType: Prefix
             backend:

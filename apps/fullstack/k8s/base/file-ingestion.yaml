@@ -1,0 +1,147 @@
+# Mesma imagem dos workers; fila durável PG, sem novas permissões AWS.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-file-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus-file-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus-file-api
+    spec:
+      terminationGracePeriodSeconds: 135
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: file-api
+          image: IMAGE_WORKER
+          command: ["python", "-m", "argus_worker", "file-api"]
+          ports:
+            - name: http
+              containerPort: 5002
+          env:
+            - name: PORT
+              value: "5002"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DATABASE_URL_MASTER
+            - name: DASHBOARD_TOKEN_SHA256
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DASHBOARD_TOKEN_SHA256
+          startupProbe:
+            httpGet:
+              path: /ingestion/live
+              port: http
+            periodSeconds: 3
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /ingestion/live
+              port: http
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /ingestion/health
+              port: http
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argus-file-api
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /ingestion/live
+spec:
+  selector:
+    app.kubernetes.io/name: argus-file-api
+  ports:
+    - name: http
+      port: 5002
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argus-file-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argus-file-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: argus-file-worker
+    spec:
+      terminationGracePeriodSeconds: 135
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: file-worker
+          image: IMAGE_WORKER
+          command: ["python", "-m", "argus_worker", "file-worker"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: argus-backend
+                  key: DATABASE_URL_MASTER
+          # O parse pode levar mais que o ciclo SQS; lease recupera após cinco minutos.
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import os,sys,time; p='/tmp/argus-heartbeat'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<300 else 1)"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 #
-# Imagem dos dois workers de ingestao. O modo (merge ou event) vem do `command`
-# da task definition -- ver infra/ecs.tf.
+# Imagem dos consumidores SQS e dos serviços de arquivos. O modo vem do command
+# da task definition (infra/ecs.tf) ou Deployment (k8s/base/file-ingestion.yaml).
 #
 # O contexto de build e apps/fullstack/, e NAO worker/, porque a imagem precisa
 # enxergar ../common (o pacote compartilhado). Por isso o -f:
@@ -55,7 +55,7 @@ USER argus
 # O worker toca o heartbeat a cada ciclo. Com long polling de 20s, 120s sem
 # toque significa travado de verdade, nao fila vazia.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import os,sys,time; p=os.environ['HEARTBEAT_PATH']; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) < 120 else 1)"
+    CMD python -m argus_worker.health
 
 ENTRYPOINT ["python", "-m", "argus_worker"]
 # Sem CMD padrao de proposito: subir sem escolher o modo seria uma escolha
