@@ -74,3 +74,6 @@ apps/fullstack/backend/src/telemetry_backend.egg-info/
 # saida grande e nao reproduzivel por commit; o que vale revisar entra em
 # artefatos/.
 apps/fullstack/agente/saidas/
+
+# graphify
+/graphify-out

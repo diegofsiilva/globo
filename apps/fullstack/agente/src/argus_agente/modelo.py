@@ -16,6 +16,7 @@ import json
 import re
 import shlex
 import threading
+import time
 from collections.abc import Callable, Iterable
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -56,6 +57,8 @@ class ClienteOllama:
         timeout_seconds: float = 90.0,
         opener: Callable[..., Any] = urlopen,
         temperatura: float = 0.0,
+        tentativas: int = 2,
+        espera: Callable[[float], None] = time.sleep,
     ) -> None:
         """Configura o adaptador.
 
@@ -66,9 +69,17 @@ class ClienteOllama:
             opener (Callable[..., Any]): Transporte injetavel.
             temperatura (float): Zero por padrao, para que reexecucoes do mesmo
                 caso variem o menos possivel.
+            tentativas (int): Quantas vezes uma chamada pode ser refeita quando
+                o servidor nao responde. O Ollama do laboratorio e compartilhado
+                e serializa geracoes: com outro usuario ocupando a GPU, a
+                chamada fica na fila e estoura o tempo sem devolver byte algum.
+                Uma segunda tentativa resolve esse caso sem esconder um servidor
+                realmente fora do ar, que falha de novo e vira
+                `erro_de_execucao` com o motivo gravado.
+            espera (Callable[[float], None]): Pausa entre tentativas, injetavel.
 
         Raises:
-            ValueError: Se URL, modelo ou timeout forem invalidos.
+            ValueError: Se URL, modelo, timeout ou tentativas forem invalidos.
         """
         if not base_url.startswith(("http://", "https://")):
             raise ValueError("OLLAMA_URL precisa usar http ou https")
@@ -76,11 +87,15 @@ class ClienteOllama:
             raise ValueError("OLLAMA_MODEL e obrigatorio no piloto")
         if timeout_seconds <= 0:
             raise ValueError("OLLAMA_TIMEOUT_SECONDS precisa ser positivo")
+        if tentativas < 1:
+            raise ValueError("tentativas precisa ser ao menos 1")
         self.endpoint = f"{base_url.rstrip('/')}/api/chat"
         self.model = model.strip()
         self.timeout_seconds = timeout_seconds
         self.opener = opener
         self.temperatura = temperatura
+        self.tentativas = tentativas
+        self.espera = espera
 
     @property
     def identidade(self) -> dict[str, Any]:
@@ -90,7 +105,39 @@ class ClienteOllama:
             "model": self.model,
             "temperatura": self.temperatura,
             "timeout_segundos": self.timeout_seconds,
+            "tentativas": self.tentativas,
         }
+
+    def _chamar(self, payload: dict[str, Any]) -> bytes:
+        """Faz a chamada HTTP, refazendo-a quando o servidor nao responde.
+
+        Args:
+            payload (dict[str, Any]): Corpo da requisicao.
+
+        Returns:
+            bytes: Resposta crua do Ollama.
+
+        Raises:
+            ModeloIndisponivel: Quando todas as tentativas falham.
+        """
+        ultima: Exception | None = None
+        for tentativa in range(1, self.tentativas + 1):
+            request = Request(
+                self.endpoint,
+                data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with self.opener(request, timeout=self.timeout_seconds) as resposta:
+                    return resposta.read(MAX_RESPONSE_BYTES + 1)
+            except (HTTPError, URLError, TimeoutError, OSError) as erro:
+                ultima = erro
+                if tentativa < self.tentativas:
+                    self.espera(2.0)
+        raise ModeloIndisponivel(
+            f"Ollama indisponivel apos {self.tentativas} tentativa(s): {ultima}"
+        ) from ultima
 
     def passo(self, mensagens: Iterable[dict[str, str]]) -> dict[str, Any]:
         """Pede a proxima decisao do agente.
@@ -112,17 +159,7 @@ class ClienteOllama:
             "options": {"temperature": self.temperatura},
             "messages": list(mensagens),
         }
-        request = Request(
-            self.endpoint,
-            data=json.dumps(payload, ensure_ascii=False).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        try:
-            with self.opener(request, timeout=self.timeout_seconds) as resposta:
-                bruto = resposta.read(MAX_RESPONSE_BYTES + 1)
-        except (HTTPError, URLError, TimeoutError, OSError) as erro:
-            raise ModeloIndisponivel(f"Ollama indisponivel: {erro}") from erro
+        bruto = self._chamar(payload)
         if len(bruto) > MAX_RESPONSE_BYTES:
             raise ModeloIndisponivel("resposta do Ollama excedeu o limite")
         try:
@@ -285,14 +322,18 @@ class AberturaSSH:
             cliente = self._conectado(timeout)
             url = f"http://{self.remote_host}:{self.remote_port}{request.selector}"
             comando = (
-                "curl --fail --silent --show-error "
+                "curl --silent --show-error --fail-with-body "
                 f"--max-time {max(1, int(timeout))} "
                 f"-X {shlex.quote(request.get_method())} "
                 "-H 'Content-Type: application/json' "
                 f"{'--data-binary @- ' if request.data is not None else ''}"
                 f"{shlex.quote(url)}"
             )
-            stdin, stdout, stderr = cliente.exec_command(comando, timeout=timeout)
+            # A sessao SSH espera um pouco mais que o `curl`: se os dois
+            # vencem juntos, o canal fecha antes de entregar o stderr e o erro
+            # chega vazio -- que foi exatamente o que escondeu, numa primeira
+            # investigacao, um servidor que aceitava conexao e nao gerava.
+            stdin, stdout, stderr = cliente.exec_command(comando, timeout=timeout + 15)
             if request.data is not None:
                 stdin.channel.sendall(request.data)
             stdin.channel.shutdown_write()
@@ -300,10 +341,14 @@ class AberturaSSH:
             if len(payload) > MAX_RESPONSE_BYTES:
                 stdout.channel.close()
                 raise OSError("resposta do Ollama excedeu o limite")
-            status = stdout.channel.recv_exit_status()
             detalhe = stderr.read(4096).decode(errors="replace").strip()
+            status = stdout.channel.recv_exit_status()
             if status != 0:
-                raise OSError(detalhe or f"curl remoto terminou com status {status}")
+                raise OSError(
+                    detalhe
+                    or f"curl remoto terminou com status {status} sem mensagem; "
+                    f"status 28 e tempo esgotado com o servidor sem responder"
+                )
             return _RespostaSSH(payload)
         except (paramiko.SSHException, OSError) as erro:
             raise OSError(f"falha na conexao SSH com o Ollama: {erro}") from erro

@@ -2,59 +2,60 @@
   {
     "action": "consultar",
     "rationale": "comecar pelo erro do servico",
-    "tool": "serie",
+    "tool": "consultar_serie",
     "arguments": {
       "source": "prometheus",
       "entity": "playback",
       "metric": "http_5xx_rate",
-      "inicio": "2026-08-20T17:00:00+00:00",
-      "fim": "2026-08-20T20:00:00+00:00"
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z"
     }
   },
   {
     "action": "consultar",
     "rationale": "tentar separar o efeito por regiao",
-    "tool": "serie",
+    "tool": "consultar_serie",
     "arguments": {
       "source": "npaw_geo",
       "entity": "globo",
       "metric": "error_rate",
-      "inicio": "2026-08-20T17:00:00+00:00",
-      "fim": "2026-08-20T20:00:00+00:00",
-      "dimension_type": "uf"
+      "dimension_type": "uf",
+      "dimension_value": "SP",
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z"
     }
   },
   {
     "action": "consultar",
-    "rationale": "procurar mudanca operacional ou pico programado",
-    "tool": "contexto",
+    "rationale": "procurar mudanca operacional ou evento programado",
+    "tool": "consultar_contexto",
     "arguments": {
-      "tipos": [
-        "deploy",
-        "live_event"
-      ],
-      "inicio": "2026-08-20T17:00:00+00:00",
-      "fim": "2026-08-20T20:00:00+00:00"
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z",
+      "entity": "playback",
+      "kinds": [
+        "context"
+      ]
     }
   },
   {
     "action": "consultar",
     "rationale": "ver se o volume explica",
-    "tool": "serie",
+    "tool": "consultar_serie",
     "arguments": {
       "source": "rpaas",
       "entity": "playback.video.globo.com",
       "metric": "requests_total",
-      "inicio": "2026-08-20T17:00:00+00:00",
-      "fim": "2026-08-20T20:00:00+00:00"
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z"
     }
   },
   {
     "action": "desistir",
-    "rationale": "ha efeito, mas nada no recorte separa as causas possiveis",
+    "rationale": "ha efeito, mas nada disponivel no recorte separa as causas possiveis",
     "gaps": [
       {
-        "missing": "quebra do erro por UF, que so fica disponivel 28 h depois do evento",
+        "missing": "quebra do erro por UF: a serie existe, mas o ultimo dado disponivel e de 19/08",
         "reason": "ainda_indisponivel"
       },
       {
