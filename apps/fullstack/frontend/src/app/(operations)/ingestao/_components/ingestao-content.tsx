@@ -21,7 +21,7 @@ export function IngestaoContent() {
         <ol aria-label="Etapas da ingestão" className="grid gap-3 sm:grid-cols-3">
           {[
             ["01", "Selecionar e conferir", "Seleção e prévia disponíveis"],
-            ["02", "Mapear colunas", "Próxima etapa"],
+            ["02", "Mapear e validar", "Disponível na prévia"],
             ["03", "Enviar e acompanhar", "Próxima etapa"],
           ].map(([number, title, detail], index) => (
             <li key={number} aria-current={index === 0 ? "step" : undefined}
@@ -40,10 +40,10 @@ export function IngestaoContent() {
             <h2 id="preparo-titulo" className="text-section font-semibold">Antes de começar</h2>
             <p className="text-body text-muted-foreground">Selecione CSV ou Parquet e use “Ver prévia” para conferir as primeiras linhas e as colunas.</p>
             <div className="border-t border-border pt-4 text-label text-muted-foreground">
-              O mapeamento de colunas, a validação dos campos de destino e o envio serão habilitados na próxima etapa.
+              Mapeie as colunas para eventos do app de TV e valide a amostra na prévia. O envio e o processamento serão habilitados na próxima etapa.
             </div>
-            <Button disabled aria-describedby="envio-pendente">Continuar para revisão <ArrowRight aria-hidden="true" /></Button>
-            <p id="envio-pendente" className="text-micro text-muted-foreground">Revisão do destino e ingestão ainda indisponíveis.</p>
+            <Button disabled aria-describedby="envio-pendente">Enviar lote <ArrowRight aria-hidden="true" /></Button>
+            <p id="envio-pendente" className="text-micro text-muted-foreground">Envio e ingestão ainda indisponíveis.</p>
           </aside>
         </div>
       </div>

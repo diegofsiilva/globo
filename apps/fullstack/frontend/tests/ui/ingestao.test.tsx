@@ -62,11 +62,11 @@ describe("limites do lote local", () => {
 });
 
 describe("página auxiliar de ingestão", () => {
-  it("não aparece na navegação e mantém a revisão indisponível", () => {
+  it("não aparece na navegação e mantém o envio indisponível", () => {
     expect(navigationItems.some((item) => item.href.startsWith("/ingestao"))).toBe(false);
     render(<IngestaoContent />);
     expect(screen.getByRole("heading", { level: 1, name: "Ingestão por arquivos" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Continuar para revisão" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Enviar lote" })).toBeDisabled();
     expect(screen.getByText(/Use “Ver prévia” para conferir uma amostra/)).toBeVisible();
   });
 

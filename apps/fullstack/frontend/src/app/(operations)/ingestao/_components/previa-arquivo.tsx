@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LIMITES_PREVIA, type Previa, type RespostaPrevia } from "../_lib/previa-contrato";
+import { MapeamentoArquivo } from "./mapeamento-arquivo";
 
 type Estado = { fase: "lendo" } | { fase: "pronto"; previa: Previa } | { fase: "erro"; mensagem: string };
 
@@ -74,6 +75,7 @@ export function PreviaArquivo({ arquivo, onFechar }: { arquivo: File; onFechar: 
           </Table>
           {!estado.previa.linhas.length && <p className="text-body text-muted-foreground">Nenhum registro disponível para exibir.</p>}
           {estado.previa.avisos.map((aviso) => <p key={aviso} className="text-label text-warning">{aviso}</p>)}
+          <MapeamentoArquivo previa={estado.previa} />
         </>
       )}
       <p className="text-micro text-muted-foreground">Amostra de até dez linhas. Valores exibidos são limitados a 500 caracteres por célula. A prévia não valida o arquivo inteiro nem os campos de destino. Nenhum dado foi enviado.</p>
