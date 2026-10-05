@@ -18,19 +18,6 @@ export function IngestaoContent() {
             Confira a amostra, mapeie as colunas e envie cada arquivo para processamento.
           </p>
         </header>
-        <ol aria-label="Etapas da ingestão" className="grid gap-3 sm:grid-cols-3">
-          {[
-            ["01", "Selecionar e conferir", "Seleção e prévia disponíveis"],
-            ["02", "Mapear e validar", "Disponível na prévia"],
-            ["03", "Enviar e acompanhar", "Acompanhe os resultados"],
-          ].map(([number, title, detail], index) => (
-            <li key={number} aria-current={index === 0 ? "step" : undefined}
-              className="flex gap-3 rounded-panel border border-border bg-surface p-4">
-              <span className={index === 0 ? "font-mono text-section text-primary" : "font-mono text-section text-muted-foreground"}>{number}</span>
-              <div><p className="text-body font-semibold">{title}</p><p className="mt-1 text-label text-muted-foreground">{detail}</p></div>
-            </li>
-          ))}
-        </ol>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="grid gap-4 rounded-panel border border-border bg-surface p-5" aria-labelledby="arquivos-titulo">
             <h2 id="arquivos-titulo" className="flex items-center gap-2 text-section font-semibold"><Files className="size-4 text-primary" aria-hidden="true" /> Arquivos do lote</h2>
