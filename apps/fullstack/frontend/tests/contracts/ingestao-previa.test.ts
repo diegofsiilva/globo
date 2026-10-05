@@ -52,6 +52,7 @@ describe("prévia CSV", () => {
     const previa = await lerPrevia(file);
     expect(previa.avisos.join(" ")).toContain("primeiro 1 MiB");
     expect(previa.linhas[0][1]).toHaveLength(LIMITES_PREVIA.caracteresCelula + 1);
+    expect(previa.truncadas?.[0]).toEqual([false, true]);
     expect(previa.linhas).toHaveLength(10);
   });
 

@@ -12,6 +12,8 @@ export type Previa = {
   formato: "CSV" | "PARQUET";
   colunas: { nome: string; tipo: string }[];
   linhas: string[][];
+  truncadas?: boolean[][];
+  naoEscalares?: boolean[][];
   totalLinhas: string | null;
   delimitador?: string;
   avisos: string[];

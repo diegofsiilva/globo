@@ -27,14 +27,20 @@ function inferirTipo(valores: string[]): string {
   return "texto (amostra)";
 }
 
-/** Formata valores sem perder inteiros de 64 bits e limita o tamanho exibido. */
-function exibirValor(valor: unknown): string {
+/** Formata valores sem perder inteiros de 64 bits. */
+function formatarValor(valor: unknown): string {
   if (valor === null || valor === undefined) return "";
   let texto: string;
   if (valor instanceof Date) texto = valor.toISOString();
   else if (valor instanceof Uint8Array) texto = `[binário: ${valor.byteLength} bytes]`;
   else if (typeof valor === "object") texto = JSON.stringify(valor, (_, item) => typeof item === "bigint" ? item.toString() : item);
   else texto = String(valor);
+  return texto;
+}
+
+/** Limita a exibição; o marcador de truncamento impede validar valores cortados. */
+function exibirValor(valor: unknown): string {
+  const texto = formatarValor(valor);
   return texto.length > LIMITES_PREVIA.caracteresCelula ? `${texto.slice(0, LIMITES_PREVIA.caracteresCelula)}…` : texto;
 }
 
@@ -68,7 +74,8 @@ async function lerCsv(arquivo: File): Promise<Previa> {
   if (parcial && !linhas.length) throw new ErroPrevia("Nenhum registro completo encontrado no primeiro 1 MiB. Reduza o tamanho das linhas.");
   return {
     formato: "CSV", colunas: nomes.map((nome, index) => ({ nome, tipo: inferirTipo(linhas.map((linha) => linha[index])) })),
-    linhas: linhas.map((linha) => linha.map(exibirValor)), totalLinhas: null,
+    linhas: linhas.map((linha) => linha.map(exibirValor)),
+    truncadas: linhas.map((linha) => linha.map((valor) => valor.length > LIMITES_PREVIA.caracteresCelula)), totalLinhas: null,
     delimitador: resultado.meta.delimiter,
     avisos: ["Tipos inferidos apenas pela amostra; os valores originais não são convertidos.",
       ...(parcial ? ["Leitura limitada ao primeiro 1 MiB do CSV."] : []),
@@ -115,10 +122,17 @@ async function lerParquet(arquivo: File): Promise<Previa> {
   const linhas = metadata.num_rows > BigInt(0) ? await parquetReadObjects({
     file: buffer, metadata, compressors, rowStart: 0, rowEnd: LIMITES_PREVIA.linhas,
   }) : [];
+  const valores = linhas.slice(0, LIMITES_PREVIA.linhas).map((linha) => nomes.map((nome) => formatarValor(linha[nome])));
+  const naoEscalares = linhas.slice(0, LIMITES_PREVIA.linhas).map((linha) => nomes.map((nome) => {
+    const valor = linha[nome];
+    return valor !== null && typeof valor === "object" && !(valor instanceof Date);
+  }));
   return {
     formato: "PARQUET",
     colunas: esquema.map((coluna) => ({ nome: coluna.element.name, tipo: coluna.element.converted_type ?? coluna.element.type ?? "estrutura" })),
-    linhas: linhas.slice(0, LIMITES_PREVIA.linhas).map((linha) => nomes.map((nome) => exibirValor(linha[nome]))),
+    linhas: valores.map((linha) => linha.map(exibirValor)),
+    truncadas: valores.map((linha) => linha.map((valor) => valor.length > LIMITES_PREVIA.caracteresCelula)),
+    naoEscalares,
     totalLinhas: metadata.num_rows.toString(), avisos: [],
   };
 }
