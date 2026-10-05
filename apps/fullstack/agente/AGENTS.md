@@ -15,8 +15,8 @@ de `../processing`. Leia `README.md` para rodar e
    fora da entrada. Se algum deles entrar, a comparação do Dia 6 perde sentido.
 3. **A leitura dos fatos não se reimplementa aqui.** O recorte, o corte
    temporal, a seleção da última versão por `fact_key`, o tombstone e a
-   paginação são do leitor em `../tools/agente_hipoteses_caso.py`, importado por
-   `leitor.py`. Escrever uma segunda leitura neste pacote já aconteceu uma vez e
+   paginação são do leitor em `leitor.py`, e a abertura de checkpoint real é
+   `banco.py`. Ambos moram neste pacote. Escrever uma segunda leitura neste pacote já aconteceu uma vez e
    produziu dois contratos incompatíveis para as mesmas três ferramentas.
    `tests/test_ferramentas.py` fixa as garantias de que o ciclo depende; um
    teste que passa a aceitar fato futuro é um defeito, não uma fixture nova.
@@ -40,5 +40,6 @@ make -C apps/fullstack agente-ensaio
 ```
 
 O lint segue o mesmo padrão dos outros apps Python: ruff com `line-length = 90`
-e docstring Google em todo módulo, classe e função. Docstrings e comentários
-deste diretório são escritos sem acentuação, como no resto do código.
+e docstring Google em todo módulo, classe e função. Docstrings e comentários do código novo
+deste diretório são escritos sem acentuação. `leitor.py` e `banco.py` vieram de
+`tools/` com acentos e ficam assim até serem reescritos.

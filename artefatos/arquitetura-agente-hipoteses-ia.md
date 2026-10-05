@@ -359,7 +359,7 @@ execuções do modelo para essas ferramentas.
 ### 3.5 Casos reproduzíveis — Pessoa 1, Dia 3
 
 Os primeiros casos ficam em
-[`apps/fullstack/tools/tests/fixtures/agente_hipoteses`](../apps/fullstack/tools/tests/fixtures/agente_hipoteses).
+[`apps/fullstack/agente/fixtures/sinteticos`](../apps/fullstack/agente/fixtures/sinteticos).
 São **dados sintéticos**, criados para exercitar o contrato de leitura; não são
 incidentes do parceiro nem evidência de qualidade da IA. Cada arquivo fixa
 `checkpoint_id`, `sim_now`, `input_lsn`, versões de fatos e uma sequência de
@@ -377,7 +377,7 @@ um checkpoint real, ainda é preciso implementar um leitor autorizado do banco
 com as mesmas regras temporais e selecionar casos sem usar rótulos como entrada.
 
 O executor sintético está em
-[`apps/fullstack/tools/agente_hipoteses_caso.py`](../apps/fullstack/tools/agente_hipoteses_caso.py).
+[`apps/fullstack/agente/src/argus_agente/leitor.py`](../apps/fullstack/agente/src/argus_agente/leitor.py), com a CLI fina em [`tools/agente_hipoteses_caso.py`](../apps/fullstack/tools/agente_hipoteses_caso.py).
 Para repetir os casos a partir da raiz do repositório:
 
 ```bash
@@ -391,7 +391,7 @@ verifica apenas o contrato local; não mede se uma hipótese é correta.
 
 ### 3.6 Leitor operacional local — Pessoa 1, Dia 4
 
-O leitor em [`apps/fullstack/tools/agente_hipoteses_db.py`](../apps/fullstack/tools/agente_hipoteses_db.py)
+O leitor em [`apps/fullstack/agente/src/argus_agente/banco.py`](../apps/fullstack/agente/src/argus_agente/banco.py), com a CLI fina em [`tools/agente_hipoteses_db.py`](../apps/fullstack/tools/agente_hipoteses_db.py),
 abre uma transação `REPEATABLE READ READ ONLY`, obtém `ready_through` e
 `source_lsn` de um checkpoint já alcançado por `sim.now()` e seleciona a última
 versão disponível de cada `fact_key`. A seleção elimina tombstones e limita a
@@ -541,10 +541,9 @@ tetos da seção 5.1 e as recusas da seção 4, **sobre o leitor de fatos das se
 | 4 | Ciclo de chamadas às ferramentas e tetos de execução | `agente.py`, `limites.py`, `ferramentas.py` |
 | 5 | Contradições, ausência de dados, erros, respostas inválidas e lote | `validador.py`, `lote.py`, `registro.py` |
 
-O agente consome o leitor através de [`leitor.py`](../apps/fullstack/agente/src/argus_agente/leitor.py),
-que resolve o import por caminho porque `tools/` não é instalável como pacote.
-Essa ponte é a única costura entre as duas metades, e desaparece quando o leitor
-mudar de lugar.
+O agente consome o leitor diretamente do pacote: `leitor.py` monta o recorte e
+`banco.py` abre um checkpoint real do PostgreSQL local. Não há mais ponte por
+caminho; as CLIs em `tools/` são só cascas sobre esses módulos.
 
 `make -C apps/fullstack agente-ensaio` roda o lote inteiro com um dublê de
 roteiro, sem modelo, rede ou banco; `make -C apps/fullstack agente-lote` roda

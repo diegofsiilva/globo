@@ -8,7 +8,7 @@ Este documento cobre o lado do **agente**: o que ele recebe, o que ele responde
 e o que fica gravado. O contrato de **leitura** — nomes das ferramentas,
 argumentos e envelope de resposta — não é definido aqui: ele é a seção 3.4 do
 documento de arquitetura, e é implementado pelo leitor de fatos em
-[`tools/agente_hipoteses_caso.py`](../apps/fullstack/tools/agente_hipoteses_caso.py).
+[`leitor.py`](../apps/fullstack/agente/src/argus_agente/leitor.py).
 Houve um período em que os dois documentos especificavam contratos diferentes
 para as mesmas três ferramentas; a seção 3.4 é a que vale.
 
@@ -267,19 +267,25 @@ Os três últimos são limitação do piloto, não hipótese. Eles aparecem no
 relatório do lote exatamente como os outros — um lote que esconde as falhas não
 serve para decidir se o piloto continua.
 
-## 6. O que ainda está em aberto
+## 6. Estado das decisões abertas
 
-1. **Onde o leitor de fatos mora.** Ele está em `tools/`, que é ambiente de
-   scripts de operação e não é instalável como pacote. O piloto o importa por
-   caminho, numa ponte isolada em
-   [`leitor.py`](../apps/fullstack/agente/src/argus_agente/leitor.py). Decidir
-   mover o leitor para o pacote do agente fecha essa ponte.
-2. **Declarar as séries a caminho.** Hoje o atraso de fonte é inferido do
-   inventário, como descrito na seção 1. Um bloco explícito com a série e o
-   instante de disponibilidade seria mais direto, mas muda o contrato do leitor.
-3. **Casos sobre dado real.** Os três casos atuais são sintéticos, com nomes do
-   catálogo do projeto. Extrair recortes de um checkpoint real depende do
-   leitor operacional e de um banco local carregado.
-4. **O que fazer com `role`.** O leitor classifica cada fato como `subject` ou
-   `context` e inclui isso no digest, mas o agente não recebe esse campo. Vale
-   decidir se ele deve orientar a investigação ou permanecer invisível.
+1. **Onde o leitor de fatos mora.** Fechado: o leitor e o acesso ao checkpoint
+   real estão no pacote do agente (`leitor.py` e `banco.py`). As CLIs em
+   `tools/` apenas chamam esses módulos. Não há mais ponte por caminho.
+2. **Declarar as séries a caminho.** Decidido: não há bloco explícito. O
+   inventário já informa, por série, o último evento disponível
+   (`event_start_max`) e o `available_at_max`. Um atraso de fonte aparece como
+   uma série cujo último dado fica antes da janela investigada. Um bloco
+   separado mudaria o contrato do leitor sem ganho de informação para o agente.
+3. **Casos sobre dado real.** Feito, com uma ressalva. O checkpoint 12 foi
+   reconstruído a partir de `bronze.signal_bucket` por
+   [`scripts/reconstruir_recorte_real.sql`](../apps/fullstack/agente/scripts/reconstruir_recorte_real.sql),
+   porque o banco local não tem `change_log` para essa série. O recorte foi
+   escolhido por inspeção manual da série bruta, não a partir de nenhum
+   resultado do motor. A investigação do agente sobre ele **ainda não rodou**:
+   o servidor do Ollama estava saturado durante toda a sessão.
+4. **O que fazer com `role`.** Decidido: o agente não recebe `role`. O papel
+   `subject` marca os fatos que o pipeline considera do intervalo analisado, o
+   que é uma classificação do próprio motor e aproximaria o agente da resposta
+   dele. `role` continua no digest, então a comparação do Dia 6 ainda verifica
+   o mesmo material.
