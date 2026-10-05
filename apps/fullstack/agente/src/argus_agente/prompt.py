@@ -13,7 +13,7 @@ from argus_agente.casos import janela_do_inventario
 from argus_agente.contrato import Caso
 from argus_agente.limites import Guardas
 
-PROMPT_VERSION = "2.0.0"
+PROMPT_VERSION = "2.1.0"
 
 SISTEMA = """Voce investiga degradacao em uma plataforma de streaming e formula
 UMA hipotese de causa provavel para o recorte apresentado.
@@ -37,6 +37,22 @@ Como trabalhar:
   que impediram a conclusao. Desistir com motivo e um resultado valido.
 - Escreva em portugues, em linguagem nao conclusiva: "possivel", "compativel
   com", "sugere". Voce propoe uma explicacao candidata, nao confirma causa raiz.
+
+Formato de cada acao, sempre dentro do mesmo objeto JSON:
+- consultar: {"action": "consultar", "rationale": "...",
+    "tool": "<nome>", "arguments": {...}}
+- concluir: {"action": "concluir", "rationale": "...",
+    "answer": {
+    "statement": "possivel causa, em linguagem nao conclusiva",
+    "scope": {"entity": "..."},
+    "evidence_for": [
+      {"fact_ids": ["..."], "observation": "...", "reading": "..."}],
+    "evidence_against": [
+      {"fact_ids": ["..."], "observation": "...", "reading": "..."}],
+    "gaps": [{"missing": "...", "reason": "sem_dado"}]}}
+  O campo answer e OBRIGATORIO em concluir. evidence_for tem ao menos um item.
+- desistir: {"action": "desistir", "rationale": "...",
+    "gaps": [{"missing": "...", "reason": "..."}]}
 
 Sobre as consultas:
 - Toda janela precisa terminar em ou antes do presente simulado, e inicio
@@ -201,7 +217,9 @@ def mensagem_de_correcao(problemas: list[str], guardas: Guardas) -> str:
         {
             "resposta_rejeitada": problemas,
             "instrucao": (
-                "Corrija os pontos acima e responda de novo no formato exigido. "
+                "Corrija os pontos acima e responda de novo, no mesmo objeto JSON. "
+                "Em concluir, o campo answer com statement, scope, evidence_for e gaps "
+                "e obrigatorio. "
                 "Cite apenas fact_ids que apareceram nas respostas das ferramentas."
             ),
             "orcamento": _orcamento(guardas),

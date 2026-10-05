@@ -127,7 +127,12 @@ def investigar(
                 passo = interpretar(bruto, fact_ids_vistos=fact_ids_vistos)
             except PassoInvalido as erro:
                 _registrar_passo(
-                    registro, guardas, str(bruto.get("action")), "", erro.problemas
+                    registro,
+                    guardas,
+                    str(bruto.get("action")),
+                    "",
+                    erro.problemas,
+                    bruto,
                 )
                 guardas.registrar_passo_invalido()
                 mensagens.append(
@@ -139,7 +144,9 @@ def investigar(
                 continue
 
             if isinstance(passo, Consulta):
-                _registrar_passo(registro, guardas, "consultar", passo.rationale, [])
+                _registrar_passo(
+                    registro, guardas, "consultar", passo.rationale, [], bruto
+                )
                 guardas.antes_da_chamada()
                 mensagens.append(
                     {
@@ -152,13 +159,15 @@ def investigar(
                 continue
 
             if isinstance(passo, Desistencia):
-                _registrar_passo(registro, guardas, "desistir", passo.rationale, [])
+                _registrar_passo(
+                    registro, guardas, "desistir", passo.rationale, [], bruto
+                )
                 registro.concluir(DESFECHO_INSUFICIENTE)
                 registro.lacunas = passo.lacunas
                 break
 
             assert isinstance(passo, Conclusao)
-            _registrar_passo(registro, guardas, "concluir", passo.rationale, [])
+            _registrar_passo(registro, guardas, "concluir", passo.rationale, [], bruto)
             registro.concluir(DESFECHO_HIPOTESE)
             registro.hipotese = passo.hipotese
             registro.lacunas = passo.hipotese["gaps"]
@@ -248,8 +257,13 @@ def _registrar_passo(
     acao: str,
     rationale: str,
     problemas: list[str],
+    bruto: Any = None,
 ) -> None:
-    """Guarda a decisao declarada no passo, valida ou nao."""
+    """Guarda a decisao declarada no passo, valida ou nao.
+
+    A saida bruta do modelo e gravada junto, truncada. Sem ela, uma rejeicao
+    so mostra o motivo do validador, e nao o que o modelo de fato escreveu.
+    """
     registro.passos.append(
         {
             "ordem": guardas.passos,
@@ -257,5 +271,8 @@ def _registrar_passo(
             "rationale": rationale,
             "problemas": problemas,
             "segundos": round(guardas.decorrido, 3),
+            "saida_bruta": (
+                json.dumps(bruto, ensure_ascii=False) if bruto is not None else None
+            ),
         }
     )
