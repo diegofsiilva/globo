@@ -26,6 +26,7 @@ import type {
   HypothesesReport,
 } from "../_lib/types";
 import { hypothesisFeedbackEnabled } from "../_lib/feedback";
+import { groupHypotheses, type HypothesisGroup } from "../_lib/grouping";
 import { HypothesisVerdict } from "./hypothesis-verdict";
 import { hipotesesStyles as styles } from "./hipoteses.styles";
 
@@ -48,9 +49,16 @@ const factorShades = [
 
 type Filters = Record<HypothesisFilterKey, string>;
 
+/** Quantas ocorrências de um grupo o painel lista antes de resumir o resto. */
+const MAX_OCCURRENCES = 12;
+
+// A lista abre nas hipóteses OPERACIONAIS. As de qualidade de dado ("atraso na
+// fonte") saem com score mais alto e são dezenas por janela: sem o recorte
+// inicial elas ocupavam as primeiras centenas de linhas e a causa provável do
+// incidente ficava enterrada. Continuam a um clique, no filtro "tipo".
 const initialFilters: Filters = {
   family: ALL_SCOPE_VALUES,
-  kind: ALL_SCOPE_VALUES,
+  kind: "operacional",
   confidence: ALL_SCOPE_VALUES,
   review_status: ALL_SCOPE_VALUES,
 };
@@ -95,6 +103,9 @@ export function HipotesesScreen() {
   // memória obrigaria a paginar tudo antes de mostrar as dez que interessam.
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const activeFilters = Object.values(filters).filter((value) => value !== ALL_SCOPE_VALUES).length;
+  const filtersChanged = HYPOTHESIS_FILTERS.some(
+    (definition) => filters[definition.key] !== initialFilters[definition.key],
+  );
   const currentWindow = useMemo(
     () => clock.snapshot ? windowEndingAt(clock.snapshot.simNow, periodMinutes[period]) : null,
     [clock.snapshot, period],
@@ -143,7 +154,11 @@ export function HipotesesScreen() {
     };
   }, [report.data, period]);
   const hypotheses = useMemo(() => loadedReport?.hypotheses ?? [], [loadedReport]);
-  const selected = hypotheses.find((item) => item.id === selectedId) ?? hypotheses[0] ?? null;
+  const groups = useMemo(() => groupHypotheses(hypotheses), [hypotheses]);
+  const selected = hypotheses.find((item) => item.id === selectedId) ?? groups[0]?.lead ?? null;
+  const selectedGroup = selected
+    ? groups.find((group) => group.items.some((item) => item.id === selected.id))
+    : undefined;
 
   return (
     <ScreenFrame
@@ -184,7 +199,9 @@ export function HipotesesScreen() {
         },
         // Só quando há filtro: sem nenhum, o vazio veio da janela, e "rever
         // filtros" não teria o que rever.
-        onResetFilters: activeFilters + signalFilters > 0 ? clearFilters : undefined,
+        // Só quando há o que rever: com os filtros no padrão e sem recorte de
+        // sinal, o botão não mudaria nada.
+        onResetFilters: filtersChanged || signalFilters > 0 ? clearFilters : undefined,
         // O motor publica hipóteses a cada janela de processamento, e não a
         // cada minuto: nos 30 min do padrão a lista costuma vir vazia mesmo
         // havendo hipóteses de horas atrás. O vazio oferece o próximo passo.
@@ -198,6 +215,7 @@ export function HipotesesScreen() {
         {loadedReport && (
           <p>
             {loadedReport.generated}{report.hasNextPage ? "+" : ""} geradas
+            {groups.length < hypotheses.length && ` em ${groups.length} grupos`}
             {loadedReport.discarded > 0 && ` · ${loadedReport.discarded} descartadas`} · janela{" "}
             {loadedReport.window.label}
           </p>
@@ -217,13 +235,13 @@ export function HipotesesScreen() {
         <div className={styles.layout}>
           <section className={styles.list} aria-label="Hipóteses ranqueadas">
             <ol>
-              {hypotheses.map((hypothesis, index) => (
-                <li key={hypothesis.id}>
+              {groups.map((group, index) => (
+                <li key={group.key}>
                   <HypothesisItem
-                    hypothesis={hypothesis}
+                    group={group}
                     rank={index + 1}
-                    selected={hypothesis.id === selected?.id}
-                    onSelect={() => setSelectedId(hypothesis.id)}
+                    selected={group === selectedGroup}
+                    onSelect={() => setSelectedId(group.lead.id)}
                   />
                 </li>
               ))}
@@ -239,25 +257,39 @@ export function HipotesesScreen() {
             )}
           </section>
 
-          {selected && <ScorePanel key={selected.id} hypothesis={selected} />}
+          {selected && (
+            <ScorePanel
+              key={selected.id}
+              hypothesis={selected}
+              group={selectedGroup}
+              onSelect={setSelectedId}
+            />
+          )}
         </div>
       )}
     </ScreenFrame>
   );
 }
 
-/** Renderiza uma hipótese ranqueada e comunica a seleção ao callback. */
+/** Renderiza um grupo de hipóteses ranqueado e comunica a seleção ao callback. */
 function HypothesisItem({
-  hypothesis,
+  group,
   rank,
   selected,
   onSelect,
 }: {
-  hypothesis: Hypothesis;
+  group: HypothesisGroup;
   rank: number;
   selected: boolean;
   onSelect: () => void;
 }) {
+  const hypothesis = group.lead;
+  const occurrences = group.items.length;
+  // Com várias ocorrências, o "quando" do item é o intervalo que elas cobrem.
+  const when =
+    occurrences > 1
+      ? `${occurrences} ocorrências · ${group.firstAt} → ${group.lastAt}`
+      : hypothesis.effect;
   return (
     <button
       className={clsx(styles.item, selected && styles.selected)}
@@ -275,7 +307,7 @@ function HypothesisItem({
             de mesmo título e score sem precisar abrir cada uma. */}
         <span className={styles.meta}>
           {[
-            hypothesis.effect,
+            when,
             hypothesis.segment,
             `confiança ${hypothesis.confidence}`,
             hypothesis.reviewStatus !== "não revisada" && hypothesis.reviewStatus,
@@ -324,7 +356,15 @@ function DiscardedList({ items }: { items: DiscardedHypothesis[] }) {
 }
 
 /** Renderiza a decomposição do score, as evidências e as ações da hipótese. */
-function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
+function ScorePanel({
+  hypothesis,
+  group,
+  onSelect,
+}: {
+  hypothesis: Hypothesis;
+  group?: HypothesisGroup;
+  onSelect: (id: string) => void;
+}) {
   const { hrefWithDemoState } = useOperationsUi();
   const refinement = useQuery({
     queryKey: ["hypothesis-refinement", hypothesis.id],
@@ -337,6 +377,10 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
     ? normalizeQueryFailure(refinement.error)
     : null;
   return (
+    // O painel rola por conta própria (ver `panel` em hipoteses.styles): ele é
+    // mais alto que a tela, e preso ao topo sem rolagem própria a parte de baixo
+    // -- evidências, veredito e as ações -- só aparecia depois de rolar a lista
+    // inteira. O `top` desconta o cabeçalho fixo e a barra de escopo.
     <aside className={styles.panel} aria-label="Composição do score">
       <p className={styles.panelKicker}>Como este score foi calculado</p>
       <h2>{hypothesis.title}</h2>
@@ -353,6 +397,28 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
           </div>
         )}
       </dl>
+
+      {group && group.items.length > 1 && (
+        <section className={styles.occurrences} aria-label="Ocorrências desta hipótese">
+          <p className={styles.panelKicker}>{group.items.length} ocorrências no período</p>
+          <ul>
+            {group.items.slice(0, MAX_OCCURRENCES).map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  aria-pressed={item.id === hypothesis.id}
+                  onClick={() => onSelect(item.id)}
+                >
+                  {item.effect ?? `ID ${item.id}`} <span>score {item.score}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {group.items.length > MAX_OCCURRENCES && (
+            <small>e mais {group.items.length - MAX_OCCURRENCES}, mais antigas</small>
+          )}
+        </section>
+      )}
 
       <p className={styles.panelScore}>
         <strong className="text-gradient-emphasis">{hypothesis.score}</strong>
@@ -406,7 +472,10 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
         </ul>
       )}
 
-      {hypothesisRefinementEnabled && (
+      {/* Só existe enquanto há algo a dizer. Sem o refinador configurado a
+          consulta não devolve nada, e a caixa ficava em todas as hipóteses com
+          "ainda não está disponível" -- espaço ocupado por uma não-informação. */}
+      {hypothesisRefinementEnabled && (refinement.data || refinementFailure || refinement.isLoading) && (
         <section className={styles.refinement} aria-live="polite">
           <p className={styles.panelKicker}>Explicação refinada</p>
           {refinement.data ? (
@@ -426,29 +495,22 @@ function ScorePanel({ hypothesis }: { hypothesis: Hypothesis }) {
                 Tentar novamente
               </Button>
             </>
-          ) : refinement.isLoading ? (
-            <p>Refinando automaticamente com base apenas nesta hipótese...</p>
           ) : (
-            <p>
-              A explicação refinada ainda não está disponível.
-            </p>
+            <p>Refinando automaticamente com base apenas nesta hipótese...</p>
           )}
         </section>
       )}
 
       {hypothesisFeedbackEnabled && <HypothesisVerdict hypothesis={hypothesis} />}
 
-      {/* As duas ações encadeiam os fluxos: a hipótese viaja na URL para que a
-          timeline e o recorte abram já centrados nela. */}
+      {/* A hipótese viaja na URL para a Timeline abrir centrada no efeito. O
+          antigo "Ver recorte afetado" saiu: o Recorte é dispositivo × hora da
+          fonte de player, e o escopo de uma hipótese é serviço, entidade ou
+          fluxo -- o link levava a uma grade que não tinha relação com ela. */}
       <div className={styles.actions}>
         <Button asChild>
           <Link href={hrefWithDemoState(`/timeline?hipotese=${hypothesis.id}&t=${encodeURIComponent(hypothesis.timelineAnchor)}`)}>
             Abrir na timeline
-          </Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href={hrefWithDemoState(`/recorte?hipotese=${hypothesis.id}&segmento=${encodeURIComponent(hypothesis.segment)}`)}>
-            Ver recorte afetado
           </Link>
         </Button>
       </div>
