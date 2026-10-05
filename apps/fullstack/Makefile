@@ -282,7 +282,7 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch test-agente test-tools ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch test-agente ## Roda as suites que tem teste
 
 .PHONY: test-hypothesis-batch
 test-hypothesis-batch: ## Valida o lote CDC sem usar AWS ou banco
@@ -336,12 +336,6 @@ test-processing: ## Testes do ETL incremental (watermarks, workers)
 test-agente: ## Testes do piloto de hipoteses com IA (ciclo, tetos e validador)
 	cd $(AGENTE) && $(UV) pytest
 
-# As suites de `tools/` que nao usam o unittest antigo. Sem este alvo, os testes
-# do leitor de fatos ficavam fora do `make test` -- e e o leitor que o piloto
-# inteiro usa.
-.PHONY: test-tools
-test-tools: ## Testes das ferramentas de dados (leitor de fatos do agente)
-	cd $(TOOLS) && $(UV) --group dev pytest
 
 .PHONY: test-frontend
 test-frontend: ## Testes de contratos e componentes do dashboard
@@ -499,6 +493,21 @@ agente-ensaio: ## Roda o lote do piloto com o dublê de roteiro, sem rede nem mo
 agente-lote: ## Roda o lote do piloto no Ollama (precisa das chaves OLLAMA_* no .env)
 	@test -n "$$OLLAMA_URL" || { echo "defina OLLAMA_URL e OLLAMA_MODEL no .env"; exit 1; }
 	cd $(AGENTE) && $(UV) agentectl lote ../$(AGENTE_CASOS) --saida ../$(AGENTE_SAIDA)
+
+.PHONY: agente-recorte-real
+agente-recorte-real: ## Reconstroi um recorte real da bronze (PostgreSQL local) para o piloto
+	@test -n "$$DATABASE_URL" || { echo "defina DATABASE_URL (make db-url)"; exit 1; }
+	psql "$$DATABASE_URL" -v ON_ERROR_STOP=1 \
+	  -v entidade='$(or $(AGENTE_ENTIDADE),br1|playback.video.globo.com)' \
+	  -v janela_inicio='$(or $(AGENTE_JANELA_INICIO),2026-08-18 00:00+00)' \
+	  -v janela_fim='$(or $(AGENTE_JANELA_FIM),2026-08-31 00:00+00)' \
+	  -v presente='$(or $(AGENTE_PRESENTE),2026-08-21 08:00+00)' \
+	  -f $(AGENTE)/scripts/reconstruir_recorte_real.sql
+
+.PHONY: agente-investigar-banco
+agente-investigar-banco: ## Investiga um checkpoint real do PostgreSQL local (CHECKPOINT=, ENTIDADE=)
+	@test -n "$$DATABASE_URL" -a -n "$(CHECKPOINT)" -a -n "$(ENTIDADE)" || { echo "defina DATABASE_URL, CHECKPOINT e ENTIDADE"; exit 1; }
+	cd $(AGENTE) && $(UV) agentectl investigar-banco --checkpoint $(CHECKPOINT) --entidade "$(ENTIDADE)" --lookback $(or $(LOOKBACK),360)
 
 .PHONY: agente-checar
 agente-checar: ## Confirma que o Ollama configurado no .env responde
@@ -1004,7 +1013,7 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 hypothesis-agent-case: ## Repete um caso sintético do agente (AGENT_CASE=degradacao_sintetica)
 	@case_name="$${AGENT_CASE:-degradacao_sintetica}"; \
 	cd $(TOOLS) && $(UV) python agente_hipoteses_caso.py \
-	  --case "tests/fixtures/agente_hipoteses/$${case_name}.json"
+	  --case "../$(AGENTE)/fixtures/sinteticos/$${case_name}.json"
 
 .PHONY: hypothesis-agent-db
 hypothesis-agent-db: ## Consulta fatos reais de um checkpoint (CHECKPOINT_ID=... ENTITY=... AGENT_QUERIES=...)

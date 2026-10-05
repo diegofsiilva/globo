@@ -48,21 +48,37 @@ def carregar_caso(caminho: Path) -> tuple[Caso, CaseReader]:
     if faltando:
         raise ValueError(f"{caminho.name}: faltam os campos {faltando}")
     leitor = CaseReader(dados)
+    return caso_de_leitor(leitor, nota=str(dados.get("nota_de_escopo", ""))), leitor
+
+
+def caso_de_leitor(leitor: CaseReader, *, nota: str = "") -> Caso:
+    """Monta o `Caso` entregue ao agente a partir de um recorte ja aberto.
+
+    E o mesmo para qualquer origem: arquivo de fixture ou checkpoint do banco.
+    O agente nao distingue as duas, e isso e o que permite comparar casos de
+    origens diferentes sem reescrever o ciclo.
+
+    Args:
+        leitor (CaseReader): Recorte aberto pelo leitor.
+        nota (str): Texto que situa o investigador; nunca contem causa.
+
+    Returns:
+        Caso: Recorte e inventario prontos para o prompt.
+    """
     recorte = Recorte(
-        checkpoint_id=str(dados["checkpoint_id"]),
+        checkpoint_id=str(leitor.checkpoint_id),
         origin=leitor.origin,
         sim_now=leitor.sim_now,
         input_lsn=leitor.input_lsn,
         recorte_id=leitor.recorte_id,
         digest=leitor.digest,
     )
-    caso = Caso(
+    return Caso(
         case_id=leitor.case_id,
         recorte=recorte,
         inventario=leitor.inventariar_fatos(),
-        nota_de_escopo=str(dados.get("nota_de_escopo", "")),
+        nota_de_escopo=nota,
     )
-    return caso, leitor
 
 
 def descrever_caso(caso: Caso) -> dict[str, Any]:

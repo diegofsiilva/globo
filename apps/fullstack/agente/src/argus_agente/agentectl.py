@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from argus_agente.agente import investigar
-from argus_agente.casos import carregar_caso, descrever_caso
+from argus_agente.banco import load_checkpoint
+from argus_agente.casos import carregar_caso, caso_de_leitor, descrever_caso
 from argus_agente.limites import Orcamento
 from argus_agente.lote import executar_lote
 from argus_agente.modelo import (
@@ -76,7 +77,7 @@ def _orcamento(args: argparse.Namespace) -> Orcamento:
     padrao = Orcamento()
     return Orcamento(
         max_chamadas=args.max_chamadas or padrao.max_chamadas,
-        max_linhas_por_resposta=args.max_linhas or padrao.max_linhas_por_resposta,
+        max_itens_por_resposta=args.max_itens or padrao.max_itens_por_resposta,
         max_segundos=args.max_segundos or padrao.max_segundos,
     )
 
@@ -94,7 +95,38 @@ def _investigar(args: argparse.Namespace) -> int:
     arquivo = escrever_caso(registro, args.saida)
     print(resumo_markdown([registro]))
     print(f"registro completo em {arquivo}")
-    return 0 if registro.desfecho in ("hipotese", "evidencia_insuficiente") else 1
+    return 0 if registro.util else 1
+
+
+def _investigar_banco(args: argparse.Namespace) -> int:
+    """Investiga um checkpoint real do PostgreSQL local.
+
+    A URL vem de DATABASE_URL, a mesma que o restante do projeto usa. O leitor
+    so aceita host local, entao esta funcao nao alcanca nenhum banco publicado.
+    """
+    url = os.getenv("DATABASE_URL", "")
+    if not url:
+        raise ValueError("DATABASE_URL e obrigatoria para --banco (use make db-url)")
+    leitor = load_checkpoint(
+        url, args.checkpoint, args.entidade, lookback_minutes=args.lookback
+    )
+    caso = caso_de_leitor(
+        leitor,
+        nota=(
+            f"checkpoint {args.checkpoint} de {args.entidade}, "
+            f"janela de {args.lookback} min antes do presente simulado"
+        ),
+    )
+    registro = investigar(
+        caso,
+        leitor,
+        construir_modelo(args.modelo, args.roteiro, caso.case_id),
+        orcamento=_orcamento(args),
+    )
+    arquivo = escrever_caso(registro, args.saida)
+    print(resumo_markdown([registro]))
+    print(f"registro completo em {arquivo}")
+    return 0 if registro.util else 1
 
 
 def _lote(args: argparse.Namespace) -> int:
@@ -150,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         "--roteiro", type=Path, help="passos do dublê, com --modelo roteiro"
     )
     parser.add_argument("--max-chamadas", type=int, default=0)
-    parser.add_argument("--max-linhas", type=int, default=0)
+    parser.add_argument("--max-itens", type=int, default=0)
     parser.add_argument("--max-segundos", type=float, default=0.0)
     sub = parser.add_subparsers(dest="comando", required=True)
 
@@ -163,6 +195,15 @@ def main(argv: list[str] | None = None) -> int:
     varios.add_argument("casos", type=Path)
     varios.add_argument("--saida", type=Path, default=Path("saidas/lote"))
     varios.set_defaults(funcao=_lote)
+
+    banco = sub.add_parser(
+        "investigar-banco", help="investiga um checkpoint real do PostgreSQL local"
+    )
+    banco.add_argument("--checkpoint", type=int, required=True)
+    banco.add_argument("--entidade", required=True)
+    banco.add_argument("--lookback", type=int, default=120)
+    banco.add_argument("--saida", type=Path, default=Path("saidas/banco"))
+    banco.set_defaults(funcao=_investigar_banco)
 
     ping = sub.add_parser("checar-modelo", help="confirma que o modelo responde")
     ping.set_defaults(funcao=_checar_modelo)

@@ -23,6 +23,8 @@ make -C apps/fullstack agente-ensaio   # lote completo com dublê, sem rede
 make -C apps/fullstack test-agente     # testes do ciclo, dos tetos e do validador
 make -C apps/fullstack agente-checar   # confirma que o Ollama do .env responde
 make -C apps/fullstack agente-lote     # lote real, contra o Ollama
+make -C apps/fullstack agente-recorte-real   # reconstroi o recorte real da bronze (PostgreSQL local)
+make -C apps/fullstack agente-investigar-banco  # investiga o checkpoint do banco (CHECKPOINT=, ENTIDADE=)
 ```
 
 `agente-ensaio` roda os três casos de `fixtures/` com um dublê de roteiro: não
@@ -38,7 +40,8 @@ Para usar o modelo de verdade, as chaves `OLLAMA_*` precisam estar no
 
 | Arquivo | O que é |
 |---|---|
-| `leitor.py` | Ponte para o leitor de fatos de `tools/` — a única costura entre as metades |
+| `leitor.py` | Leitor de fatos: `CaseReader`, as três consultas e o executor sintético |
+| `banco.py` | Abertura de um checkpoint real do PostgreSQL local, somente leitura |
 | `contrato.py` | Esquemas e dataclasses do que o modelo responde e do que é gravado |
 | `ferramentas.py` | Despacho das três consultas sobre o leitor |
 | `casos.py` | Carga de um caso no formato do leitor |
@@ -53,7 +56,7 @@ Para usar o modelo de verdade, as chaves `OLLAMA_*` precisam estar no
 
 ## Estado
 
-A leitura dos fatos é a de `tools/agente_hipoteses_caso.py`, compartilhada com o
-executor sintético e com o leitor de banco. O agente não tem leitura própria: ele
-só investiga. O que ainda está em aberto está na seção 6 do documento de
-contratos.
+A leitura dos fatos vive inteira neste pacote: `leitor.py` para o recorte e
+`banco.py` para abrir um checkpoint real. As CLIs em `tools/` são só cascas.
+O agente não tem leitura própria: ele só investiga. O que ainda está em aberto
+está na seção 6 do documento de contratos.
