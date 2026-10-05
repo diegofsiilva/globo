@@ -49,7 +49,17 @@ function ShellContent({ children }: { children: ReactNode }) {
         <div className={styles.controlRow} aria-label="Atualização e período">
           <p className={styles.liveStatus} aria-live="off">
             <span data-live-dot aria-hidden="true" />
-            {liveLabel} <span className="hidden sm:inline">· {clock}</span>
+            {liveLabel}{" "}
+            {/* A data vai junto com a hora: o relógio é o do dataset, que vive
+                semanas atrás do relógio de parede. Só com a hora, o operador
+                não tem como saber de que dia são os sinais na tela. */}
+            <time
+              className="hidden sm:inline"
+              dateTime={clock.iso}
+              title="Relógio virtual do dataset, e não o do navegador"
+            >
+              · {clock.label}
+            </time>
           </p>
           <ToggleGroup
             type="single"
@@ -86,17 +96,27 @@ function ShellContent({ children }: { children: ReactNode }) {
   );
 }
 
-function useClock(): string {
+/** Rótulo do relógio antes da primeira leitura de `/api/v1/clock`. */
+const CLOCK_PLACEHOLDER = { label: "--/-- --:--:--", iso: undefined as string | undefined };
+
+/** Dia e mês, para o operador situar a hora virtual sem abrir outra tela. */
+const clockDateFormatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" });
+
+function useClock(): typeof CLOCK_PLACEHOLDER {
   const { snapshot } = useSimClock();
-  const [clock, setClock] = useState("--:--:--");
+  const [clock, setClock] = useState(CLOCK_PLACEHOLDER);
 
   useEffect(() => {
     const update = () => {
-      setClock(
-        snapshot
-          ? projectedSimNow(snapshot).toLocaleTimeString("pt-BR")
-          : "--:--:--",
-      );
+      if (!snapshot) {
+        setClock(CLOCK_PLACEHOLDER);
+        return;
+      }
+      const now = projectedSimNow(snapshot);
+      setClock({
+        label: `${clockDateFormatter.format(now)} ${now.toLocaleTimeString("pt-BR")}`,
+        iso: now.toISOString(),
+      });
     };
     const firstTick = window.setTimeout(update, 0);
     const timer = window.setInterval(update, 1_000);
