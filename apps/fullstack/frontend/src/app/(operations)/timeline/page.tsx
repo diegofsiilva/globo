@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { QueryProvider } from "@/providers/query-provider";
 import { TimelineContent } from "./_components/timeline-content";
 
@@ -12,7 +13,11 @@ export const metadata: Metadata = {
 export default function TimelinePage() {
   return (
     <QueryProvider>
-      <TimelineContent />
+      {/* `TimelineContent` lê a query string (a hipótese que abriu a tela), e
+          no export estático isso exige um limite de Suspense. */}
+      <Suspense fallback={null}>
+        <TimelineContent />
+      </Suspense>
     </QueryProvider>
   );
 }
