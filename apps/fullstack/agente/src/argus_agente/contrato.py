@@ -10,7 +10,7 @@ Tres contratos convivem aqui, e a separacao entre eles e deliberada:
 2.  O contrato de LEITURA -- nomes das ferramentas, argumentos aceitos e
     envelope de resposta -- nao e definido aqui. Ele vive em
     `artefatos/arquitetura-agente-hipoteses-ia.md`, secao 3.4, e e implementado
-    pelo `CaseReader` importado em `leitor.py`. Este modulo apenas repete os
+    pelo `CaseReader` de `leitor.py`. Este modulo apenas repete os
     nomes e argumentos para poder validar o que o modelo pede antes de chamar.
 3.  `RegistroDoCaso` e o envelope que o EXECUTOR escreve. O historico de
     consultas mora nele, e nao na resposta do modelo: um historico narrado pelo

@@ -170,8 +170,7 @@ def _detalhe(registro: RegistroDoCaso) -> list[str]:
     for consulta in registro.consultas:
         limitacoes = ", ".join(consulta.get("limitacoes", ())) or None
         detalhe = consulta.get("erro") or (
-            f"{consulta['retornadas']} itens"
-            + (f" ({limitacoes})" if limitacoes else "")
+            f"{consulta['retornadas']} itens" + (f" ({limitacoes})" if limitacoes else "")
         )
         linhas.append(
             f"- `{consulta['ferramenta']}` {consulta['argumentos']} -> {detalhe}"

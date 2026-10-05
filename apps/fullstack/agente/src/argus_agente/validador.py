@@ -267,9 +267,9 @@ def _validar_evidencias(
         leitura = _texto(bruta.get("reading"), f"{rotulo}.reading", problemas)
         saida.append(
             {
-                "fact_ids": list(
-                    dict.fromkeys(str(fact_id) for fact_id in fact_ids)
-                )[:12],
+                "fact_ids": list(dict.fromkeys(str(fact_id) for fact_id in fact_ids))[
+                    :12
+                ],
                 "observation": observacao,
                 "reading": leitura,
             }

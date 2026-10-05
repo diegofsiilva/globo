@@ -1,6 +1,6 @@
 """Despacho das tres ferramentas de leitura sobre o recorte.
 
-O leitor que implementa as ferramentas vem de `leitor.py`. Este modulo nao
+O leitor que implementa as ferramentas e `leitor.py`. Este modulo nao
 reimplementa consulta nenhuma: ele so escolhe o metodo pelo nome que o modelo
 pediu e transforma a recusa do leitor em algo que o ciclo sabe registrar.
 
