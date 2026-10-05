@@ -43,8 +43,9 @@ class CaseReader:
 
     def __init__(self, case: dict[str, Any]) -> None:
         """Seleciona a última versão visível de cada fato no checkpoint."""
-        if case.get("origin") != "synthetic":
-            raise ValueError("este executor aceita apenas casos sintéticos")
+        if case.get("origin") not in {"synthetic", "database"}:
+            raise ValueError("origem do recorte inválida")
+        self.origin = case["origin"]
         self.case_id = case["case_id"]
         self.sim_now = _instant(case["sim_now"])
         self.input_lsn = int(case["input_lsn"])
@@ -68,7 +69,7 @@ class CaseReader:
             )
         )
         self.digest = _digest([(_fact_id(fact), fact["role"]) for fact in self.facts])
-        self.recorte_id = f"synthetic:{case['checkpoint_id']}:{self.digest[:16]}"
+        self.recorte_id = f"{self.origin}:{case['checkpoint_id']}:{self.digest[:16]}"
 
     def _window(self, inicio: str, fim: str) -> tuple[dt.datetime, dt.datetime]:
         """Recusa uma janela invertida ou posterior ao presente simulado."""
@@ -257,10 +258,8 @@ class CaseReader:
         return {"fact_id": _fact_id(fact), **{field: fact[field] for field in fields}}
 
 
-def run_case(case: dict[str, Any]) -> dict[str, Any]:
-    """Executa as consultas declaradas pelo caso e registra as respostas."""
-    reader = CaseReader(case)
-    queries = case["queries"]
+def execute_queries(reader: CaseReader, queries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Executa uma sequência limitada de consultas sobre o mesmo recorte."""
     if len(queries) > MAX_CALLS:
         raise ValueError("caso excede o teto de 12 chamadas")
     methods = {
@@ -274,9 +273,16 @@ def run_case(case: dict[str, Any]) -> dict[str, Any]:
         if method is None:
             raise ValueError("ferramenta não permitida")
         responses.append(method(**query["params"]))
+    return responses
+
+
+def run_case(case: dict[str, Any]) -> dict[str, Any]:
+    """Executa as consultas declaradas pelo caso e registra as respostas."""
+    reader = CaseReader(case)
+    responses = execute_queries(reader, case["queries"])
     return {
         "case_id": reader.case_id,
-        "origin": "synthetic",
+        "origin": reader.origin,
         "checkpoint_id": case["checkpoint_id"],
         "sim_now": case["sim_now"],
         "input_lsn": reader.input_lsn,
