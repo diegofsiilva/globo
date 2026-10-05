@@ -1,4 +1,4 @@
-"""Controla a rodada local Python × Go e grava amostras e relatório auditáveis."""
+"""Controla a rodada local Python × Go e grava amostras e metadados auditáveis."""
 
 from __future__ import annotations
 
@@ -116,103 +116,6 @@ def medir_processo(command: list[str], cpu: int, repetitions: int) -> dict:
     return result
 
 
-def relatorio(result: dict) -> str:
-    """Explica escopo e limitações junto dos números de todas as etapas."""
-    host, protocol = result["environment"], result["protocol"]
-    lines = [
-        "# Benchmark local exploratório — Python × Go",
-        "",
-        f"Rodada: **{result['label']}**. Paridade aprovada antes da medição em "
-        "49 cenários de regras, um ciclo base e quatro cargas (54 saídas completas).",
-        "",
-        "## Ambiente e protocolo",
-        "",
-        f"- Sistema: {host['os']} {host['os_release']} ({host['os_version']}), "
-        f"{host['architecture']}.",
-        f"- CPU: {host['cpu']}; {host['logical_cpus']} CPUs lógicas; "
-        f"memória física: {host['physical_memory_bytes'] / 2**30:.2f} GiB.",
-        f"- Ambos os filhos restritos à CPU lógica {protocol['cpu_affinity']}; "
-        "um processo medido por vez; Go com GOMAXPROCS=1.",
-        f"- {protocol['warmups']} aquecimentos e {protocol['repetitions']} amostras "
-        "por etapa e por linguagem. p95: nearest rank.",
-        "- Ordem das linguagens alternada entre cargas. Etapas na ordem: "
-        "qualidade, detector, candidatos, score, total.",
-        "- JSON, catálogos e entradas tipadas carregados antes do cronômetro. "
-        "Compilação, comparação, serialização e I/O fora dos tempos.",
-        "- GC padrão habilitado: CPython; Go GOGC=100 e GOMEMLIMIT=off. "
-        "Sem limite adicional de memória.",
-        "- Uma execução por perfil em uma máquina de desenvolvimento; frequência "
-        "da CPU, energia e processos externos não foram controlados.",
-        "",
-        "## Cálculo completo",
-        "",
-        "A razão é mediana Python / mediana Go; maior que 1 favorece Go. "
-        "O total é cronometrado separadamente e não é a soma das medianas.",
-        "",
-        "| Carga | Fatos | Python mediana (ms) | Python p95 (ms) | Go mediana (ms) | "
-        "Go p95 (ms) | Razão | RSS Python (MiB) | RSS Go (MiB) |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ]
-    for row in result["workloads"]:
-        py, go = row["python"], row["go"]
-        p, g = py["summary"]["total"], go["summary"]["total"]
-        lines.append(
-            f"| {row['id']} | {row['facts']} | {p['median_ms']:.4f} | "
-            f"{p['p95_ms']:.4f} | {g['median_ms']:.4f} | {g['p95_ms']:.4f} | "
-            f"{p['median_ms'] / g['median_ms']:.2f}× | "
-            f"{py['peak_rss_bytes'] / 2**20:.2f} | {go['peak_rss_bytes'] / 2**20:.2f} |"
-        )
-    lines += ["", "## Por etapa", ""]
-    for row in result["workloads"]:
-        lines += [
-            f"### {row['id']}",
-            "",
-            f"Runtimes: {row['python']['runtime']} e {row['go']['runtime']}.",
-            f"Relógios: {row['python']['clock']} (Python), {row['go']['clock']} (Go). "
-            f"Resoluções declaradas: {row['python']['clock_resolution_ns']:g} ns / "
-            f"{row['go']['clock_resolution_ns']:g} ns. "
-            "Overhead do cronômetro não subtraído.",
-            "",
-            "| Etapa | Python mediana (ms) | Python p95 (ms) | "
-            "Go mediana (ms) | Go p95 (ms) | Razão |",
-            "| --- | ---: | ---: | ---: | ---: | ---: |",
-        ]
-        for stage in STAGES:
-            p, g = row["python"]["summary"][stage], row["go"]["summary"][stage]
-            lines.append(
-                f"| {stage} | {p['median_ms']:.4f} | {p['p95_ms']:.4f} | "
-                f"{g['median_ms']:.4f} | {g['p95_ms']:.4f} | "
-                f"{p['median_ms'] / g['median_ms']:.2f}× |"
-            )
-        lines.append("")
-    lines += [
-        "## Interpretação e limites",
-        "",
-        "- A rodada mede estas implementações e estas cargas sintéticas. Não isola "
-        "o efeito da linguagem de diferenças de implementação e runtime.",
-        "- O pico de RSS inclui inicialização, dados, runtime, aquecimentos e todas "
-        "as etapas do processo. Não representa apenas alocações do motor nem "
-        "memória incremental por chamada.",
-        "- No Windows foi usado [PeakWorkingSetSize](https://learn.microsoft.com/"
-        "en-us/windows/win32/api/psapi/ns-psapi-process_memory_counters); "
-        "no Linux, o contador VmHWM do processo.",
-        "- Banco, captura, claim/lease, persistência, rede e ETL estão fora. "
-        "Estes números não estimam latência ou custo da arquitetura na AWS.",
-        "- A equipe ainda não definiu o ganho mínimo para justificar uma migração. "
-        "Esta rodada exploratória não aprova uma mudança de produção.",
-        "- Uma decisão posterior requer critério prévio, rodadas independentes "
-        "e medição do ciclo com banco em ambiente representativo.",
-        "",
-        "## Evidências",
-        "",
-        "O arquivo `resultados.json` ao lado contém todas as amostras em ns, "
-        "estatísticas, versões, hardware, ordem de execução e hashes SHA-256 dos "
-        "dados e do código. Os hashes permitem identificar também código sem commit.",
-        "",
-    ]
-    return "\n".join(lines)
-
-
 def executar(args) -> dict:
     """Compila antes da medição e compara perfis em processos novos sequenciais."""
     if platform.system() not in {"Windows", "Linux"}:
@@ -318,8 +221,8 @@ def main() -> None:
     (args.output_dir / "resultados.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    (args.output_dir / "relatorio.md").write_text(relatorio(result), encoding="utf-8")
-    print(f"Resultados salvos em {args.output_dir}")
+    print(f"Dados brutos salvos em {args.output_dir / 'resultados.json'}")
+    print("Documentação: artefatos/benchmark/benchmark-python-vs-golang.md")
 
 
 if __name__ == "__main__":
