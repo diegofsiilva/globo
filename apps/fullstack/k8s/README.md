@@ -1,9 +1,17 @@
 # Kubernetes — caminho síncrono do Argus
 
-O cluster orquestra **dashboard, API de leitura e os Jobs de banco** (migration
-e login de leitura). O caminho
+O cluster orquestra **dashboard, API de leitura, ingestão por arquivos e os Jobs
+de banco** (migration e login de leitura). O caminho
 assíncrono — workers de SQS, `processing`, `simulator` e `loader` — continua no
 **ECS Fargate**, sem nenhuma alteração.
+
+A ingestão por arquivos acrescenta `argus-file-api` e `argus-file-worker`, ambos
+usando a imagem `worker`, com fila PostgreSQL e sem clientes AWS nesse fluxo.
+O Ingress encaminha `/ingestion` à porta 5002. `make k8s-secret` inclui o hash
+`ingest` do segredo de autenticação e reinicia a API de arquivos após rotação.
+Aplique a migration 034 antes de subir esses Deployments. No kind, preencha
+`INGEST_TOKEN_SHA256` em `secret.env` com o hash da credencial local escolhida.
+Consulte [o runbook de arquivos](../worker/README.md).
 
 Isso é escolha de plataforma por característica de carga, não migração pela
 metade. As razões estão em [`infra/eks.tf`](../infra/eks.tf) e no artefato

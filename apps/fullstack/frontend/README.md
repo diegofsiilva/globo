@@ -12,9 +12,17 @@ worker e é cancelada ao fechar, trocar ou remover o arquivo; a amostra não
 valida o arquivo inteiro. Dentro da prévia, permite mapear as colunas ao envelope
 de eventos do app de TV e validar campos obrigatórios e tipos na amostra, com
 erros por linha. Mudar as escolhas exige nova validação; fechar a prévia descarta
-o mapeamento. Envio e processamento continuam pendentes, com “Enviar lote”
-desabilitado. O plano, os limites e as entregas estão em
+o mapeamento. Com a credencial de ingestão verificada nesta aba, “Enviar arquivo”
+envia o original inteiro para processamento assíncrono. A página acompanha
+contadores, rejeições e retomada de falhas temporárias; o histórico dos últimos
+50 protocolos permanece na aba ao recarregar. Tokens de leitura e escrita são
+independentes e nunca entram no bundle. O plano e as entregas estão em
 [plano-ingestao-arquivos.md](../../../artefatos/plano-ingestao-arquivos.md).
+
+O Ingress encaminha `/ingestion/*` ao serviço separado de arquivos, na mesma
+origem do dashboard. Em desenvolvimento com duas origens, configure
+`NEXT_PUBLIC_INGEST_API_URL` no build e `INGEST_CORS_ORIGINS` no serviço.
+Operação e limites: [worker/README.md](../worker/README.md).
 
 O contrato HTTP que a interface já chama e o que ela espera da API de leitura
 e do motor de hipóteses está em [rotas-frontend.md](./rotas-frontend.md).

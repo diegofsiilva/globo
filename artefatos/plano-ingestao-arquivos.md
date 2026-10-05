@@ -4,13 +4,21 @@ Branch: `feat/ingestao`. Página auxiliar: `/ingestao/`, aberta diretamente pela
 URL, sem entrada na sidebar. A tela reutiliza a sessão, a moldura e os tokens
 de tema do Argus. Formatos iniciais: CSV e Parquet.
 
-## Limite da primeira entrega (concluída)
+## Estado atual — 100% implementado
+
+Em 05/10/2026, o pedido explícito de finalizar autorizou concluir os marcos 7–8:
+**8 de 8 marcos concluídos**. A página continua auxiliar, sem item na sidebar,
+com a paleta existente. Há envio autenticado do original, processamento
+assíncrono durável, deduplicação, rejeições e retomada. Esta conclusão refere-se
+à implementação e validação local; publicação em AWS não foi executada.
+
+## Histórico da entrega parcial
 
 A primeira entrega executou **4 das 8 entregas abaixo (50% do plano)** e parou.
 Isso representa metade dos marcos de entrega, não uma estimativa de horas.
 Em 04/10/2026, a continuação solicitada avançou apenas o marco 5. Em 05/10/2026,
-a nova continuação concluiu o marco 6: agora são **6 de 8 marcos concluídos
-(75%)**. Nenhum dado é enviado ou gravado; os marcos 7–8 continuam pendentes.
+a nova continuação concluiu o marco 6, chegando a **6 de 8 marcos (75%)**.
+Até esse ponto não havia envio ou gravação; a finalização está registrada abaixo.
 
 | Marco | Entrega | Semana | Estado |
 | --- | --- | --- | --- |
@@ -20,8 +28,8 @@ a nova continuação concluiu o marco 6: agora são **6 de 8 marcos concluídos
 | 4 | Validar seleção local e testar rejeições, duplicatas e interação | Atual | Concluído |
 | 5 | Ler CSV e Parquet, detectar esquema e mostrar amostra limitada | Continuação | Concluído |
 | 6 | Mapear colunas à fonte de destino e validar tipos/campos obrigatórios | Continuação | Concluído |
-| 7 | Implementar envio autenticado e processamento assíncrono com idempotência | Próxima | Pendente |
-| 8 | Acompanhar processamento, rejeições e testar o fluxo integrado | Próxima | Pendente |
+| 7 | Implementar envio autenticado e processamento assíncrono com idempotência | Finalização | Concluído |
+| 8 | Acompanhar processamento, rejeições e testar o fluxo integrado | Finalização | Concluído |
 
 ## Critérios da primeira metade
 
@@ -49,7 +57,7 @@ codificação/delimitador CSV, esquema, autorização de destino e limites.
 Preservar `available_at` e a semântica do relógio virtual na adaptação ao domínio.
 Não carregar nem alterar o dump ou os Parquet cedidos pelo parceiro para testar.
 
-## Retomada
+## Retomada histórica após o marco 6
 
 Continuar na mesma branch a partir do marco 7, revisando os limites antes de
 implementar o contrato de upload. Os arquivos selecionados e suas amostras
@@ -143,3 +151,53 @@ e a ausência de item na sidebar. O botão “Enviar lote” continua desabilita
   escuro conferidos com dados sintéticos.
 - Envio autenticado, processamento assíncrono, idempotência e acompanhamento
   continuam intencionalmente sem implementação.
+
+## Finalização — 05/10/2026
+
+O pedido “finalize agora, 100%” concluiu os dois marcos restantes. A tela
+autoriza escrita com credencial independente da leitura, envia cada arquivo
+original por multipart e acompanha resultados sem acrescentar navegação.
+O serviço separado roda nos modos `file-api` e `file-worker` da imagem existente.
+A migration 034 acrescenta a fila PostgreSQL; não há dependência de S3/SQS no
+novo fluxo nem alteração da API de leitura.
+
+- Validação do arquivo completo no servidor, contagem de inseridos, duplicados
+  e rejeitados, até cem motivos sem valores pessoais e relatório JSON baixável.
+- Fingerprint de conteúdo/mapeamento e deduplicação canônica dos eventos;
+  conclusão e inserções na mesma transação. Testada interrupção depois de SQL
+  real: rollback sem falso sucesso, seguido de retomada com o mesmo protocolo.
+- Lease com fencing, recuperação de processamento interrompido, limite de
+  tentativas, limite de fila por credencial e descarte dos bytes após conclusão.
+- `available_at` vem de `sim.now()`; campos não mapeados são preservados.
+- Histórico de cinquenta protocolos por aba e consultas periódicas apenas
+  enquanto há jobs ativos. Recarregar mantém o acompanhamento; o processamento
+  não depende da página permanecer aberta.
+- Manifests AWS/kind, rota `/ingestion`, sondas, imagem multiarch, hash no Secret
+  e comandos Make versionados. Runbook em
+  [worker/README.md](../apps/fullstack/worker/README.md).
+
+Evidências desta finalização:
+
+- Frontend: **92 testes passaram em 16 arquivos**, incluindo oito novos casos
+  de autenticação de escrita, multipart original, polling, retomada e contrato.
+  Execução com `npm test -- --maxWorkers=2`, após falta de memória com o
+  paralelismo padrão. Lint e build estático passaram; `/ingestao` exportada.
+- Worker: **125 testes passaram com PostgreSQL real**; dezesseis casos novos
+  cobrem CSV, Parquet Snappy, linhas além da amostra, extras/identificadores,
+  deduplicação, autorização, leases, rollback, retry, limites e CORS. Um teste
+  legado de SIGTERM foi excluído no Windows, pois `os.kill(..., SIGTERM)` encerra
+  o processo em vez de exercitar o handler POSIX. Foi utilizado diretório
+  temporário próprio devido a uma pasta antiga do pytest sem permissão.
+- Ruff e formatação passaram. Overlays Kustomize renderizados; verificador
+  confirmou ordem do Ingress, quatro imagens multiarch e chaves dos Secrets.
+  O verificador foi executado com `uv run --project worker python`, pois não
+  há executável `python3` no PATH do Windows.
+- Chrome headless sobre o export: CSV com worker real, validação, envio do
+  original, polling e rejeição na linha 12; Parquet com parser real e aprovação
+  da amostra. Nesta verificação visual a fronteira HTTP foi simulada; a gravação
+  real foi exercitada separadamente pelos testes Python acima. Temas claro/escuro
+  e viewport de 390 px inspecionados, sem overflow horizontal ou erros de página.
+- Uma imagem Linux com as novas dependências foi construída. A reconstrução
+  final, após ajustar a sonda Docker, foi interrompida pela indisponibilidade
+  do Docker Desktop; essa imagem final e os Deployments não foram executados.
+  Não houve publicação na AWS. Nenhum dado do parceiro foi utilizado.
