@@ -1,5 +1,9 @@
 # Comparação local dos três casos sintéticos
 
+A comparação no checkpoint reconstruído com Ollama e motor determinístico está
+em [recorte-real-local.md](recorte-real-local.md), com resumo estruturado em
+[real-run-1.json](real-run-1.json).
+
 Executei `apps/fullstack/agente/scripts/comparar_casos.py` com o mesmo recorte
 causal em cada abordagem. O arquivo [resultados.json](resultados.json) contém os
 campos por caso para exploração no frontend; os registros completos do agente
