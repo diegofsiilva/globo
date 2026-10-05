@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { createHttpHypothesesSource } from "@/app/(operations)/hipoteses/_lib/http-source";
+import { HYPOTHESIS_FILTERS } from "@/app/(operations)/hipoteses/_lib/mapper";
 import { refineHypothesis } from "@/app/(operations)/hipoteses/_lib/refinement";
 
 describe("contrato HTTP da tela Hipóteses", () => {
@@ -80,6 +81,32 @@ describe("contrato HTTP da tela Hipóteses", () => {
     });
     expect(report.hypotheses[0].factors[0].contribution).toBe(82);
     expect(report.hypotheses[0].evidence[0].detail).toContain("12 contra 4 esperado");
+    // O que permite triar sem abrir cada hipótese: quando, de que tipo, com
+    // quanta evidência -- e de que lado cada evidência está.
+    expect(report.hypotheses[0]).toMatchObject({
+      summary: "Erro corroborado",
+      kind: "operacional",
+      coverage: 0.9,
+    });
+    expect(report.hypotheses[0].effect).toMatch(/^\d{2}\/\d{2} \d{2}:\d{2} → \d{2}:\d{2}$/);
+    expect(report.hypotheses[0].evidence[0].polarity).toBe("a favor");
+  });
+
+  test("[TA-12] os filtros da tela enviam os valores que a API valida", () => {
+    const valores = Object.fromEntries(
+      HYPOTHESIS_FILTERS.map((filtro) => [filtro.key, filtro.options]),
+    );
+
+    // A rota responde 422 a valor fora do conjunto fechado: o rótulo em
+    // português é só da tela.
+    expect(valores.family["falha interna de backend"]).toBe("backend_internal");
+    expect(Object.keys(valores.family)).toHaveLength(11);
+    expect(valores.kind).toEqual({
+      operacional: "operational",
+      contexto: "context",
+      "qualidade de dado": "data_quality",
+    });
+    expect(valores.confidence).toEqual({ alta: "high", média: "medium", baixa: "low" });
   });
 
   test("permite buscar a próxima página sem perder o recorte", async () => {
