@@ -993,6 +993,20 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 # O envio e separado da preparacao para permitir
 # revisar as 52 mudancas antes de colocá-las na fila.
 .PHONY: hypothesis-batch-prepare hypothesis-batch-send hypothesis-batch-verify
+.PHONY: hypothesis-agent-case
+hypothesis-agent-case: ## Repete um caso sintético do agente (AGENT_CASE=degradacao_sintetica)
+	@case_name="$${AGENT_CASE:-degradacao_sintetica}"; \
+	cd $(TOOLS) && $(UV) python agente_hipoteses_caso.py \
+	  --case "tests/fixtures/agente_hipoteses/$${case_name}.json"
+
+.PHONY: hypothesis-agent-db
+hypothesis-agent-db: ## Consulta fatos reais de um checkpoint (CHECKPOINT_ID=... ENTITY=... AGENT_QUERIES=...)
+	@$(call require_env,DATABASE_URL)
+	@test -n "$(CHECKPOINT_ID)" -a -n "$(ENTITY)" || { echo "CHECKPOINT_ID e ENTITY obrigatórios"; exit 1; }
+	@cd $(TOOLS) && $(UV) python agente_hipoteses_db.py \
+	  --checkpoint-id "$(CHECKPOINT_ID)" --entity "$(ENTITY)" \
+	  $(if $(AGENT_QUERIES),--queries "$(AGENT_QUERIES)")
+
 hypothesis-batch-prepare: ## Prepara lote CDC (BATCH_FILE=/caminho/fora/do/repo.json)
 	@$(call require_env,DATABASE_URL)
 	@test -n "$(BATCH_FILE)" || { echo "defina BATCH_FILE" >&2; exit 1; }

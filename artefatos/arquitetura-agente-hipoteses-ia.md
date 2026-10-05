@@ -1,6 +1,6 @@
 # Arquitetura inicial do agente de hipóteses com IA
 
-> Proposta de MVA — Dia 1. Este documento descreve uma alternativa experimental;
+> Proposta de MVA — Dias 1 e 2. Este documento descreve uma alternativa experimental;
 > não representa comportamento já implementado ou publicado no Argus.
 
 ## 1. Problema e primeira adição de valor
@@ -52,7 +52,8 @@ SQL arbitrário. A interface do agente deverá devolver somente campos
 selecionados, com identificador e proveniência. `attributes` exige seleção
 explícita por fonte antes de chegar ao modelo, para evitar carga irrelevante ou
 identificadores de usuário. O conjunto exato de métricas e atributos aceitos
-fica para o contrato de ferramentas do Dia 2.
+ainda depende de uma lista permitida por fonte; o contrato das três ferramentas
+está na seção 3.4.
 
 ### Limites semânticos dos dados
 
@@ -239,6 +240,188 @@ agente, declaração de evidência insuficiente, teto atingido ou saída rejeita
 pelo validador mais de uma vez. As duas últimas viram limitação do piloto no
 registro, nunca hipótese apresentada.
 
+### 3.4 Contrato das ferramentas de leitura — Pessoa 1, Dia 2
+
+Esta seção especifica **três ferramentas propostas**, ainda não implementadas.
+Todas leem o mesmo `recorte_id` aberto pelo executor. O `recorte_id` é opaco para
+o modelo e resolve, no leitor, `checkpoint_id`, `sim_now`, `input_lsn`, digest e
+o conjunto de fatos elegíveis. Nenhuma ferramenta aceita SQL, nome de tabela,
+`run_id` do motor atual ou horário posterior ao recorte.
+
+O leitor monta a fotografia uma vez e a mantém estável durante o caso. Um
+`fact_id` é o par `(fact_key, version_lsn)`; sua representação textual deve ser
+inequívoca e validada pelo leitor, sem depender de separar uma string arbitrária
+por `:`. O campo `role` (`subject`, `context`, `quality`) vem da seleção de entrada
+do processamento, não de `silver.analysis_fact_version`. Para o piloto, a
+seleção pode inspirar-se nela sem consumir `detect.run_input_fact`: usar essa
+tabela amarraria a entrada do agente ao run do motor atual. O digest do piloto
+deve cobrir os `fact_id` e papéis efetivamente expostos, ordenados de modo
+canônico; não se deve chamar esse valor de `detect.run.input_digest`.
+
+**Envelope comum de resposta:** `recorte_id`, `tool`, `items`, `returned`,
+`has_more`, `next_cursor` e `limitations`. `items` nunca excede 200 elementos.
+O cursor é opaco, vinculado ao recorte e aos filtros, e a ordenação é estável;
+uma mudança de filtros com o mesmo cursor é erro. `limitations` distingue
+resultado vazio, campo nulo, fonte ausente e corte por limite. Paginação consome
+uma nova chamada do teto de 12 chamadas do caso. O executor mede os 5 minutos
+de parede; as ferramentas aplicam o limite de linhas independentemente do
+prompt. Parâmetros inválidos ou fora do recorte falham explicitamente, sem
+ampliar a janela em silêncio.
+
+#### Ferramenta 1 — `inventariar_fatos`
+
+**Finalidade:** orientar a investigação sem apontar uma anomalia. É a única
+ferramenta sem filtros escolhidos pelo agente: recebe apenas `recorte_id` e um
+cursor opcional. Devolve, por `source`, `kind`, `entity`, `metric` e
+`dimension_type`, a contagem de fatos elegíveis, menor/maior `event_start`,
+menor/maior `available_at` e indicação de valores ou amostras nulos. A
+ordenação é lexicográfica por esses cinco campos. Valores concretos de dimensão
+não entram no inventário inicial; o agente os consulta nas outras ferramentas.
+
+```json
+{"tool":"inventariar_fatos","recorte_id":"recorte-opaco","cursor":null}
+```
+
+O inventário não calcula `z`, baseline, score, ranking ou rótulo de suspeita.
+Contagem zero significa apenas ausência no recorte, nunca saúde da fonte. A
+resposta informa a janela e o `sim_now` do recorte para que o agente saiba o
+alcance das observações. Cada grupo traz uma referência estável ao conjunto de
+`fact_id` que contou; a resolução dessa referência fica no leitor e deve
+permitir conferência sem enviar milhares de IDs ao modelo.
+
+#### Ferramenta 2 — `consultar_serie`
+
+**Finalidade:** observar a evolução de uma métrica e comparar duas janelas
+consultadas separadamente. Recebe `recorte_id`, `source`, `entity`, `metric`,
+`inicio`, `fim`, `dimension_type` e `dimension_value` opcionais, `limit` entre 1
+e 200 e cursor opcional. `inicio` e `fim` são inclusivos, ambos em UTC,
+e `inicio < fim <= sim_now`. `source`, `entity` e `metric` devem corresponder a
+uma combinação anunciada pelo inventário. Dimensão só pode ser usada como par
+tipo/valor existente; `?` e `(desconhecido)` não são aceitos como recorte.
+
+```json
+{"tool":"consultar_serie","recorte_id":"recorte-opaco","source":"fonte-inventariada","entity":"entidade-inventariada","metric":"metrica-inventariada","inicio":"2026-08-20T19:00:00Z","fim":"2026-08-20T20:00:00Z","dimension_type":null,"dimension_value":null,"limit":100,"cursor":null}
+```
+
+A resposta devolve fatos `kind=metric` em ordem de `event_start`, `fact_key` e
+`version_lsn`, com `fact_id`, `source`, `entity`, `metric`, `event_start`,
+`available_at`, `value`, `sample_size`, dimensão e unidade catalogada quando
+existir. `value=null` continua nulo. A ferramenta não rotula pontos como
+anômalos, não calcula baseline e não faz junção entre dimensões marginais.
+Para comparar períodos, o agente faz duas consultas com os mesmos filtros e
+janelas explícitas; as duas respostas permanecem ligadas ao mesmo recorte.
+Uma janela sem fatos devolve `items=[]` e uma limitação de cobertura, não uma
+série de zeros. O leitor rejeita janela fora do recorte e combinações de
+dimensão que o catálogo não sustenta.
+
+#### Ferramenta 3 — `consultar_contexto`
+
+**Finalidade:** examinar fatos que possam sustentar ou contrariar uma causa
+proposta, como deploy, evento ao vivo, sinal de borda ou outra série. Recebe
+`recorte_id`, `inicio`, `fim`, `entity` opcional, `source` opcional,
+`kinds` opcional (subconjunto de `metric` e `context`), `limit` entre 1 e 200
+e cursor opcional. Pelo menos `entity` ou `source` deve estar presente; ambos
+precisam vir do inventário. A janela segue a mesma regra temporal da série.
+Não há busca textual livre nem expansão automática para entidades parecidas.
+
+```json
+{"tool":"consultar_contexto","recorte_id":"recorte-opaco","inicio":"2026-08-20T19:00:00Z","fim":"2026-08-20T20:00:00Z","entity":"entidade-inventariada","source":null,"kinds":["context","metric"],"limit":100,"cursor":null}
+```
+
+A resposta vem em ordem de `event_start`, `source`, `fact_key` e `version_lsn`.
+Cada item contém `fact_id`, `kind`, fonte, entidade, métrica ou tipo de evento,
+`event_start`, `event_end`, `available_at`, valor e dimensão quando aplicáveis.
+Somente atributos previamente permitidos para a fonte podem aparecer; campos
+de identificação pessoal e payload bruto ficam de fora. Para um evento com
+`event_end` conhecido, a busca inclui também eventos que **se sobrepõem** à
+janela (`event_start <= fim` e `event_end >= inicio`); sem fim conhecido, usa
+`event_start` na janela. Isso permite examinar um evento ao vivo ou deploy
+iniciado antes do efeito sem consultar o futuro.
+
+O agente pode fazer uma consulta de contexto para cada explicação rival. Uma
+resposta vazia não prova que o evento não ocorreu: ela informa os filtros,
+a cobertura do recorte e possíveis fontes atrasadas. O leitor não converte
+proximidade temporal em causalidade.
+
+#### Regras verificáveis das três ferramentas
+
+| Situação | Comportamento exigido |
+|---|---|
+| Fato tem `event_start` anterior, mas `available_at > sim_now` | Não aparece em inventário, série ou contexto. |
+| Há duas versões da mesma `fact_key` até `input_lsn` | Só a versão mais recente elegível compõe o recorte. |
+| Há versão de exclusão até `input_lsn` | O fato não é exposto por versão anterior. |
+| Consulta pede `fim > sim_now`, dimensão inválida ou cursor de outro filtro | Erro explícito; nenhuma ampliação silenciosa. |
+| Resultado ultrapassa `limit` | Página estável, `has_more=true` e cursor vinculado ao recorte e filtros. |
+| Fonte não tem observações na janela | `items=[]` com limitação de cobertura; sem inferência de normalidade. |
+| O agente cita um `fact_id` no resultado | O validador confirma sua presença no recorte e sua exposição em ao menos uma resposta registrada. |
+
+Esses são critérios de implementação e de teste para os dias seguintes. A
+documentação não afirma que já existem permissões de leitura, adaptadores ou
+execuções do modelo para essas ferramentas.
+
+### 3.5 Casos reproduzíveis — Pessoa 1, Dia 3
+
+Os primeiros casos ficam em
+[`apps/fullstack/tools/tests/fixtures/agente_hipoteses`](../apps/fullstack/tools/tests/fixtures/agente_hipoteses).
+São **dados sintéticos**, criados para exercitar o contrato de leitura; não são
+incidentes do parceiro nem evidência de qualidade da IA. Cada arquivo fixa
+`checkpoint_id`, `sim_now`, `input_lsn`, versões de fatos e uma sequência de
+consultas. Os resultados esperados são:
+
+| Caso | O que deve aparecer | O que deve ficar de fora |
+|---|---|---|
+| `degradacao_sintetica` | Última versão da taxa de erro, valor anterior e evento de deploy disponível. | Versão antiga da taxa, fato NPAW disponível só após `sim_now` e fato removido por tombstone. |
+| `evidencia_insuficiente` | Métrica com `value=null`, sem inventar zero. | Fato NPAW atrasado; a consulta de contexto volta vazia. |
+
+Um executor local pode repetir as consultas declaradas nesses arquivos e
+registrar recorte, digest e respostas. Ele **não escolhe consultas nem gera
+hipóteses**: essa será a responsabilidade do agente da Pessoa 2. Antes de usar
+um checkpoint real, ainda é preciso implementar um leitor autorizado do banco
+com as mesmas regras temporais e selecionar casos sem usar rótulos como entrada.
+
+O executor sintético está em
+[`apps/fullstack/tools/agente_hipoteses_caso.py`](../apps/fullstack/tools/agente_hipoteses_caso.py).
+Para repetir os casos a partir da raiz do repositório:
+
+```bash
+make -C apps/fullstack hypothesis-agent-case AGENT_CASE=degradacao_sintetica
+make -C apps/fullstack hypothesis-agent-case AGENT_CASE=evidencia_insuficiente
+```
+
+Ele imprime JSON com `origin: synthetic`, `recorte_id`, `pilot_digest` e respostas das
+três ferramentas. Não consulta PostgreSQL nem executa modelo. Esse resultado
+verifica apenas o contrato local; não mede se uma hipótese é correta.
+
+### 3.6 Leitor operacional local — Pessoa 1, Dia 4
+
+O leitor em [`apps/fullstack/tools/agente_hipoteses_db.py`](../apps/fullstack/tools/agente_hipoteses_db.py)
+abre uma transação `REPEATABLE READ READ ONLY`, obtém `ready_through` e
+`source_lsn` de um checkpoint já alcançado por `sim.now()` e seleciona a última
+versão disponível de cada `fact_key`. A seleção elimina tombstones e limita a
+investigação a uma entidade exata e uma janela anterior de até 24 horas. O
+limite inicial é 10 mil fatos; excesso gera erro, sem truncamento silencioso.
+As três ferramentas da seção 3.4 operam sobre esse recorte já carregado, sem
+outras consultas ao banco durante a investigação.
+
+O papel `subject` é atribuído aos fatos desde o checkpoint anterior do mesmo
+replay; os demais recebem `context`. Isso é uma classificação de entrada do
+piloto, não uma anomalia nem um rótulo do motor atual. O digest `pilot_digest`
+identifica apenas o recorte exposto pelo piloto.
+
+Com `DATABASE_URL` local já configurada no ambiente, execute
+`make -C apps/fullstack hypothesis-agent-db CHECKPOINT_ID=101 ENTITY=playback-api`,
+substituindo o ID e a entidade pelos valores do seu banco local. Sem outro
+argumento, o comando executa `inventariar_fatos`. Para consultar série e
+contexto, passe `AGENT_QUERIES=/caminho/consultas.json`; o arquivo deve conter
+uma lista JSON de até 12 objetos `{"tool":"consultar_serie","params":{...}}`
+ou `{"tool":"consultar_contexto","params":{...}}`, seguindo a seção 3.4.
+
+O comando exige uma conexão operacional autorizada a ler `etl.gold_checkpoint`
+e `silver.analysis_fact_version`; `argus_reader` não possui esse acesso. O
+comando rejeita host remoto. A saída de inventário é JSON local; não publica
+hipóteses nem escreve nas tabelas do Argus. A seleção por entidade é o recorte
+do MVA e não cobre correlações com entidades de nome diferente.
+
 ## 4. Responsabilidades e decisões
 
 ### 4.1 Responsabilidade por componente
@@ -269,7 +452,7 @@ registro, nunca hipótese apresentada.
 | Decisão | Onde ela fica |
 |---|---|
 | O que é visível no recorte, incluindo o corte por `sim_now` e `input_lsn` | Leitor de fatos |
-| Quais ferramentas existem e o que cada uma devolve | Contrato de ferramentas, fechado no Dia 2 |
+| Quais ferramentas existem e o que cada uma devolve | Contrato proposto na seção 3.4; implementação pendente |
 | Quantas chamadas, quantas linhas e quanto tempo um caso pode consumir | Guardas do executor |
 | Se um `fact_id` citado existe e pertence ao recorte | Validador |
 | Qual é o formato aceito da resposta | Contrato de saída, fechado no Dia 2 |
@@ -307,7 +490,7 @@ encerrado por teto não produz hipótese apresentável.
   posse do cursor de progresso e não reutiliza o commit protegido do motor
   determinístico.
 - O modelo não recebe credenciais de banco, string de conexão nem SQL livre.
-- A forma de acesso ao banco fica para o Dia 2. As permissões atuais do
+- A forma de acesso ao banco ainda precisa ser implementada. As permissões atuais do
   `argus_reader` cobrem apenas views públicas e não autorizam supor leitura
   direta de `silver.analysis_fact_version`.
 - `attributes` só chega ao modelo com seleção explícita por fonte, sem
@@ -337,7 +520,8 @@ publicação automática.
 execução ponta a ponta. Os limites gerais do piloto estão na seção 5; esta seção
 trata apenas do que o Dia 1 não fecha.
 
-No Dia 2, fechar quatro decisões para implementação paralela por duas pessoas:
+No Dia 2, a Pessoa 1 especificou as três ferramentas. As demais decisões
+permanecem como próximos passos para implementação paralela:
 
 | Decisão | Responsável sugerido | Critério de aceite | Estado |
 |---|---|---|---|
