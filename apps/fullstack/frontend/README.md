@@ -9,8 +9,11 @@ entrada na sidebar. Permite selecionar CSV/Parquet, organizar o lote, validar
 extensão/tamanho/duplicatas e abrir uma prévia local de até dez linhas com as
 colunas detectadas, usando os mesmos temas do dashboard. A leitura roda em
 worker e é cancelada ao fechar, trocar ou remover o arquivo; a amostra não
-valida o arquivo inteiro. Mapeamento e envio continuam pendentes, com o botão
-de revisão do destino desabilitado. O plano, os limites e as entregas estão em
+valida o arquivo inteiro. Dentro da prévia, permite mapear as colunas ao envelope
+de eventos do app de TV e validar campos obrigatórios e tipos na amostra, com
+erros por linha. Mudar as escolhas exige nova validação; fechar a prévia descarta
+o mapeamento. Envio e processamento continuam pendentes, com “Enviar lote”
+desabilitado. O plano, os limites e as entregas estão em
 [plano-ingestao-arquivos.md](../../../artefatos/plano-ingestao-arquivos.md).
 
 O contrato HTTP que a interface já chama e o que ela espera da API de leitura

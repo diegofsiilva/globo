@@ -8,9 +8,9 @@ de tema do Argus. Formatos iniciais: CSV e Parquet.
 
 A primeira entrega executou **4 das 8 entregas abaixo (50% do plano)** e parou.
 Isso representa metade dos marcos de entrega, não uma estimativa de horas.
-Em 04/10/2026, a continuação solicitada avançou apenas o marco 5: agora são
-**5 de 8 marcos concluídos (62,5%)**. Nenhum dado é enviado ou gravado; os marcos
-6–8 continuam reservados à próxima entrega.
+Em 04/10/2026, a continuação solicitada avançou apenas o marco 5. Em 05/10/2026,
+a nova continuação concluiu o marco 6: agora são **6 de 8 marcos concluídos
+(75%)**. Nenhum dado é enviado ou gravado; os marcos 7–8 continuam pendentes.
 
 | Marco | Entrega | Semana | Estado |
 | --- | --- | --- | --- |
@@ -19,7 +19,7 @@ Em 04/10/2026, a continuação solicitada avançou apenas o marco 5: agora são
 | 3 | Selecionar/arrastar múltiplos CSV e Parquet, listar e remover arquivos | Atual | Concluído |
 | 4 | Validar seleção local e testar rejeições, duplicatas e interação | Atual | Concluído |
 | 5 | Ler CSV e Parquet, detectar esquema e mostrar amostra limitada | Continuação | Concluído |
-| 6 | Mapear colunas à fonte de destino e validar tipos/campos obrigatórios | Próxima | Pendente |
+| 6 | Mapear colunas à fonte de destino e validar tipos/campos obrigatórios | Continuação | Concluído |
 | 7 | Implementar envio autenticado e processamento assíncrono com idempotência | Próxima | Pendente |
 | 8 | Acompanhar processamento, rejeições e testar o fluxo integrado | Próxima | Pendente |
 
@@ -51,7 +51,7 @@ Não carregar nem alterar o dump ou os Parquet cedidos pelo parceiro para testar
 
 ## Retomada
 
-Continuar na mesma branch a partir do marco 6, revisando os limites antes de
+Continuar na mesma branch a partir do marco 7, revisando os limites antes de
 implementar o contrato de upload. Os arquivos selecionados e suas amostras
 existem apenas na memória da página e são descartados
 ao recarregar ou sair. Não prometer sucesso de ingestão nesta etapa.
@@ -102,3 +102,44 @@ da sidebar. Não foram implementados mapeamento, upload nem processamento.
   Parquet Snappy sintéticos, preservação de identificadores e inteiros grandes,
   remoção da prévia e viewport móvel sem rolagem horizontal. Capturas claro e
   escuro inspecionadas. Nenhum dado do parceiro utilizado.
+
+## Continuação — 05/10/2026
+
+O marco 6 adiciona o mapeamento dentro da prévia de cada arquivo. O destino
+suportado nesta etapa é o envelope de eventos do app de TV, baseado em
+`apps/fullstack/worker/src/argus_worker/models.py`; não é uma importação das
+33 tabelas da carga inicial nem do fluxo CDC. A página mantém a paleta, a sessão
+e a ausência de item na sidebar. O botão “Enviar lote” continua desabilitado.
+
+- Obrigatórios: `timestamp`, `event_name`, `session_id` e `device_id`.
+- Opcionais nesta revisão: `event_id`, `user_id`, `app_version`, `device_model`,
+  `duration`, `request_status`, `media_ads` e `media_drm`. Outros campos continuam
+  no arquivo original e são sinalizados como fora desta revisão.
+- Sugestão por nome exato, ignorando espaços nas extremidades e maiúsculas;
+  cabeçalhos ambíguos não são selecionados automaticamente. Escolha manual e
+  limpeza de mapeamento disponíveis. A mesma coluna não pode servir a dois campos.
+- Validação explícita da amostra com problemas por campo e linha. Mudar uma
+  escolha ou aplicar sugestões remove o resultado anterior e exige revalidação.
+- Campos obrigatórios não podem estar vazios. Datas devem ser ISO 8601, com
+  calendário e fuso válidos; datas sem fuso são sinalizadas como UTC, conforme
+  o worker. Epoch numérico e datas em formatos locais não são convertidos nesta tela.
+- Números devem ser finitos; inteiros não podem perder precisão em JavaScript;
+  booleanos aceitam `true`, `false`, `1` e `0`. Opcionais vazios são permitidos.
+  Tipos desconhecidos de evento geram aviso, seguindo o fallback genérico do worker.
+- Valores cortados pela prévia e conteúdos estruturados/binários Parquet são
+  marcados pelo parser e não podem receber aprovação para campos escalares.
+  Os valores originais não são sobrescritos nem transformados em payload de upload.
+- Escolhas e resultado são efêmeros: fechar/trocar a prévia ou remover o arquivo
+  os descarta. A aprovação refere-se apenas às linhas da amostra; a validação do
+  arquivo completo, a autorização e os limites do servidor permanecem no marco 7.
+- `make -C apps/fullstack test-frontend`: 84 testes passaram em 14 arquivos;
+  28 novos casos cobrem regras de mapeamento, tipos e interação do formulário.
+- Lint e build estático passaram. Corrigida a inclusão indevida de arquivos
+  gerados em `out/` na checagem TypeScript, que fazia um build subsequente falhar;
+  `tsconfig.json` agora exclui esse diretório, mantendo a checagem do código-fonte.
+- Chrome headless sobre o export confirmou sugestão, aprovação da amostra,
+  rejeição de coluna reutilizada, invalidação/revalidação, descarte ao fechar,
+  envio desabilitado e viewport móvel sem rolagem horizontal. Temas claro e
+  escuro conferidos com dados sintéticos.
+- Envio autenticado, processamento assíncrono, idempotência e acompanhamento
+  continuam intencionalmente sem implementação.
