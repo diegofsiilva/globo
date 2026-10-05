@@ -205,6 +205,17 @@ function normalizeTrend(values: number[]): number[] {
   return values.map((value) => Math.round(((value - min) / span) * 30) + 4);
 }
 
+/**
+ * Caminho da tela de Hipóteses já restrita ao sinal.
+ *
+ * `source` e `entity` são os filtros de evidência que `GET /api/v1/hypotheses`
+ * aceita: a lista abre só com as hipóteses que citam esta série.
+ */
+function hypothesesPath(item: SignalItem): string {
+  const params = new URLSearchParams({ source: item.source, entity: item.entity });
+  return `/hipoteses?${params}`;
+}
+
 /** Converte um sinal da API na forma que a tabela/painel de detalhe espera. */
 export function toSignalDeviation(item: SignalItem): SignalDeviation {
   const delta = item.current_value - item.baseline;
@@ -241,8 +252,11 @@ export function toSignalDeviation(item: SignalItem): SignalDeviation {
       `desvio ${severityLabelLong(item.severity)} há ${item.consecutive_buckets_over_threshold} ` +
       `bucket(s) seguido(s) acima do limiar.`,
     relatedPaths: {
-      timeline: `/timeline?sinal=${item.id}`,
-      cut: `/recorte?sinal=${item.id}`,
+      // `t` é o que a Timeline lê para centrar a janela; só com `sinal` ela
+      // abria na janela que termina agora, com o desvio fora do eixo.
+      timeline: `/timeline?sinal=${encodeURIComponent(item.id)}&t=${encodeURIComponent(item.detected_at)}`,
+      cut: `/recorte?sinal=${encodeURIComponent(item.id)}`,
+      hypotheses: hypothesesPath(item),
     },
   };
 }
@@ -273,6 +287,7 @@ export function toActiveDegradation(item: SignalItem) {
     title: item.title,
     detectedAt: formatTime(item.detected_at),
     metric: item.metric,
+    hypothesesPath: hypothesesPath(item),
     currentValue: formatMetricValue(item.metric, item.current_value),
     impactedSessions: item.sessions_impacted?.toLocaleString("pt-BR") ?? null,
     baselineMultiplier: item.multiplier != null ? `×${formatNumber(item.multiplier)}` : "—",
