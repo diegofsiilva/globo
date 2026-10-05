@@ -11,14 +11,21 @@ import json
 from collections.abc import Iterable
 from pathlib import Path
 
-from argus_agente.contrato import RegistroDoCaso
+from argus_agente.contrato import (
+    DESFECHO_ERRO,
+    DESFECHO_HIPOTESE,
+    DESFECHO_INSUFICIENTE,
+    DESFECHO_INVALIDA,
+    DESFECHO_TETO,
+    RegistroDoCaso,
+)
 
 ROTULOS = {
-    "hipotese": "hipotese",
-    "evidencia_insuficiente": "evidencia insuficiente",
-    "teto_atingido": "teto atingido",
-    "resposta_invalida": "resposta invalida",
-    "erro_de_execucao": "erro de execucao",
+    DESFECHO_HIPOTESE: "hipotese",
+    DESFECHO_INSUFICIENTE: "evidencia insuficiente",
+    DESFECHO_TETO: "teto atingido",
+    DESFECHO_INVALIDA: "resposta invalida",
+    DESFECHO_ERRO: "erro de execucao",
 }
 
 
@@ -131,8 +138,9 @@ def _detalhe(registro: RegistroDoCaso) -> list[str]:
         f"## {registro.case_id}",
         "",
         f"- Desfecho: **{ROTULOS.get(registro.desfecho, registro.desfecho)}**",
-        f"- Recorte: `{registro.recorte.get('digest', '-')}` "
+        f"- Recorte: `{registro.recorte.get('recorte_id', '-')}` "
         f"em `{registro.recorte.get('sim_now', '-')}`",
+        f"- Digest: `{str(registro.recorte.get('digest', '-'))[:16]}`",
         f"- Modelo: `{registro.modelo.get('model', '-')}`, "
         f"prompt `{registro.prompt_version}`",
     ]
@@ -160,8 +168,10 @@ def _detalhe(registro: RegistroDoCaso) -> list[str]:
     if not registro.consultas:
         linhas.append("- nenhuma")
     for consulta in registro.consultas:
+        limitacoes = ", ".join(consulta.get("limitacoes", ())) or None
         detalhe = consulta.get("erro") or (
-            consulta.get("vazia_porque") or f"{consulta['linhas']} linhas"
+            f"{consulta['retornadas']} itens"
+            + (f" ({limitacoes})" if limitacoes else "")
         )
         linhas.append(
             f"- `{consulta['ferramenta']}` {consulta['argumentos']} -> {detalhe}"

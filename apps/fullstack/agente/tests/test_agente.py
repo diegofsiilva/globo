@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import itertools
 
-from conftest import INICIO, conclusao, consulta_serie
+from conftest import (
+    FIM_JANELA,
+    INICIO,
+    conclusao,
+    consulta_serie,
+    fact_ids_da_serie,
+    iso,
+)
 
 from argus_agente.agente import investigar
 from argus_agente.limites import Orcamento
 from argus_agente.modelo import ModeloDeRoteiro, ModeloIndisponivel
-
-TODOS = [f"prometheus:http_5xx_rate:{15 * i}" for i in range(13)]
 
 
 def _relogio_parado():
@@ -18,14 +23,16 @@ def _relogio_parado():
 
 
 def test_investigacao_feliz_grava_hipotese_consultas_e_digest(caso, ferramentas):
-    modelo = ModeloDeRoteiro([consulta_serie(), conclusao(TODOS[:3])])
+    todos = fact_ids_da_serie(ferramentas)
+    modelo = ModeloDeRoteiro([consulta_serie(), conclusao(todos[:3])])
     registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
 
     assert registro.desfecho == "hipotese"
     assert registro.hipotese["statement"].startswith("Possivel")
-    assert registro.consultas[0]["ferramenta"] == "serie"
-    assert registro.consultas[0]["linhas"] == 13
-    assert registro.recorte["digest"].startswith("sha256:")
+    assert registro.consultas[0]["ferramenta"] == "consultar_serie"
+    assert registro.consultas[0]["retornadas"] == 13
+    assert registro.recorte["digest"] == ferramentas.digest
+    assert registro.entrada
     assert registro.metricas["consumo"]["chamadas"] == 1
     assert registro.validacao["aprovado"] is True
 
@@ -80,15 +87,17 @@ def test_resposta_malformada_ganha_uma_correcao_e_depois_encerra(caso, ferrament
 
 
 def test_correcao_aceita_a_segunda_resposta_quando_ela_e_valida(caso, ferramentas):
-    modelo = ModeloDeRoteiro(["{{nao json", consulta_serie(), conclusao(TODOS[:2])])
+    todos = fact_ids_da_serie(ferramentas)
+    modelo = ModeloDeRoteiro(["{{nao json", consulta_serie(), conclusao(todos[:2])])
     registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
     assert registro.desfecho == "hipotese"
     assert registro.passos[0]["problemas"]
 
 
 def test_hipotese_que_inventa_fato_e_devolvida_ao_modelo(caso, ferramentas):
+    todos = fact_ids_da_serie(ferramentas)
     modelo = ModeloDeRoteiro(
-        [consulta_serie(), conclusao(["fato:inexistente"]), conclusao(TODOS[:2])]
+        [consulta_serie(), conclusao(["fato:inexistente"]), conclusao(todos[:2])]
     )
     registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
     assert registro.desfecho == "hipotese"
@@ -108,23 +117,25 @@ def test_modelo_indisponivel_vira_erro_de_execucao(caso, ferramentas):
 
 
 def test_erro_de_ferramenta_entra_no_rastro_e_consome_chamada(caso, ferramentas):
-    ruim = consulta_serie()
-    ruim["arguments"]["agregacao"] = "mediana"
-    modelo = ModeloDeRoteiro([ruim, consulta_serie(), conclusao(TODOS[:2])])
+    todos = fact_ids_da_serie(ferramentas)
+    # Serie que nao consta do inventario: o leitor recusa, e a recusa precisa
+    # voltar ao modelo como dado em vez de derrubar o caso.
+    ruim = consulta_serie(metric="metrica_que_nao_existe")
+    modelo = ModeloDeRoteiro([ruim, consulta_serie(), conclusao(todos[:2])])
     registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
-    assert registro.consultas[0]["erro"].startswith("ArgumentoInvalido")
+    assert registro.consultas[0]["erro"].startswith("ValueError")
     assert registro.metricas["consumo"]["chamadas"] == 2
     assert registro.desfecho == "hipotese"
 
 
-def test_linha_de_inventario_nao_pode_sustentar_hipotese(caso, ferramentas):
+def test_inventario_sozinho_nao_sustenta_hipotese(caso, ferramentas):
     inventario = {
         "action": "consultar",
         "rationale": "ver o que existe",
-        "tool": "inventario",
+        "tool": "inventariar_fatos",
         "arguments": {},
     }
-    citando_inventario = conclusao(["inventario:prometheus:playback:http_5xx_rate"])
+    citando_inventario = conclusao(["prometheus:playback:http_5xx_rate"])
     modelo = ModeloDeRoteiro([inventario, citando_inventario, citando_inventario])
     registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
     assert registro.desfecho == "resposta_invalida"
@@ -134,14 +145,18 @@ def test_contexto_do_deploy_fica_citavel(caso, ferramentas):
     pedido = {
         "action": "consultar",
         "rationale": "procurar mudanca operacional",
-        "tool": "contexto",
+        "tool": "consultar_contexto",
         "arguments": {
-            "tipos": ["deploy"],
-            "inicio": INICIO.isoformat(),
-            "fim": caso.recorte.janela_fim.isoformat(),
+            "entity": "playback",
+            "kinds": ["context"],
+            "inicio": iso(INICIO),
+            "fim": iso(FIM_JANELA),
         },
     }
-    modelo = ModeloDeRoteiro([pedido, conclusao(["deploy:playback:1"])])
+    deploy = ferramentas.consultar_contexto(
+        entity="playback", kinds=["context"], inicio=iso(INICIO), fim=iso(FIM_JANELA)
+    )["items"][0]["fact_id"]
+    modelo = ModeloDeRoteiro([pedido, conclusao([deploy])])
     registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
     assert registro.desfecho == "hipotese"
-    assert registro.consultas[0]["fact_ids"] == ["deploy:playback:1"]
+    assert registro.consultas[0]["fact_ids"] == [deploy]

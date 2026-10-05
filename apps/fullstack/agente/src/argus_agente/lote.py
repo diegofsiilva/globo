@@ -15,7 +15,7 @@ from typing import Any
 
 from argus_agente.agente import investigar
 from argus_agente.casos import carregar_caso
-from argus_agente.contrato import RegistroDoCaso
+from argus_agente.contrato import DESFECHO_ERRO, RegistroDoCaso
 from argus_agente.limites import Orcamento
 from argus_agente.registro import escrever_lote
 
@@ -59,7 +59,7 @@ def _um_caso(
         log.warning("caso %s nao pode ser carregado: %s", caminho.name, erro)
         return RegistroDoCaso(
             case_id=caminho.stem,
-            desfecho="erro_de_execucao",
+            desfecho=DESFECHO_ERRO,
             motivo=f"caso invalido: {erro}",
         )
     try:
@@ -70,6 +70,6 @@ def _um_caso(
         log.exception("caso %s falhou", caso.case_id)
         return RegistroDoCaso(
             case_id=caso.case_id,
-            desfecho="erro_de_execucao",
+            desfecho=DESFECHO_ERRO,
             motivo=f"{type(erro).__name__}: {erro}"[:200],
         )

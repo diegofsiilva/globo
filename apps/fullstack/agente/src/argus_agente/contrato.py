@@ -1,4 +1,4 @@
-"""Contratos de entrada e saida do piloto -- a entrega do Dia 2.
+"""Contratos de entrada e saida do piloto.
 
 Tres contratos convivem aqui, e a separacao entre eles e deliberada:
 
@@ -7,9 +7,11 @@ Tres contratos convivem aqui, e a separacao entre eles e deliberada:
     ou desistir por falta de evidencia. E o schema entregue ao Ollama no campo
     `format`, e e revalidado em Python porque `format` restringe a geracao, nao
     garante semantica.
-2.  As dataclasses `Caso`, `ItemInventario` e `LinhaDeFato` descrevem o que o
-    EXECUTOR entrega ao modelo. Nada aqui carrega anomalia, score ou hipotese do
-    motor deterministico (artefatos/arquitetura-agente-hipoteses-ia.md, 4.3).
+2.  O contrato de LEITURA -- nomes das ferramentas, argumentos aceitos e
+    envelope de resposta -- nao e definido aqui. Ele vive em
+    `artefatos/arquitetura-agente-hipoteses-ia.md`, secao 3.4, e e implementado
+    pelo `CaseReader` importado em `leitor.py`. Este modulo apenas repete os
+    nomes e argumentos para poder validar o que o modelo pede antes de chamar.
 3.  `RegistroDoCaso` e o envelope que o EXECUTOR escreve. O historico de
     consultas mora nele, e nao na resposta do modelo: um historico narrado pelo
     proprio modelo nao serve de rastro.
@@ -21,9 +23,11 @@ import datetime as dt
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "2.0.0"
 
-FERRAMENTAS = ("inventario", "serie", "contexto")
+# Os nomes sao os da secao 3.4 do documento de arquitetura. Mudar um deles aqui
+# sem mudar o leitor quebra o despacho em silencio.
+FERRAMENTAS = ("inventariar_fatos", "consultar_serie", "consultar_contexto")
 ACOES = ("consultar", "concluir", "desistir")
 
 # Por que a lacuna existe. Separar "o dado nao existe" de "o dado ainda nao
@@ -38,15 +42,30 @@ MOTIVOS_DE_LACUNA = (
 
 # Como o caso terminou. So os dois primeiros produzem material para a revisao
 # humana; os tres ultimos sao limitacao do piloto e entram no lote como tal.
+DESFECHO_HIPOTESE = "hipotese"
+DESFECHO_INSUFICIENTE = "evidencia_insuficiente"
+DESFECHO_TETO = "teto_atingido"
+DESFECHO_INVALIDA = "resposta_invalida"
+DESFECHO_ERRO = "erro_de_execucao"
+
 DESFECHOS = (
-    "hipotese",
-    "evidencia_insuficiente",
-    "teto_atingido",
-    "resposta_invalida",
-    "erro_de_execucao",
+    DESFECHO_HIPOTESE,
+    DESFECHO_INSUFICIENTE,
+    DESFECHO_TETO,
+    DESFECHO_INVALIDA,
+    DESFECHO_ERRO,
 )
 
-_TEXTO_CURTO = {"type": "string", "maxLength": 300}
+# Desfechos que entregam material para a revisao humana. O lote usa isto para
+# separar "o piloto respondeu" de "o piloto nao conseguiu responder".
+DESFECHOS_UTEIS = (DESFECHO_HIPOTESE, DESFECHO_INSUFICIENTE)
+
+# Limite de texto livre. E o mesmo do schema: um validador que aceitasse mais
+# do que o schema permite deixaria passar texto que o modelo nunca deveria ter
+# conseguido gerar.
+MAX_TEXTO = 300
+
+_TEXTO_CURTO = {"type": "string", "maxLength": MAX_TEXTO}
 
 _EVIDENCIA = {
     "type": "object",
@@ -105,6 +124,9 @@ ESQUEMA_HIPOTESE = {
     },
 }
 
+# Uniao dos argumentos das tres ferramentas da secao 3.4. O validador recusa,
+# por ferramenta, o que nao pertence a ela -- o schema so impede o modelo de
+# inventar um nome de argumento novo.
 _ARGUMENTOS = {
     "type": "object",
     "additionalProperties": False,
@@ -116,12 +138,13 @@ _ARGUMENTOS = {
         "dimension_value": {"type": "string", "maxLength": 128},
         "inicio": {"type": "string", "maxLength": 32},
         "fim": {"type": "string", "maxLength": 32},
-        "agregacao": {"enum": ["bruto", "media_por_bucket"]},
-        "tipos": {
+        "kinds": {
             "type": "array",
-            "maxItems": 5,
-            "items": {"type": "string", "maxLength": 64},
+            "maxItems": 2,
+            "items": {"enum": ["metric", "context"]},
         },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+        "cursor": {"type": "string", "maxLength": 512},
     },
 }
 
@@ -141,43 +164,32 @@ ESQUEMA_PASSO = {
 
 
 @dataclass(frozen=True, slots=True)
-class ItemInventario:
-    """Uma serie disponivel no recorte, com cobertura e sem juizo de valor.
-
-    O inventario e a unica visao global que o agente recebe. Ele diz o que
-    existe e onde faltam pontos, nunca o que esta anormal: marcar uma serie
-    como suspeita devolveria ao executor a escolha que o piloto quer medir.
-    """
-
-    source: str
-    entity: str
-    metric: str
-    dimension_type: str | None
-    unidade: str | None
-    pontos: int
-    primeiro_evento: dt.datetime | None
-    ultimo_evento: dt.datetime | None
-    # Buckets sem ponto dentro da janela. Lacuna declarada e o que separa
-    # "nao ha dado" de "o agente nao perguntou".
-    buckets_vazios: int
-    atraso_tipico_segundos: int | None
-
-
-@dataclass(frozen=True, slots=True)
 class Recorte:
     """Identidade imutavel do conjunto de fatos visivel em uma investigacao.
 
-    `digest` e o resumo do conjunto selecionado. Duas execucoes com o mesmo
-    digest viram os mesmos fatos -- e so com ele a comparacao com o motor
-    deterministico, no Dia 6, fala do mesmo material.
+    Os valores vem do `CaseReader`, nao sao recalculados aqui. `digest` resume
+    os `fact_id` e os papeis efetivamente expostos; `recorte_id` e o
+    identificador opaco que as ferramentas carregam de volta em cada resposta.
+    Duas execucoes com o mesmo digest viram os mesmos fatos -- e so com ele a
+    comparacao com o motor deterministico fala do mesmo material.
     """
 
     checkpoint_id: str
+    origin: str
     sim_now: dt.datetime
     input_lsn: int
-    janela_inicio: dt.datetime
-    janela_fim: dt.datetime
+    recorte_id: str
     digest: str
+
+    def para_json(self) -> dict[str, Any]:
+        """Serializa o recorte para o registro do caso.
+
+        Returns:
+            dict[str, Any]: Campos do recorte com o instante em ISO-8601.
+        """
+        corpo = asdict(self)
+        corpo["sim_now"] = self.sim_now.isoformat()
+        return corpo
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,48 +198,12 @@ class Caso:
 
     case_id: str
     recorte: Recorte
-    inventario: tuple[ItemInventario, ...]
-    # Series que existem para esta janela mas ainda nao estao disponiveis, com
-    # o instante em que estarao. Declarar o atraso e o que permite ao agente
-    # registrar `ainda_indisponivel` em vez de tratar ausencia como normalidade
-    # (artefatos/hipoteses.md, RT03). Expoe existencia e horario, nunca valor.
-    lacunas_de_cobertura: tuple[dict[str, Any], ...] = ()
+    # Envelope devolvido por `inventariar_fatos`: a unica visao global que o
+    # agente recebe. Diz o que existe e onde ha nulos, nunca o que esta anormal.
+    inventario: dict[str, Any]
     # Texto curto que situa o investigador (ex.: "janela de 3 h em um dia util").
     # Nao pode conter anomalia, causa nem rotulo de incidente.
     nota_de_escopo: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class LinhaDeFato:
-    """Uma linha devolvida por uma ferramenta, sempre rastreavel a um fato.
-
-    `fact_id` e `"{fact_key}:{version_lsn}"`. Quando a ferramenta agrega, ela
-    devolve em `fact_ids` todos os fatos que contribuiram -- sem isso a
-    evidencia citada pelo modelo nao poderia ser conferida.
-    """
-
-    fact_id: str
-    source: str
-    entity: str
-    metric: str
-    event_start: dt.datetime
-    available_at: dt.datetime
-    value: float | None
-    dimension_type: str | None = None
-    dimension_value: str | None = None
-    sample_size: int | None = None
-    kind: str = "metric"
-    fact_ids: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class RespostaDeFerramenta:
-    """Resultado de uma chamada de ferramenta, com as razoes de truncamento."""
-
-    linhas: tuple[LinhaDeFato, ...]
-    truncada: bool = False
-    # Preenchido quando a consulta e valida mas nao existe dado para ela.
-    vazia_porque: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,11 +213,23 @@ class ConsultaRegistrada:
     ordem: int
     ferramenta: str
     argumentos: dict[str, Any]
-    linhas: int
+    retornadas: int
     fact_ids: tuple[str, ...]
     duracao_ms: int
-    truncada: bool = False
+    tem_mais: bool = False
+    limitacoes: tuple[str, ...] = ()
     erro: str | None = None
+
+    def para_json(self) -> dict[str, Any]:
+        """Serializa a consulta para o arquivo do caso.
+
+        Returns:
+            dict[str, Any]: Listas no lugar das tuplas, pronto para `json.dump`.
+        """
+        corpo = asdict(self)
+        corpo["fact_ids"] = list(self.fact_ids)
+        corpo["limitacoes"] = list(self.limitacoes)
+        return corpo
 
 
 @dataclass(slots=True)
@@ -249,8 +237,9 @@ class RegistroDoCaso:
     """O que o piloto grava por caso investigado.
 
     Guarda o suficiente para reexecutar e para conferir: identidade do recorte,
-    modelo e versao do prompt, toda consulta feita, o raciocinio declarado em
-    cada passo, a hipotese, o veredito do validador e os numeros de consumo.
+    modelo e versao do prompt, a entrada entregue ao modelo, toda consulta
+    feita, o raciocinio declarado em cada passo, a hipotese, o veredito do
+    validador e os numeros de consumo.
     """
 
     case_id: str
@@ -259,7 +248,10 @@ class RegistroDoCaso:
     recorte: dict[str, Any] = field(default_factory=dict)
     modelo: dict[str, Any] = field(default_factory=dict)
     prompt_version: str = ""
-    desfecho: str = "erro_de_execucao"
+    # Mensagem de abertura exatamente como o modelo a recebeu. Sem ela, um
+    # resultado estranho nao pode ser atribuido a entrada ou ao modelo.
+    entrada: str = ""
+    desfecho: str = DESFECHO_ERRO
     hipotese: dict[str, Any] | None = None
     lacunas: list[dict[str, Any]] = field(default_factory=list)
     consultas: list[dict[str, Any]] = field(default_factory=list)
@@ -270,6 +262,35 @@ class RegistroDoCaso:
     # contraria. Nao invalida o resultado; muda como a revisao o le.
     contestada: bool = False
     motivo: str | None = None
+
+    def __post_init__(self) -> None:
+        """Recusa um desfecho fora do catalogo.
+
+        Raises:
+            ValueError: Se `desfecho` nao for um dos `DESFECHOS`.
+        """
+        if self.desfecho not in DESFECHOS:
+            raise ValueError(f"desfecho desconhecido: {self.desfecho!r}")
+
+    @property
+    def util(self) -> bool:
+        """Se o caso produziu material para a revisao humana."""
+        return self.desfecho in DESFECHOS_UTEIS
+
+    def concluir(self, desfecho: str, *, motivo: str | None = None) -> None:
+        """Fixa o desfecho do caso, recusando valor fora do catalogo.
+
+        Args:
+            desfecho (str): Um dos `DESFECHOS`.
+            motivo (str | None): Detalhe curto gravado no relatorio.
+
+        Raises:
+            ValueError: Se o desfecho nao estiver no catalogo.
+        """
+        if desfecho not in DESFECHOS:
+            raise ValueError(f"desfecho desconhecido: {desfecho!r}")
+        self.desfecho = desfecho
+        self.motivo = motivo
 
     def para_json(self) -> dict[str, Any]:
         """Converte o registro em um dicionario serializavel.

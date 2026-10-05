@@ -12,6 +12,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from argus_agente.leitor import MAX_CHAMADAS, MAX_ITENS_POR_RESPOSTA
+
 
 class TetoAtingido(RuntimeError):
     """A investigacao consumiu um dos limites e precisa terminar."""
@@ -36,9 +38,11 @@ class Orcamento:
     gravado junto com o resultado.
     """
 
-    max_chamadas: int = 12
-    max_linhas_por_resposta: int = 200
-    max_linhas_totais: int = 1200
+    # Os dois primeiros sao os mesmos tetos que o leitor aplica por dentro
+    # (`MAX_CALLS` e `MAX_ITEMS`). Importa-los em vez de repetir o numero evita
+    # que o executor prometa ao modelo um limite que o leitor nao honra.
+    max_chamadas: int = MAX_CHAMADAS
+    max_itens_por_resposta: int = MAX_ITENS_POR_RESPOSTA
     max_segundos: float = 300.0
     # Uma nova tentativa depois de uma resposta malformada. A segunda falha
     # separa "erro de formatacao" de "o modelo nao consegue responder".
@@ -48,16 +52,18 @@ class Orcamento:
         """Recusa um orcamento que permitiria investigacao indefinida.
 
         Raises:
-            ValueError: Se algum teto for nulo ou negativo.
+            ValueError: Se algum teto for nulo, negativo ou maior que o do leitor.
         """
-        for campo in (
-            self.max_chamadas,
-            self.max_linhas_por_resposta,
-            self.max_linhas_totais,
-            self.max_segundos,
-        ):
+        for campo in (self.max_chamadas, self.max_itens_por_resposta, self.max_segundos):
             if campo <= 0:
                 raise ValueError("todo teto do orcamento precisa ser positivo")
+        if self.max_itens_por_resposta > MAX_ITENS_POR_RESPOSTA:
+            raise ValueError(
+                f"o leitor nao devolve mais de {MAX_ITENS_POR_RESPOSTA} itens "
+                "por resposta"
+            )
+        if self.max_chamadas > MAX_CHAMADAS:
+            raise ValueError(f"o leitor nao aceita mais de {MAX_CHAMADAS} chamadas")
         if self.max_passos_invalidos < 0:
             raise ValueError("max_passos_invalidos nao pode ser negativo")
 
@@ -79,7 +85,7 @@ class Guardas:
         self._relogio = relogio
         self._inicio = relogio()
         self.chamadas = 0
-        self.linhas = 0
+        self.itens = 0
         self.passos = 0
         self.passos_invalidos = 0
 
@@ -103,18 +109,17 @@ class Guardas:
             raise TetoAtingido("chamadas")
         self.chamadas += 1
 
-    def registrar_linhas(self, quantidade: int) -> None:
-        """Soma as linhas lidas e interrompe quando o total estoura.
+    def registrar_itens(self, quantidade: int) -> None:
+        """Soma os itens lidos no caso, para o relatorio de consumo.
+
+        Nao ha teto proprio aqui: o produto de `max_chamadas` por
+        `max_itens_por_resposta` ja limita o total, e inventar um terceiro teto
+        encerraria casos por uma regra que a secao 5.1 nao anuncia.
 
         Args:
-            quantidade (int): Linhas devolvidas pela ultima ferramenta.
-
-        Raises:
-            TetoAtingido: Se o caso ja leu mais linhas do que o permitido.
+            quantidade (int): Itens devolvidos pela ultima ferramenta.
         """
-        self.linhas += quantidade
-        if self.linhas > self.orcamento.max_linhas_totais:
-            raise TetoAtingido("linhas")
+        self.itens += quantidade
 
     def registrar_passo_invalido(self) -> None:
         """Conta uma resposta malformada e decide se ainda cabe nova tentativa.
@@ -136,7 +141,7 @@ class Guardas:
         """Resumo numerico para o registro do caso."""
         return {
             "chamadas": self.chamadas,
-            "linhas": self.linhas,
+            "itens": self.itens,
             "passos": self.passos,
             "passos_invalidos": self.passos_invalidos,
             "segundos": round(self.decorrido, 3),

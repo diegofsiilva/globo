@@ -13,7 +13,7 @@ VISTOS = {"prometheus:http_5xx_rate:0", "prometheus:http_5xx_rate:120"}
 def test_consulta_valida_vira_chamada_de_ferramenta():
     passo = interpretar(consulta_serie(), fact_ids_vistos=set())
     assert isinstance(passo, Consulta)
-    assert passo.ferramenta == "serie"
+    assert passo.ferramenta == "consultar_serie"
 
 
 def test_acao_desconhecida_e_rejeitada():
@@ -21,16 +21,17 @@ def test_acao_desconhecida_e_rejeitada():
         interpretar({"action": "deletar", "rationale": "x"}, fact_ids_vistos=set())
 
 
-def test_consulta_sem_argumento_obrigatorio_e_rejeitada():
+def test_limit_fora_do_tipo_e_rejeitado_antes_de_gastar_chamada():
+    with pytest.raises(PassoInvalido, match="limit"):
+        interpretar(consulta_serie(limit="muitos"), fact_ids_vistos=set())
+
+
+def test_argumento_faltando_nao_e_julgado_aqui():
+    # Combinacao incompleta e assunto do leitor, que conhece o recorte. O
+    # validador so normaliza tipos; a recusa chega como erro de ferramenta.
     passo = consulta_serie()
     del passo["arguments"]["metric"]
-    with pytest.raises(PassoInvalido, match="metric"):
-        interpretar(passo, fact_ids_vistos=set())
-
-
-def test_consulta_com_argumento_desconhecido_e_rejeitada():
-    with pytest.raises(PassoInvalido, match="limit"):
-        interpretar(consulta_serie(limit=9999), fact_ids_vistos=set())
+    assert interpretar(passo, fact_ids_vistos=set()).ferramenta == "consultar_serie"
 
 
 def test_hipotese_que_cita_fato_nao_entregue_e_rejeitada():

@@ -1,117 +1,161 @@
-"""Fixtures comuns: um recorte pequeno e atalhos para montar passos."""
+"""Fixtures comuns: um recorte pequeno no formato do leitor e atalhos de passo."""
 
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from typing import Any
 
 import pytest
 
-from argus_agente.casos import digest_do_conjunto
 from argus_agente.contrato import Caso, Recorte
-from argus_agente.ferramentas import FerramentasDeFixture
+from argus_agente.leitor import CaseReader
 
 UTC = dt.UTC
 INICIO = dt.datetime(2026, 8, 20, 17, 0, tzinfo=UTC)
 SIM_NOW = dt.datetime(2026, 8, 20, 20, 15, tzinfo=UTC)
+FIM_JANELA = INICIO + dt.timedelta(hours=3)
 
 
-def ponto(
-    minutos: int,
-    valor: float,
+def _chave(*partes: Any) -> str:
+    """Monta uma `fact_key` de 64 caracteres, como o leitor exige."""
+    corpo = "\x1f".join(str(parte) for parte in partes)
+    return hashlib.sha256(corpo.encode()).hexdigest()
+
+
+def iso(instante: dt.datetime) -> str:
+    """Formata um instante como o contrato espera."""
+    return instante.isoformat().replace("+00:00", "Z")
+
+
+def fato(
+    lsn: int,
+    source: str,
+    metric: str,
+    quando: dt.datetime,
+    valor: float | None,
     *,
     atraso: int = 60,
-    metric: str = "http_5xx_rate",
-    source: str = "prometheus",
     kind: str = "metric",
+    role: str = "context",
+    fim: dt.datetime | None = None,
+    apagado: bool = False,
+    chave: str | None = None,
 ) -> dict[str, Any]:
-    """Monta um fato de serie no bucket pedido."""
-    instante = INICIO + dt.timedelta(minutes=minutos)
+    """Monta uma versao de fato no formato do leitor."""
     return {
-        "fact_id": f"{source}:{metric}:{minutos}",
+        "fact_key": chave or _chave(source, metric, iso(quando)),
+        "version_lsn": lsn,
+        "role": role,
+        "kind": kind,
+        "event_start": iso(quando),
+        "event_end": iso(fim) if fim else None,
+        "available_at": iso(quando + dt.timedelta(seconds=atraso)),
         "source": source,
         "entity": "playback",
         "metric": metric,
-        "event_start": instante.isoformat(),
-        "available_at": (instante + dt.timedelta(seconds=atraso)).isoformat(),
+        "dimension_type": None,
+        "dimension_value": None,
         "value": valor,
-        "kind": kind,
+        "sample_size": None,
+        "attributes": {},
+        "is_deleted": apagado,
     }
 
 
 @pytest.fixture
-def recorte() -> Recorte:
-    """Recorte de tres horas com presente simulado logo depois do fim."""
-    return Recorte(
-        checkpoint_id="ckpt-teste",
-        sim_now=SIM_NOW,
-        input_lsn=1000,
-        janela_inicio=INICIO,
-        janela_fim=INICIO + dt.timedelta(hours=3),
-        digest="",
-    )
-
-
-@pytest.fixture
 def fatos() -> list[dict[str, Any]]:
-    """Uma serie estavel que sobe no fim, mais um deploy de contexto."""
-    linhas = [ponto(15 * i, 0.4 if i < 8 else 7.0) for i in range(13)]
+    """Uma serie que sobe no fim, mais um deploy de contexto."""
+    linhas = [
+        fato(
+            1000 + i,
+            "prometheus",
+            "http_5xx_rate",
+            INICIO + dt.timedelta(minutes=15 * i),
+            0.4 if i < 8 else 7.0,
+            role="subject",
+        )
+        for i in range(13)
+    ]
     linhas.append(
-        {
-            "fact_id": "deploy:playback:1",
-            "source": "tsuru",
-            "entity": "playback",
-            "metric": "deploy",
-            "event_start": (INICIO + dt.timedelta(minutes=114)).isoformat(),
-            "available_at": (INICIO + dt.timedelta(minutes=116)).isoformat(),
-            "value": 1.0,
-            "kind": "context",
-        }
+        fato(
+            1100,
+            "tsuru",
+            "deploy",
+            INICIO + dt.timedelta(minutes=114),
+            1.0,
+            atraso=120,
+            kind="context",
+            fim=INICIO + dt.timedelta(minutes=118),
+        )
     )
     return linhas
 
 
 @pytest.fixture
-def ferramentas(recorte: Recorte, fatos: list[dict[str, Any]]) -> FerramentasDeFixture:
-    """Adaptador sobre os fatos da fixture."""
-    return FerramentasDeFixture(recorte, fatos)
+def caso_bruto(fatos: list[dict[str, Any]]) -> dict[str, Any]:
+    """O arquivo de caso, antes de virar `CaseReader`."""
+    return {
+        "case_id": "caso-teste",
+        "origin": "synthetic",
+        "checkpoint_id": 999,
+        "sim_now": iso(SIM_NOW),
+        "input_lsn": 2000,
+        "nota_de_escopo": "janela de 3 h",
+        "facts": fatos,
+    }
 
 
 @pytest.fixture
-def caso(recorte: Recorte, ferramentas: FerramentasDeFixture) -> Caso:
-    """Caso montado sobre o recorte de teste, com digest calculado."""
-    completo = Recorte(
-        checkpoint_id=recorte.checkpoint_id,
-        sim_now=recorte.sim_now,
-        input_lsn=recorte.input_lsn,
-        janela_inicio=recorte.janela_inicio,
-        janela_fim=recorte.janela_fim,
-        digest=digest_do_conjunto(ferramentas),
-    )
-    ferramentas.recorte = completo
+def ferramentas(caso_bruto: dict[str, Any]) -> CaseReader:
+    """Leitor do recorte de teste."""
+    return CaseReader(caso_bruto)
+
+
+@pytest.fixture
+def caso(ferramentas: CaseReader, caso_bruto: dict[str, Any]) -> Caso:
+    """Caso montado sobre o recorte de teste."""
     return Caso(
-        case_id="caso-teste",
-        recorte=completo,
-        inventario=ferramentas.inventario(),
-        lacunas_de_cobertura=ferramentas.lacunas_de_cobertura,
-        nota_de_escopo="janela de 3 h",
+        case_id=ferramentas.case_id,
+        recorte=Recorte(
+            checkpoint_id=str(caso_bruto["checkpoint_id"]),
+            origin=ferramentas.origin,
+            sim_now=ferramentas.sim_now,
+            input_lsn=ferramentas.input_lsn,
+            recorte_id=ferramentas.recorte_id,
+            digest=ferramentas.digest,
+        ),
+        inventario=ferramentas.inventariar_fatos(),
+        nota_de_escopo=str(caso_bruto["nota_de_escopo"]),
     )
+
+
+def fact_ids_da_serie(leitor: CaseReader) -> list[str]:
+    """Identificadores da serie de erro, na ordem em que o leitor os devolve."""
+    resposta = leitor.consultar_serie(
+        source="prometheus",
+        entity="playback",
+        metric="http_5xx_rate",
+        inicio=iso(INICIO),
+        fim=iso(FIM_JANELA),
+    )
+    return [item["fact_id"] for item in resposta["items"]]
 
 
 def consulta_serie(**extras: Any) -> dict[str, Any]:
     """Passo de consulta a serie que existe na fixture."""
-    argumentos = {
+    argumentos: dict[str, Any] = {
         "source": "prometheus",
         "entity": "playback",
         "metric": "http_5xx_rate",
-        "inicio": INICIO.isoformat(),
-        "fim": (INICIO + dt.timedelta(hours=3)).isoformat(),
+        "inicio": iso(INICIO),
+        "fim": iso(FIM_JANELA),
     }
     argumentos.update(extras)
     return {
         "action": "consultar",
         "rationale": "ver como o erro se comporta na janela",
-        "tool": "serie",
+        "tool": "consultar_serie",
         "arguments": argumentos,
     }
 

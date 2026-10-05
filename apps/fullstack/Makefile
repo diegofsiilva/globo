@@ -282,7 +282,7 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch test-agente ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch test-agente test-tools ## Roda as suites que tem teste
 
 .PHONY: test-hypothesis-batch
 test-hypothesis-batch: ## Valida o lote CDC sem usar AWS ou banco
@@ -335,6 +335,13 @@ test-processing: ## Testes do ETL incremental (watermarks, workers)
 .PHONY: test-agente
 test-agente: ## Testes do piloto de hipoteses com IA (ciclo, tetos e validador)
 	cd $(AGENTE) && $(UV) pytest
+
+# As suites de `tools/` que nao usam o unittest antigo. Sem este alvo, os testes
+# do leitor de fatos ficavam fora do `make test` -- e e o leitor que o piloto
+# inteiro usa.
+.PHONY: test-tools
+test-tools: ## Testes das ferramentas de dados (leitor de fatos do agente)
+	cd $(TOOLS) && $(UV) --group dev pytest
 
 .PHONY: test-frontend
 test-frontend: ## Testes de contratos e componentes do dashboard

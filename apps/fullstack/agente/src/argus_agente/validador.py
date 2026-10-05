@@ -1,9 +1,17 @@
-"""Leitura e validacao da resposta do modelo -- entrega do Dia 5.
+"""Leitura e validacao da resposta do modelo.
 
 O validador nao julga se a causa proposta e verdadeira; isso e da revisao
 humana (artefatos/arquitetura-agente-hipoteses-ia.md, 4.1). Ele responde
 apenas: a resposta e bem formada, cita fatos que existem no recorte, declara o
 que faltou e admite o que a contradiz.
+
+A validacao SEMANTICA dos argumentos -- janela dentro do recorte, par de
+dimensao, combinacao anunciada pelo inventario -- nao mora aqui. Ela e do
+leitor, que e quem conhece o recorte. Repetir essas regras neste arquivo criaria
+um segundo lugar para elas divergirem, e divergencia entre validador e leitor
+produz exatamente o erro mais dificil de achar: o passo aceito aqui e recusado
+la. Pedido invalido consome uma chamada, entra no rastro e volta ao modelo como
+dado, que e o que o desenho do Dia 1 previu.
 
 `problemas` interrompe o passo e vira pedido de correcao. `avisos` segue junto
 com o resultado, para a revisao ler a hipotese com a ressalva certa.
@@ -16,9 +24,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from argus_agente.contrato import ACOES, FERRAMENTAS, MOTIVOS_DE_LACUNA
-
-MAX_TEXTO = 400
+from argus_agente.contrato import ACOES, FERRAMENTAS, MAX_TEXTO, MOTIVOS_DE_LACUNA
 
 # Linguagem conclusiva em uma saida que e, por construcao, uma explicacao
 # candidata. A regra espelha a RN-H11 do motor atual (artefatos/hipoteses.md):
@@ -34,14 +40,10 @@ TERMOS_CONCLUSIVOS = (
     "sem duvida",
 )
 
-ARGUMENTOS_POR_FERRAMENTA: dict[str, tuple[set[str], set[str]]] = {
-    "inventario": (set(), {"source"}),
-    "serie": (
-        {"source", "entity", "metric", "inicio", "fim"},
-        {"dimension_type", "dimension_value", "agregacao"},
-    ),
-    "contexto": ({"tipos", "inicio", "fim"}, set()),
-}
+# Argumentos que o leitor recebe como numero. Todo o resto chega como texto;
+# listas ficam como listas de texto.
+ARGUMENTOS_NUMERICOS = ("limit",)
+ARGUMENTOS_EM_LISTA = ("kinds",)
 
 
 class PassoInvalido(ValueError):
@@ -108,7 +110,7 @@ def interpretar(passo: Any, *, fact_ids_vistos: set[str]) -> Passo:
     acao = passo.get("action")
     if acao not in ACOES:
         raise PassoInvalido([f"action precisa ser um de {list(ACOES)}, veio {acao!r}"])
-    rationale = _texto(passo.get("rationale"), "rationale", problemas, obrigatorio=True)
+    rationale = _texto(passo.get("rationale"), "rationale", problemas)
 
     if acao == "consultar":
         ferramenta, argumentos = _validar_consulta(passo, problemas)
@@ -136,7 +138,7 @@ def interpretar(passo: Any, *, fact_ids_vistos: set[str]) -> Passo:
 def _validar_consulta(
     passo: dict[str, Any], problemas: list[str]
 ) -> tuple[str, dict[str, Any]]:
-    """Confere o nome da ferramenta e os argumentos aceitos por ela."""
+    """Confere o nome da ferramenta e normaliza os tipos dos argumentos."""
     ferramenta = passo.get("tool")
     if ferramenta not in FERRAMENTAS:
         problemas.append(
@@ -147,31 +149,22 @@ def _validar_consulta(
     if not isinstance(brutos, dict):
         problemas.append("arguments precisa ser um objeto")
         return ferramenta, {}
-    obrigatorios, opcionais = ARGUMENTOS_POR_FERRAMENTA[ferramenta]
-    sobrando = set(brutos) - obrigatorios - opcionais
-    if sobrando:
-        problemas.append(f"{ferramenta} nao aceita os argumentos {sorted(sobrando)}")
-    faltando = obrigatorios - set(brutos)
-    if faltando:
-        problemas.append(f"{ferramenta} exige os argumentos {sorted(faltando)}")
     argumentos: dict[str, Any] = {}
     for chave, valor in brutos.items():
-        if chave in sobrando:
+        if valor is None:
             continue
-        if chave in ("inicio", "fim"):
-            instante = _instante(valor, chave, problemas)
-            if instante is not None:
-                argumentos[chave] = instante
-        elif chave == "tipos":
+        if chave in ARGUMENTOS_NUMERICOS:
+            if isinstance(valor, bool) or not isinstance(valor, int):
+                problemas.append(f"{chave} precisa ser um numero inteiro")
+                continue
+            argumentos[chave] = valor
+        elif chave in ARGUMENTOS_EM_LISTA:
             if not isinstance(valor, list) or not valor:
-                problemas.append("tipos precisa ser uma lista nao vazia")
-            else:
-                argumentos[chave] = tuple(str(item)[:64] for item in valor[:5])
+                problemas.append(f"{chave} precisa ser uma lista nao vazia")
+                continue
+            argumentos[chave] = [str(item)[:64] for item in valor[:5]]
         else:
-            argumentos[chave] = str(valor)[:128]
-    inicio, fim = argumentos.get("inicio"), argumentos.get("fim")
-    if inicio and fim and inicio > fim:
-        problemas.append("inicio precisa ser anterior ou igual a fim")
+            argumentos[chave] = str(valor)[:512]
     return ferramenta, argumentos
 
 
@@ -183,7 +176,7 @@ def _validar_hipotese(
     if not isinstance(bruta, dict):
         problemas.append("concluir exige o objeto answer")
         return {}, avisos
-    statement = _texto(bruta.get("statement"), "statement", problemas, obrigatorio=True)
+    statement = _texto(bruta.get("statement"), "statement", problemas, limite=400)
     for termo in TERMOS_CONCLUSIVOS:
         if termo in statement.lower():
             problemas.append(
@@ -274,9 +267,9 @@ def _validar_evidencias(
         leitura = _texto(bruta.get("reading"), f"{rotulo}.reading", problemas)
         saida.append(
             {
-                "fact_ids": list(dict.fromkeys(str(fact_id) for fact_id in fact_ids))[
-                    :12
-                ],
+                "fact_ids": list(
+                    dict.fromkeys(str(fact_id) for fact_id in fact_ids)
+                )[:12],
                 "observation": observacao,
                 "reading": leitura,
             }
@@ -319,15 +312,14 @@ def _validar_lacunas(
 
 
 def _texto(
-    valor: Any, campo: str, problemas: list[str], *, obrigatorio: bool = True
+    valor: Any, campo: str, problemas: list[str], *, limite: int = MAX_TEXTO
 ) -> str:
     """Normaliza um texto curto e recusa o que vier vazio ou fora do tipo."""
     if not isinstance(valor, str) or not valor.strip():
-        if obrigatorio:
-            problemas.append(f"{campo} precisa ser um texto nao vazio")
+        problemas.append(f"{campo} precisa ser um texto nao vazio")
         return ""
     limpo = re.sub(r"[\x00-\x1f\x7f]", " ", valor).strip()
-    return limpo[:MAX_TEXTO]
+    return limpo[:limite]
 
 
 def _instante(valor: Any, campo: str, problemas: list[str]) -> dt.datetime | None:
