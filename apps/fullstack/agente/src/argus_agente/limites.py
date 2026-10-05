@@ -1,6 +1,6 @@
-"""Tetos de execucao do piloto -- a parte do Dia 4 que o modelo nao controla.
+"""Tetos de execucao do piloto, aplicados pelo executor e nao pelo modelo.
 
-O desenho do Dia 1 diz que a unica forma de parar a investigacao e uma guarda
+A unica forma de parar a investigacao e uma guarda
 fora do alcance do modelo. Por isso os contadores vivem aqui, no executor, e
 nao em instrucao de prompt: um modelo que ignore o limite declarado no texto
 continua sendo interrompido na proxima chamada.
@@ -30,10 +30,10 @@ class TetoAtingido(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class Orcamento:
-    """Os tetos propostos no Dia 1, em um unico objeto ajustavel por caso.
+    """Os tetos de um caso, em um unico objeto ajustavel.
 
-    Os valores padrao sao os da secao 5.1 de
-    `artefatos/arquitetura-agente-hipoteses-ia.md`. Mudar um deles e uma
+    Os valores padrao estao descritos na arquitetura do
+    agente. Mudar um deles e uma
     decisao que precisa aparecer no registro, e por isso o orcamento inteiro e
     gravado junto com o resultado.
     """
@@ -114,7 +114,7 @@ class Guardas:
 
         Nao ha teto proprio aqui: o produto de `max_chamadas` por
         `max_itens_por_resposta` ja limita o total, e inventar um terceiro teto
-        encerraria casos por uma regra que a secao 5.1 nao anuncia.
+        encerraria casos por uma regra que nao esta documentada.
 
         Args:
             quantidade (int): Itens devolvidos pela ultima ferramenta.

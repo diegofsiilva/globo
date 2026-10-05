@@ -21,7 +21,7 @@ class FerramentaIndisponivel(ValueError):
 
 
 class Ferramentas(Protocol):
-    """As tres consultas da secao 3.4, como o ciclo as enxerga.
+    """As tres consultas de leitura, como o ciclo as enxerga.
 
     A assinatura e `**params` de proposito: quem valida nome e combinacao de
     argumentos e o `validador`, antes de chamar, e o proprio leitor, ao receber.

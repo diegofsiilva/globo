@@ -58,5 +58,5 @@ Para usar o modelo de verdade, as chaves `OLLAMA_*` precisam estar no
 
 A leitura dos fatos vive inteira neste pacote: `leitor.py` para o recorte e
 `banco.py` para abrir um checkpoint real. As CLIs em `tools/` são só cascas.
-O agente não tem leitura própria: ele só investiga. O que ainda está em aberto
-está na seção 6 do documento de contratos.
+O agente não tem leitura própria: ele só investiga. O documento de contratos
+descreve os formatos de entrada e saída.

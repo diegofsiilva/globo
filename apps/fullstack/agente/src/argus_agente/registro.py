@@ -1,4 +1,4 @@
-"""Gravacao dos resultados -- o rastro que o Dia 5 exige do lote.
+"""Gravacao dos resultados: o rastro completo de cada caso e do lote.
 
 Cada caso vira um JSON completo, com tudo o que seria preciso para reexecutar e
 conferir. O Markdown nao acrescenta informacao: e a porta de entrada da revisao

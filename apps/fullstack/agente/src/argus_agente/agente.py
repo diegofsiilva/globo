@@ -1,9 +1,9 @@
 """O ciclo de investigacao.
 
-Uma unica funcao publica, `investigar`, com a assinatura pequena prevista no
-Dia 1: recebe o caso, o leitor do recorte e o modelo, e devolve o registro do
-que aconteceu. Tudo o que o piloto precisa trocar depois -- outro modelo, outro
-leitor, outro orcamento -- entra por parametro.
+Uma unica funcao publica, `investigar`, com uma assinatura pequena: recebe o
+caso, o leitor do recorte e o modelo, e devolve o registro do que aconteceu.
+Tudo o que o piloto precisa trocar depois (outro modelo, outro leitor, outro
+orcamento) entra por parametro.
 
 O ciclo nunca termina por decisao exclusiva do modelo: ou ele conclui, ou
 desiste, ou uma guarda o interrompe. Toda saida possivel vira um `desfecho` do
@@ -69,7 +69,7 @@ def investigar(
         caso (Caso): Recorte e inventario da investigacao.
         ferramentas (Ferramentas): Leitor do recorte.
         modelo (Any): Objeto com `passo(mensagens)` e `identidade`.
-        orcamento (Orcamento | None): Tetos do caso; o padrao e o do Dia 1.
+        orcamento (Orcamento | None): Tetos do caso; o padrao e o definido em `Orcamento`.
         relogio (Callable[[], float]): Tempo monotonico, injetavel nos testes.
         agora (Callable[[], dt.datetime]): Relogio de parede para o carimbo do
             registro. E o tempo real da execucao, nunca o `sim_now` do recorte.

@@ -58,7 +58,7 @@ def load_checkpoint(
     Args:
         database_url (str): Conexão operacional com leitura de `etl` e `silver`.
         checkpoint_id (int): Checkpoint publicado e não futuro.
-        entity (str): Entidade exata que delimita o MVA.
+        entity (str): Entidade exata que delimita o recorte.
         lookback_minutes (int): Janela anterior ao `ready_through`, até um dia.
         max_facts (int): Teto sem truncamento silencioso.
 

@@ -11,7 +11,7 @@ leitor, que e quem conhece o recorte. Repetir essas regras neste arquivo criaria
 um segundo lugar para elas divergirem, e divergencia entre validador e leitor
 produz exatamente o erro mais dificil de achar: o passo aceito aqui e recusado
 la. Pedido invalido consome uma chamada, entra no rastro e volta ao modelo como
-dado, que e o que o desenho do Dia 1 previu.
+dado, que e o desenho pretendido para a investigacao.
 
 `problemas` interrompe o passo e vira pedido de correcao. `avisos` segue junto
 com o resultado, para a revisao ler a hipotese com a ressalva certa.

@@ -1,4 +1,4 @@
-"""Execucao de varios casos em sequencia -- a entrega do Dia 5.
+"""Execucao de varios casos em sequencia, gravando um relatorio do lote.
 
 Um lote e uma lista de casos investigados com o mesmo modelo, o mesmo prompt e
 o mesmo orcamento. Um caso que falha nao derruba o lote: ele vira um registro

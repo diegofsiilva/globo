@@ -12,7 +12,7 @@ de `../processing`. Leia `README.md` para rodar e
    arquivo local em `saidas/`, que é gitignored.
 2. **O agente nunca vê a resposta do motor atual.** Anomalias, candidatos,
    score, `gold.hypothesis_*`, feedback, `incidents` e `incident_label` ficam
-   fora da entrada. Se algum deles entrar, a comparação do Dia 6 perde sentido.
+   fora da entrada. Se algum deles entrar, a comparação com o motor determinístico perde sentido.
 3. **A leitura dos fatos não se reimplementa aqui.** O recorte, o corte
    temporal, a seleção da última versão por `fact_key`, o tombstone e a
    paginação são do leitor em `leitor.py`, e a abertura de checkpoint real é

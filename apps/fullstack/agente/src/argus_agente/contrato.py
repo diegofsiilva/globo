@@ -9,8 +9,8 @@ Tres contratos convivem aqui, e a separacao entre eles e deliberada:
     garante semantica.
 2.  O contrato de LEITURA -- nomes das ferramentas, argumentos aceitos e
     envelope de resposta -- nao e definido aqui. Ele vive em
-    `artefatos/arquitetura-agente-hipoteses-ia.md`, secao 3.4, e e implementado
-    pelo `CaseReader` de `leitor.py`. Este modulo apenas repete os
+    `artefatos/contrato-agente-hipoteses.md`, e e implementado pelo
+    `CaseReader` de `leitor.py`. Este modulo apenas repete os
     nomes e argumentos para poder validar o que o modelo pede antes de chamar.
 3.  `RegistroDoCaso` e o envelope que o EXECUTOR escreve. O historico de
     consultas mora nele, e nao na resposta do modelo: um historico narrado pelo
@@ -23,9 +23,9 @@ import datetime as dt
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-SCHEMA_VERSION = "2.0.0"
+SCHEMA_VERSION = "2.2.0"
 
-# Os nomes sao os da secao 3.4 do documento de arquitetura. Mudar um deles aqui
+# Os nomes correspondem as ferramentas documentadas no contrato. Mudar um deles aqui
 # sem mudar o leitor quebra o despacho em silencio.
 FERRAMENTAS = ("inventariar_fatos", "consultar_serie", "consultar_contexto")
 ACOES = ("consultar", "concluir", "desistir")
@@ -158,7 +158,7 @@ ESQUEMA_HIPOTESE = {
     },
 }
 
-# Uniao dos argumentos das tres ferramentas da secao 3.4. O validador recusa,
+# Uniao dos argumentos das tres ferramentas. O validador recusa,
 # por ferramenta, o que nao pertence a ela -- o schema so impede o modelo de
 # inventar um nome de argumento novo.
 _ARGUMENTOS = {
