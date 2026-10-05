@@ -18,6 +18,7 @@
 
 import { QuerySourceError } from "@/lib/operational-state";
 import { lerToken, limparToken } from "./session";
+import { lerTokenIngestao, limparTokenIngestao } from "./ingest-session";
 
 /**
  * URL base da API, injetada em tempo de build. Nunca escrita no código —
@@ -42,6 +43,12 @@ export type ApiFetchOptions = {
   method?: "GET" | "POST";
   /** Corpo já serializável em JSON. */
   body?: unknown;
+  /** Upload multipart: o navegador define o boundary. */
+  formData?: FormData;
+  /** Usa a credencial de escrita e a URL de ingestão, quando configurada. */
+  ingestion?: boolean;
+  /** Token candidato usado apenas ao verificar o acesso de escrita. */
+  token?: string;
 };
 
 /**
@@ -56,9 +63,10 @@ export type ApiFetchOptions = {
  *   caiu e já foi limpa.
  */
 export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promise<T> {
-  const { signal, tag, method = "GET", body } = options;
+  const { signal, tag, method = "GET", body, formData, ingestion = false } = options;
+  const baseUrl = ingestion ? process.env.NEXT_PUBLIC_INGEST_API_URL || API_URL : API_URL;
 
-  if (!API_URL) {
+  if (!baseUrl) {
     throw new QuerySourceError(
       "NEXT_PUBLIC_API_URL não está configurada no bundle.",
       "server",
@@ -67,7 +75,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
     );
   }
 
-  const token = lerToken();
+  const token = options.token ?? (ingestion ? lerTokenIngestao() : lerToken());
   if (!token) {
     throw new QuerySourceError(
       "Sessão sem token de acesso.",
@@ -78,14 +86,14 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
   }
 
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (body !== undefined && !formData) headers["Content-Type"] = "application/json";
 
   let response: Response;
   try {
-    response = await fetch(`${API_URL.replace(/\/$/, "")}${path}`, {
+    response = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: formData ?? (body === undefined ? undefined : JSON.stringify(body)),
       signal,
     });
   } catch (error) {
@@ -107,7 +115,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
     // 401 vindo de QUALQUER consulta. Sem isso, a tela mostraria "erro do
     // servidor" e o operador continuaria clicando em "tentar de novo" com um
     // token que já não vale.
-    limparToken();
+    if (ingestion) limparTokenIngestao(); else limparToken();
     throw new QuerySourceError(
       response.status === 401
         ? "A sessão não enviou um token de acesso. Informe o token novamente."
@@ -120,10 +128,14 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
 
   if (!response.ok) {
     const timeout = response.status === 408 || response.status === 504;
+    let detalhe: string | null = null;
+    if (ingestion) {
+      try { const erro = await response.json(); if (typeof erro.erro === "string") detalhe = erro.erro.slice(0, 400); } catch { /* Resposta não JSON. */ }
+    }
     throw new QuerySourceError(
-      timeout
+      detalhe ?? (timeout
         ? "A API excedeu o tempo limite da consulta."
-        : `A API respondeu com status ${response.status}.`,
+        : `A API respondeu com status ${response.status}.`),
       timeout ? "timeout" : "server",
       `${referencia}-HTTP-${response.status}`,
       response.status >= 500 || timeout,

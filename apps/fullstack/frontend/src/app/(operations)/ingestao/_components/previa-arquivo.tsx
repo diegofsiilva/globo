@@ -75,10 +75,10 @@ export function PreviaArquivo({ arquivo, onFechar }: { arquivo: File; onFechar: 
           </Table>
           {!estado.previa.linhas.length && <p className="text-body text-muted-foreground">Nenhum registro disponível para exibir.</p>}
           {estado.previa.avisos.map((aviso) => <p key={aviso} className="text-label text-warning">{aviso}</p>)}
-          <MapeamentoArquivo previa={estado.previa} />
+          <MapeamentoArquivo previa={estado.previa} arquivo={arquivo} />
         </>
       )}
-      <p className="text-micro text-muted-foreground">Amostra de até dez linhas. Valores exibidos são limitados a 500 caracteres por célula. A prévia não valida o arquivo inteiro nem os campos de destino. Nenhum dado foi enviado.</p>
+      <p className="text-micro text-muted-foreground">Amostra de até dez linhas. Valores exibidos são limitados a 500 caracteres por célula. O envio usa o arquivo completo, com validação no servidor.</p>
     </section>
   );
 }
