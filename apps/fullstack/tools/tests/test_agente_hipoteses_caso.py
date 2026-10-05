@@ -74,6 +74,15 @@ class SyntheticCaseTests(unittest.TestCase):
                 fim="2026-08-20T20:01:00Z",
             )
 
+    def test_database_scope_has_distinct_recorte_id(self) -> None:
+        """Cursores de um recorte sintético não passam para o recorte real."""
+        case = _load("degradacao_sintetica")
+        synthetic = CaseReader(case)
+        case["origin"] = "database"
+        database = CaseReader(case)
+        self.assertEqual(synthetic.digest, database.digest)
+        self.assertNotEqual(synthetic.recorte_id, database.recorte_id)
+
 
 if __name__ == "__main__":
     unittest.main()

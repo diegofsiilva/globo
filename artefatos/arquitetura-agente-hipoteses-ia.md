@@ -392,6 +392,36 @@ Ele imprime JSON com `origin: synthetic`, `recorte_id`, `pilot_digest` e respost
 três ferramentas. Não consulta PostgreSQL nem executa modelo. Esse resultado
 verifica apenas o contrato local; não mede se uma hipótese é correta.
 
+### 3.6 Leitor operacional local — Pessoa 1, Dia 4
+
+O leitor em [`apps/fullstack/tools/agente_hipoteses_db.py`](../apps/fullstack/tools/agente_hipoteses_db.py)
+abre uma transação `REPEATABLE READ READ ONLY`, obtém `ready_through` e
+`source_lsn` de um checkpoint já alcançado por `sim.now()` e seleciona a última
+versão disponível de cada `fact_key`. A seleção elimina tombstones e limita a
+investigação a uma entidade exata e uma janela anterior de até 24 horas. O
+limite inicial é 10 mil fatos; excesso gera erro, sem truncamento silencioso.
+As três ferramentas da seção 3.4 operam sobre esse recorte já carregado, sem
+outras consultas ao banco durante a investigação.
+
+O papel `subject` é atribuído aos fatos desde o checkpoint anterior do mesmo
+replay; os demais recebem `context`. Isso é uma classificação de entrada do
+piloto, não uma anomalia nem um rótulo do motor atual. O digest `pilot_digest`
+identifica apenas o recorte exposto pelo piloto.
+
+Com `DATABASE_URL` local já configurada no ambiente, execute
+`make -C apps/fullstack hypothesis-agent-db CHECKPOINT_ID=101 ENTITY=playback-api`,
+substituindo o ID e a entidade pelos valores do seu banco local. Sem outro
+argumento, o comando executa `inventariar_fatos`. Para consultar série e
+contexto, passe `AGENT_QUERIES=/caminho/consultas.json`; o arquivo deve conter
+uma lista JSON de até 12 objetos `{"tool":"consultar_serie","params":{...}}`
+ou `{"tool":"consultar_contexto","params":{...}}`, seguindo a seção 3.4.
+
+O comando exige uma conexão operacional autorizada a ler `etl.gold_checkpoint`
+e `silver.analysis_fact_version`; `argus_reader` não possui esse acesso. O
+comando rejeita host remoto. A saída de inventário é JSON local; não publica
+hipóteses nem escreve nas tabelas do Argus. A seleção por entidade é o recorte
+do MVA e não cobre correlações com entidades de nome diferente.
+
 ## 4. Responsabilidades e decisões
 
 ### 4.1 Responsabilidade por componente

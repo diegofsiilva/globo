@@ -69,7 +69,8 @@ class CaseReader:
             )
         )
         self.digest = _digest([(_fact_id(fact), fact["role"]) for fact in self.facts])
-        self.recorte_id = f"{self.origin}:{case['checkpoint_id']}:{self.digest[:16]}"
+        scope = _digest([self.case_id, self.digest])[:16]
+        self.recorte_id = f"{self.origin}:{case['checkpoint_id']}:{scope}"
 
     def _window(self, inicio: str, fim: str) -> tuple[dt.datetime, dt.datetime]:
         """Recusa uma janela invertida ou posterior ao presente simulado."""
@@ -258,7 +259,9 @@ class CaseReader:
         return {"fact_id": _fact_id(fact), **{field: fact[field] for field in fields}}
 
 
-def execute_queries(reader: CaseReader, queries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def execute_queries(
+    reader: CaseReader, queries: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Executa uma sequência limitada de consultas sobre o mesmo recorte."""
     if len(queries) > MAX_CALLS:
         raise ValueError("caso excede o teto de 12 chamadas")
