@@ -2,6 +2,20 @@
   "catalog_manifest_hash": "88caf2b297af401908aab82c2eaefa044f63e95ff73c0685adcf0ee6b9309ad0",
   "purpose": "Cargas sinteticas fixas para medir crescimento do calculo; todas derivadas do ciclo_caso_v1.",
   "schema_version": 1,
+  "source_files_sha256": {
+    "benchmarks/__init__.py": "1ef9e19ddc157cfbaac1455a2b2ca85f40fbd10a342172d958994e8de521c8a8",
+    "benchmarks/contrato.py": "3e364943882853e93467d26caf3811634fd447d68f6739d0dd5960917b50aec0",
+    "benchmarks/gerar_fixtures.py": "20c7716cd92ba4db9c99f5acc80d6b75390419a357da1a7dd6d09d14af55341f",
+    "benchmarks/verificar_paridade.py": "0d552d5939a8895309e9cd371997126d624e7bc7600cda251a53830de3c42359",
+    "src/argus_processing/catalog.py": "9803e62991fa66c31d04a9e5cefe36f2c7b37a893fe347a983b33f0e1b65c66b",
+    "src/argus_processing/detector.py": "46d8c36ac93367743095e56859e6572abfe2d245b8a038ea1faee51fd542ee74",
+    "src/argus_processing/domain.py": "dc88af62547e4fa24f71d961cb4d666a0575acb8a6c74f5fab1682281646448d",
+    "src/argus_processing/quality.py": "7782dce7a33b35c5ede0eeb244cc0a20532a80fb96a6cfb2277bd0507da1d775",
+    "src/argus_processing/rules.py": "6f6bc7d9e01145dd191afff47175929a03c339b24145e989cb4891fc409d1b8c",
+    "src/argus_processing/scoring.py": "1ea204c7cfef375cd3346e5bdcda8b9f2ef0ef88aa342caf9d5bfc3b6152a196",
+    "tests/test_familias.py": "6dd36d05b22fecf1b63e85fa9a492e7c46009c4343475fbf73a85e7dca146edf",
+    "tests/test_rules.py": "f6741241c98ee5d6aea63f2c9b4ec6d3087d7aecaa3493091ba28a5b5bb7d5b3"
+  },
   "workloads": [
     {
       "baselines": [

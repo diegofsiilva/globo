@@ -328,6 +328,25 @@ test-simulator: ## Testes do relogio e do emissor do simulador
 test-processing: ## Testes do ETL incremental (watermarks, workers)
 	cd $(PROCESSING) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-$(PG_TEST_URL)} $(UV) pytest
 
+GO ?= go
+.PHONY: benchmark-fixtures benchmark-fixtures-check benchmark-go-test benchmark-paridade
+benchmark-fixtures: ## Regenera os JSONs sintéticos do motor (revisar o diff)
+	cd $(PROCESSING) && $(UV) python -m benchmarks.gerar_fixtures
+
+benchmark-fixtures-check: ## Confere se o gerador reproduz os JSONs versionados
+	cd $(PROCESSING) && $(UV) python -m benchmarks.gerar_fixtures --check
+
+benchmark-go-test: ## Valida a tradução Go do cálculo isolado do motor
+	cd $(PROCESSING)/benchmarks/golang && "$(GO)" test ./...
+
+benchmark-paridade: benchmark-fixtures-check benchmark-go-test ## Compara as saídas completas Python e Go
+	cd $(PROCESSING) && $(UV) python -m benchmarks.verificar_paridade --go "$(GO)"
+
+BENCHMARK_ARGS ?=
+.PHONY: benchmark-medir
+benchmark-medir: benchmark-fixtures-check benchmark-go-test ## Valida paridade e mede tempo e pico de RSS local
+	cd $(PROCESSING) && $(UV) python -m benchmarks.medicao.executar --go "$(GO)" $(BENCHMARK_ARGS)
+
 .PHONY: test-frontend
 test-frontend: ## Testes de contratos e componentes do dashboard
 	cd $(FRONTEND) && npm test

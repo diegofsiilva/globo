@@ -98,3 +98,123 @@ referência para cenários e limites que não caibam nos arquivos portáveis.
 O relatório de resultados deve declarar previamente qual ganho mínimo
 justificaria uma implementação de produção. O valor fica em aberto até a equipe
 defini-lo, antes de consultar as medições.
+
+## Geração automática e implementação Go
+
+O gerador versionado está em
+`apps/fullstack/processing/benchmarks/gerar_fixtures.py`. Ele recria os três JSONs
+a partir dos testes originais e do motor Python, sem ler os JSONs existentes como
+entrada. A geração preserva os 49 casos, o ciclo base e os quatro perfis definidos
+acima. Cada documento registra também hashes SHA-256 dos arquivos de origem;
+`source_revision` conserva a referência histórica inicial, e esses hashes
+identificam o conteúdo usado na geração atual.
+
+A tradução independente em Go está em
+`apps/fullstack/processing/benchmarks/golang/`. Ela inclui os contratos de domínio,
+catálogos, qualidade, detector, onze famílias e score. Usa os mesmos cinco catálogos
+do Python e não participa da execução do serviço de produção.
+
+```sh
+make -C apps/fullstack benchmark-fixtures        # Reescreve: revisar o diff
+make -C apps/fullstack benchmark-fixtures-check  # Confere sem escrever
+make -C apps/fullstack benchmark-paridade        # Testes Go + comparação completa
+```
+
+O último comando compara as saídas completas dos 54 casos/cargas, incluindo as
+quatro cargas maiores, antes de qualquer medição. Ele não substitui o protocolo
+de desempenho descrito acima. Instruções e mapeamento de arquivos estão em
+`apps/fullstack/processing/benchmarks/README.md`.
+
+## Execução da medição local
+
+O alvo `make -C apps/fullstack benchmark-medir` executa a validação de paridade e
+mede as quatro etapas e o cálculo completo. A configuração padrão usa cinco
+aquecimentos, cinquenta amostras por etapa e um processo novo por carga/linguagem,
+com ambos os motores restritos à mesma CPU lógica. A ordem Python/Go alterna
+entre cargas. No Windows, ambos usam contadores de alta resolução baseados em
+`QueryPerformanceCounter`.
+
+Os dados brutos, versões, hardware, hashes de código/entrada e relatório são
+salvos em `artefatos/benchmark/resultados-local/`, ou na pasta indicada por
+`BENCHMARK_ARGS="--output-dir ..."`. O pico de RSS inclui o processo inteiro,
+desde a inicialização até terminar todas as etapas; não é memória marginal do
+cálculo. A mediana e o p95 do total vêm de sua própria medição.
+
+Até a definição prévia do critério mínimo de ganho, essas rodadas são
+exploratórias. Resultados locais com dados sintéticos não aprovam por si uma
+migração nem permitem estimar o custo da AWS.
+
+## Resultado da rodada local de 05/10/2026
+
+**Paridade aprovada em 54 saídas completas:** 49 cenários de regras, um ciclo
+base e quatro cargas ampliadas. Os resultados abaixo foram conferidos a partir
+das 2.500 amostras brutas; os hashes do código e das entradas correspondem aos
+arquivos usados na rodada.
+
+Ambiente: Windows 11 (10.0.26200), AMD64, Intel Core i5-13500H, 16 CPUs lógicas
+e 15,74 GiB de memória física. Runtimes: CPython 3.14.4 e Go 1.27.1. Ambos
+os processos de cálculo foram restritos à CPU lógica 0, com uma implementação
+por vez e `GOMAXPROCS=1`. Foram cinco aquecimentos e cinquenta amostras por
+etapa, carga e linguagem, com ordem Python/Go alternada entre cargas. O GC
+padrão ficou habilitado; em Go, `GOGC=100` e `GOMEMLIMIT=off`.
+
+### Cálculo completo
+
+Tempos em ms; memória em MiB. A razão é mediana Python / mediana Go.
+O total foi medido separadamente e não equivale à soma das medianas por etapa.
+
+| Carga | Fatos | Python mediana | Python p95 | Go mediana | Go p95 | Razão | RSS Python | RSS Go |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| ciclo_misto_v1 | 16 | 1,1875 | 1,3461 | 0,1978 | 0,3623 | 6,00× | 23,92 | 14,08 |
+| disperso_256 | 256 | 8,1002 | 10,4934 | 2,2885 | 3,1594 | 3,54× | 24,43 | 14,38 |
+| disperso_1024 | 1024 | 30,1981 | 32,7981 | 9,3047 | 10,8855 | 3,25× | 26,00 | 14,42 |
+| denso_128 | 128 | 58,0029 | 59,6376 | 24,7604 | 26,8585 | 2,34× | 24,64 | 16,62 |
+| denso_512 | 512 | 963,9268 | 993,0105 | 430,6092 | 436,4850 | 2,24× | 26,39 | 57,32 |
+
+### Interpretação
+
+- Go teve mediana e p95 menores no cálculo completo das cinco cargas desta
+  rodada. O ganho na mediana variou de 2,24× a 6,00×.
+- Nas quatro cargas ampliadas, a construção de candidatos foi a etapa mais
+  lenta em Python e em Go. Em `denso_512`, suas medianas foram 853,8802 ms
+  em Python e 381,1245 ms em Go. No ciclo base, o score foi a etapa mais
+  lenta em Python.
+- O score isolado de `denso_512` foi **37,26% mais lento em Go**:
+  medianas de 50,2000 ms em Python e 68,9062 ms em Go; p95 de 53,8700 ms
+  e 75,3906 ms, respectivamente. O ganho no total não se aplica a todas
+  as etapas.
+- O pico de RSS de Go foi menor em quatro cargas, mas em `denso_512`
+  chegou a **57,32 MiB**, contra **26,39 MiB** em Python (aproximadamente
+  2,17×). O contador cobre inicialização, entradas, runtime, aquecimentos e
+  todas as etapas do processo; não mede memória incremental por chamada.
+
+**Estado da decisão:** evidência exploratória favorável ao tempo do cálculo
+completo em Go. O ganho mínimo, o limite de memória e o limite de p95 não
+foram definidos antes desta rodada; ela não aprova uma migração. Recomenda-se
+investigar o score e a memória da carga densa, definir os critérios e executar
+rodadas independentes antes de avaliar o ciclo com PostgreSQL.
+
+Os dados são sintéticos e o tempo exclui JSON, catálogos, compilação,
+serialização, comparação e I/O. Banco, ETL, captura, claim/lease, persistência
+e rede ficam fora do escopo. Frequência da CPU, plano de energia e processos
+externos não foram controlados. Os números comparam estas implementações
+e estes runtimes; não isolam o efeito da linguagem nem estimam desempenho
+ou custo da arquitetura na AWS.
+
+### Evidências e reprodução
+
+- [Registro da rodada no Google Docs](https://docs.google.com/document/d/1JFNI7PQNreKTGj-Nm2qI3IoY9sP--QneeYoeZpNDcc8/edit).
+- [Relatório com todas as etapas](benchmark/rodada-local-2026-10-05/relatorio.md).
+- [Amostras brutas, estatísticas, ambiente e hashes](benchmark/rodada-local-2026-10-05/resultados.json).
+- Revisão base do repositório: `47e3dc7005d4d60117d6e9f04e5c646517ee34c7`.
+  A implementação Go e o executor de medição continham alterações locais;
+  a identificação exata está nos hashes SHA-256 registrados no JSON.
+- O perfil `ciclo_misto_v1` corresponde ao ciclo armazenado em
+  `ciclo_caso_v1.json`.
+
+```sh
+make -C apps/fullstack benchmark-medir GO=/caminho/para/go \
+  BENCHMARK_ARGS="--label 2026-10-05 --output-dir ../../../artefatos/benchmark/rodada-local-2026-10-05"
+```
+
+Para preservar esta evidência, use outra pasta de saída em rodadas futuras.
