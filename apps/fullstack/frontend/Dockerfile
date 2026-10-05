@@ -15,8 +15,16 @@
 # entao o build gera HTML estatico e quem serve e o nginx. E a mesma saida que
 # o `make frontend-deploy` sobe para o S3 -- a imagem apenas embrulha aquele
 # mesmo `out/` para rodar no cluster.
+#
+# Por isso o estagio de build roda SEMPRE na plataforma de quem constroi
+# (`--platform=$BUILDPLATFORM`), e nao uma vez por arquitetura de destino: o
+# `out/` e HTML, CSS e JS, identico em amd64 e arm64. Sem isso o buildx repetia
+# `npm ci` e `next build` sob emulacao QEMU para a arquitetura que nao e a da
+# maquina -- num deploy do lab, numa VM de 2 GB, o build ficou mais de
+# 30 minutos em thrashing e nao terminou; nativo, leva cerca de 2 minutos. So
+# o estagio do nginx, que carrega binario, continua multi-arquitetura.
 
-FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS builder
+FROM --platform=$BUILDPLATFORM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS builder
 
 WORKDIR /app
 
