@@ -1,8 +1,10 @@
-"""Entrypoint do container. Uma imagem, dois workers.
+"""Entrypoint do container para SQS e ingestão por arquivos.
 
 Uso:
     python -m argus_worker merge   # change events -> change_log -> MERGE
     python -m argus_worker event   # grain de sessao -> bronze.event
+    python -m argus_worker file-api    # upload -> fila PostgreSQL
+    python -m argus_worker file-worker # CSV/Parquet -> bronze.event
 
 O modo vem do `command` da task definition (ver infra/ecs.tf). Os dois
 consumidores compartilham o laco de SQS, a observabilidade e o pool de conexao,
@@ -12,6 +14,7 @@ dois pontos de entrada, em vez de duas imagens 95% identicas.
 
 from __future__ import annotations
 
+import os
 import sys
 
 import boto3
@@ -22,7 +25,7 @@ from .config import Config
 from .consumer import ChangeConsumer, EventConsumer
 from .repository import ChangeRepository, EventRepository
 
-MODOS = ("merge", "event")
+MODOS = ("merge", "event", "file-api", "file-worker")
 
 
 def build_boto_config(config: Config) -> BotoConfig:
@@ -61,6 +64,32 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+
+    if modo == "file-worker":
+        from .files.processor import main as run_files
+
+        run_files()
+        return 0
+    if modo == "file-api":
+        if sys.platform == "win32":
+            from .files.api import create_app
+
+            create_app().run(host="127.0.0.1", port=int(os.getenv("PORT", "5002")))
+        else:
+            os.execvp(
+                "gunicorn",
+                [
+                    "gunicorn",
+                    "--bind",
+                    f"0.0.0.0:{os.getenv('PORT', '5002')}",
+                    "--workers",
+                    "2",
+                    "--timeout",
+                    "120",
+                    "argus_worker.files.api:create_app()",
+                ],
+            )
+        return 0
 
     try:
         config = Config.from_env(modo)
