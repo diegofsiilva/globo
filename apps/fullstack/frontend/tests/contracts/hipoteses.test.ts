@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
+import { submitHypothesisFeedback } from "@/app/(operations)/hipoteses/_lib/feedback";
 import { createHttpHypothesesSource } from "@/app/(operations)/hipoteses/_lib/http-source";
 import { HYPOTHESIS_FILTERS } from "@/app/(operations)/hipoteses/_lib/mapper";
 import { refineHypothesis } from "@/app/(operations)/hipoteses/_lib/refinement";
@@ -87,6 +88,9 @@ describe("contrato HTTP da tela Hipóteses", () => {
       summary: "Erro corroborado",
       kind: "operacional",
       coverage: 0.9,
+      // `pending` não é um valor do motor: o desconhecido cai em "não revisada"
+      // em vez de exibir a chave crua.
+      reviewStatus: "não revisada",
     });
     expect(report.hypotheses[0].effect).toMatch(/^\d{2}\/\d{2} \d{2}:\d{2} → \d{2}:\d{2}$/);
     expect(report.hypotheses[0].evidence[0].polarity).toBe("a favor");
@@ -107,6 +111,29 @@ describe("contrato HTTP da tela Hipóteses", () => {
       "qualidade de dado": "data_quality",
     });
     expect(valores.confidence).toEqual({ alta: "high", média: "medium", baixa: "low" });
+  });
+
+  test("[TA-13] registra o veredito com chave de idempotência e sem campo vazio", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ feedback_id: 3, created: true, reviewer_verified: false }, { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const chave = "0b0f7c0e-5d1c-4c57-9d0a-0d6c2f0a9b11";
+
+    await expect(submitHypothesisFeedback("17", "partially_confirmed", chave)).resolves.toMatchObject({
+      feedback_id: 3,
+      reviewer_verified: false,
+    });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(String(url)).pathname).toBe("/api/v1/hypotheses/17/feedback");
+    expect(options.method).toBe("POST");
+    // Sem observação, o campo não vai: a rota valida `note` como texto, e um
+    // `note: ""` gravaria uma observação vazia junto do veredito.
+    expect(JSON.parse(options.body)).toEqual({
+      verdict: "partially_confirmed",
+      idempotency_key: chave,
+    });
   });
 
   test("permite buscar a próxima página sem perder o recorte", async () => {

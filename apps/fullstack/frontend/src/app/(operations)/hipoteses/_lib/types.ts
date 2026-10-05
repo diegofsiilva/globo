@@ -43,6 +43,8 @@ export type Hypothesis = {
   kind?: string;
   /** Fração (0–1) da evidência exigida pela família que estava disponível. */
   coverage?: number | null;
+  /** Situação da revisão humana. */
+  reviewStatus?: "não revisada" | "confirmada" | "parcialmente confirmada" | "rejeitada";
 };
 
 /** Hipótese avaliada e rejeitada, com o motivo do descarte. */
