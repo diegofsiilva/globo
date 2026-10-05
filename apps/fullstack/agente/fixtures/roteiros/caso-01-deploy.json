@@ -58,7 +58,7 @@
     "action": "concluir",
     "rationale": "ha mudanca operacional proxima e o volume nao explica",
     "answer": {
-      "statement": "Possivel regressao apos o deploy do playback: o erro 5xx sobe de 0,4% para 8,1% no bucket seguinte ao deploy",
+      "statement": "Possivel regressao apos o deploy do playback: o erro 5xx sobe a partir das 19h",
       "scope": {
         "entity": "playback"
       },
@@ -101,8 +101,8 @@
             "6249e9de47645fe8302106ec3224528d4c200394e95d284f77c0378cd13b521a:1035",
             "63623172f6d0b55ab7e3a42f8b88fb4d393c3b0f2c9ce0f2e08d47b42e5fccc1:1036"
           ],
-          "observation": "requests_total fica entre 412 mil e 421 mil",
-          "reading": "o volume nao muda, entao pico de demanda nao explica; tambem nao ha sinal de saturacao"
+          "observation": "volume entre 412 mil e 421 mil, estavel",
+          "reading": "pico de demanda nao explica o degrau"
         }
       ],
       "gaps": [
@@ -113,6 +113,35 @@
         {
           "missing": "versao ou commit do deploy",
           "reason": "fora_do_catalogo"
+        }
+      ],
+      "alternativas": [
+        {
+          "explicacao": "regressao apos deploy",
+          "veredito": "sustentada",
+          "fact_ids": [
+            "02c17fff73ce56606e5e24d75870967a9394fe4ce95934a22562282930e59a94:1007",
+            "ca0b21f889911fb411d2fdc3009b56e1af1ba1ac29c696cfb07426031e70bf0f:1200",
+            "6dbdfe3a90038e89931749f391bf4c4b218253d455023959b6a6e57303ea8d13:1009",
+            "ef0899667ae481222575ce311a45809c4ca826f9ccff1ae25973f38093359e8e:1010",
+            "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:1020",
+            "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:1021",
+            "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:1022",
+            "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:1023"
+          ],
+          "observation": "degrau 5xx e queda de apdex no mesmo bucket"
+        },
+        {
+          "explicacao": "pico de demanda",
+          "veredito": "refutada",
+          "fact_ids": [
+            "4b0aa0c67ac07c68ff6793dab190b4a55c3100c5ab5ab2a75e63b86ec3e8f9fe:1032",
+            "cac8a72716121cd5305748eafb41eaa8bab31a0da2410e76725e7b36f2e13264:1033",
+            "e05484f697f7ae635cf434958b967bed3e3aab21ee84909636ee5b04a8ea292f:1034",
+            "6249e9de47645fe8302106ec3224528d4c200394e95d284f77c0378cd13b521a:1035",
+            "63623172f6d0b55ab7e3a42f8b88fb4d393c3b0f2c9ce0f2e08d47b42e5fccc1:1036"
+          ],
+          "observation": "o volume nao sobe"
         }
       ]
     }

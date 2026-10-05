@@ -24,7 +24,13 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from argus_agente.contrato import ACOES, FERRAMENTAS, MAX_TEXTO, MOTIVOS_DE_LACUNA
+from argus_agente.contrato import (
+    ACOES,
+    FERRAMENTAS,
+    MAX_TEXTO,
+    MOTIVOS_DE_LACUNA,
+    VEREDITOS_ALTERNATIVA,
+)
 
 # Linguagem conclusiva em uma saida que e, por construcao, uma explicacao
 # candidata. A regra espelha a RN-H11 do motor atual (artefatos/hipoteses.md):
@@ -76,6 +82,8 @@ class Conclusao:
     rationale: str
     contestada: bool = False
     avisos: list[str] = field(default_factory=list)
+    # Preenchido pela checagem numerica do ciclo (checagem.py), depois da validacao.
+    checagens: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -199,12 +207,19 @@ def _validar_hipotese(
         bruta.get("evidence_against"), "evidence_against", fact_ids_vistos, problemas
     )
     lacunas = _validar_lacunas(bruta.get("gaps"), problemas, obrigatorio=False)
-    if not contra and not lacunas:
+    # A refutacao e obrigatoria: uma lacuna declarada NAO substitui uma observacao
+    # contraria. O agente precisa ter olhado algo que pudesse derrubar a hipotese.
+    if not contra:
         problemas.append(
-            "nenhuma tentativa de refutacao registrada: preencha evidence_against "
-            "com o que voce verificou e nao derrubou a hipotese, ou gaps com o que "
-            "nao foi possivel verificar"
+            "evidence_against vazio: cite pelo menos um fato, entre os consultados, "
+            "que enfraquece a hipotese, mesmo que ela continue sendo a melhor"
         )
+    alternativas = _validar_alternativas(
+        bruta.get("alternativas"), fact_ids_vistos, problemas
+    )
+    efeito = _texto(bruta.get("effect_start"), "effect_start", problemas, limite=40)
+    if efeito and _instante(efeito, "effect_start", problemas) is None:
+        problemas.append("effect_start precisa ser um instante ISO-8601")
     repetidos = {
         fact_id
         for evidencia in a_favor
@@ -225,6 +240,7 @@ def _validar_hipotese(
         },
         "evidence_for": a_favor,
         "evidence_against": contra,
+        "alternativas": alternativas,
         "gaps": lacunas,
     }
     for chave in ("effect_start", "effect_end"):
@@ -234,6 +250,55 @@ def _validar_hipotese(
             if lido is not None:
                 hipotese[chave] = lido.isoformat()
     return hipotese, avisos
+
+
+def _validar_alternativas(
+    brutas: Any, fact_ids_vistos: set[str], problemas: list[str]
+) -> list[dict[str, Any]]:
+    """Confere as explicacoes rivais: pelo menos duas, com veredito honesto.
+
+    `sustentada` e `refutada` precisam citar fatos realmente consultados, e
+    `nao_verificada` fica sem fato obrigatorio. Um veredito sem fato por tras e
+    so uma opiniao, e isso o validador recusa.
+    """
+    if not isinstance(brutas, list) or len(brutas) < 2:
+        problemas.append("alternativas precisa ter ao menos duas explicacoes rivais")
+        return []
+    saida: list[dict[str, Any]] = []
+    for indice, bruta in enumerate(brutas[:5]):
+        rotulo = f"alternativas[{indice}]"
+        if not isinstance(bruta, dict):
+            problemas.append(f"{rotulo} precisa ser um objeto")
+            continue
+        veredito = bruta.get("veredito")
+        if veredito not in VEREDITOS_ALTERNATIVA:
+            problemas.append(
+                f"{rotulo}.veredito precisa ser um de {list(VEREDITOS_ALTERNATIVA)}"
+            )
+            continue
+        explicacao = _texto(bruta.get("explicacao"), f"{rotulo}.explicacao", problemas)
+        observacao = _texto(bruta.get("observation"), f"{rotulo}.observation", problemas)
+        fact_ids = [str(x) for x in (bruta.get("fact_ids") or [])]
+        inventados = [x for x in fact_ids if x not in fact_ids_vistos]
+        if inventados:
+            problemas.append(
+                f"{rotulo} cita fatos que nenhuma ferramenta devolveu: {inventados[:3]}"
+            )
+            continue
+        if veredito in ("sustentada", "refutada") and not fact_ids:
+            problemas.append(f"{rotulo}: veredito {veredito} exige ao menos um fato")
+            continue
+        saida.append(
+            {
+                "explicacao": explicacao,
+                "veredito": veredito,
+                "fact_ids": list(dict.fromkeys(fact_ids))[:12],
+                "observation": observacao,
+            }
+        )
+    if len(saida) < 2:
+        problemas.append("alternativas validas insuficientes: ao menos duas")
+    return saida
 
 
 def _validar_evidencias(

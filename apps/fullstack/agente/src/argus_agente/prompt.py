@@ -13,7 +13,7 @@ from argus_agente.casos import janela_do_inventario
 from argus_agente.contrato import Caso
 from argus_agente.limites import Guardas
 
-PROMPT_VERSION = "2.1.0"
+PROMPT_VERSION = "2.2.0"
 
 SISTEMA = """Voce investiga degradacao em uma plataforma de streaming e formula
 UMA hipotese de causa provavel para o recorte apresentado.
@@ -49,8 +49,20 @@ Formato de cada acao, sempre dentro do mesmo objeto JSON:
       {"fact_ids": ["..."], "observation": "...", "reading": "..."}],
     "evidence_against": [
       {"fact_ids": ["..."], "observation": "...", "reading": "..."}],
+    "alternativas": [
+      {"explicacao": "outra causa plausivel",
+       "veredito": "sustentada|refutada|nao_verificada",
+       "fact_ids": ["..."], "observation": "..."}],
     "gaps": [{"missing": "...", "reason": "sem_dado"}]}}
-  O campo answer e OBRIGATORIO em concluir. evidence_for tem ao menos um item.
+  O campo answer e OBRIGATORIO em concluir. Regras do answer:
+  - effect_start: instante ISO-8601 em que o efeito comeca nos dados.
+  - statement: diga QUAL serie muda, em QUE direcao, e a partir de QUANDO.
+  - evidence_against: NAO pode ser vazio. Cite ao menos um fato consultado que
+    enfraquece a hipotese, mesmo que ela continue sendo a melhor.
+  - alternativas: ao menos duas explicacoes rivais. Cada uma com veredito
+    sustentada, refutada ou nao_verificada. sustentada e refutada exigem fact_ids;
+    nao_verificada diz por que os dados nao alcancam.
+  evidence_for tem ao menos um item.
 - desistir: {"action": "desistir", "rationale": "...",
     "gaps": [{"missing": "...", "reason": "..."}]}
 

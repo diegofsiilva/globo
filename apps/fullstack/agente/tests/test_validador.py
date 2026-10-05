@@ -41,8 +41,51 @@ def test_hipotese_que_cita_fato_nao_entregue_e_rejeitada():
 
 def test_hipotese_sem_tentativa_de_refutacao_e_rejeitada():
     passo = conclusao(list(VISTOS))
-    passo["answer"]["gaps"] = []
-    with pytest.raises(PassoInvalido, match="refutacao"):
+    passo["answer"]["evidence_against"] = []
+    with pytest.raises(PassoInvalido, match="evidence_against vazio"):
+        interpretar(passo, fact_ids_vistos=VISTOS)
+
+
+def test_lacuna_declarada_nao_substitui_refutacao():
+    passo = conclusao(list(VISTOS))
+    passo["answer"]["evidence_against"] = []
+    passo["answer"]["gaps"] = [{"missing": "tudo", "reason": "sem_dado"}]
+    with pytest.raises(PassoInvalido, match="evidence_against vazio"):
+        interpretar(passo, fact_ids_vistos=VISTOS)
+
+
+def test_uma_so_alternativa_e_rejeitada():
+    passo = conclusao(list(VISTOS))
+    passo["answer"]["alternativas"] = passo["answer"]["alternativas"][:1]
+    with pytest.raises(PassoInvalido, match="ao menos duas"):
+        interpretar(passo, fact_ids_vistos=VISTOS)
+
+
+def test_veredito_sustentada_sem_fato_e_rejeitado():
+    passo = conclusao(list(VISTOS))
+    passo["answer"]["alternativas"][0]["fact_ids"] = []
+    with pytest.raises(PassoInvalido, match="exige ao menos um fato"):
+        interpretar(passo, fact_ids_vistos=VISTOS)
+
+
+def test_nao_verificada_dispensa_fato():
+    passo = conclusao(list(VISTOS))
+    passo["answer"]["alternativas"][1] = {
+        "explicacao": "comportamento de cliente",
+        "veredito": "nao_verificada",
+        "fact_ids": [],
+        "observation": "sem UF nem ISP no recorte",
+    }
+    resultado = interpretar(passo, fact_ids_vistos=VISTOS)
+    assert any(
+        a["veredito"] == "nao_verificada" for a in resultado.hipotese["alternativas"]
+    )
+
+
+def test_effect_start_precisa_ser_instante():
+    passo = conclusao(list(VISTOS))
+    passo["answer"]["effect_start"] = "de manha"
+    with pytest.raises(PassoInvalido, match="effect_start"):
         interpretar(passo, fact_ids_vistos=VISTOS)
 
 

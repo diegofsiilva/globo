@@ -93,10 +93,38 @@ _LACUNA = {
     },
 }
 
+# Veredito de uma explicacao rival. `sustentada` e `refutada` exigem fatos
+# citados; `nao_verificada` diz, com honestidade, o que os dados nao alcancam.
+VEREDITOS_ALTERNATIVA = ("sustentada", "refutada", "nao_verificada")
+
+_ALTERNATIVA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["explicacao", "veredito", "fact_ids", "observation"],
+    "properties": {
+        "explicacao": _TEXTO_CURTO,
+        "veredito": {"enum": list(VEREDITOS_ALTERNATIVA)},
+        "fact_ids": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {"type": "string", "maxLength": 120},
+        },
+        "observation": _TEXTO_CURTO,
+    },
+}
+
 ESQUEMA_HIPOTESE = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["statement", "scope", "evidence_for", "evidence_against", "gaps"],
+    "required": [
+        "statement",
+        "scope",
+        "effect_start",
+        "evidence_for",
+        "evidence_against",
+        "alternativas",
+        "gaps",
+    ],
     "properties": {
         "statement": {"type": "string", "maxLength": 400},
         "scope": {
@@ -120,6 +148,12 @@ ESQUEMA_HIPOTESE = {
             "items": _EVIDENCIA,
         },
         "evidence_against": {"type": "array", "maxItems": 6, "items": _EVIDENCIA},
+        "alternativas": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 5,
+            "items": _ALTERNATIVA,
+        },
         "gaps": {"type": "array", "maxItems": 6, "items": _LACUNA},
     },
 }

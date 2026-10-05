@@ -161,10 +161,17 @@ def consulta_serie(**extras: Any) -> dict[str, Any]:
 
 
 def conclusao(fact_ids: list[str], contra: list[str] | None = None) -> dict[str, Any]:
-    """Passo de conclusao citando os fatos pedidos."""
+    """Passo de conclusao completo: evidencia a favor, refutacao e rivais.
+
+    Por padrao a refutacao cita o ultimo fato pedido e as duas alternativas
+    citam fatos reais, para que o passo passe no validador. Um teste que quer
+    justamente a falta de refutacao zera `evidence_against` depois.
+    """
+    refutacao = contra if contra else fact_ids[-1:]
     answer: dict[str, Any] = {
-        "statement": "Possivel regressao apos deploy no playback",
+        "statement": "Possivel regressao apos deploy no playback, a partir das 19h",
         "scope": {"entity": "playback"},
+        "effect_start": "2026-08-20T19:00:00Z",
         "evidence_for": [
             {
                 "fact_ids": fact_ids,
@@ -172,15 +179,29 @@ def conclusao(fact_ids: list[str], contra: list[str] | None = None) -> dict[str,
                 "reading": "compativel com mudanca no servico",
             }
         ],
-        "evidence_against": [],
+        "evidence_against": [
+            {
+                "fact_ids": refutacao,
+                "observation": "o bucket final ainda nao confirma a mudanca",
+                "reading": "enfraquece a hipotese, sem afirmar direcao",
+            }
+        ],
+        "alternativas": [
+            {
+                "explicacao": "regressao apos deploy",
+                "veredito": "sustentada",
+                "fact_ids": fact_ids[:1],
+                "observation": "o degrau coincide com o deploy",
+            },
+            {
+                "explicacao": "queda de demanda",
+                "veredito": "refutada",
+                "fact_ids": refutacao,
+                "observation": "o volume nao cai",
+            },
+        ],
         "gaps": [{"missing": "quebra por regiao", "reason": "ainda_indisponivel"}],
     }
     if contra:
-        answer["evidence_against"] = [
-            {
-                "fact_ids": contra,
-                "observation": "o volume total nao muda",
-                "reading": "enfraquece a hipotese de queda de demanda",
-            }
-        ]
+        answer["evidence_against"][0]["fact_ids"] = contra
     return {"action": "concluir", "rationale": "evidencia reunida", "answer": answer}

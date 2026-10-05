@@ -64,7 +64,7 @@
     "action": "concluir",
     "rationale": "o efeito fica na borda e nao aparece no backend",
     "answer": {
-      "statement": "Possivel bloqueio na borda: a subida de 4xx no RPaaS acompanha o aumento de requisicoes bloqueadas pelo Cloud Armor, sem efeito correspondente no backend",
+      "statement": "Possivel bloqueio na borda: o 4xx do RPaaS sobe a partir das 19h sem efeito no backend",
       "scope": {
         "entity": "playback.video.globo.com"
       },
@@ -100,17 +100,7 @@
             "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036"
           ],
           "observation": "apdex do playback fica entre 0,93 e 0,94",
-          "reading": "se houvesse falha de aplicacao, a experiencia medida cairia junto"
-        },
-        {
-          "fact_ids": [
-            "02c17fff73ce56606e5e24d75870967a9394fe4ce95934a22562282930e59a94:2046",
-            "ca0b21f889911fb411d2fdc3009b56e1af1ba1ac29c696cfb07426031e70bf0f:2047",
-            "6dbdfe3a90038e89931749f391bf4c4b218253d455023959b6a6e57303ea8d13:2048",
-            "ef0899667ae481222575ce311a45809c4ca826f9ccff1ae25973f38093359e8e:2049"
-          ],
-          "observation": "http_5xx_rate do playback nao se move",
-          "reading": "nenhum erro interno acompanha a subida da borda"
+          "reading": "se fosse falha de aplicacao, a experiencia cairia junto"
         }
       ],
       "gaps": [
@@ -125,6 +115,30 @@
         {
           "missing": "amostragem do RPaaS: sample_size perto de 2.100 contra 405 mil requisicoes",
           "reason": "limite_de_ferramenta"
+        }
+      ],
+      "alternativas": [
+        {
+          "explicacao": "bloqueio na borda",
+          "veredito": "sustentada",
+          "fact_ids": [
+            "e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007",
+            "31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008",
+            "05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009",
+            "cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010"
+          ],
+          "observation": "4xx sobe de 1,1% para 6,8% as 19h"
+        },
+        {
+          "explicacao": "falha de aplicacao",
+          "veredito": "refutada",
+          "fact_ids": [
+            "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033",
+            "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034",
+            "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035",
+            "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036"
+          ],
+          "observation": "a experiencia nao cai"
         }
       ]
     }

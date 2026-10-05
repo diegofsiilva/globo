@@ -18,6 +18,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from argus_agente.checagem import checar_evidencias
 from argus_agente.contrato import (
     DESFECHO_ERRO,
     DESFECHO_HIPOTESE,
@@ -125,6 +126,14 @@ def investigar(
             )
             try:
                 passo = interpretar(bruto, fact_ids_vistos=fact_ids_vistos)
+                if isinstance(passo, Conclusao) and hasattr(ferramentas, "facts"):
+                    # O texto da evidencia precisa bater com a serie real. Contradicao
+                    # vira pedido de correcao, como qualquer outra violacao.
+                    problemas_numericos, passo.checagens = checar_evidencias(
+                        passo.hipotese, ferramentas
+                    )
+                    if problemas_numericos:
+                        raise PassoInvalido(problemas_numericos)
             except PassoInvalido as erro:
                 _registrar_passo(
                     registro,
@@ -172,6 +181,7 @@ def investigar(
             registro.hipotese = passo.hipotese
             registro.lacunas = passo.hipotese["gaps"]
             registro.contestada = passo.contestada
+            registro.hipotese["checagens"] = passo.checagens
             registro.validacao = {"aprovado": True, "avisos": passo.avisos}
             break
     except TetoAtingido as teto:
