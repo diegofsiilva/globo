@@ -102,7 +102,7 @@ CONTEXTO = $(if $(filter backend frontend,$(1)),$(1),.)
 #
 # A escolha da plataforma por imagem e feita no `push`, em shell: o nome da
 # imagem la e variavel de SHELL (vem do laco), e uma funcao de make nao alcanca.
-IMAGES_MULTIARCH := backend frontend processing
+IMAGES_MULTIARCH := backend frontend processing worker
 
 # A tag que as task definitions referenciam. NUNCA `latest`.
 #
@@ -414,6 +414,14 @@ frontend-build-check: ## Compila o dashboard com URL de placeholder (portao de C
 .PHONY: api
 api: ## Sobe a API de leitura local contra o banco local (porta API_PORT)
 	cd $(BACKEND) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} PORT=$(API_PORT) $(UV) python lambda_handler.py
+
+.PHONY: file-api file-worker
+file-api: ## Sobe upload local; exige INGEST_TOKEN_SHA256 e usa porta 5002
+	@$(call require_env,INGEST_TOKEN_SHA256)
+	cd $(WORKER) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} PORT=$${PORT:-5002} $(UV) python -m argus_worker file-api
+
+file-worker: ## Processa CSV/Parquet da fila PostgreSQL local
+	cd $(WORKER) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} $(UV) python -m argus_worker file-worker
 
 # `dev` e o caminho de UM comando: banco, API e dashboard no mesmo terminal, e
 # Ctrl-C derruba os tres. A orquestracao (subir em paralelo, esperar a API
@@ -1391,7 +1399,7 @@ METRICS_SERVER_VERSAO ?= v0.8.0
 # `processing` e a imagem dos Jobs de `k8s-migrate` (ela embarca db/migrations/
 # e tools/migrate.py). Ficar sem ela aqui fazia o Job de migration terminar em
 # ImagePullBackOff num ECR de lab recem-criado, porque so `make push` a publicava.
-K8S_IMAGES := backend frontend processing
+K8S_IMAGES := backend frontend processing worker
 
 # O que o cluster LOCAL precisa ter carregado: hoje o mesmo conjunto. A lista
 # existe separada porque escreve-la a mao foi o que fez `make kind-load` falhar
@@ -1459,10 +1467,11 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 	senha_leitor=$$(terraform output -raw eks_read_api_db_password); \
 	salt=$$(terraform output -raw eks_user_id_hash_salt); \
 	segredo=$$(terraform output -raw auth_tokens_secret); \
-	hash=$$(aws secretsmanager get-secret-value --secret-id "$$segredo" \
+	hashes=$$(aws secretsmanager get-secret-value --secret-id "$$segredo" \
 	  --profile $$AWS_PROFILE --region $${AWS_REGION:-us-east-1} \
 	  --query SecretString --output text \
-	  | python3 -c "import json,sys; print(json.load(sys.stdin)['dashboard'])"); \
+	  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['dashboard'], d['ingest'])"); \
+	read -r hash ingest_hash <<< "$$hashes"; \
 	cd ..; \
 	$(KUBECTL) create namespace $(K8S_NAMESPACE) --dry-run=client -o yaml | $(KUBECTL) apply -f -; \
 	$(KUBECTL) create secret generic argus-backend -n $(K8S_NAMESPACE) \
@@ -1471,6 +1480,7 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 	  --from-literal=DB_READER_PASSWORD="$$senha_leitor" \
 	  --from-literal=USER_ID_HASH_SALT="$$salt" \
 	  --from-literal=DASHBOARD_TOKEN_SHA256="$$hash" \
+	  --from-literal=INGEST_TOKEN_SHA256="$$ingest_hash" \
 	  --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	@echo
 	@# Variavel de ambiente vinda de secretKeyRef NAO e recarregada em pod que
@@ -1486,7 +1496,10 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 	else \
 	  echo "  (backend ainda nao aplicado; o Secret sera lido no primeiro k8s-apply)"; \
 	fi
-	@echo "Secret argus-backend atualizado (5 chaves)."
+	@if $(KUBECTL) -n $(K8S_NAMESPACE) get deployment argus-file-api >/dev/null 2>&1; then \
+	  $(KUBECTL) -n $(K8S_NAMESPACE) rollout restart deployment/argus-file-api; \
+	fi
+	@echo "Secret argus-backend atualizado (6 chaves)."
 
 # Renderiza um diretorio de kustomize e aplica, trocando os placeholders de
 # imagem pela referencia completa do ECR desta sessao do lab.
@@ -1506,7 +1519,8 @@ define k8s_aplica_aws
 	$(KUBECTL) kustomize $(1) \
 	  | sed "s|IMAGE_BACKEND|$$(ref backend):$(IMAGE_TAG)|g; \
 	         s|IMAGE_FRONTEND|$$(ref frontend):$(IMAGE_TAG)|g; \
-	         s|IMAGE_PROCESSING|$$(ref processing):$(IMAGE_TAG)|g" \
+	         s|IMAGE_PROCESSING|$$(ref processing):$(IMAGE_TAG)|g; \
+	         s|IMAGE_WORKER|$$(ref worker):$(IMAGE_TAG)|g" \
 	  | $(KUBECTL) apply -f - $(2)
 endef
 

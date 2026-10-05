@@ -21,6 +21,7 @@ resources:
   - frontend-hpa.yaml
   - frontend-pdb.yaml
   - ingress.yaml
+  - file-ingestion.yaml
 
 labels:
   - includeSelectors: false
