@@ -1,14 +1,15 @@
-"""Checagem numerica das evidencias: o texto bate com a serie?
+"""Checagem numerica das observacoes citadas em uma hipotese.
 
-O validador confere que os `fact_ids` existem. Esta checagem confere o que o
-TEXTO afirma: se a observacao diz que uma serie sobe, cai ou fica estavel a
-partir do `effect_start`, a serie real precisa mostrar isso. Tambem recusa
-adjetivos de magnitude ("significativamente", "pico") quando a variacao e
-pequena.
+O validador confere que os `fact_ids` foram consultados. Esta checagem confere
+uma afirmacao limitada da observacao: se ela diz que uma serie sobe, cai ou
+fica estavel a partir do `effect_start`, os pontos citados precisam mostrar
+isso. Tambem recusa adjetivos de magnitude ("significativamente", "pico")
+quando a variacao citada e pequena. A leitura causal em `reading` continua
+reservada a revisao humana.
 
-Ela so decide quando consegue: a evidencia precisa citar fatos de UMA serie, a
-serie precisa ter pontos antes e depois do efeito, e a observacao precisa ter
-uma direcao clara. Qualquer outro caso fica `indeterminado` -- nunca contradito.
+Ela so decide quando consegue: a evidencia precisa citar fatos de UMA serie,
+com pontos citados antes e depois do efeito, e a observacao precisa ter uma
+direcao clara. Qualquer outro caso fica `indeterminado` -- nunca contradito.
 """
 
 from __future__ import annotations
@@ -93,9 +94,9 @@ def _fact_id(fato: dict[str, Any]) -> str:
 
 
 def medir_serie(
-    leitor: CaseReader, chave: tuple[Any, ...], efeito: str
+    fatos_citados: list[dict[str, Any]], chave: tuple[Any, ...], efeito: str
 ) -> Medicao | None:
-    """Mede a serie antes e depois do efeito, ou None se nao der para medir."""
+    """Mede somente os pontos citados antes e depois do efeito."""
     try:
         instante = _instant(efeito)
     except ValueError:
@@ -103,7 +104,7 @@ def medir_serie(
     pontos = sorted(
         (
             f
-            for f in leitor.facts
+            for f in fatos_citados
             if f["kind"] == "metric" and f["value"] is not None and _chave(f) == chave
         ),
         key=lambda f: f["event_start"],
@@ -151,6 +152,8 @@ def checar_evidencias(
                 "lado": lado,
                 "observation": texto,
                 "status": "indeterminado",
+                "reading": evidencia["reading"],
+                "interpretacao": "revisao_humana",
             }
             # Um fact_id que o leitor nao conhece torna a checagem indeterminada: nao
             # da para saber a qual serie ele pertence, entao nao se contradiz ninguem.
@@ -160,7 +163,9 @@ def checar_evidencias(
             if not efeito or desconhecidos or len(chaves) != 1 or direcao is None:
                 checagens.append(registro)
                 continue
-            medicao = medir_serie(leitor, next(iter(chaves)), efeito)
+            medicao = medir_serie(
+                [por_id[i] for i in evidencia["fact_ids"]], next(iter(chaves)), efeito
+            )
             if medicao is None:
                 checagens.append(registro)
                 continue
@@ -188,6 +193,6 @@ def checar_evidencias(
                     "proporcional ou cite a variacao"
                 )
             else:
-                registro["status"] = "confirmado"
+                registro["status"] = "coerente_com_citacoes"
             checagens.append(registro)
     return problemas, checagens

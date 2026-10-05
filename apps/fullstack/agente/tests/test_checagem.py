@@ -81,7 +81,7 @@ def test_texto_que_contradiz_a_serie_vira_problema():
     valores = [0.2] * 8 + [0.4] * 8
     leitor = _leitor(valores)
     efeito = iso(INICIO + dt.timedelta(minutes=120))
-    ids = _ids_a_partir_de(leitor, 120)
+    ids = _ids(leitor)
     problemas, checagens = checar_evidencias(
         _hipotese("o erro cai a partir do efeito", ids, efeito), leitor
     )
@@ -94,13 +94,12 @@ def test_texto_coerente_com_a_serie_passa():
     leitor = _leitor(valores)
     efeito = iso(INICIO + dt.timedelta(minutes=120))
     problemas, checagens = checar_evidencias(
-        _hipotese(
-            "o erro sobe a partir do efeito", _ids_a_partir_de(leitor, 120), efeito
-        ),
+        _hipotese("o erro sobe a partir do efeito", _ids(leitor), efeito),
         leitor,
     )
     assert problemas == []
-    assert checagens[0]["status"] == "confirmado"
+    assert checagens[0]["status"] == "coerente_com_citacoes"
+    assert checagens[0]["interpretacao"] == "revisao_humana"
 
 
 def test_adjetivo_forte_para_variacao_pequena_vira_exagero():
@@ -109,11 +108,25 @@ def test_adjetivo_forte_para_variacao_pequena_vira_exagero():
     leitor = _leitor(valores)
     efeito = iso(INICIO + dt.timedelta(minutes=120))
     problemas, checagens = checar_evidencias(
-        _hipotese("aumento significativo do erro", _ids_a_partir_de(leitor, 120), efeito),
+        _hipotese("aumento significativo do erro", _ids(leitor), efeito),
         leitor,
     )
     assert problemas and "magnitude" in problemas[0]
     assert checagens[0]["status"] == "exagero"
+
+
+def test_pontos_nao_citados_nao_confirmam_observacao():
+    valores = [0.2] * 8 + [0.4] * 8
+    leitor = _leitor(valores)
+    efeito = iso(INICIO + dt.timedelta(minutes=120))
+    problemas, checagens = checar_evidencias(
+        _hipotese(
+            "o erro sobe a partir do efeito", _ids_a_partir_de(leitor, 120), efeito
+        ),
+        leitor,
+    )
+    assert problemas == []
+    assert checagens[0]["status"] == "indeterminado"
 
 
 def test_evidencia_com_fatos_de_duas_series_fica_indeterminada():

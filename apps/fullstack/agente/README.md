@@ -49,6 +49,7 @@ Para usar o modelo de verdade, as chaves `OLLAMA_*` precisam estar no
 | `modelo.py` | Cliente Ollama (HTTP ou SSH) e o dublê de roteiro |
 | `limites.py` | Tetos de chamadas, linhas, tempo e respostas inválidas |
 | `agente.py` | O ciclo de investigação |
+| `checagem.py` | Confere direção e magnitude das observações usando apenas os pontos citados; a interpretação causal segue para revisão humana |
 | `validador.py` | Leitura e recusa da resposta do modelo |
 | `registro.py` | Gravação dos casos e do relatório do lote |
 | `lote.py` | Execução de vários casos |
