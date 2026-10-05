@@ -13,9 +13,13 @@ de `../processing`. Leia `README.md` para rodar e
 2. **O agente nunca vê a resposta do motor atual.** Anomalias, candidatos,
    score, `gold.hypothesis_*`, feedback, `incidents` e `incident_label` ficam
    fora da entrada. Se algum deles entrar, a comparação do Dia 6 perde sentido.
-3. **Nenhum fato com `available_at > sim_now` chega ao modelo.** O corte vive no
-   adaptador de dados e é testado em `tests/test_ferramentas.py`. Um teste que
-   passa a aceitar fato futuro é um defeito, não uma atualização de fixture.
+3. **A leitura dos fatos não se reimplementa aqui.** O recorte, o corte
+   temporal, a seleção da última versão por `fact_key`, o tombstone e a
+   paginação são do leitor em `../tools/agente_hipoteses_caso.py`, importado por
+   `leitor.py`. Escrever uma segunda leitura neste pacote já aconteceu uma vez e
+   produziu dois contratos incompatíveis para as mesmas três ferramentas.
+   `tests/test_ferramentas.py` fixa as garantias de que o ciclo depende; um
+   teste que passa a aceitar fato futuro é um defeito, não uma fixture nova.
 4. **Teto é código, não instrução de prompt.** Os limites de chamadas, linhas e
    tempo vivem em `limites.py` e são verificados pelo executor. Não substitua
    uma guarda por uma frase no prompt pedindo ao modelo que se contenha.

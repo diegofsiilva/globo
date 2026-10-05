@@ -38,9 +38,10 @@ Para usar o modelo de verdade, as chaves `OLLAMA_*` precisam estar no
 
 | Arquivo | O que é |
 |---|---|
-| `contrato.py` | Esquemas e dataclasses dos quatro contratos |
-| `ferramentas.py` | Porta das três consultas e o adaptador sobre fixture |
-| `casos.py` | Carga de um caso e cálculo do digest do recorte |
+| `leitor.py` | Ponte para o leitor de fatos de `tools/` — a única costura entre as metades |
+| `contrato.py` | Esquemas e dataclasses do que o modelo responde e do que é gravado |
+| `ferramentas.py` | Despacho das três consultas sobre o leitor |
+| `casos.py` | Carga de um caso no formato do leitor |
 | `prompt.py` | Prompt de sistema e serialização do que o agente vê |
 | `modelo.py` | Cliente Ollama (HTTP ou SSH) e o dublê de roteiro |
 | `limites.py` | Tetos de chamadas, linhas, tempo e respostas inválidas |
@@ -52,6 +53,7 @@ Para usar o modelo de verdade, as chaves `OLLAMA_*` precisam estar no
 
 ## Estado
 
-O adaptador de dados é um dublê sobre arquivo JSON. O adaptador real sobre
-`silver.analysis_fact_version` é trabalho da pessoa dos dados, e a seção 6 do
-documento de contratos lista o que ainda depende dela.
+A leitura dos fatos é a de `tools/agente_hipoteses_caso.py`, compartilhada com o
+executor sintético e com o leitor de banco. O agente não tem leitura própria: ele
+só investiga. O que ainda está em aberto está na seção 6 do documento de
+contratos.

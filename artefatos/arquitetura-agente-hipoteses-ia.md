@@ -1,26 +1,23 @@
 # Arquitetura inicial do agente de hipóteses com IA
 
-> Proposta de MVA — Dias 1 e 2. Este documento descreve uma alternativa experimental;
-> não representa comportamento já implementado ou publicado no Argus.
-
 ## 1. Problema e primeira adição de valor
 
-O motor atual detecta anomalias e gera hipóteses por 11 famílias de regras. A
+&emsp; O motor atual detecta anomalias e gera hipóteses por 11 famílias de regras. A
 alternativa proposta começa antes dessa geração: um agente investiga os fatos
 disponíveis em um checkpoint e formula suas próprias explicações candidatas.
-Ele não recebe as anomalias, os candidatos, o score ou as hipóteses do motor
+&emsp; Ele não recebe as anomalias, os candidatos, o score ou as hipóteses do motor
 atual. A primeira adição de valor é produzir, para **um recorte de incidente**,
 uma hipótese verificável com referências aos fatos consultados, ou declarar que
 a evidência é insuficiente. A decisão sobre a causa continua humana.
 
-As duas abordagens podem ser comparadas depois sobre o mesmo checkpoint. A
+&emsp; As duas abordagens podem ser comparadas depois sobre o mesmo checkpoint. A
 comparação não transforma a saída do motor atual em resposta correta para a IA.
 
 ## 2. Fatos que o agente poderá consultar
 
 ### Fonte e unidade de observação
 
-A fonte proposta é `silver.analysis_fact_version`, que normaliza mudanças do
+&emsp; A fonte proposta é `silver.analysis_fact_version`, que normaliza mudanças do
 `bronze.change_log`. O identificador de uma observação é
 `(fact_key, version_lsn)`. O [contrato `Fact`](../apps/fullstack/processing/src/argus_processing/domain.py)
 contém `role`, `kind`, `event_start`, `event_end`, `available_at`, `source`,
@@ -28,7 +25,7 @@ contém `role`, `kind`, `event_start`, `event_end`, `available_at`, `source`,
 e `attributes`. Esses campos descrevem um fato; nenhum deles é, por si só, uma
 causa confirmada.
 
-O recorte deve ser fixado por `checkpoint_id`, `sim_now` e `input_lsn`. Para cada
+&emsp; O recorte deve ser fixado por `checkpoint_id`, `sim_now` e `input_lsn`. Para cada
 `fact_key`, somente a última versão com `version_lsn <= input_lsn` pode entrar;
 ela precisa ter `available_at <= sim_now`, `event_start <= sim_now` e não estar
 marcada como excluída. O agente vê um conjunto imutável ao longo da investigação.
@@ -47,7 +44,7 @@ do cursor nem reutilizar o commit protegido do motor determinístico.
 | Experiência de reprodução | Player, dispositivo, geografia, QoE, sessões ativas e erros de reprodução | O impacto aparece em quais recortes de usuários? |
 | Contexto editorial | Eventos ao vivo e sua janela | O aumento de volume coincide com programação esperada? |
 
-Este é um catálogo de **tipos de fato**, não uma lista de tabelas liberadas para
+&emsp; Este é um catálogo de **tipos de fato**, não uma lista de tabelas liberadas para
 SQL arbitrário. A interface do agente deverá devolver somente campos
 selecionados, com identificador e proveniência. `attributes` exige seleção
 explícita por fonte antes de chegar ao modelo, para evitar carga irrelevante ou
@@ -89,14 +86,14 @@ Cada resposta de consulta deverá oferecer pelo menos:
 }
 ```
 
-O exemplo é um formato, não um registro real. Valores ausentes continuam
+&emsp; O exemplo é um formato, não um registro real. Valores ausentes continuam
 ausentes; não são convertidos em zero. Consultas agregadas devem trazer os
 identificadores dos fatos que contribuíram para o resultado ou uma referência
 estável ao conjunto, para permitir conferência posterior.
 
 ## 3. Arquitetura do piloto
 
-Esta seção fixa o desenho do piloto: quais peças existem, por onde passa uma
+&emsp; Esta seção fixa o desenho do piloto: quais peças existem, por onde passa uma
 investigação e onde está a fronteira entre código determinístico e modelo. Dois
 termos aparecem o tempo todo. **Ferramenta** é uma função fechada que o agente
 pode chamar, com parâmetros declarados e resposta de formato conhecido — não é
@@ -475,9 +472,9 @@ curta e auditável. Eles podem ser ajustados no Dia 5, com o motivo registrado.
 | Limite | Valor proposto | Razão |
 |---|---|---|
 | Casos por execução | 1 checkpoint e 1 recorte | Mantém o digest do conjunto estável e a reexecução comparável. |
-| Ferramentas expostas | 3 | Inventário, série e contexto cobrem o ciclo sem virar plataforma. |
+| Ferramentas expostas | 3 | `inventariar_fatos`, `consultar_serie` e `consultar_contexto` cobrem o ciclo sem virar plataforma. |
 | Chamadas de ferramenta por caso | 12 | Permite algumas idas e voltas e impede investigação indefinida. |
-| Linhas por resposta | 200, com agregação ou paginação acima disso | Evita despejar a janela inteira no modelo. |
+| Itens por resposta | 200, com paginação por cursor acima disso | Evita despejar a janela inteira no modelo. Paginar consome outra chamada. |
 | Tempo de parede por caso | 5 minutos | Torna o lote do Dia 5 executável em uma sessão. |
 | Devoluções do validador | 1 nova tentativa | Separa erro de formatação de incapacidade de responder. |
 
@@ -534,15 +531,20 @@ permanecem como próximos passos para implementação paralela:
 
 O piloto vive em [`apps/fullstack/agente`](../apps/fullstack/agente/README.md),
 como execução experimental separada. Ele implementa o ciclo desta seção 3, os
-tetos da seção 5.1 e as recusas da seção 4, com um adaptador de dados sobre
-arquivo enquanto o acesso ao recorte real não existe.
+tetos da seção 5.1 e as recusas da seção 4, **sobre o leitor de fatos das seções
+3.4 a 3.6** — o agente não tem leitura própria dos dados.
 
 | Dia | Entrega | Onde |
 |---|---|---|
-| 2 | Contratos de entrada, ferramentas, passo e registro | [`contrato-agente-hipoteses.md`](contrato-agente-hipoteses.md), `contrato.py` |
-| 3 | Prompt, cliente do modelo e primeira execução ponta a ponta | `prompt.py`, `modelo.py`, `agente.py` |
-| 4 | Ciclo de chamadas às ferramentas e tetos de execução | `agente.py`, `limites.py` |
+| 2 | Contratos de entrada, passo e registro | [`contrato-agente-hipoteses.md`](contrato-agente-hipoteses.md), `contrato.py` |
+| 3 | Prompt, cliente do modelo e execução ponta a ponta | `prompt.py`, `modelo.py`, `agente.py` |
+| 4 | Ciclo de chamadas às ferramentas e tetos de execução | `agente.py`, `limites.py`, `ferramentas.py` |
 | 5 | Contradições, ausência de dados, erros, respostas inválidas e lote | `validador.py`, `lote.py`, `registro.py` |
+
+O agente consome o leitor através de [`leitor.py`](../apps/fullstack/agente/src/argus_agente/leitor.py),
+que resolve o import por caminho porque `tools/` não é instalável como pacote.
+Essa ponte é a única costura entre as duas metades, e desaparece quando o leitor
+mudar de lugar.
 
 `make -C apps/fullstack agente-ensaio` roda o lote inteiro com um dublê de
 roteiro, sem modelo, rede ou banco; `make -C apps/fullstack agente-lote` roda

@@ -1,16 +1,21 @@
 # Contratos do piloto de hipóteses com IA
 
-> Entrega do Dia 2. Acompanha a arquitetura descrita em
+> Acompanha a arquitetura descrita em
 > [`arquitetura-agente-hipoteses-ia.md`](arquitetura-agente-hipoteses-ia.md).
 > Descreve uma execução experimental; nada aqui está publicado no produto.
 
-Quatro contratos sustentam o piloto, e a separação entre eles é o que mantém o
-resultado auditável:
+Este documento cobre o lado do **agente**: o que ele recebe, o que ele responde
+e o que fica gravado. O contrato de **leitura** — nomes das ferramentas,
+argumentos e envelope de resposta — não é definido aqui: ele é a seção 3.4 do
+documento de arquitetura, e é implementado pelo leitor de fatos em
+[`tools/agente_hipoteses_caso.py`](../apps/fullstack/tools/agente_hipoteses_caso.py).
+Houve um período em que os dois documentos especificavam contratos diferentes
+para as mesmas três ferramentas; a seção 3.4 é a que vale.
 
-| Contrato | Quem produz | Onde vive |
+| Contrato | Quem produz | Onde está definido |
 |---|---|---|
 | Entrada da investigação | Executor, a partir do recorte | [`prompt.py`](../apps/fullstack/agente/src/argus_agente/prompt.py) |
-| Ferramentas de consulta | Pessoa dos dados, consumido pelo agente | [`ferramentas.py`](../apps/fullstack/agente/src/argus_agente/ferramentas.py) |
+| Ferramentas de leitura | Pessoa dos dados | Arquitetura, seção 3.4 |
 | Passo do modelo | Modelo | [`contrato.py`](../apps/fullstack/agente/src/argus_agente/contrato.py) |
 | Registro do caso | Executor | [`contrato.py`](../apps/fullstack/agente/src/argus_agente/contrato.py) |
 
@@ -27,87 +32,82 @@ contém anomalia, score, hipótese do motor determinístico ou rótulo de incide
 ```json
 {
   "recorte": {
-    "checkpoint_id": "ckpt-03-fonte-atrasada",
+    "recorte_id": "synthetic:101:2db402383094d32e",
     "presente_simulado": "2026-08-20T20:15:00+00:00",
-    "janela_inicio": "2026-08-20T17:00:00+00:00",
-    "janela_fim": "2026-08-20T20:00:00+00:00",
-    "nota_de_escopo": "janela de 3 h; a quebra por geografia tem atraso de fonte"
+    "observacoes_de": "2026-08-20T17:00:00Z",
+    "observacoes_ate": "2026-08-20T20:00:00Z",
+    "nota_de_escopo": "janela de 3 h em um dia útil, horário nobre"
   },
-  "ferramentas": [{"nome": "inventario", "...": "..."}],
+  "ferramentas": [{"nome": "inventariar_fatos", "...": "..."}],
   "orcamento": {
     "chamadas_restantes": 12,
-    "linhas_por_resposta": 200,
+    "itens_por_resposta": 200,
     "segundos_restantes": 300
   },
   "inventario": [
     {
       "source": "prometheus",
+      "kind": "metric",
       "entity": "playback",
       "metric": "http_5xx_rate",
-      "dimension_type": null,
-      "pontos": 13,
-      "primeiro_evento": "2026-08-20T17:00:00+00:00",
-      "ultimo_evento": "2026-08-20T20:00:00+00:00",
-      "buckets_vazios": 0,
-      "atraso_tipico_segundos": 60
-    }
-  ],
-  "ainda_indisponivel": [
-    {
-      "source": "npaw_geo",
-      "entity": "globo",
-      "metric": "error_rate",
-      "disponivel_a_partir_de": "2026-08-21T21:00:00+00:00"
+      "count": 13,
+      "event_start_min": "2026-08-20T17:00:00Z",
+      "event_start_max": "2026-08-20T20:00:00Z",
+      "available_at_min": "2026-08-20T17:01:00Z",
+      "available_at_max": "2026-08-20T20:01:00Z",
+      "has_null_value": false,
+      "has_null_sample_size": true,
+      "group_ref": "a25aaa1b…"
     }
   ]
 }
 ```
 
+O `recorte_id` é opaco para o modelo: ele resolve, dentro do leitor, o
+checkpoint, o `sim_now`, o `input_lsn` e o conjunto de fatos elegíveis. O
+recorte não tem janela própria — o limite superior é o presente simulado, e
+`observacoes_de` / `observacoes_ate` apenas dizem onde há observação, para o
+agente não gastar chamada pedindo períodos vazios.
+
 O **inventário** lista o que existe e quanta cobertura há, sem classificar nada
-como anormal. `buckets_vazios` conta intervalos de 15 minutos sem ponto entre o
-primeiro e o último; `atraso_tipico_segundos` é a distância mediana entre o
-instante do evento e o instante em que ele ficaria disponível.
+como anormal. Ele é a única visão global que o agente recebe, e **não devolve
+`fact_id`**: uma linha de inventário descreve uma série, não observa nada, e por
+isso não pode sustentar uma hipótese. Isso não depende de uma regra do
+validador — o leitor simplesmente não expõe identificador no inventário.
 
-O bloco **`ainda_indisponivel`** é uma decisão de projeto do piloto, e precisa
-de acordo com a pessoa dos dados. Ele declara séries que existem nesta janela
-mas só chegam depois do presente simulado — o caso dos dados NPAW, com até 28
-horas de atraso causal. O bloco expõe **existência e horário de chegada, nunca
-valor**. Sem ele, uma fonte atrasada chega ao agente indistinguível de uma fonte
-que não existe, e a lacuna seria registrada com o motivo errado. É o mesmo
-princípio da RT03 de [`hipoteses.md`](hipoteses.md): atraso de fonte precisa ser
-preservado, não apagado.
+### Fonte atrasada, sem vazar o futuro
 
-## 2. Ferramentas de consulta
+Fatos com `available_at` posterior ao presente simulado não entram no recorte, e
+o piloto não anuncia que eles existem. Mesmo assim, atraso de fonte continua
+observável: o inventário mostra, por série, até quando há observação. No caso
+`caso-03-fonte-atrasada`, a quebra por UF aparece no inventário com
+`event_start_max` em 19/08, enquanto o efeito investigado é de 20/08. Pedir a
+janela do incidente devolve página vazia com `sem_fatos_no_recorte_consultado`,
+e é isso que permite ao agente registrar a lacuna como `ainda_indisponivel` em
+vez de concluir que a métrica está normal.
 
-Três ferramentas, como fixado no Dia 1. **Ferramenta**, aqui, é uma função
-fechada com parâmetros declarados — não é acesso ao banco nem SQL livre.
+É menos explícito do que um bloco dedicado a declarar as séries a caminho, que
+chegou a ser proposto aqui. Esse bloco exigiria mudança no leitor e continua em
+aberto na seção 6.
 
-| Ferramenta | Entrada | Saída | Limites |
-|---|---|---|---|
-| `inventario` | `source` (opcional) | Séries e cobertura | Teto de linhas; não é citável como evidência |
-| `serie` | `source`, `entity`, `metric`, `inicio`, `fim`, e opcionalmente `dimension_type`, `dimension_value`, `agregacao` | Pontos com `fact_id`, instante e valor | Teto de linhas, com aviso de truncamento |
-| `contexto` | `tipos`, `inicio`, `fim` | Fatos não métricos — deploys, eventos ao vivo | Teto de linhas; até 5 tipos por chamada |
+## 2. Ferramentas de leitura
 
-Toda linha carrega o `fact_id` que a originou, no formato
-`{fact_key}:{version_lsn}`. Quando a resposta é agregada — `agregacao` igual a
-`media_por_bucket` —, a linha traz em `agrega` todos os `fact_id` que entraram
-no cálculo. Sem isso, uma evidência construída sobre uma média não poderia ser
-aberta na revisão.
+As três ferramentas são as da seção 3.4 da arquitetura:
+`inventariar_fatos`, `consultar_serie` e `consultar_contexto`. Este documento
+não repete a especificação delas. O que importa para o lado do agente:
 
-Uma resposta vazia nunca volta muda. Ela distingue três situações, porque cada
-uma leva a um motivo de lacuna diferente:
-
-| Situação | Mensagem devolvida |
-|---|---|
-| A série existe, mas não neste período | `a serie existe no recorte, mas nao tem ponto no periodo pedido` |
-| A série existe e ainda não chegou | `a serie existe nesta janela, mas so fica disponivel em <instante>, depois do presente simulado` |
-| A fonte não está no recorte | `a fonte <nome> nao esta no recorte` |
-
-**Pendência com a pessoa dos dados.** As assinaturas acima são o que o agente
-consome e estão implementadas sobre arquivo de fixture. O adaptador que lê
-`silver.analysis_fact_version` ainda não existe e precisa garantir, em código,
-as mesmas duas invariantes que o dublê garante: nenhum fato com `available_at`
-posterior ao `sim_now`, e nenhum fato fora da janela do recorte.
+- **A validação semântica é do leitor, não do validador do agente.** Janela
+  invertida ou posterior ao presente simulado, dimensão sem par tipo/valor,
+  valor `?` ou `(desconhecido)`, série que não consta do inventário: tudo isso é
+  recusado por quem conhece o recorte. O validador do agente só confere nome de
+  ferramenta e tipo de argumento, antes de gastar chamada.
+- **Pedido recusado consome uma chamada.** A recusa entra no rastro e volta ao
+  modelo como dado, em vez de derrubar o caso — investigação real também esbarra
+  em consulta que não existe.
+- **Toda resposta traz `items`, `returned`, `has_more`, `next_cursor` e
+  `limitations`.** Paginação consome mais uma chamada do teto do caso.
+- **Cada item traz o `fact_id`** que o originou. Só esses identificadores podem
+  ser citados como evidência.
 
 ## 3. Passo do modelo
 
@@ -116,12 +116,13 @@ ações são possíveis.
 
 ```json
 {"action": "consultar", "rationale": "procurar mudanca operacional proxima do efeito",
- "tool": "contexto",
- "arguments": {"tipos": ["deploy"], "inicio": "...", "fim": "..."}}
+ "tool": "consultar_contexto",
+ "arguments": {"entity": "playback", "kinds": ["context"],
+               "inicio": "2026-08-20T17:00:00Z", "fim": "2026-08-20T20:00:00Z"}}
 ```
 
 ```json
-{"action": "desistir", "rationale": "ha efeito, mas nada no recorte separa as causas",
+{"action": "desistir", "rationale": "ha efeito, mas nada disponivel separa as causas",
  "gaps": [{"missing": "quebra do erro por UF", "reason": "ainda_indisponivel"}]}
 ```
 
@@ -141,24 +142,24 @@ caso `caso-01-deploy`, com as listas de `fact_id` encurtadas.
 
 ```json
 {
-  "statement": "Possivel regressao apos o deploy do playback: o erro 5xx sobe de 0,4% para 7,4% no bucket seguinte ao deploy",
+  "statement": "Possivel regressao apos o deploy do playback: o erro 5xx sobe de 0,4% para 8,1% no bucket seguinte ao deploy",
   "scope": {"entity": "playback"},
   "effect_start": "2026-08-20T19:00:00+00:00",
   "evidence_for": [
     {
-      "fact_ids": ["deploy:playback:1787252040:9000"],
-      "observation": "deploy do playback as 18:54",
+      "fact_ids": ["0415ff63…:1220"],
+      "observation": "deploy do playback as 18:54, encerrado as 18:58",
       "reading": "mudanca operacional seis minutos antes do inicio do efeito"
     },
     {
-      "fact_ids": ["signal_bucket:prometheus:playback:http_5xx_rate:1787252400:1008"],
-      "observation": "http_5xx_rate passa de 0,4 para 7,4 as 19:00",
+      "fact_ids": ["c3a9e5d1…:1200"],
+      "observation": "http_5xx_rate passa de 0,4 para 8,1 as 19:00",
       "reading": "o degrau coincide com o deploy, nao com uma subida gradual"
     }
   ],
   "evidence_against": [
     {
-      "fact_ids": ["signal_bucket:rpaas:playback.video.globo.com:requests_total:1787252400:1008"],
+      "fact_ids": ["7b22f04e…:1021"],
       "observation": "requests_total permanece entre 405 mil e 421 mil",
       "reading": "o volume nao muda, entao a alternativa de pico de demanda nao se sustenta"
     }
@@ -178,7 +179,7 @@ observação.
 ### Regras de validação
 
 O validador não julga se a causa é verdadeira — isso é da revisão humana. Ele
-responde se a resposta pode ser conferida. Sete regras rejeitam um passo e
+responde se a resposta pode ser conferida. Estas regras rejeitam um passo e
 geram **um** pedido de correção; a segunda falha encerra o caso.
 
 | Regra | Por quê |
@@ -188,12 +189,15 @@ geram **um** pedido de correção; a segunda falha encerra o caso.
 | `evidence_against` ou `gaps` precisa ter ao menos um item | O Dia 1 definiu hipótese sem tentativa de refutação como incompleta |
 | `statement` não pode afirmar causa de forma conclusiva | A saída é explicação candidata — mesma regra do RN-H11 do motor atual |
 | `scope.entity` é obrigatório | Hipótese sem escopo não é verificável |
-| Ferramenta e argumentos precisam existir no contrato | Argumento inventado vira erro silencioso de consulta |
 | `desistir` exige ao menos uma lacuna com motivo do catálogo | Desistência sem motivo não ensina nada à revisão |
 
-Duas situações viram **aviso**, e não rejeição, porque podem ser legítimas: uma
-linha do inventário citada como evidência, e o mesmo `fact_id` aparecendo a
-favor e contra. A segunda acompanha a hipótese até a revisão.
+Citar uma linha de inventário como evidência não precisa de regra: o inventário
+não devolve `fact_id`, então qualquer identificador inventado a partir dele cai
+na primeira regra da tabela.
+
+Uma situação vira **aviso**, e não rejeição, porque pode ser legítima: o mesmo
+`fact_id` aparecendo a favor e contra. O aviso acompanha a hipótese até a
+revisão.
 
 Uma hipótese cuja `evidence_against` não está vazia é marcada como
 **contestada**. Isso não a invalida; muda como ela deve ser lida.
@@ -205,39 +209,49 @@ O que o executor grava por caso investigado:
 ```json
 {
   "case_id": "caso-01-deploy",
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "recorte": {
-    "checkpoint_id": "ckpt-01-deploy",
+    "checkpoint_id": "101",
+    "origin": "synthetic",
     "sim_now": "2026-08-20T20:15:00+00:00",
-    "input_lsn": 1042300,
-    "digest": "sha256:e14bb5dc3d44b4be"
+    "input_lsn": 1300,
+    "recorte_id": "synthetic:101:2db402383094d32e",
+    "digest": "2163e85b3f0516af…"
   },
   "modelo": {"provedor": "ollama", "model": "qwen3-coder:30b", "temperatura": 0.0},
-  "prompt_version": "1.0.0",
+  "prompt_version": "2.0.0",
+  "entrada": "{\"recorte\": …}",
   "desfecho": "hipotese",
   "contestada": true,
   "consultas": [
     {
       "ordem": 4,
-      "ferramenta": "contexto",
-      "argumentos": {"tipos": ["deploy", "live_event"], "inicio": "...", "fim": "..."},
-      "linhas": 1,
-      "fact_ids": ["deploy:playback:1787252040:9000"],
-      "duracao_ms": 0,
-      "truncada": false,
-      "vazia_porque": null
+      "ferramenta": "consultar_contexto",
+      "argumentos": {"entity": "playback", "kinds": ["context"], "limit": 200,
+                     "inicio": "2026-08-20T17:00:00Z", "fim": "2026-08-20T20:00:00Z"},
+      "retornadas": 1,
+      "fact_ids": ["0415ff63…:1220"],
+      "duracao_ms": 1,
+      "tem_mais": false,
+      "limitacoes": [],
+      "erro": null
     }
   ],
   "metricas": {
-    "consumo": {"chamadas": 5, "linhas": 44, "passos": 6, "passos_invalidos": 0},
+    "consumo": {"chamadas": 5, "itens": 44, "passos": 6, "passos_invalidos": 0},
     "fatos_vistos": 40
   }
 }
 ```
 
-O `digest` é o resumo SHA-256 dos `fact_id` elegíveis depois do corte temporal.
-Ele é o que torna a reexecução comparável e, no Dia 6, o que garante que o
-agente e o motor determinístico falem do mesmo material.
+O campo `entrada` guarda a mensagem de abertura exatamente como o modelo a
+recebeu. Sem ela, um resultado estranho não pode ser atribuído à entrada ou ao
+modelo.
+
+O `digest` é o do leitor: resume os `fact_id` **e os papéis** expostos no
+recorte. É ele que torna a reexecução comparável e, no Dia 6, o que garante que
+o agente e o motor determinístico falem do mesmo material. O `recorte_id`
+deriva dele.
 
 Cinco desfechos são possíveis, e todos são gravados:
 
@@ -245,7 +259,7 @@ Cinco desfechos são possíveis, e todos são gravados:
 |---|---|
 | `hipotese` | O agente concluiu e a saída passou no validador |
 | `evidencia_insuficiente` | O agente desistiu, com lacunas declaradas |
-| `teto_atingido` | Chamadas, linhas ou tempo acabaram antes da conclusão |
+| `teto_atingido` | Chamadas ou tempo acabaram antes da conclusão |
 | `resposta_invalida` | Duas respostas seguidas fora do contrato |
 | `erro_de_execucao` | Modelo indisponível, caso ilegível ou falha inesperada |
 
@@ -253,12 +267,19 @@ Os três últimos são limitação do piloto, não hipótese. Eles aparecem no
 relatório do lote exatamente como os outros — um lote que esconde as falhas não
 serve para decidir se o piloto continua.
 
-## 6. O que ainda depende da pessoa dos dados
+## 6. O que ainda está em aberto
 
-1. O adaptador real sobre `silver.analysis_fact_version`, cumprindo a seção 2.
-2. A decisão sobre o bloco `ainda_indisponivel`: se ele entra no contrato do
-   leitor de fatos ou se o piloto passa a viver sem ele.
-3. A forma de acesso ao banco. As permissões atuais do `argus_reader` cobrem
-   apenas views públicas e não autorizam supor leitura direta da tabela.
-4. Os casos reprodutíveis sobre dado real. Os três casos atuais são fixtures
-   construídas com nomes do catálogo do projeto, não recortes do dump.
+1. **Onde o leitor de fatos mora.** Ele está em `tools/`, que é ambiente de
+   scripts de operação e não é instalável como pacote. O piloto o importa por
+   caminho, numa ponte isolada em
+   [`leitor.py`](../apps/fullstack/agente/src/argus_agente/leitor.py). Decidir
+   mover o leitor para o pacote do agente fecha essa ponte.
+2. **Declarar as séries a caminho.** Hoje o atraso de fonte é inferido do
+   inventário, como descrito na seção 1. Um bloco explícito com a série e o
+   instante de disponibilidade seria mais direto, mas muda o contrato do leitor.
+3. **Casos sobre dado real.** Os três casos atuais são sintéticos, com nomes do
+   catálogo do projeto. Extrair recortes de um checkpoint real depende do
+   leitor operacional e de um banco local carregado.
+4. **O que fazer com `role`.** O leitor classifica cada fato como `subject` ou
+   `context` e inclui isso no digest, mas o agente não recebe esse campo. Vale
+   decidir se ele deve orientar a investigação ou permanecer invisível.
