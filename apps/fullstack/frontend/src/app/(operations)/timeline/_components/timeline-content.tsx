@@ -28,6 +28,7 @@ const periodMinutes: Record<ScreenPeriod, number> = {
   "30 min": 30,
   "3 h": 180,
   "24 h": 1_440,
+  "72 h": 4_320,
 };
 
 /** Largura, em px, da coluna de rótulos das raias (`row` em timeline.styles). */
