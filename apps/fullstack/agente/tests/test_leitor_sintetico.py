@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import json
-import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from argus_agente.leitor import CaseReader, run_case
 
-from agente_hipoteses_caso import CaseReader, run_case
-
-FIXTURES = Path(__file__).parent / "fixtures" / "agente_hipoteses"
+FIXTURES = Path(__file__).parents[1] / "fixtures" / "sinteticos"
 
 
 def _load(name: str) -> dict:

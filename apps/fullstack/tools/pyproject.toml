@@ -12,14 +12,14 @@ requires-python = ">=3.12"
 dependencies = [
     "pyarrow>=17",
     "psycopg[binary]>=3.2",
+    "argus-agente",
 ]
 
-[dependency-groups]
-dev = ["ruff>=0.6", "pytest>=8.3"]
+[tool.uv.sources]
+argus-agente = { path = "../agente", editable = true }
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q --strict-markers"
+[dependency-groups]
+dev = ["ruff>=0.6"]
 
 [tool.ruff]
 line-length = 90

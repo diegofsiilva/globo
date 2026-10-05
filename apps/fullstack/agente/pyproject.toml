@@ -3,7 +3,7 @@ name = "argus-agente"
 version = "0.1.0"
 description = "Piloto experimental: agente de IA que formula hipoteses a partir dos fatos de um checkpoint"
 requires-python = ">=3.12"
-dependencies = ["paramiko>=3.4"]
+dependencies = ["paramiko>=3.4", "psycopg[binary]>=3.2"]
 
 [project.scripts]
 agentectl = "argus_agente.agentectl:main"

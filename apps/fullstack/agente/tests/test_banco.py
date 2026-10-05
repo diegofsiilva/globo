@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from agente_hipoteses_db import load_checkpoint
+from argus_agente.banco import load_checkpoint
 
 
 class DatabaseReaderGuardsTests(unittest.TestCase):
