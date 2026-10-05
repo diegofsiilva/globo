@@ -36,11 +36,11 @@ spec:
                 secretKeyRef:
                   name: argus-backend
                   key: DATABASE_URL_MASTER
-            - name: INGEST_TOKEN_SHA256
+            - name: DASHBOARD_TOKEN_SHA256
               valueFrom:
                 secretKeyRef:
                   name: argus-backend
-                  key: INGEST_TOKEN_SHA256
+                  key: DASHBOARD_TOKEN_SHA256
           startupProbe:
             httpGet:
               path: /ingestion/live

@@ -66,7 +66,7 @@ describe("página auxiliar de ingestão", () => {
     expect(navigationItems.some((item) => item.href.startsWith("/ingestao"))).toBe(false);
     render(<IngestaoContent />);
     expect(screen.getByRole("heading", { level: 1, name: "Ingestão por arquivos" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Autorizar envio" })).toBeVisible();
+    expect(screen.queryByLabelText("Token de ingestão")).not.toBeInTheDocument();
     expect(screen.getByText(/Use “Ver prévia” para conferir uma amostra/)).toBeVisible();
   });
 

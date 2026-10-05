@@ -218,8 +218,8 @@ def test_auth_limits_and_owner_isolation(harness):
 
 
 def test_api_fails_closed_without_credential(monkeypatch):
-    monkeypatch.delenv("INGEST_TOKEN_SHA256", raising=False)
-    with pytest.raises(RuntimeError, match="INGEST_TOKEN_SHA256"):
+    monkeypatch.delenv("DASHBOARD_TOKEN_SHA256", raising=False)
+    with pytest.raises(RuntimeError, match="DASHBOARD_TOKEN_SHA256"):
         create_app()
 
 

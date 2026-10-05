@@ -8,9 +8,9 @@ assíncrono — workers de SQS, `processing`, `simulator` e `loader` — continu
 A ingestão por arquivos acrescenta `argus-file-api` e `argus-file-worker`, ambos
 usando a imagem `worker`, com fila PostgreSQL e sem clientes AWS nesse fluxo.
 O Ingress encaminha `/ingestion` à porta 5002. `make k8s-secret` inclui o hash
-`ingest` do segredo de autenticação e reinicia a API de arquivos após rotação.
+`dashboard` do segredo de autenticação e reinicia a API de arquivos após rotação.
 Aplique a migration 034 antes de subir esses Deployments. No kind, preencha
-`INGEST_TOKEN_SHA256` em `secret.env` com o hash da credencial local escolhida.
+`DASHBOARD_TOKEN_SHA256` em `secret.env` com o hash da credencial local do painel.
 Consulte [o runbook de arquivos](../worker/README.md).
 
 Isso é escolha de plataforma por característica de carga, não migração pela

@@ -3,7 +3,7 @@
 /** Acompanhamento do resultado durável; não confunde upload com gravação. */
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { lerTokenIngestao, observarTokenIngestao } from "@/lib/api/ingest-session";
+import { lerToken, observarToken } from "@/lib/api/session";
 import { consultarJob, lerJobs, observarJobs, repetirJob, salvarJob, snapshotJobs, type FileJob } from "../_lib/upload";
 
 const LABELS = { na_fila: "Na fila", processando: "Processando", concluido: "Concluído", concluido_com_rejeicoes: "Concluído com rejeições", rejeitado: "Arquivo rejeitado", falhou: "Falha temporária" };
@@ -18,7 +18,7 @@ function baixarRelatorio(job: FileJob) {
 /** Retoma consultas após recarregar a aba e permite repetir falhas transitórias. */
 export function ResultadosIngestao() {
   const snapshot = useSyncExternalStore(observarJobs, snapshotJobs, () => "[]");
-  const token = useSyncExternalStore(observarTokenIngestao, lerTokenIngestao, () => null);
+  const token = useSyncExternalStore(observarToken, lerToken, () => null);
   const jobs = lerJobs(snapshot);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);

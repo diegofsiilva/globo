@@ -18,7 +18,6 @@
 
 import { QuerySourceError } from "@/lib/operational-state";
 import { lerToken, limparToken } from "./session";
-import { lerTokenIngestao, limparTokenIngestao } from "./ingest-session";
 
 /**
  * URL base da API, injetada em tempo de build. Nunca escrita no código —
@@ -45,10 +44,8 @@ export type ApiFetchOptions = {
   body?: unknown;
   /** Upload multipart: o navegador define o boundary. */
   formData?: FormData;
-  /** Usa a credencial de escrita e a URL de ingestão, quando configurada. */
+  /** Usa a URL do serviço de arquivos com a sessão existente do painel. */
   ingestion?: boolean;
-  /** Token candidato usado apenas ao verificar o acesso de escrita. */
-  token?: string;
 };
 
 /**
@@ -75,7 +72,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
     );
   }
 
-  const token = options.token ?? (ingestion ? lerTokenIngestao() : lerToken());
+  const token = lerToken();
   if (!token) {
     throw new QuerySourceError(
       "Sessão sem token de acesso.",
@@ -115,7 +112,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promi
     // 401 vindo de QUALQUER consulta. Sem isso, a tela mostraria "erro do
     // servidor" e o operador continuaria clicando em "tentar de novo" com um
     // token que já não vale.
-    if (ingestion) limparTokenIngestao(); else limparToken();
+    limparToken();
     throw new QuerySourceError(
       response.status === 401
         ? "A sessão não enviou um token de acesso. Informe o token novamente."

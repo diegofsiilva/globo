@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CAMPOS_EVENTO, sugerirMapeamento, validarMapeamento, type Mapeamento, type ValidacaoMapeamento } from "../_lib/mapeamento";
 import type { Previa } from "../_lib/previa-contrato";
-import { lerTokenIngestao, observarTokenIngestao } from "@/lib/api/ingest-session";
+import { lerToken, observarToken } from "@/lib/api/session";
 import { enviarArquivo } from "../_lib/upload";
 
 /** Inicializa sugestões exatas e invalida o resultado quando uma escolha muda.
@@ -16,7 +16,7 @@ import { enviarArquivo } from "../_lib/upload";
 export function MapeamentoArquivo({ previa, arquivo }: { previa: Previa; arquivo?: File }) {
   const [mapeamento, setMapeamento] = useState<Mapeamento>(() => sugerirMapeamento(previa));
   const [resultado, setResultado] = useState<ValidacaoMapeamento | null>(null);
-  const token = useSyncExternalStore(observarTokenIngestao, lerTokenIngestao, () => null);
+  const token = useSyncExternalStore(observarToken, lerToken, () => null);
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
@@ -82,7 +82,6 @@ export function MapeamentoArquivo({ previa, arquivo }: { previa: Previa; arquivo
           catch (error) { setErroEnvio(error instanceof Error ? error.message : "Falha ao enviar arquivo."); }
           finally { setEnviando(false); }
         }}>{enviando ? "Enviando arquivo…" : "Enviar arquivo"}</Button>
-      {!token && <p className="text-label text-warning">Autorize o acesso de ingestão para enviar.</p>}
       {mensagem && <p role="status" className="break-all text-body text-success">{mensagem}</p>}
       {erroEnvio && <p role="alert" className="text-body text-destructive">{erroEnvio} O arquivo pode já ter sido recebido; repetir o envio é seguro pela deduplicação.</p>}
       <p className="text-micro text-muted-foreground">Validação restrita às linhas da prévia. Ao enviar, o servidor valida o arquivo completo. As escolhas são descartadas ao fechar ou trocar a prévia; durante a prévia, nenhum dado é enviado.</p>

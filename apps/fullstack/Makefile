@@ -416,8 +416,8 @@ api: ## Sobe a API de leitura local contra o banco local (porta API_PORT)
 	cd $(BACKEND) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} PORT=$(API_PORT) $(UV) python lambda_handler.py
 
 .PHONY: file-api file-worker
-file-api: ## Sobe upload local; exige INGEST_TOKEN_SHA256 e usa porta 5002
-	@$(call require_env,INGEST_TOKEN_SHA256)
+file-api: ## Sobe upload local; usa sessão do painel e porta 5002
+	@$(call require_env,DASHBOARD_TOKEN_SHA256)
 	cd $(WORKER) && DATABASE_URL=$${DATABASE_URL:-$(PG_URL)} PORT=$${PORT:-5002} $(UV) python -m argus_worker file-api
 
 file-worker: ## Processa CSV/Parquet da fila PostgreSQL local
@@ -1467,11 +1467,10 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 	senha_leitor=$$(terraform output -raw eks_read_api_db_password); \
 	salt=$$(terraform output -raw eks_user_id_hash_salt); \
 	segredo=$$(terraform output -raw auth_tokens_secret); \
-	hashes=$$(aws secretsmanager get-secret-value --secret-id "$$segredo" \
+	hash=$$(aws secretsmanager get-secret-value --secret-id "$$segredo" \
 	  --profile $$AWS_PROFILE --region $${AWS_REGION:-us-east-1} \
 	  --query SecretString --output text \
-	  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['dashboard'], d['ingest'])"); \
-	read -r hash ingest_hash <<< "$$hashes"; \
+	  | python3 -c "import json,sys; print(json.load(sys.stdin)['dashboard'])"); \
 	cd ..; \
 	$(KUBECTL) create namespace $(K8S_NAMESPACE) --dry-run=client -o yaml | $(KUBECTL) apply -f -; \
 	$(KUBECTL) create secret generic argus-backend -n $(K8S_NAMESPACE) \
@@ -1480,7 +1479,6 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 	  --from-literal=DB_READER_PASSWORD="$$senha_leitor" \
 	  --from-literal=USER_ID_HASH_SALT="$$salt" \
 	  --from-literal=DASHBOARD_TOKEN_SHA256="$$hash" \
-	  --from-literal=INGEST_TOKEN_SHA256="$$ingest_hash" \
 	  --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	@echo
 	@# Variavel de ambiente vinda de secretKeyRef NAO e recarregada em pod que
@@ -1499,7 +1497,7 @@ k8s-secret: ## Monta o Secret do backend a partir dos outputs do Terraform
 	@if $(KUBECTL) -n $(K8S_NAMESPACE) get deployment argus-file-api >/dev/null 2>&1; then \
 	  $(KUBECTL) -n $(K8S_NAMESPACE) rollout restart deployment/argus-file-api; \
 	fi
-	@echo "Secret argus-backend atualizado (6 chaves)."
+	@echo "Secret argus-backend atualizado (5 chaves)."
 
 # Renderiza um diretorio de kustomize e aplica, trocando os placeholders de
 # imagem pela referencia completa do ECR desta sessao do lab.

@@ -1,16 +1,15 @@
-/** Contrato multipart, credenciais independentes e histórico recuperável. */
+/** Contrato multipart, sessão do painel e histórico recuperável. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { enviarArquivo, lerJobs, salvarJob, snapshotJobs, type FileJob } from "@/app/(operations)/ingestao/_lib/upload";
 import { apiFetch } from "@/lib/api/client";
-import { gravarTokenIngestao, lerTokenIngestao } from "@/lib/api/ingest-session";
-import { lerToken } from "@/lib/api/session";
+import { gravarToken, lerToken } from "@/lib/api/session";
 import type { Previa } from "@/app/(operations)/ingestao/_lib/previa-contrato";
 
 const job: FileJob = { id: "00000000-0000-4000-8000-000000000001", filename: "events.csv", status: "na_fila", total: 0, inserted: 0, duplicates: 0, rejected: 0, errors: [] };
 const previa: Previa = { formato: "CSV", colunas: ["data", "tipo", "sessao", "aparelho"].map((nome) => ({ nome, tipo: "texto" })), linhas: [["2026-07-24T12:00:00Z", "session", "001", "tv"]], totalLinhas: null, avisos: [], delimitador: ";" };
 
-beforeEach(() => { sessionStorage.removeItem("argus-file-jobs"); gravarTokenIngestao("b".repeat(64)); });
-afterEach(() => { vi.unstubAllGlobals(); sessionStorage.removeItem("argus-ingest-token"); sessionStorage.removeItem("argus-file-jobs"); });
+beforeEach(() => { sessionStorage.removeItem("argus-file-jobs"); gravarToken("b".repeat(64)); });
+afterEach(() => { vi.unstubAllGlobals(); sessionStorage.removeItem("argus-file-jobs"); });
 
 describe("envio de ingestão", () => {
   it("envia o arquivo inteiro com nomes mapeados e deixa o navegador definir boundary", async () => {
@@ -27,10 +26,10 @@ describe("envio de ingestão", () => {
     expect(lerJobs(snapshotJobs())).toEqual([job]);
   });
 
-  it("401 de escrita encerra somente o acesso à ingestão", async () => {
+  it("401 do serviço de arquivos encerra a sessão do painel", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
     await expect(apiFetch("/ingestion/v1/session", { ingestion: true, tag: "INGEST" })).rejects.toMatchObject({ kind: "unauthorized" });
-    expect(lerTokenIngestao()).toBeNull(); expect(lerToken()).toBeTruthy();
+    expect(lerToken()).toBeNull();
   });
 
   it("não permite sucesso com um contrato de job inválido", async () => {
@@ -42,7 +41,7 @@ describe("envio de ingestão", () => {
   it("expõe a rejeição do servidor sem apagar a sessão", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ erro: "Fila cheia." }, { status: 422 })));
     await expect(apiFetch("/ingestion/v1/files", { ingestion: true, tag: "INGEST", method: "POST" })).rejects.toMatchObject({ message: "Fila cheia.", retryable: false });
-    expect(lerTokenIngestao()).toBeTruthy();
+    expect(lerToken()).toBeTruthy();
   });
 
   it("deduplica protocolos no histórico e ignora conteúdo corrompido", () => {

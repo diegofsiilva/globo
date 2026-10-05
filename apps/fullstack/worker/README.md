@@ -8,14 +8,14 @@ o arquivo completo e grava eventos em `bronze.event` pelo contrato compartilhado
 ## Execução local
 
 1. Prepare o banco com `make -C apps/fullstack db-ensure` (migration 034).
-2. Configure `INGEST_TOKEN_SHA256` com o SHA-256 da credencial de ingestão;
-   a credencial original só é informada pelo operador na página. Não use o
-   token de leitura. Na AWS, `make auth-rotate` e `make k8s-secret` já atendem
+2. Configure `DASHBOARD_TOKEN_SHA256` com o SHA-256 da credencial do painel;
+   o envio reutiliza a sessão existente, sem token adicional na página.
+   Na AWS, `make auth-rotate` e `make k8s-secret` já atendem
    geração e distribuição dos hashes.
 3. Inicie `make -C apps/fullstack file-api` e, em outro terminal,
    `make -C apps/fullstack file-worker`. Ambos usam `DATABASE_URL`, com o banco
    local como padrão; a API escuta na porta 5002.
-4. Abra `/ingestao/`, autorize escrita, selecione arquivo, abra a prévia,
+4. Abra `/ingestao/` na sessão do painel, selecione arquivo, abra a prévia,
    revise as colunas, valide a amostra e pressione “Enviar arquivo”.
 
 O frontend estático usa a mesma origem por padrão. Para desenvolver em portas
@@ -26,7 +26,7 @@ No Windows, recipes POSIX podem usar `SHELL="C:/Program Files/Git/bin/bash.exe"`
 
 ## Contrato e limites
 
-- `GET /ingestion/v1/session`: verifica a credencial de ingestão.
+- `GET /ingestion/v1/session`: verifica a sessão existente do painel.
 - `POST /ingestion/v1/files`: multipart com `file`, `mapping` (JSON de campo
   de destino para nome da coluna) e `delimiter` opcional; retorna 202 e protocolo.
 - `GET /ingestion/v1/jobs/{id}`: estado, total, inseridos, duplicados, rejeitados
@@ -71,7 +71,8 @@ não cancela jobs aceitos no servidor. Descartar uma seleção local não exclui
 um job enviado. Diagnósticos não incluem valores pessoais das linhas.
 
 Kubernetes usa `DATABASE_URL_MASTER` para os dois serviços de escrita e o hash
-`INGEST_TOKEN_SHA256` apenas na API; a leitura permanece com seu usuário próprio.
+`DASHBOARD_TOKEN_SHA256` na API de arquivos, reutilizando o hash do painel;
+a leitura permanece com seu usuário de banco próprio.
 A imagem agora deve ser publicada em amd64 e arm64. Deployments, sondas, limites
 de upload do Ingress e rotação de credencial estão versionados em `k8s/`.
 

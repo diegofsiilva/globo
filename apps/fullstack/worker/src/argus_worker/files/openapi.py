@@ -55,7 +55,7 @@ def responses(success):
         **{
             str(code): {"description": desc}
             for code, desc in [
-                (401, "Token de ingestão inválido"),
+                (401, "Sessão do painel inválida"),
                 (404, "Job ausente"),
                 (409, "Job não pode ser retomado"),
                 (413, "Upload excede limite"),
@@ -69,13 +69,13 @@ def responses(success):
 SPEC = {
     "openapi": "3.1.0",
     "info": {"title": "Argus — ingestão de arquivos", "version": "1.0.0"},
-    "security": [{"ingestBearer": []}],
+    "security": [{"panelBearer": []}],
     "components": {
         "securitySchemes": {
-            "ingestBearer": {
+            "panelBearer": {
                 "type": "http",
                 "scheme": "bearer",
-                "description": "Token de ingestão",
+                "description": "Sessão existente do painel",
             }
         }
     },

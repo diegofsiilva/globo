@@ -12,6 +12,12 @@ com a paleta existente. Há envio autenticado do original, processamento
 assíncrono durável, deduplicação, rejeições e retomada. Esta conclusão refere-se
 à implementação e validação local; publicação em AWS não foi executada.
 
+Ajuste posterior solicitado: removidos o indicador de desenvolvimento do Next
+e o formulário de token de ingestão. O envio agora reutiliza a sessão do painel;
+cliente HTTP, serviço e manifests usam a mesma credencial, sem bloquear o fluxo
+por falta de uma segunda autorização. As evidências históricas abaixo descrevem
+a versão anterior a esse ajuste.
+
 ## Histórico da entrega parcial
 
 A primeira entrega executou **4 das 8 entregas abaixo (50% do plano)** e parou.

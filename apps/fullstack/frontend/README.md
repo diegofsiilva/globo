@@ -12,11 +12,12 @@ worker e é cancelada ao fechar, trocar ou remover o arquivo; a amostra não
 valida o arquivo inteiro. Dentro da prévia, permite mapear as colunas ao envelope
 de eventos do app de TV e validar campos obrigatórios e tipos na amostra, com
 erros por linha. Mudar as escolhas exige nova validação; fechar a prévia descarta
-o mapeamento. Com a credencial de ingestão verificada nesta aba, “Enviar arquivo”
+o mapeamento. Com a sessão do painel aberta, “Enviar arquivo”
 envia o original inteiro para processamento assíncrono. A página acompanha
 contadores, rejeições e retomada de falhas temporárias; o histórico dos últimos
-50 protocolos permanece na aba ao recarregar. Tokens de leitura e escrita são
-independentes e nunca entram no bundle. O plano e as entregas estão em
+50 protocolos permanece na aba ao recarregar. A ingestão reutiliza a sessão
+existente, sem segundo formulário de credencial. Tokens nunca entram no bundle.
+O plano e as entregas estão em
 [plano-ingestao-arquivos.md](../../../artefatos/plano-ingestao-arquivos.md).
 
 O Ingress encaminha `/ingestion/*` ao serviço separado de arquivos, na mesma

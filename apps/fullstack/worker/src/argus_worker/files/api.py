@@ -15,10 +15,10 @@ from .store import FileStore
 
 
 def create_app(db=None, token_hash=None):
-    """Monta aplicação; produção recusa configuração sem hash de ingestão."""
-    expected = token_hash or os.getenv("INGEST_TOKEN_SHA256", "")
+    """Monta aplicação; recusa configuração sem hash da sessão do painel."""
+    expected = token_hash or os.getenv("DASHBOARD_TOKEN_SHA256", "")
     if len(expected) != 64 or any(c not in "0123456789abcdef" for c in expected):
-        raise RuntimeError("INGEST_TOKEN_SHA256 deve conter SHA-256 hexadecimal.")
+        raise RuntimeError("DASHBOARD_TOKEN_SHA256 deve conter SHA-256 hexadecimal.")
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_BYTES + 1024**2
     origins = set(filter(None, os.getenv("INGEST_CORS_ORIGINS", "").split(",")))
@@ -26,7 +26,7 @@ def create_app(db=None, token_hash=None):
 
     @app.before_request
     def authorize():
-        """Token de ingestão separado; hash é também a identidade do job."""
+        """Sessão do painel; hash é também a identidade do job."""
         if request.method == "OPTIONS":
             return ("", 204) if request.headers.get("Origin") in origins else ("", 403)
         if request.path in {"/ingestion/health", "/ingestion/live"}:
@@ -34,7 +34,7 @@ def create_app(db=None, token_hash=None):
         token = request.headers.get("Authorization", "")
         digest = hashlib.sha256(token.removeprefix("Bearer ").encode()).hexdigest()
         if not token.startswith("Bearer ") or not hmac.compare_digest(digest, expected):
-            return jsonify(erro="Token de ingestão inválido."), 401
+            return jsonify(erro="Sessão do painel inválida."), 401
         g.owner = digest
         return None
 
@@ -64,7 +64,7 @@ def create_app(db=None, token_hash=None):
 
     @app.get("/ingestion/v1/session")
     def session():
-        """Confirma a credencial antes de salvá-la na aba."""
+        """Confirma que a sessão do painel é aceita pelo serviço de arquivos."""
         return jsonify(ok=True)
 
     @app.post("/ingestion/v1/files")
