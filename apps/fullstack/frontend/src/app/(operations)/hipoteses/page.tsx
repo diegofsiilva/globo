@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { QueryProvider } from "@/providers/query-provider";
 import { HipotesesScreen } from "./_components/hipoteses-screen";
 
@@ -13,7 +14,11 @@ export const metadata: Metadata = {
 export default function HipotesesPage() {
   return (
     <QueryProvider>
-      <HipotesesScreen />
+      {/* A tela lê a query string (o sinal que a abriu), e no export estático
+          isso exige um limite de Suspense. */}
+      <Suspense fallback={null}>
+        <HipotesesScreen />
+      </Suspense>
     </QueryProvider>
   );
 }

@@ -52,4 +52,25 @@ describe("estados operacionais compartilhados", () => {
     await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
+
+  test("o vazio oferece o próximo passo quando ele não veio de filtro", async () => {
+    const onAction = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <OperationalStateBoundary
+        presentation={{
+          state: "empty",
+          title: "Hipóteses",
+          emptyAction: { label: "Ampliar para 24 h", onAction },
+        }}
+      >
+        <p>dados prontos</p>
+      </OperationalStateBoundary>,
+    );
+
+    // Sem filtro ativo não há "Rever filtros": só o passo que resolve.
+    expect(screen.queryByRole("button", { name: "Rever filtros" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Ampliar para 24 h" }));
+    expect(onAction).toHaveBeenCalledOnce();
+  });
 });

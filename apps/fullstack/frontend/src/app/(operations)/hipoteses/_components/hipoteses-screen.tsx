@@ -3,6 +3,7 @@
 /** Tela 04 — Hipóteses: causas prováveis ranqueadas e decomposição do score. */
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
@@ -65,9 +66,24 @@ function toApiScope(filters: Filters): Record<string, string> {
 
 /** Causas prováveis do recorte, ranqueadas e com o score decomposto. */
 export function HipotesesScreen() {
-  const { period: sharedPeriod } = useOperationsUi();
+  const { period: sharedPeriod, setPeriod, hrefWithDemoState } = useOperationsUi();
   const clock = useSimClock();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const period = sharedPeriod ?? "30 min";
+  // "Ver hipóteses" de um sinal da tela Agora manda a fonte e a entidade na
+  // URL. A rota filtra por evidência (`source`, `entity`), então a lista abre
+  // só com o que diz respeito ao sinal, em vez de todas as hipóteses da janela.
+  const sourceParam = searchParams.get("source");
+  const entityParam = searchParams.get("entity");
+  const signalScope = useMemo(() => {
+    const scope: Record<string, string> = {};
+    if (sourceParam) scope.source = sourceParam;
+    if (entityParam) scope.entity = entityParam;
+    return scope;
+  }, [sourceParam, entityParam]);
+  const signalLabel = Object.values(signalScope).join(" · ");
+  const signalFilters = Object.keys(signalScope).length;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Família, tipo e confiança são filtrados no SQL, e não aqui: a janela de
   // 24 h passa de mil hipóteses, quase todas de qualidade de dado, e filtrar em
@@ -79,12 +95,20 @@ export function HipotesesScreen() {
     [clock.snapshot, period],
   );
 
+  // O recorte do sinal conta como filtro: no estado vazio a faixa de contexto
+  // não aparece, e sem isto o operador ficaria preso numa lista vazia sem
+  // saber que ela está restrita a uma fonte.
+  function clearFilters() {
+    setFilters(initialFilters);
+    if (signalFilters > 0) router.replace("/hipoteses");
+  }
+
   const report = useInfiniteQuery({
-    queryKey: ["hypotheses", period, currentWindow?.to, filters],
+    queryKey: ["hypotheses", period, currentWindow?.to, filters, signalScope],
     queryFn: ({ pageParam, signal }) => fetchHypotheses({
       ...currentWindow!,
       cursor: pageParam ?? undefined,
-      scope: toApiScope(filters),
+      scope: { ...toApiScope(filters), ...signalScope },
     }, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -125,8 +149,8 @@ export function HipotesesScreen() {
         options: Object.keys(definition.options),
       }))}
       onFilterChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
-      onClearFilters={() => setFilters(initialFilters)}
-      scopeFilterCount={activeFilters}
+      onClearFilters={clearFilters}
+      scopeFilterCount={activeFilters + signalFilters}
       scopeSummary={scopeSummary(loadedReport)}
       operational={{
         state: clock.error && !clock.snapshot
@@ -155,7 +179,14 @@ export function HipotesesScreen() {
         },
         // Só quando há filtro: sem nenhum, o vazio veio da janela, e "rever
         // filtros" não teria o que rever.
-        onResetFilters: activeFilters > 0 ? () => setFilters(initialFilters) : undefined,
+        onResetFilters: activeFilters + signalFilters > 0 ? clearFilters : undefined,
+        // O motor publica hipóteses a cada janela de processamento, e não a
+        // cada minuto: nos 30 min do padrão a lista costuma vir vazia mesmo
+        // havendo hipóteses de horas atrás. O vazio oferece o próximo passo.
+        emptyAction:
+          period !== "24 h"
+            ? { label: "Ampliar para 24 h", onAction: () => setPeriod("24 h") }
+            : undefined,
       }}
     >
       <header className={styles.header}>
@@ -168,6 +199,15 @@ export function HipotesesScreen() {
           </p>
         )}
       </header>
+
+      {signalLabel && (
+        <p className={styles.context}>
+          <span>
+            Só hipóteses com evidência em <strong>{signalLabel}</strong>
+          </span>
+          <Link href={hrefWithDemoState("/hipoteses")}>Ver todas</Link>
+        </p>
+      )}
 
       {loadedReport && hypotheses.length > 0 && (
         <div className={styles.layout}>
