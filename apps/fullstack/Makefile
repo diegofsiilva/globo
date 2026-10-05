@@ -23,6 +23,7 @@ SIMULATOR  := simulator
 PROCESSING := processing
 LOADER     := loader
 BACKEND    := backend
+AGENTE     := agente
 INFRA      := infra
 TOOLS      := tools
 FRONTEND   := frontend
@@ -144,6 +145,7 @@ install: ## Instala as dependencias de todos os apps Python
 	cd $(PROCESSING) && uv sync --all-groups
 	cd $(LOADER) && uv sync --all-groups
 	cd $(BACKEND) && uv sync --extra dev
+	cd $(AGENTE) && uv sync --all-groups
 
 .PHONY: env
 env: ## Cria o .env a partir dos outputs do Terraform
@@ -280,7 +282,7 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch test-agente ## Roda as suites que tem teste
 
 .PHONY: test-hypothesis-batch
 test-hypothesis-batch: ## Valida o lote CDC sem usar AWS ou banco
@@ -328,6 +330,12 @@ test-simulator: ## Testes do relogio e do emissor do simulador
 test-processing: ## Testes do ETL incremental (watermarks, workers)
 	cd $(PROCESSING) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-$(PG_TEST_URL)} $(UV) pytest
 
+# O piloto do agente nao toca banco, AWS nem rede: o modelo entra por dublê de
+# roteiro. O alvo roda em qualquer maquina, e e por isso que ele esta no `test`.
+.PHONY: test-agente
+test-agente: ## Testes do piloto de hipoteses com IA (ciclo, tetos e validador)
+	cd $(AGENTE) && $(UV) pytest
+
 .PHONY: test-frontend
 test-frontend: ## Testes de contratos e componentes do dashboard
 	cd $(FRONTEND) && npm test
@@ -370,6 +378,7 @@ lint: ## Verifica estilo sem alterar arquivos
 	cd $(PROCESSING) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(LOADER) && $(UV) ruff check src
 	cd $(BACKEND) && $(UV) --extra dev ruff check src tests
+	cd $(AGENTE) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff check handler.py tests
 	cd $(FRONTEND) && npm run lint
 	cd $(INFRA) && terraform fmt -check -recursive
@@ -385,6 +394,7 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(PROCESSING) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(LOADER) && ($(UV) ruff check --fix src || true) && $(UV) ruff format src
 	cd $(BACKEND) && ($(UV) --extra dev ruff check --fix src tests || true) && $(UV) --extra dev ruff format src tests
+	cd $(AGENTE) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff format handler.py tests
 	cd $(INFRA) && terraform fmt -recursive
 
@@ -464,6 +474,28 @@ else
 	  "SELECT sim.set_clock(COALESCE((SELECT max(ts) FROM silver.session_event), sim.now()));"
 	@echo "amostra carregada; relogio virtual posicionado no ultimo evento."
 endif
+
+# --------------------------------------------------------------------------- #
+# Piloto de hipoteses com IA (experimental, fora do motor deterministico)
+# --------------------------------------------------------------------------- #
+
+# AGENTE_CASOS aceita um arquivo ou um diretorio de casos.
+AGENTE_CASOS ?= $(AGENTE)/fixtures
+AGENTE_SAIDA ?= $(AGENTE)/saidas/lote
+
+.PHONY: agente-ensaio
+agente-ensaio: ## Roda o lote do piloto com o dublê de roteiro, sem rede nem modelo
+	cd $(AGENTE) && $(UV) agentectl --modelo roteiro --roteiro fixtures/roteiros \
+	  lote fixtures --saida saidas/lote-ensaio
+
+.PHONY: agente-lote
+agente-lote: ## Roda o lote do piloto no Ollama (precisa das chaves OLLAMA_* no .env)
+	@test -n "$$OLLAMA_URL" || { echo "defina OLLAMA_URL e OLLAMA_MODEL no .env"; exit 1; }
+	cd $(AGENTE) && $(UV) agentectl lote ../$(AGENTE_CASOS) --saida ../$(AGENTE_SAIDA)
+
+.PHONY: agente-checar
+agente-checar: ## Confirma que o Ollama configurado no .env responde
+	cd $(AGENTE) && $(UV) agentectl checar-modelo
 
 .PHONY: docs
 docs: ## Abre a documentacao Swagger da API publicada

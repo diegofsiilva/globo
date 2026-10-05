@@ -1,0 +1,119 @@
+[
+  {
+    "action": "consultar",
+    "rationale": "a borda e onde o usuario bate primeiro",
+    "tool": "serie",
+    "arguments": {
+      "source": "rpaas",
+      "entity": "playback.video.globo.com",
+      "metric": "http_4xx_rate",
+      "inicio": "2026-08-20T17:00:00+00:00",
+      "fim": "2026-08-20T20:00:00+00:00"
+    }
+  },
+  {
+    "action": "consultar",
+    "rationale": "ver se a subida de 4xx corresponde a bloqueio",
+    "tool": "serie",
+    "arguments": {
+      "source": "cloudarmor",
+      "entity": "edge",
+      "metric": "blocked_requests",
+      "inicio": "2026-08-20T17:00:00+00:00",
+      "fim": "2026-08-20T20:00:00+00:00"
+    }
+  },
+  {
+    "action": "consultar",
+    "rationale": "checar se o backend tambem degrada",
+    "tool": "serie",
+    "arguments": {
+      "source": "newrelic",
+      "entity": "playback",
+      "metric": "apdex",
+      "inicio": "2026-08-20T17:00:00+00:00",
+      "fim": "2026-08-20T20:00:00+00:00"
+    }
+  },
+  {
+    "action": "consultar",
+    "rationale": "procurar erro interno no mesmo periodo",
+    "tool": "serie",
+    "arguments": {
+      "source": "prometheus",
+      "entity": "playback",
+      "metric": "http_5xx_rate",
+      "inicio": "2026-08-20T17:00:00+00:00",
+      "fim": "2026-08-20T20:00:00+00:00"
+    }
+  },
+  {
+    "action": "concluir",
+    "rationale": "o efeito fica na borda e nao aparece no backend",
+    "answer": {
+      "statement": "Possivel bloqueio na borda: a subida de 4xx no RPaaS acompanha o aumento de requisicoes bloqueadas pelo Cloud Armor, sem efeito correspondente no backend",
+      "scope": {
+        "entity": "playback.video.globo.com"
+      },
+      "effect_start": "2026-08-20T19:00:00+00:00",
+      "evidence_for": [
+        {
+          "fact_ids": [
+            "signal_bucket:rpaas:playback.video.globo.com:http_4xx_rate:1787251500:1007",
+            "signal_bucket:rpaas:playback.video.globo.com:http_4xx_rate:1787252400:1008",
+            "signal_bucket:rpaas:playback.video.globo.com:http_4xx_rate:1787253300:1009",
+            "signal_bucket:rpaas:playback.video.globo.com:http_4xx_rate:1787254200:1010"
+          ],
+          "observation": "http_4xx_rate sobe de 1,1% para 6,8% as 19:00",
+          "reading": "o erro visivel ao usuario cresce na borda"
+        },
+        {
+          "fact_ids": [
+            "signal_bucket:cloudarmor:edge:blocked_requests:1787251500:1007",
+            "signal_bucket:cloudarmor:edge:blocked_requests:1787252400:1008",
+            "signal_bucket:cloudarmor:edge:blocked_requests:1787253300:1009",
+            "signal_bucket:cloudarmor:edge:blocked_requests:1787254200:1010"
+          ],
+          "observation": "blocked_requests passa de cerca de 200 para 9.400",
+          "reading": "o bloqueio cresce no mesmo bucket, compativel com resposta de protecao"
+        }
+      ],
+      "evidence_against": [
+        {
+          "fact_ids": [
+            "signal_bucket:newrelic:playback:apdex:1787251500:1007",
+            "signal_bucket:newrelic:playback:apdex:1787252400:1008",
+            "signal_bucket:newrelic:playback:apdex:1787253300:1009",
+            "signal_bucket:newrelic:playback:apdex:1787254200:1010"
+          ],
+          "observation": "apdex do playback fica em 0,93 a 0,94",
+          "reading": "se houvesse falha de aplicacao, a experiencia medida cairia junto"
+        },
+        {
+          "fact_ids": [
+            "signal_bucket:prometheus:playback:http_5xx_rate:1787251500:1007",
+            "signal_bucket:prometheus:playback:http_5xx_rate:1787252400:1008",
+            "signal_bucket:prometheus:playback:http_5xx_rate:1787253300:1009",
+            "signal_bucket:prometheus:playback:http_5xx_rate:1787254200:1010"
+          ],
+          "observation": "http_5xx_rate do playback nao se move",
+          "reading": "nenhum erro interno acompanha a subida da borda"
+        }
+      ],
+      "gaps": [
+        {
+          "missing": "a regra do Cloud Armor que disparou os bloqueios",
+          "reason": "fora_do_catalogo"
+        },
+        {
+          "missing": "o vhost exato por tras dos 4xx do RPaaS",
+          "reason": "sem_dado"
+        },
+        {
+          "missing": "amostragem do RPaaS: sample_size perto de 2.100 contra 405 mil requisicoes",
+          "reason": "limite_de_ferramenta"
+        }
+      ]
+    }
+  }
+]

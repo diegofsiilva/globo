@@ -69,3 +69,8 @@ apps/fullstack/backend/src/telemetry_backend.egg-info/
 
 # Binarios locais de Terraform/AWS CLI
 .tools/
+
+# Resultados do piloto de hipoteses com IA. Sao execucoes experimentais, com
+# saida grande e nao reproduzivel por commit; o que vale revisar entra em
+# artefatos/.
+apps/fullstack/agente/saidas/

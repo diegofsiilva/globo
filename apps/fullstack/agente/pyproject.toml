@@ -1,0 +1,40 @@
+[project]
+name = "argus-agente"
+version = "0.1.0"
+description = "Piloto experimental: agente de IA que formula hipoteses a partir dos fatos de um checkpoint"
+requires-python = ">=3.12"
+dependencies = ["paramiko>=3.4"]
+
+[project.scripts]
+agentectl = "argus_agente.agentectl:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/argus_agente"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 90
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Testes descrevem o cenario no nome da funcao.
+"tests/*" = ["D103"]

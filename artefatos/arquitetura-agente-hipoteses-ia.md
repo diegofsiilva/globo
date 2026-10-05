@@ -339,12 +339,30 @@ trata apenas do que o Dia 1 não fecha.
 
 No Dia 2, fechar quatro decisões para implementação paralela por duas pessoas:
 
-| Decisão | Responsável sugerido | Critério de aceite |
+| Decisão | Responsável sugerido | Critério de aceite | Estado |
+|---|---|---|---|
+| Interface e acesso ao recorte de fatos | Pessoa dos dados | Mesmo checkpoint produz o mesmo conjunto e não expõe futuro. | Aberta |
+| Ferramentas de consulta e limites | Pessoa dos dados, com revisão conjunta | Cada resposta é limitada, paginável ou agregada e rastreável a fatos. | Assinatura proposta pelo lado do agente; adaptador real pendente |
+| Formato da hipótese e estratégia de investigação | Pessoa do agente | A saída cita fatos a favor/contra e admite insuficiência. | Fechada — [contratos](contrato-agente-hipoteses.md) |
+| Casos de avaliação | Ambas | Casos cobrem evidência suficiente, contraditória e fonte atrasada. | Três casos em fixture; recortes do dump pendentes |
+
+### O que já existe em código
+
+O piloto vive em [`apps/fullstack/agente`](../apps/fullstack/agente/README.md),
+como execução experimental separada. Ele implementa o ciclo desta seção 3, os
+tetos da seção 5.1 e as recusas da seção 4, com um adaptador de dados sobre
+arquivo enquanto o acesso ao recorte real não existe.
+
+| Dia | Entrega | Onde |
 |---|---|---|
-| Interface e acesso ao recorte de fatos | Pessoa dos dados | Mesmo checkpoint produz o mesmo conjunto e não expõe futuro. |
-| Ferramentas de consulta e limites | Pessoa dos dados, com revisão conjunta | Cada resposta é limitada, paginável ou agregada e rastreável a fatos. |
-| Formato da hipótese e estratégia de investigação | Pessoa do agente | A saída cita fatos a favor/contra e admite insuficiência. |
-| Casos de avaliação | Ambas | Casos cobrem evidência suficiente, contraditória e fonte atrasada. |
+| 2 | Contratos de entrada, ferramentas, passo e registro | [`contrato-agente-hipoteses.md`](contrato-agente-hipoteses.md), `contrato.py` |
+| 3 | Prompt, cliente do modelo e primeira execução ponta a ponta | `prompt.py`, `modelo.py`, `agente.py` |
+| 4 | Ciclo de chamadas às ferramentas e tetos de execução | `agente.py`, `limites.py` |
+| 5 | Contradições, ausência de dados, erros, respostas inválidas e lote | `validador.py`, `lote.py`, `registro.py` |
+
+`make -C apps/fullstack agente-ensaio` roda o lote inteiro com um dublê de
+roteiro, sem modelo, rede ou banco; `make -C apps/fullstack agente-lote` roda
+contra o Ollama configurado no `.env`.
 
 O protótipo deve permanecer em execução experimental separada. O guia do
 `apps/fullstack/processing` preserva o ciclo atual como determinístico; uma

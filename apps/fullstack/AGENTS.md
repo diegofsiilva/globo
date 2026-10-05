@@ -66,6 +66,7 @@ Quando só uma área mudou, o alvo específico basta: `test-backend`,
 | `backend` | API de leitura: Flask sobre Lambda, arquitetura hexagonal |
 | `worker` | Workers de ingestão (`event` e `merge`): SQS → bronze |
 | `processing` | ETL incremental, detector e motor das 11 famílias de hipótese |
+| `agente` | Piloto experimental: hipóteses por agente de IA, fora do ciclo |
 | `simulator` | Relógio virtual `sim.now()` e reemissão das mudanças |
 | `loader` | Carga inicial das 33 tabelas, Parquet → PostgreSQL |
 | `common` | Conexão, observabilidade e ciclo de vida compartilhados |
