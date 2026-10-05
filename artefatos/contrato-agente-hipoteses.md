@@ -1,44 +1,29 @@
-# Contratos do piloto de hipóteses com IA
+# Contratos do agente de hipóteses
 
-> Acompanha a arquitetura descrita em
-> [`arquitetura-agente-hipoteses-ia.md`](arquitetura-agente-hipoteses-ia.md).
-> Descreve uma execução experimental; nada aqui está publicado no produto.
+&emsp; Este documento mostra o que entra e o que sai do agente, com exemplos de JSON e o código que impõe cada formato. Ele complementa a [arquitetura do agente](arquitetura-agente-hipoteses-ia.md), que explica o funcionamento geral. Aqui importa a forma dos dados: quais campos existem, o que cada um significa e o que o código recusa.
 
-Este documento cobre o lado do **agente**: o que ele recebe, o que ele responde
-e o que fica gravado. O contrato de **leitura** — nomes das ferramentas,
-argumentos e envelope de resposta — não é definido aqui: ele é a seção 3.4 do
-documento de arquitetura, e é implementado pelo leitor de fatos em
-[`leitor.py`](../apps/fullstack/agente/src/argus_agente/leitor.py).
-Houve um período em que os dois documentos especificavam contratos diferentes
-para as mesmas três ferramentas; a seção 3.4 é a que vale.
+## 1. Quatro contratos
 
-| Contrato | Quem produz | Onde está definido |
-|---|---|---|
-| Entrada da investigação | Executor, a partir do recorte | [`prompt.py`](../apps/fullstack/agente/src/argus_agente/prompt.py) |
-| Ferramentas de leitura | Pessoa dos dados | Arquitetura, seção 3.4 |
-| Passo do modelo | Modelo | [`contrato.py`](../apps/fullstack/agente/src/argus_agente/contrato.py) |
-| Registro do caso | Executor | [`contrato.py`](../apps/fullstack/agente/src/argus_agente/contrato.py) |
+&emsp; Existem quatro contratos. A mensagem de abertura é a primeira entrada do modelo, com o recorte e o inventário. As ferramentas de leitura são as consultas que o modelo pode fazer durante a investigação. O passo do modelo é a resposta que ele devolve a cada turno. O registro do caso é o arquivo gravado ao fim de cada investigação, para auditoria.
 
-A regra que organiza os quatro: **o modelo descreve, o executor registra**. O
-histórico de consultas, o consumo de orçamento e a identidade do recorte são
-escritos por código, nunca narrados pelo modelo — um histórico contado pelo
-próprio investigado não serve de rastro.
+&emsp; Uma regra organiza os quatro: o modelo descreve, e o executor registra. O histórico de consultas, o consumo do orçamento e a identidade do recorte são escritos pelo código. Nada disso depende do que o modelo afirma sobre si mesmo.
 
-## 1. Entrada da investigação
+## 2. Mensagem de abertura
 
-O agente recebe uma única mensagem de abertura com quatro blocos. Nenhum deles
-contém anomalia, score, hipótese do motor determinístico ou rótulo de incidente.
+&emsp; A mensagem de abertura é montada na função `mensagem_de_abertura`, em [prompt.py](../apps/fullstack/agente/src/argus_agente/prompt.py). Ela é um JSON com quatro blocos. Nenhum deles contém anomalia, score, hipótese publicada ou rótulo de incidente.
 
 ```json
 {
   "recorte": {
-    "recorte_id": "synthetic:101:2db402383094d32e",
-    "presente_simulado": "2026-08-20T20:15:00+00:00",
-    "observacoes_de": "2026-08-20T17:00:00Z",
-    "observacoes_ate": "2026-08-20T20:00:00Z",
-    "nota_de_escopo": "janela de 3 h em um dia útil, horário nobre"
+    "recorte_id": "database:12:8634faaab06af08",
+    "presente_simulado": "2026-08-21T08:00:00+00:00",
+    "observacoes_de": "2026-08-21T02:00:00+00:00",
+    "observacoes_ate": "2026-08-21T07:45:00+00:00",
+    "nota_de_escopo": "checkpoint 12 de br1|playback.video.globo.com, janela de 360 min"
   },
-  "ferramentas": [{"nome": "inventariar_fatos", "...": "..."}],
+  "ferramentas": [
+    {"nome": "inventariar_fatos", "para_que": "...", "argumentos": {"...": "..."}}
+  ],
   "orcamento": {
     "chamadas_restantes": 12,
     "itens_por_resposta": 200,
@@ -46,191 +31,227 @@ contém anomalia, score, hipótese do motor determinístico ou rótulo de incide
   },
   "inventario": [
     {
-      "source": "prometheus",
-      "kind": "metric",
-      "entity": "playback",
-      "metric": "http_5xx_rate",
-      "count": 13,
-      "event_start_min": "2026-08-20T17:00:00Z",
-      "event_start_max": "2026-08-20T20:00:00Z",
-      "available_at_min": "2026-08-20T17:01:00Z",
-      "available_at_max": "2026-08-20T20:01:00Z",
-      "has_null_value": false,
-      "has_null_sample_size": true,
-      "group_ref": "a25aaa1b…"
+      "source": "rpaas",
+      "entity": "br1|playback.video.globo.com",
+      "metric": "error_4xx_rate_pct",
+      "pontos": 24,
+      "primeiro_evento": "2026-08-21T02:00:00Z",
+      "ultimo_evento": "2026-08-21T07:45:00Z",
+      "buckets_vazios": 0,
+      "atraso_tipico_segundos": 900
     }
   ]
 }
 ```
 
-O `recorte_id` é opaco para o modelo: ele resolve, dentro do leitor, o
-checkpoint, o `sim_now`, o `input_lsn` e o conjunto de fatos elegíveis. O
-recorte não tem janela própria — o limite superior é o presente simulado, e
-`observacoes_de` / `observacoes_ate` apenas dizem onde há observação, para o
-agente não gastar chamada pedindo períodos vazios.
+&emsp; O `recorte_id` é um identificador opaco. O modelo o usa como referência, mas não consegue inventá-lo nem alterá-lo, porque ele resolve dentro do leitor o checkpoint, o presente simulado e o conjunto de fatos. O recorte não tem janela própria: o limite superior é sempre o presente simulado. Os campos `observacoes_de` e `observacoes_ate` apenas indicam onde há dados, para que o agente não gaste chamadas pedindo períodos vazios.
 
-O **inventário** lista o que existe e quanta cobertura há, sem classificar nada
-como anormal. Ele é a única visão global que o agente recebe, e **não devolve
-`fact_id`**: uma linha de inventário descreve uma série, não observa nada, e por
-isso não pode sustentar uma hipótese. Isso não depende de uma regra do
-validador — o leitor simplesmente não expõe identificador no inventário.
+&emsp; O inventário lista o que existe e a cobertura de cada série, sem classificar nada como anormal. Ele não traz `fact_id`. Uma linha do inventário descreve uma série e não observa valor algum, então não pode servir de evidência. O código do inventário está em `inventariar_fatos`, no [leitor.py](../apps/fullstack/agente/src/argus_agente/leitor.py).
 
-### Fonte atrasada, sem vazar o futuro
+&emsp; Uma série atrasada aparece no inventário com o último evento disponível antes da janela investigada. Não existe um campo separado com a lista de séries a caminho. Quando o modelo pede uma janela sem dados, a resposta vem vazia com a limitação `sem_fatos_no_recorte_consultado`, e isso é o sinal de que o dado ainda não chegou ou não existe.
 
-Fatos com `available_at` posterior ao presente simulado não entram no recorte, e
-o piloto não anuncia que eles existem. Mesmo assim, atraso de fonte continua
-observável: o inventário mostra, por série, até quando há observação. No caso
-`caso-03-fonte-atrasada`, a quebra por UF aparece no inventário com
-`event_start_max` em 19/08, enquanto o efeito investigado é de 20/08. Pedir a
-janela do incidente devolve página vazia com `sem_fatos_no_recorte_consultado`,
-e é isso que permite ao agente registrar a lacuna como `ainda_indisponivel` em
-vez de concluir que a métrica está normal.
+## 3. Ferramentas de leitura
 
-É menos explícito do que um bloco dedicado a declarar as séries a caminho, que
-chegou a ser proposto aqui. Esse bloco exigiria mudança no leitor e continua em
-aberto na seção 6.
+&emsp; As ferramentas são três, e o modelo só pode chamá-las pelo nome. Nenhuma aceita SQL, nome de tabela ou um horário posterior ao presente simulado. O despacho que escolhe a função pelo nome está em `despachar`, em [ferramentas.py](../apps/fullstack/agente/src/argus_agente/ferramentas.py).
 
-## 2. Ferramentas de leitura
-
-As três ferramentas são as da seção 3.4 da arquitetura:
-`inventariar_fatos`, `consultar_serie` e `consultar_contexto`. Este documento
-não repete a especificação delas. O que importa para o lado do agente:
-
-- **A validação semântica é do leitor, não do validador do agente.** Janela
-  invertida ou posterior ao presente simulado, dimensão sem par tipo/valor,
-  valor `?` ou `(desconhecido)`, série que não consta do inventário: tudo isso é
-  recusado por quem conhece o recorte. O validador do agente só confere nome de
-  ferramenta e tipo de argumento, antes de gastar chamada.
-- **Pedido recusado consome uma chamada.** A recusa entra no rastro e volta ao
-  modelo como dado, em vez de derrubar o caso — investigação real também esbarra
-  em consulta que não existe.
-- **Toda resposta traz `items`, `returned`, `has_more`, `next_cursor` e
-  `limitations`.** Paginação consome mais uma chamada do teto do caso.
-- **Cada item traz o `fact_id`** que o originou. Só esses identificadores podem
-  ser citados como evidência.
-
-## 3. Passo do modelo
-
-O modelo responde **um passo por vez**, sempre com um único objeto JSON. Três
-ações são possíveis.
+&emsp; A ferramenta `inventariar_fatos` aceita só os argumentos `limit` e `cursor`. Serve para ler o inventário em páginas, quando ele é grande demais para uma resposta.
 
 ```json
-{"action": "consultar", "rationale": "procurar mudanca operacional proxima do efeito",
+{"action": "consultar", "rationale": "ver o que existe antes de escolher",
+ "tool": "inventariar_fatos", "arguments": {}}
+```
+
+&emsp; A ferramenta `consultar_serie` devolve os pontos de uma métrica dentro de uma janela. Exige `source`, `entity`, `metric`, `inicio` e `fim`, e aceita opcionalmente o par `dimension_type` e `dimension_value`. A janela precisa começar antes de terminar, e não pode terminar depois do presente simulado. A implementação está em `consultar_serie`, no [leitor.py](../apps/fullstack/agente/src/argus_agente/leitor.py).
+
+```json
+{"action": "consultar", "rationale": "ver como o 4xx se comporta na madrugada",
+ "tool": "consultar_serie",
+ "arguments": {"source": "rpaas", "entity": "br1|playback.video.globo.com",
+               "metric": "error_4xx_rate_pct",
+               "inicio": "2026-08-21T02:00:00Z", "fim": "2026-08-21T08:00:00Z"}}
+```
+
+&emsp; A ferramenta `consultar_contexto` devolve fatos que podem sustentar ou enfraquecer uma explicação, como deploys e transmissões ao vivo. Exige a janela e pelo menos uma entre `source` e `entity`. Aceita também `kinds`, que escolhe entre fatos de métrica e de contexto. Um evento entra na resposta se a sua duração se sobrepõe à janela, e não apenas se começa dentro dela.
+
+```json
+{"action": "consultar", "rationale": "procurar mudança operacional próxima do efeito",
  "tool": "consultar_contexto",
- "arguments": {"entity": "playback", "kinds": ["context"],
-               "inicio": "2026-08-20T17:00:00Z", "fim": "2026-08-20T20:00:00Z"}}
+ "arguments": {"entity": "br1|playback.video.globo.com", "kinds": ["context"],
+               "inicio": "2026-08-21T02:00:00Z", "fim": "2026-08-21T08:00:00Z"}}
 ```
 
-```json
-{"action": "desistir", "rationale": "ha efeito, mas nada disponivel separa as causas",
- "gaps": [{"missing": "quebra do erro por UF", "reason": "ainda_indisponivel"}]}
-```
-
-```json
-{"action": "concluir", "rationale": "...", "answer": { "...": "a hipótese da seção 4" }}
-```
-
-Os quatro motivos de lacuna aceitos são `sem_dado`, `ainda_indisponivel`,
-`fora_do_catalogo` e `limite_de_ferramenta`. Separar os dois primeiros é o que
-impede o piloto de tratar atraso de fonte como ausência de problema.
-
-## 4. A hipótese final
-
-A hipótese entrega quatro coisas: a causa candidata, o que a sustenta, o que a
-contraria e o que não foi possível verificar. O exemplo abaixo é a saída real do
-caso `caso-01-deploy`, com as listas de `fact_id` encurtadas.
+&emsp; Toda resposta de ferramenta tem o mesmo formato. O exemplo a seguir é ilustrativo: os valores são arredondados e os identificadores encurtados. Ela traz `recorte_id`, o nome da ferramenta, a lista `items`, a quantidade `returned`, o indicador `has_more`, o cursor `next_cursor` e a lista `limitations`. Cada item traz o `fact_id` que o originou, e só esses identificadores podem ser citados como evidência. Uma página tem no máximo 200 itens. Para ler a próxima, o agente faz uma nova chamada com o cursor, e ela consome do orçamento.
 
 ```json
 {
-  "statement": "Possivel regressao apos o deploy do playback: o erro 5xx sobe de 0,4% para 8,1% no bucket seguinte ao deploy",
-  "scope": {"entity": "playback"},
-  "effect_start": "2026-08-20T19:00:00+00:00",
+  "recorte_id": "database:12:8634faaab06af08",
+  "tool": "consultar_serie",
+  "items": [
+    {"fact_id": "3e57a052e63f…", "event_start": "2026-08-21T02:00:00Z",
+     "value": 2.6, "kind": "metric", "metric": "error_4xx_rate_pct"}
+  ],
+  "returned": 24,
+  "has_more": false,
+  "next_cursor": null,
+  "limitations": []
+}
+```
+
+&emsp; Quando não há dados na janela, a resposta vem com `items` vazio e uma limitação, e nunca com uma série de zeros. Um vazio não prova que o evento não ocorreu. Ele pode significar que o dado ainda não chegou ou que a série não existe no recorte. Um pedido inválido, como uma janela que termina depois do presente simulado, é recusado com erro explícito e também consome uma chamada.
+
+## 4. Passo do modelo
+
+&emsp; A cada turno, o modelo devolve um único objeto JSON com o campo `action`. Os três valores possíveis são `consultar`, `concluir` e `desistir`. O esquema completo fica em `ESQUEMA_PASSO`, em [contrato.py](../apps/fullstack/agente/src/argus_agente/contrato.py), e é enviado ao servidor do modelo junto com a requisição, para restringir a forma da resposta.
+
+```python
+ESQUEMA_PASSO = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["action", "rationale"],
+    "properties": {
+        "action": {"enum": list(ACOES)},
+        "rationale": {"type": "string", "maxLength": 600},
+        "tool": {"enum": list(FERRAMENTAS)},
+        "arguments": _ARGUMENTOS,
+        "answer": ESQUEMA_HIPOTESE,
+        "gaps": {"type": "array", "maxItems": 6, "items": _LACUNA},
+    },
+}
+```
+
+&emsp; O campo `rationale` é uma frase que explica o motivo do passo. Ele fica no registro, para que a revisão veja o raciocínio de cada turno. Um `concluir` precisa trazer o objeto `answer`. Um `desistir` precisa trazer ao menos uma lacuna.
+
+&emsp; Uma lacuna tem um motivo, que pertence a um conjunto fechado: `sem_dado`, quando a informação não existe no recorte; `ainda_indisponivel`, quando a fonte ainda não entregou; `fora_do_catalogo`, quando o que se procura não é medido por nenhuma fonte; e `limite_de_ferramenta`, quando a ferramenta não consegue responder à pergunta. Separar os dois primeiros é o que impede o sistema de tratar atraso de fonte como se o problema não existisse.
+
+## 5. A hipótese final
+
+&emsp; Uma conclusão é o objeto `answer`. Ele reúne a explicação candidata, as evidências a favor, as evidências contra, as explicações rivais, o instante do efeito e as lacunas. O exemplo abaixo foi tirado de uma saída real do checkpoint 12. Os identificadores e alguns textos foram encurtados para caber na leitura, e o campo `checagens` é acrescentado pelo código depois da validação.
+
+```json
+{
+  "statement": "Possível causa candidata para a degradação na plataforma playback: um problema na infraestrutura ou no backend, compatível com o aumento dos erros 4xx e 5xx a partir das 04:15 e a queda no RPM.",
+  "scope": {"entity": "br1|playback.video.globo.com"},
+  "effect_start": "2026-08-21T04:15:00+00:00",
   "evidence_for": [
     {
-      "fact_ids": ["0415ff63…:1220"],
-      "observation": "deploy do playback as 18:54, encerrado as 18:58",
-      "reading": "mudanca operacional seis minutos antes do inicio do efeito"
+      "fact_ids": ["429bb1b5a172…", "a50e04631338…"],
+      "observation": "Aumento significativo nos erros 4xx a partir das 04:15",
+      "reading": "Os valores de 4xx sobem de forma clara nesse intervalo"
     },
     {
-      "fact_ids": ["c3a9e5d1…:1200"],
-      "observation": "http_5xx_rate passa de 0,4 para 8,1 as 19:00",
-      "reading": "o degrau coincide com o deploy, nao com uma subida gradual"
+      "fact_ids": ["0a36aadc7773…", "5f5498f4f86e…"],
+      "observation": "Queda progressiva no RPM a partir das 03:00",
+      "reading": "O volume de requisições cai ao longo da madrugada"
     }
   ],
   "evidence_against": [
     {
-      "fact_ids": ["7b22f04e…:1021"],
-      "observation": "requests_total permanece entre 405 mil e 421 mil",
-      "reading": "o volume nao muda, entao a alternativa de pico de demanda nao se sustenta"
+      "fact_ids": ["3e57a052e63f…"],
+      "observation": "Os erros 5xx não apresentam um padrão crescente constante",
+      "reading": "A alta dos 5xx existe, mas é menos consistente que a dos 4xx"
     }
   ],
-  "gaps": [
-    {"missing": "quebra do erro por regiao e ISP", "reason": "ainda_indisponivel"},
-    {"missing": "conteudo do deploy, como versao ou commit", "reason": "fora_do_catalogo"}
+  "alternativas": [
+    {
+      "explicacao": "Problemas de infraestrutura ou backend",
+      "veredito": "sustentada",
+      "fact_ids": ["0a36aadc7773…"],
+      "observation": "Queda no RPM e aumento de 4xx e 5xx coincidem com o período"
+    },
+    {
+      "explicacao": "Ataque ou sobrecarga de tráfego",
+      "veredito": "nao_verificada",
+      "fact_ids": [],
+      "observation": "Não há dados de tráfego anormal ou de ataque no período"
+    }
+  ],
+  "gaps": [],
+  "checagens": [
+    {
+      "lado": "evidence_for",
+      "observation": "Aumento significativo nos erros 4xx a partir das 04:15",
+      "status": "confirmado",
+      "serie": "rpaas/error_4xx_rate_pct",
+      "antes": 3.4148,
+      "depois": 9.4113,
+      "variacao": 1.756
+    }
   ]
 }
 ```
 
-Cada evidência separa **`observation`**, que é o que o fato mostra, de
-**`reading`**, que é por que isso pesa a favor ou contra. A separação existe
-para que a revisão humana possa discordar da leitura sem precisar refazer a
-observação.
+&emsp; O campo `statement` diz qual série muda, em que direção e a partir de quando. Ele é uma explicação candidata, e a linguagem precisa ser não conclusiva, com palavras como "possível" ou "compatível com". O campo `effect_start` é o instante em que a mudança começa nos dados. O código exige esse campo, porque a checagem numérica precisa dele para comparar o antes e o depois.
 
-### Regras de validação
+&emsp; Cada evidência separa duas coisas. A `observation` diz o que o dado mostra. A `reading` diz por que aquilo pesa a favor ou contra. Essa separação permite que a revisão discorde da leitura sem precisar refazer a observação. As explicações rivais seguem a mesma ideia: cada uma recebe um veredito, e os vereditos `sustentada` e `refutada` precisam citar fatos consultados.
 
-O validador não julga se a causa é verdadeira — isso é da revisão humana. Ele
-responde se a resposta pode ser conferida. Estas regras rejeitam um passo e
-geram **um** pedido de correção; a segunda falha encerra o caso.
+## 6. Regras de validação
 
-| Regra | Por quê |
-|---|---|
-| Todo `fact_id` citado precisa ter vindo de uma ferramenta nesta investigação | Referência inventada é indistinguível de evidência real na leitura |
-| `evidence_for` não pode ser vazia | Hipótese sem sustentação já tem a ação `desistir` |
-| `evidence_against` ou `gaps` precisa ter ao menos um item | O Dia 1 definiu hipótese sem tentativa de refutação como incompleta |
-| `statement` não pode afirmar causa de forma conclusiva | A saída é explicação candidata — mesma regra do RN-H11 do motor atual |
-| `scope.entity` é obrigatório | Hipótese sem escopo não é verificável |
-| `desistir` exige ao menos uma lacuna com motivo do catálogo | Desistência sem motivo não ensina nada à revisão |
+&emsp; O validador confere se a conclusão pode ser verificada. Ele não julga se a causa é verdadeira. Está em [validador.py](../apps/fullstack/agente/src/argus_agente/validador.py), na função `interpretar`. As regras são estas.
 
-Citar uma linha de inventário como evidência não precisa de regra: o inventário
-não devolve `fact_id`, então qualquer identificador inventado a partir dele cai
-na primeira regra da tabela.
+&emsp; Todo `fact_id` citado precisa ter aparecido em alguma resposta de ferramenta nesta investigação. Uma referência inventada é recusada, porque seria indistinguível de uma evidência real.
 
-Uma situação vira **aviso**, e não rejeição, porque pode ser legítima: o mesmo
-`fact_id` aparecendo a favor e contra. O aviso acompanha a hipótese até a
-revisão.
+&emsp; A evidência contrária é obrigatória. Uma lacuna declarada não substitui uma observação que pudesse derrubar a hipótese. O trecho que impõe a regra é este:
 
-Uma hipótese cuja `evidence_against` não está vazia é marcada como
-**contestada**. Isso não a invalida; muda como ela deve ser lida.
+```python
+if not contra:
+    problemas.append(
+        "evidence_against vazio: cite pelo menos um fato, entre os consultados, "
+        "que enfraquece a hipotese, mesmo que ela continue sendo a melhor"
+    )
+```
 
-## 5. Registro do caso
+&emsp; São necessárias ao menos duas explicações rivais. Os vereditos `sustentada` e `refutada` exigem fatos citados, e o veredito `nao_verificada` existe para registrar o que os dados não alcançam, sem fingir uma conclusão.
 
-O que o executor grava por caso investigado:
+&emsp; O enunciado não pode afirmar causa com certeza. Expressões como "causa raiz", "com certeza" ou "comprovado" são recusadas. A evidência a favor não pode ser vazia, a hipótese precisa de um escopo com entidade, e o `effect_start` precisa ser um instante válido.
+
+&emsp; Quando uma regra falha, o modelo recebe a lista exata de problemas e tem uma nova tentativa. Se a segunda resposta também falhar, o caso termina como resposta inválida, e isso fica no registro.
+
+## 7. Checagem numérica
+
+&emsp; Depois da validação, cada evidência passa por uma checagem em [checagem.py](../apps/fullstack/agente/src/argus_agente/checagem.py), que compara o texto com a série real. Ela confere se a direção afirmada bate com a direção medida e se a intensidade descrita bate com a magnitude medida. A direção é medida pela média antes e depois do `effect_start`, e uma variação de 10% ou mais conta como alta ou queda.
+
+&emsp; Cada evidência recebe um status. O status `confirmado` significa que o texto bate com a série. O status `contradito` significa que o texto afirma uma direção e a série foi em outra, e isso recusa a conclusão. O status `exagero` significa que a frase usa um adjetivo de intensidade, como "significativo", mas a variação relativa é menor que 50%. O status `indeterminado` significa que a checagem não conseguiu decidir, porque a evidência mistura séries, cita um fato desconhecido, ou usa uma frase sem direção clara. Nesse último caso nada é contradito.
+
+&emsp; Os campos de cada checagem registram o que foi medido: a série, a média antes, a média depois, a variação relativa e as direções afirmada e medida. Esses valores ficam no registro para que a revisão possa conferir a decisão.
+
+## 8. Registro do caso
+
+&emsp; Cada investigação gera um arquivo JSON. A função `escrever_caso`, em [registro.py](../apps/fullstack/agente/src/argus_agente/registro.py), grava o registro completo. A forma do registro é definida pela classe `RegistroDoCaso`, em [contrato.py](../apps/fullstack/agente/src/argus_agente/contrato.py), e a versão do esquema é a `2.2.0`.
 
 ```json
 {
-  "case_id": "caso-01-deploy",
-  "schema_version": "2.0.0",
+  "case_id": "checkpoint-12-br1|playback.video.globo.com-360m",
+  "schema_version": "2.2.0",
+  "criado_em": "2026-10-05T18:12:04+00:00",
   "recorte": {
-    "checkpoint_id": "101",
-    "origin": "synthetic",
-    "sim_now": "2026-08-20T20:15:00+00:00",
-    "input_lsn": 1300,
-    "recorte_id": "synthetic:101:2db402383094d32e",
-    "digest": "2163e85b3f0516af…"
+    "checkpoint_id": "12",
+    "origin": "database",
+    "sim_now": "2026-08-21T08:00:00+00:00",
+    "input_lsn": 15008891,
+    "recorte_id": "database:12:8634faaab06af08",
+    "digest": "8b9c0ecb58a7ae02…"
   },
-  "modelo": {"provedor": "ollama", "model": "qwen3-coder:30b", "temperatura": 0.0},
-  "prompt_version": "2.0.0",
+  "modelo": {"provedor": "ollama", "model": "qwen3-coder:30b", "temperatura": 0.0, "tentativas": 2},
+  "prompt_version": "2.2.0",
   "entrada": "{\"recorte\": …}",
   "desfecho": "hipotese",
   "contestada": true,
+  "passos": [
+    {
+      "ordem": 1,
+      "acao": "consultar",
+      "rationale": "ver como o 4xx se comporta na madrugada",
+      "problemas": [],
+      "saida_bruta": "{\"action\": \"consultar\", …}"
+    }
+  ],
   "consultas": [
     {
-      "ordem": 4,
-      "ferramenta": "consultar_contexto",
-      "argumentos": {"entity": "playback", "kinds": ["context"], "limit": 200,
-                     "inicio": "2026-08-20T17:00:00Z", "fim": "2026-08-20T20:00:00Z"},
-      "retornadas": 1,
-      "fact_ids": ["0415ff63…:1220"],
+      "ordem": 1,
+      "ferramenta": "consultar_serie",
+      "argumentos": {"source": "rpaas", "limit": 200},
+      "retornadas": 24,
+      "fact_ids": ["429bb1b5a172…"],
       "duracao_ms": 1,
       "tem_mais": false,
       "limitacoes": [],
@@ -238,54 +259,23 @@ O que o executor grava por caso investigado:
     }
   ],
   "metricas": {
-    "consumo": {"chamadas": 5, "itens": 44, "passos": 6, "passos_invalidos": 0},
-    "fatos_vistos": 40
+    "consumo": {"chamadas": 3, "itens": 72, "passos": 4, "passos_invalidos": 0}
   }
 }
 ```
 
-O campo `entrada` guarda a mensagem de abertura exatamente como o modelo a
-recebeu. Sem ela, um resultado estranho não pode ser atribuído à entrada ou ao
-modelo.
+&emsp; O campo `entrada` guarda a mensagem de abertura exatamente como o modelo a recebeu. O campo `saida_bruta` de cada passo guarda o texto que o modelo devolveu, mesmo quando foi rejeitado. Assim, uma rejeição pode ser comparada com o que o modelo de fato escreveu, e não apenas com o motivo que o validador apontou.
 
-O `digest` é o do leitor: resume os `fact_id` **e os papéis** expostos no
-recorte. É ele que torna a reexecução comparável e, no Dia 6, o que garante que
-o agente e o motor determinístico falem do mesmo material. O `recorte_id`
-deriva dele.
+&emsp; O digest é o resumo do conjunto de fatos expostos ao agente, incluindo os papéis de cada fato. Ele permite confirmar que duas execuções viram os mesmos dados. O `recorte_id` deriva desse digest.
 
-Cinco desfechos são possíveis, e todos são gravados:
+&emsp; Cada caso termina em um dos cinco desfechos abaixo, todos gravados. O desfecho `hipotese` indica que a conclusão passou em todas as verificações. O desfecho `evidencia_insuficiente` indica que o agente desistiu e declarou as lacunas. O desfecho `teto_atingido` indica que um limite de orçamento foi alcançado antes da conclusão. O desfecho `resposta_invalida` indica que duas respostas seguidas violaram o formato. O desfecho `erro_de_execucao` cobre falhas do modelo, do leitor ou do banco.
 
-| Desfecho | Significado |
-|---|---|
-| `hipotese` | O agente concluiu e a saída passou no validador |
-| `evidencia_insuficiente` | O agente desistiu, com lacunas declaradas |
-| `teto_atingido` | Chamadas ou tempo acabaram antes da conclusão |
-| `resposta_invalida` | Duas respostas seguidas fora do contrato |
-| `erro_de_execucao` | Modelo indisponível, caso ilegível ou falha inesperada |
+&emsp; Os três últimos desfechos são limitações do piloto e não produzem hipótese. Eles aparecem no relatório do lote com o mesmo destaque dos demais, porque um relatório que esconde falhas não permite avaliar o piloto.
 
-Os três últimos são limitação do piloto, não hipótese. Eles aparecem no
-relatório do lote exatamente como os outros — um lote que esconde as falhas não
-serve para decidir se o piloto continua.
+## 9. Limitações conhecidas
 
-## 6. Estado das decisões abertas
+&emsp; O recorte real usado nos testes foi reconstruído a partir da bronze, e não é uma reprodução do fluxo de captura de mudanças. Isso significa que os fatos têm os mesmos valores da origem, mas não passaram pelo mesmo caminho de processamento. Essa diferença deve ser lembrada ao interpretar os casos.
 
-1. **Onde o leitor de fatos mora.** Fechado: o leitor e o acesso ao checkpoint
-   real estão no pacote do agente (`leitor.py` e `banco.py`). As CLIs em
-   `tools/` apenas chamam esses módulos. Não há mais ponte por caminho.
-2. **Declarar as séries a caminho.** Decidido: não há bloco explícito. O
-   inventário já informa, por série, o último evento disponível
-   (`event_start_max`) e o `available_at_max`. Um atraso de fonte aparece como
-   uma série cujo último dado fica antes da janela investigada. Um bloco
-   separado mudaria o contrato do leitor sem ganho de informação para o agente.
-3. **Casos sobre dado real.** Feito, com uma ressalva. O checkpoint 12 foi
-   reconstruído a partir de `bronze.signal_bucket` por
-   [`scripts/reconstruir_recorte_real.sql`](../apps/fullstack/agente/scripts/reconstruir_recorte_real.sql),
-   porque o banco local não tem `change_log` para essa série. O recorte foi
-   escolhido por inspeção manual da série bruta, não a partir de nenhum
-   resultado do motor. A investigação do agente sobre ele **ainda não rodou**:
-   o servidor do Ollama estava saturado durante toda a sessão.
-4. **O que fazer com `role`.** Decidido: o agente não recebe `role`. O papel
-   `subject` marca os fatos que o pipeline considera do intervalo analisado, o
-   que é uma classificação do próprio motor e aproximaria o agente da resposta
-   dele. `role` continua no digest, então a comparação do Dia 6 ainda verifica
-   o mesmo material.
+&emsp; A checagem numérica confere as observações das evidências, mas não o enunciado geral da hipótese. Um enunciado pode afirmar que duas séries sobem, enquanto a checagem só confere uma delas. Como o limiar de intensidade é relativo, uma variação pequena em valor absoluto pode passar como significativa.
+
+&emsp; O inventário informa o último evento disponível de cada série, mas não há um campo dedicado para listar as séries que ainda vão chegar. O agente percebe um atraso pela comparação entre a janela investigada e o último evento disponível.
