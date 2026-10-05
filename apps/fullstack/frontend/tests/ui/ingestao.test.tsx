@@ -67,7 +67,7 @@ describe("página auxiliar de ingestão", () => {
     render(<IngestaoContent />);
     expect(screen.getByRole("heading", { level: 1, name: "Ingestão por arquivos" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Continuar para revisão" })).toBeDisabled();
-    expect(screen.getByText(/conteúdo e o esquema ainda não são validados/)).toBeVisible();
+    expect(screen.getByText(/Use “Ver prévia” para conferir uma amostra/)).toBeVisible();
   });
 
   it("seleciona, remove e permite escolher o mesmo arquivo novamente", async () => {

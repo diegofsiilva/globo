@@ -3,7 +3,7 @@ import { Database, Files, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SelecaoArquivos } from "./selecao-arquivos";
 
-/** Apresenta a primeira etapa sem prometer envio ainda não implementado. */
+/** Apresenta a preparação e a prévia local sem prometer ingestão já disponível. */
 export function IngestaoContent() {
   return (
     <section data-operations-slot="content" className="min-w-0 p-4 md:p-8">
@@ -20,8 +20,8 @@ export function IngestaoContent() {
         </header>
         <ol aria-label="Etapas da ingestão" className="grid gap-3 sm:grid-cols-3">
           {[
-            ["01", "Selecionar arquivos", "Disponível nesta entrega"],
-            ["02", "Revisar e mapear", "Próxima etapa"],
+            ["01", "Selecionar e conferir", "Seleção e prévia disponíveis"],
+            ["02", "Mapear colunas", "Próxima etapa"],
             ["03", "Enviar e acompanhar", "Próxima etapa"],
           ].map(([number, title, detail], index) => (
             <li key={number} aria-current={index === 0 ? "step" : undefined}
@@ -38,12 +38,12 @@ export function IngestaoContent() {
           </section>
           <aside className="grid gap-4 rounded-panel border border-border bg-surface p-5" aria-labelledby="preparo-titulo">
             <h2 id="preparo-titulo" className="text-section font-semibold">Antes de começar</h2>
-            <p className="text-body text-muted-foreground">Separe arquivos CSV ou Parquet. Você poderá revisar o lote antes de enviar.</p>
+            <p className="text-body text-muted-foreground">Selecione CSV ou Parquet e use “Ver prévia” para conferir as primeiras linhas e as colunas.</p>
             <div className="border-t border-border pt-4 text-label text-muted-foreground">
-              A leitura dos dados, o mapeamento de colunas e o envio serão habilitados na próxima etapa.
+              O mapeamento de colunas, a validação dos campos de destino e o envio serão habilitados na próxima etapa.
             </div>
             <Button disabled aria-describedby="envio-pendente">Continuar para revisão <ArrowRight aria-hidden="true" /></Button>
-            <p id="envio-pendente" className="text-micro text-muted-foreground">Revisão e ingestão ainda indisponíveis.</p>
+            <p id="envio-pendente" className="text-micro text-muted-foreground">Revisão do destino e ingestão ainda indisponíveis.</p>
           </aside>
         </div>
       </div>

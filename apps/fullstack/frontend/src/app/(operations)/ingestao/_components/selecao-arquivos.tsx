@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { chaveArquivo, formatoArquivo, selecionarArquivos, type Selecao } from "../_lib/selecao";
+import { PreviaArquivo } from "./previa-arquivo";
 
 type Acao = { tipo: "adicionar"; arquivos: File[] } | { tipo: "remover"; chave: string } | { tipo: "limpar" };
 
@@ -23,6 +24,8 @@ export function SelecaoArquivos() {
   const [selecao, dispatch] = useReducer(atualizarSelecao, { arquivos: [], avisos: [] });
   const files = selecao.arquivos;
   const [dragging, setDragging] = useState(false);
+  const [chavePrevia, setChavePrevia] = useState<string | null>(null);
+  const arquivoPrevia = files.find((file) => chaveArquivo(file) === chavePrevia);
 
   /** Acrescenta arquivos escolhidos no seletor ou soltos na área. */
   function adicionar(novos: File[]) {
@@ -55,7 +58,7 @@ export function SelecaoArquivos() {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p role="status" className="font-mono text-label text-muted-foreground">{files.length} arquivo(s) selecionado(s) · {(files.reduce((total, file) => total + file.size, 0) / 1024 ** 2).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MiB</p>
-        <Button type="button" variant="ghost" disabled={!files.length && !selecao.avisos.length} onClick={() => dispatch({ tipo: "limpar" })}>Limpar lote</Button>
+        <Button type="button" variant="ghost" disabled={!files.length && !selecao.avisos.length} onClick={() => { setChavePrevia(null); dispatch({ tipo: "limpar" }); }}>Limpar lote</Button>
       </div>
       {selecao.avisos.length > 0 && (
         <Alert variant="destructive">
@@ -70,21 +73,24 @@ export function SelecaoArquivos() {
       {files.length ? (
         <ul aria-label="Arquivos selecionados" className="divide-y divide-border rounded-panel border border-border">
           {files.map((file) => (
-            <li key={chaveArquivo(file)} className="flex min-w-0 items-center gap-3 p-3">
+            <li key={chaveArquivo(file)} className="flex min-w-0 flex-wrap items-center gap-3 p-3">
               <File className="size-5 shrink-0 text-primary" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-32">
                 <p className="break-all text-body font-medium">{file.name}</p>
                 <p className="font-mono text-micro text-muted-foreground">{formatoArquivo(file.name)} · {(file.size / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MiB</p>
               </div>
+              <Button type="button" variant="outline" aria-label={`Ver prévia de ${file.name}`}
+                aria-pressed={chavePrevia === chaveArquivo(file)} onClick={() => setChavePrevia(chaveArquivo(file))}>Ver prévia</Button>
               <Button type="button" variant="ghost" size="icon" aria-label={`Remover ${file.name}`}
-                onClick={() => dispatch({ tipo: "remover", chave: chaveArquivo(file) })}>
+                onClick={() => { if (chavePrevia === chaveArquivo(file)) setChavePrevia(null); dispatch({ tipo: "remover", chave: chaveArquivo(file) }); }}>
                 <Trash2 aria-hidden="true" />
               </Button>
             </li>
           ))}
         </ul>
       ) : <p className="py-4 text-center text-body text-muted-foreground">Nenhum arquivo selecionado. Escolha um arquivo para preparar o lote.</p>}
-      <p className="text-label text-muted-foreground">Esta seleção verifica extensão, tamanho e duplicatas. O conteúdo e o esquema ainda não são validados. O lote será descartado ao sair ou recarregar esta página.</p>
+      {arquivoPrevia && <PreviaArquivo key={chaveArquivo(arquivoPrevia)} arquivo={arquivoPrevia} onFechar={() => setChavePrevia(null)} />}
+      <p className="text-label text-muted-foreground">Esta seleção verifica extensão, tamanho e duplicatas. Use “Ver prévia” para conferir uma amostra e as colunas. O lote será descartado ao sair ou recarregar esta página.</p>
     </div>
   );
 }
