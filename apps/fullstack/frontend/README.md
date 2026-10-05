@@ -5,11 +5,13 @@ Dashboard estático em Next.js App Router. A entrada `/` redireciona para
 `/timeline` e `/recorte`.
 
 A ferramenta auxiliar `/ingestao/` é acessada diretamente pela URL e não tem
-entrada na sidebar. A primeira entrega permite selecionar CSV/Parquet,
-organizar o lote e validar extensão, tamanho e duplicatas localmente, usando
-os mesmos temas do dashboard. Leitura de conteúdo, mapeamento e envio continuam
-pendentes; o botão de revisão está desabilitado. O plano e a divisão de 50%
-estão em [plano-ingestao-arquivos.md](../../../artefatos/plano-ingestao-arquivos.md).
+entrada na sidebar. Permite selecionar CSV/Parquet, organizar o lote, validar
+extensão/tamanho/duplicatas e abrir uma prévia local de até dez linhas com as
+colunas detectadas, usando os mesmos temas do dashboard. A leitura roda em
+worker e é cancelada ao fechar, trocar ou remover o arquivo; a amostra não
+valida o arquivo inteiro. Mapeamento e envio continuam pendentes, com o botão
+de revisão do destino desabilitado. O plano, os limites e as entregas estão em
+[plano-ingestao-arquivos.md](../../../artefatos/plano-ingestao-arquivos.md).
 
 O contrato HTTP que a interface já chama e o que ela espera da API de leitura
 e do motor de hipóteses está em [rotas-frontend.md](./rotas-frontend.md).
