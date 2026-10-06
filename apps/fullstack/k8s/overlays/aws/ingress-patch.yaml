@@ -32,6 +32,6 @@ metadata:
     # 30s: o mesmo do target group do ASG. Casado com o `preStop: sleep 10` do
     # Deployment, e o que fecha a janela de 502 durante um rolling update.
     alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30
-    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=120
 spec:
   ingressClassName: argus-alb

@@ -7,6 +7,9 @@ dependencies = [
     "argus-common",
     "boto3>=1.35",
     "pydantic>=2.9",
+    "flask>=3.1",
+    "gunicorn>=23.0",
+    "pyarrow>=18.0",
 ]
 
 [dependency-groups]

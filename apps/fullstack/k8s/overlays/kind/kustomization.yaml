@@ -25,6 +25,9 @@ images:
   - name: IMAGE_FRONTEND
     newName: argus-frontend
     newTag: dev
+  - name: IMAGE_WORKER
+    newName: argus-worker
+    newTag: dev
 
 patches:
   - path: ingress-patch.yaml
