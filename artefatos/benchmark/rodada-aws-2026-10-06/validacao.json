@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "phase": "completed",
+  "exit_code": 0,
+  "python_tests": {
+    "passed": 155,
+    "skipped": 46
+  },
+  "go_tests_passed": true,
+  "fixture_reproduction_checks": 4,
+  "parity_cli_54_passed": true
+}

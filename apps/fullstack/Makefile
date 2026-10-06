@@ -347,6 +347,11 @@ BENCHMARK_ARGS ?=
 benchmark-medir: benchmark-fixtures-check benchmark-go-test ## Valida paridade e mede tempo e pico de RSS local
 	cd $(PROCESSING) && $(UV) python -m benchmarks.medicao.executar --go "$(GO)" $(BENCHMARK_ARGS)
 
+BENCHMARK_AWS_ARGS ?=
+.PHONY: benchmark-aws
+benchmark-aws: benchmark-fixtures-check ## Cria EC2 temporaria, mede Python/Golang e recolhe os JSONs
+	cd $(PROCESSING) && $(UV) python -m benchmarks.medicao.aws $(BENCHMARK_AWS_ARGS)
+
 .PHONY: test-frontend
 test-frontend: ## Testes de contratos e componentes do dashboard
 	cd $(FRONTEND) && npm test
