@@ -1,491 +1,432 @@
 # Testes finais de carga, resiliência e observabilidade
 
-Este artefato aprimora os testes dos requisitos não funcionais apresentados em
-[`testes-carga-inicial.md`](testes-carga-inicial.md), da Sprint 3. A análise preserva
-os resultados daquela entrega, incorpora as execuções posteriores na arquitetura
-com Kubernetes e relaciona os achados às decisões de arquitetura.
+Este documento amplia os [testes de carga da Sprint 3](testes-carga-inicial.md)
+para avaliar a arquitetura atual. Os cenários acompanham o recebimento de
+eventos, o acesso às telas, a recuperação de falhas e o aumento automático de
+réplicas. Os resultados relacionam os requisitos não funcionais, identificados
+pela sigla RNF, às decisões de arquitetura.
 
-**Estado em 04/10/2026 (horário de Brasília):** trabalho parcial, pausado após a
-consolidação das evidências existentes e a preparação da reexecução. As medições
-de setembro identificadas abaixo foram executadas; os
-cenários identificados como pendentes ainda não possuem resultado da nova sessão
-AWS. Este documento não declara aprovação integral da arquitetura final.
+A carga foi gerada pelo k6 e acompanhada no Grafana. Também foi repetido o
+teste de integração que verifica se um evento enviado fica disponível na API,
+identificado como TI-05.2 no artefato funcional. Os códigos CF identificam os
+cenários de carga deste documento.
 
-**Escopo da complementação:** aproveitar os resultados da Sprint 3 e das rodadas
-posteriores do artefato funcional. A nova sessão prioriza o TI-05.2 após a
-migration 030, a observação da elasticidade do HPA e as capturas de uma rodada
-representativa no Grafana. Não se exige repetir toda a suíte para incorporar
-sua análise a este documento. As evidências históricas mantêm data, ambiente e
-limitações; as novas medições não substituem retroativamente seus resultados.
+Como na Sprint 3, os resultados ficam concentrados em dois JSONs: um com
+os [cenários gerais](evidencias/testes-carga-finais/evidencias-2026-10-05.json)
+e outro com as [remessas de eventos](evidencias/testes-carga-finais/evidencias-lotes-2026-10-05.json).
+Cada remessa contém 150.000 eventos. Nesta rodada, foram enviadas duas
+remessas juntas, com o consumidor parado; os ensaios de uma, três e quatro
+remessas continuam como evidência histórica, sem nova execução.
 
-## 1. Evolução em relação à Sprint 3
+## 1. Evolução dos testes e critérios de aprovação
 
-### 1.1 Continuidade dos requisitos e mudança de arquitetura
+### 1.1 O que foi aproveitado da Sprint 3
 
-A Sprint 3 é a referência dos requisitos, cenários e resultados. A arquitetura
-final mantém API Gateway, SQS, workers e processamento em ECS Fargate e PostgreSQL
-no RDS no caminho assíncrono. O caminho síncrono do dashboard e da API de leitura
-passou a ser servido pelo Ingress do EKS, com Deployments, sondas e HPA. A Lambda
-de leitura permanece como contingência. O desenho está em
-[`arquitetura-final.md`](arquitetura-final.md).
+O recebimento de eventos mantém API Gateway, fila SQS, consumidores no ECS
+Fargate e PostgreSQL no RDS. A API de leitura passou a ser atendida pelo
+Kubernetes no EKS. Nesse caminho, o Ingress encaminha as consultas à aplicação,
+e o HPA ajusta a quantidade de réplicas conforme o uso de CPU.
 
-Assim, a carga de consultas executada no EKS constitui evolução do teste de
-leitura; ela não mede a capacidade de ingestão de eventos. Os testes locais no
-kind demonstram mecanismos de resiliência, mas seus tempos não são apresentados
-como medições do EKS. Resultados da arquitetura antiga permanecem identificados
-pelo ambiente e pela data em que foram obtidos.
-
-O exemplo de abertura de venda do enunciado é representado, no domínio do Argus,
-por uma rajada de telemetria de 10.000 eventos/minuto. Não há fluxo de venda na
-aplicação.
-
-| RNF | Evidência da Sprint 3 | Aprimoramento e evidência posterior | Situação da comprovação |
-|---|---|---|---|
-| RNF01 — capacidade | Pico de 10.000 eventos/min; 12.152 eventos aceitos e persistidos incluindo aquecimento; lotes de 150 mil a 600 mil | Separação entre requisições, eventos, drenagem e disponibilidade na leitura; plano de reexecução identificado por rodada | Comprovado no ambiente histórico; reexecução na nova sessão pendente |
-| RNF02 — tempo de consulta | 4.587 consultas, máximo de 1.581 ms; ressalva sobre a representatividade da base | Seis telas, limiares agregados e por tela, rodadas comparáveis e estresse no EKS | Há resultados no EKS até 100 usuários e reprovações documentadas em carga maior |
-| RNF03 — escalabilidade | Uma e duas tasks, carga de 1.000 e 2.000 eventos/min, com reconciliação | Diagnóstico do HPA sem métrica e reexecução após instalação do `metrics-server` | Escala manual da ingestão comprovada no histórico; aumento efetivo de réplicas no EKS pendente |
-| RNF04 — tolerância a evento inválido | 18/18 falhas identificadas e 150/150 eventos válidos processados | Preservar verificação por evento, causa na DLQ e continuidade do consumidor na revisão final | Evidência histórica disponível; não houve nova execução em outubro |
-| RNF05 — recuperação | Backlog de 1.001 eventos reconciliado; ensaios maiores de mudanças sem reconciliação completa | Recuperação com identificação dos eventos; testes posteriores de remoção de pod e rollout no kind | Recuperação local demonstrada; reconciliação das falhas maiores e reexecução remota pendentes |
-| RNF11 — registros de falha | Causas de rejeição consultáveis, sem amostra suficiente de todos os campos exigidos | Exigir horário, componente, erro e correlação em cada falha controlada, com registros sanitizados | Parcial; dashboards não substituem a evidência dos registros |
-
-### 1.2 Tratamento do feedback dos testes funcionais
-
-O feedback recebido reconheceu a análise de carga e a busca do limite entre 100
-e 200 usuários. As pendências foram incorporadas ao trabalho de evolução:
-
-| Pendência apontada | Tratamento neste artefato | Evidência necessária para encerrar |
-|---|---|---|
-| Reexecutar TI-05.2 na AWS após migration 030 | Pré-condição para avaliar o caminho completo entre ingestão e leitura, seção 3.5 | Migration confirmada, execução remota, tempo de aparecimento e saída do teste |
-| Medir elasticidade do HPA | Cenário CF04, com observação da criação e prontidão das réplicas | Série de CPU, réplicas atuais/desejadas, evento de escala e resultados k6 sincronizados |
-| Corrigir texto residual do CT13c | Correção no artefato funcional: recusa da promoção não oculta as 500 hipóteses geradas | Coerência entre texto, tabela, migrations 032/033 e teste existente |
-| Atualizar referências `apps/basica/` | Comandos de reprodução usam `apps/fullstack/`; logs antigos conservam sua origem histórica | Novas execuções terão caminhos atuais, data e versão, sem reescrever saídas antigas |
-| Anexar capturas do Grafana | Seção 4 distingue capturas históricas de capturas ainda necessárias | Painéis legíveis da janela da nova execução, com fonte, unidade e cenário |
-
-## 2. Método, ambiente e critérios
-
-### 2.1 Registro por execução
-
-Cada nova rodada deve preservar: `test_id`, início e fim em UTC, commit e tag das
-imagens, ambiente, caminho de entrada, versão e origem do gerador, duração por
-fase, taxa oferecida e atingida, base consultada, recursos e quantidade de
-réplicas. O dimensionamento deve permanecer registrado também depois da falha ou
-da escala. A base precisa ser caracterizada por volume, período e cardinalidade;
-uma base vazia não reproduz os ensaios históricos das telas.
-
-Os JSONs e logs da suíte k6 ficam em
-`apps/fullstack/tests/carga/resultados/`, que não é versionado. As cópias
-sanitizadas que sustentarem conclusões devem ser preservadas em
-`artefatos/evidencias/`, junto das capturas pertinentes. Tokens, credenciais,
-identificadores de conta e endpoints não fazem parte das evidências públicas.
-
-**Verificação de preparação em 04/10/2026:** o perfil AWS `g4` autenticou no
-Ubuntu/WSL e permitiu consultas de inventário em `us-east-1`. A conta consultada
-não continha instâncias RDS, clusters EKS/ECS, repositórios ECR ou buckets S3.
-O checkout também não continha state/configuração local do Terraform nem a base
-histórica naquele momento. A base foi fornecida e verificada posteriormente no
-mesmo dia, conforme o registro abaixo. A infraestrutura foi recriada, mas a
-carga validada da base continua sendo pré-condição das novas medições. Ver
-[registro inicial de preparação](evidencias/testes-carga-finais/preparacao-aws-2026-10-04.json).
-
-**Origem da base identificada.** O
-[plano de carga inicial](plano-argus-v3.md#6-carga-inicial) documenta o dump MySQL
-do parceiro `argus_dump.sql`, aproximadamente 4 GB e 68,7 milhões de linhas,
-convertido por `tools/etl_dump.py` para `data/parquet/`. A pasta inclui
-`_manifest.json`, com `row_counts`, `empty_tables`, `total_rows` e dados da
-conversão. O loader transfere os Parquets do bucket de origem e confere as
-contagens carregadas no PostgreSQL contra esse manifesto.
-
-Há bases diferentes conforme o teste: a ingestão usa eventos sintéticos gerados
-pelo k6; o RNF02 inicial descreve cerca de 24 mil eventos sintéticos; a carga das
-telas na implantação posterior consulta as camadas derivadas da base histórica.
-A reexecução no EKS em 24/09 declara explicitamente RDS carregado com as 32
-tabelas do manifesto. O arquivo fornecido em 04/10 contém 33 tabelas no schema,
-32 com registros e `investigation_feedback` sem registros, confirmando essa
-distinção para a base recebida. Os 33 nomes coincidem com a migration 004.
-
-Apesar de se chamar `argus_dump.sql`, o arquivo recebido é **gzip**: possui
-515.082.641 bytes comprimidos e 4.148.103.553 bytes de SQL após descompressão.
-A leitura integral verificou a integridade gzip e contou **68.717.811 registros**,
-dos quais 41.191.820 em `prom_point` e 18.218.743 em `signal_point`. Esses valores
-correspondem às dimensões documentadas para o dataset Argus. Foram preservados
-os hashes SHA-256 e as contagens por tabela no
-[registro de verificação da base](evidencias/testes-carga-finais/verificacao-base-2026-10-04.json).
-
-O dump e os Parquets não são versionados. O original recebido permaneceu
-inalterado; o conversor existente foi executado sobre uma cópia descomprimida.
-A verificação identifica a base esperada, mas as evidências
-históricas consultadas não contêm o hash do arquivo de setembro para comparação
-byte a byte. A conversão terminou com **68.717.811 registros e zero descartes**;
-as contagens das 32 tabelas conferem com a leitura independente do dump. O
-[manifesto sanitizado](evidencias/testes-carga-finais/conversao-base-2026-10-04.json)
-preserva essa conferência. A conferência da carga no RDS é uma etapa separada.
-
-A infraestrutura foi recriada com EKS 1.33, PostgreSQL 16.13 em `db.t3.medium`
-com 100 GiB e imagens do commit `326769cbb9d9`. A consulta ao banco confirmou
-as 33 migrations e o índice `bronze.event_lsn` válido; ver
-[verificação remota](evidencias/testes-carga-finais/migrations-aws-2026-10-04.json).
-As duas réplicas do backend e as duas do frontend ficaram prontas, e o HPA
-passou a receber CPU pelo `metrics-server`. Isso valida a preparação, sem
-antecipar o resultado da carga nem a ocorrência de escala.
-
-**Pausa da execução:** a conversão e o envio da base ao S3 terminaram, mas a
-carga no RDS foi interrompida antes da validação integral. Os dados já gravados
-foram preservados para retomada. Não foram executados nesta sessão o TI-05.2,
-a rodada representativa das telas nem a medição de elasticidade. A retomada
-exige conferir o estado da carga e concluir a preparação do processamento.
-
-### 2.2 Medidas e interpretação
-
-| Medida | Definição e limite de interpretação |
+| Evidência anterior | Resultado e contribuição para esta etapa |
 |---|---|
-| Latência HTTP | Tempo de uma requisição observado pelo k6; o aceite da ingestão não inclui toda a execução assíncrona |
-| Throughput HTTP | Requisições concluídas por segundo na fase observada |
-| Throughput de eventos | Eventos aceitos/processados por segundo; deve considerar o conteúdo de cada lote |
-| Erros por segundo | Contagem de falhas na janela dividida por sua duração; percentual de erros é apresentado separadamente |
-| Drenagem após retomada | Tempo entre a retomada do consumidor e a conclusão da persistência dos eventos aceitos, com verificação das filas |
-| Persistência em bronze | Diferença entre o instante real de envio e a gravação em `bronze.event` |
-| Frescor ponta a ponta | Diferença entre o instante real de envio e a primeira observação do evento na API; registrar o intervalo de polling |
-| CPU | Valor acompanhado de componente e denominador: utilização do serviço/instância ou percentual da CPU requisitada pelo pod |
-| Recuperação | Tempo até restabelecer o serviço e, separadamente, até concluir o processamento do acúmulo |
+| Pico de eventos na Sprint 3 | 10.000 eventos/min e 12.152 eventos aceitos e gravados no ensaio completo. Os lotes de 150 mil a 600 mil demonstraram recuperação do acúmulo |
+| Consultas na Sprint 3 | 4.587 consultas, com máximo de 1.581 ms e ressalva sobre a representatividade da base |
+| Carga das telas no artefato funcional | Aprovação até 100 usuários. A rodada com 200 usuários ultrapassou limites por tela, mesmo com os indicadores agregados dentro dos limites |
+| Eventos inválidos | 18/18 falhas identificadas e 150/150 eventos válidos preservados. O RNF04 mantém essa evidência, sem nova execução nesta etapa |
+| Recuperação local no kind | A remoção de um dos dois pods não causou falhas nas 2.262 requisições. O resultado sustenta a redundância naquele ambiente, sem extrapolar os tempos para a AWS |
 
-A SQS conta mensagens, que podem conter vários eventos. Fila visível zerada,
-isoladamente, não demonstra ausência de perda: devem ser verificadas também as
-mensagens em processamento, a DLQ e a reconciliação dos identificadores do teste.
-Duplicidades são contadas separadamente. Para eventos válidos, a conclusão de
-persistência integral exige todos os eventos aceitos localizados no destino.
+Os [resultados iniciais](assets/performance/evidencias-2026-09-02.json),
+os [ensaios por lote](assets/performance/evidencias-lotes-2026-09-09.json) e os
+[testes funcionais](testes-funcionais.md#testes-de-carga) preservam a análise
+histórica. A [rodada A no EKS](evidencias/carga-kubernetes/rodada-a-resultado.json)
+e a [rodada B](evidencias/carga-kubernetes/rodada-b-resultado.json) registram os
+testes anteriores à correção da coleta de métricas do HPA. A
+[repetição após o ajuste](evidencias/carga-kubernetes-2026-09-24/carga-ui_resultado_20260925T004042Z.json)
+confirmou a coleta, mas ainda sem aumento de réplicas.
 
-O relógio virtual `sim.now()` determina a visibilidade do dado do domínio. A
-medição de atraso usa o tempo real, como `load_test_sent_at`; os dois relógios
-não devem ser subtraídos um do outro.
+### 1.2 Planos de teste aprimorados
 
-Na preparação da nova rodada, está planejado congelar o relógio em
-`2026-08-02T12:00:00Z`, dentro do período do dump, para consultar uma janela com
-histórico acumulado; essa etapa não foi executada antes da pausa. O resumo de 24/09 registra
-`2026-07-12T00:49:03.430489+00:00`, próximo ao início dos dados. Portanto, mesmo
-com o mesmo volume em bronze, a quantidade visível nas views pode ser diferente.
-A nova rodada complementa a evidência da arquitetura; seus números não isolam
-o efeito do HPA em uma comparação direta de antes/depois com setembro.
+No Argus, o exemplo de abertura de venda é representado por uma rajada de
+telemetria de 10 mil eventos/minuto. O cenário de “fila cheia” foi representado
+pelo acúmulo de mensagens com o consumidor parado, seguido de retomada. Ele
+avalia a recuperação da fila, sem afirmar que uma cota da SQS foi atingida.
 
-### 2.3 Planos de teste aprimorados
+| Cenário e requisito | Procedimento | Resultado esperado |
+|---|---|---|
+| Pico de eventos, CF01 / RNF01 | Enviar 1.000, 10.000 e 1.000 eventos/min, por 60 s em cada fase, além do aquecimento | Aceitar ao menos 1.000/10.000/1.000 eventos; p95 <2 s/<5 s/<2 s nas respectivas fases; zero rejeições e descartes do gerador; gravar todos os aceitos sem duplicidade e terminar com fila e DLQ vazias |
+| Acúmulo e recuperação, CF02 / RNF01 e RNF05 | Enviar dois lotes de 150.000 eventos com o consumidor parado e depois retomar o consumo | Aceitar todos os eventos, gravá-los sem perda ou duplicação e esvaziar as filas. Referência de recuperação de 450 s a partir do pedido de retomada |
+| Acesso às telas, CF03 / RNF02 | Executar as chamadas das seis telas com 5/25/100 usuários virtuais, por dois minutos em cada nível | Erros <1%, p95 HTTP <3 s, p99 HTTP <5 s, p95 de abertura <5 s e telas completas >99%, no conjunto e por tela. Conferir também o máximo de 5 s do RNF02 |
+| Escala automática, CF04 | Usar 200/450/1.200 usuários virtuais por cinco minutos em cada nível, acompanhando também a recuperação | Observar criação, disponibilidade e redução de réplicas, mantendo os critérios de desempenho do CF03 |
+| Timeout do cliente, CF05 / RNF05 | Limitar 100 consultas a 1 ms e iniciar cinco consultas com prazo de 7 s aos 35 s do ensaio | Detectar ao menos um timeout; obter HTTP 200 nas cinco consultas posteriores, zero falhas e p95 <5 s |
+| Eventos inválidos, CF06 / RNF04 | Preservar a verificação de entradas válidas e inválidas da Sprint 3 | Identificar a causa das rejeições e manter o processamento dos eventos válidos |
+| Registros de falha, CF07 / RNF11 | Conferir amostras das falhas observadas | Identificar horário, etapa e erro, distinguindo os cenários |
+| Disponibilidade na API, CF08 / TI-05.2 | Enviar um evento e consultar a API após a correção do índice no banco | Encontrar o evento em até 300 s, com os campos preservados e sem expor `user_id` |
 
-Os critérios originais permanecem vinculados a
-[`requisitos.md`](requisitos.md). Limiares auxiliares do k6 e a margem de drenagem
-adotada na Sprint 3 são critérios operacionais do ensaio, não novos requisitos
-atribuídos ao parceiro.
+Os critérios vêm de [requisitos.md](requisitos.md) e do
+[plano registrado antes da execução](evidencias/testes-carga-finais/evidencias-2026-10-05.json),
+preservado no campo `plano_execucao`.
+Os limites auxiliares do k6 e os 450 s de recuperação são critérios do ensaio.
+No CF01, o roteiro também exige falhas <1%/<5%/<1% por fase; a exigência
+adicional de zero rejeições é mais restritiva. O veredito combina os limites
+do k6 com a conferência posterior no banco, não apenas `aprovado_http`.
+O RNF03 trata de ampliar a capacidade de ingestão de pelo menos 1.000 para
+2.000 requisições/minuto. Sua evidência continua sendo a da Sprint 3, pois o
+CF04 avalia a escala das consultas.
 
-| Cenário | RNF e procedimento | Critério e evidência | Estado |
+## 2. Ambiente e forma de medição
+
+Os testes usaram a base histórica do parceiro, com **68.717.811 registros em
+32 tabelas**, carregada a partir de `argus_dump.sql`. A camada bronze guarda os
+dados recebidos, a silver contém os dados tratados e a gold reúne resultados
+para consulta. Essas camadas foram preparadas antes da carga, sem avanço manual
+dos marcadores de processamento.
+
+| Componente | Configuração utilizada |
+|---|---|
+| Gerador de carga | k6 0.54.0 em EC2 `t4g.large`, dentro da rede privada da AWS |
+| Aplicação | EKS 1.33, com duas réplicas iniciais da API e possibilidade de chegar a seis. Imagens do commit `326769cbb9d9` |
+| Banco | PostgreSQL 16.13 em `db.t3.medium`, com 100 GiB |
+| Escala automática | HPA com alvo de 60% dos `250m` de CPU requisitados por pod. Redução com janela de estabilização de 300 s |
+| Processamento regular | Lotes de 5.000 registros a cada 60 s entre bronze e silver, e ciclo de 900 s entre silver e gold |
+| Registro das execuções | Identificador `test_id`, roteiro, versão, horários, critérios, base e recursos disponíveis |
+
+A configuração, as contagens e os intervalos da base estão no campo `ambiente`
+das [evidências consolidadas](evidencias/testes-carga-finais/evidencias-2026-10-05.json).
+Os registros completos de preparação estão no pacote detalhado da seção 6.
+
+A nova rodada consultou uma janela com mais histórico acumulado. A rodada
+anterior usava o relógio virtual próximo ao início dos dados. Por isso, os
+resultados não isolam apenas o efeito da mudança de arquitetura ou do HPA.
+As estatísticas da base e os registros das execuções preservam essas condições.
+
+Para interpretar os resultados, foram consideradas as seguintes medidas:
+
+- **Usuários virtuais (VUs):** sequências de chamadas executadas pelo k6. Nos testes das telas, há pausa de 2 s entre aberturas. Mais usuários não representam uma taxa fixa de requisições.
+- **p95 e p99:** tempos até os quais se encontram 95% e 99% das medições. O máximo mostra a resposta mais lenta.
+- **Throughput:** quantidade de requisições ou eventos por segundo. Uma mensagem da SQS pode conter vários eventos.
+- **Recuperação:** tempo para retomar o serviço e processar o acúmulo. A fila vazia é conferida junto dos registros no banco e da DLQ, a fila de mensagens que não foram processadas normalmente.
+
+A confirmação de recebimento de um evento, sua gravação na bronze e sua
+disponibilidade na API são etapas distintas. A comparação entre eventos
+aceitos e gravados, chamada de reconciliação, verifica perdas e duplicidades.
+O tempo de resposta também é analisado junto dos erros, pois uma falha pode
+ser devolvida rapidamente.
+
+## 3. Execução e resultados
+
+### 3.1 Evento disponível para consulta na API (TI-05.2)
+
+TI significa teste de integração. O código TI-05.2 identifica o segundo caso
+do conjunto que verifica a aplicação publicada na AWS. Ele envia um evento
+por `POST /v1/events` e consulta `GET /api/v1/events` até encontrá-lo ou atingir
+o prazo de 300 s.
+
+Na execução original, o evento foi gravado, mas não apareceu na consulta.
+A investigação encontrou dados pendentes e buscas por `_lsn` sem índice.
+A [migration 030](../apps/fullstack/db/migrations/030_indice_lsn_em_evento.sql),
+um script de alteração do banco, adicionou esse índice.
+
+**Procedimento:** repetir o teste com a base preparada, as migrations
+001 a 033 aplicadas e a leitura pelo Ingress do EKS.
+
+| Verificação | Resultado esperado | Resultado obtido | Situação |
 |---|---|---|---|
-| CF01 — nominal, pico e recuperação | RNF01: executar 1.000, 10.000 e 1.000 eventos/min no roteiro existente; registrar aquecimento e intervalos | Taxa atingida, zero rejeição/descarte do gerador, p95 abaixo dos limites declarados por fase e reconciliação integral | Script pronto; nova medição pendente |
-| CF02 — lote e fila acumulada | RNF01/05: lote nominal de 150.000; depois dois lotes com `event-worker` parado, seguido de retomada; três/quatro lotes são extensão | Zero rejeição, DLQ sem eventos válidos, contagem por `test_id` e filas drenadas; referência operacional de 450 s adotada na Sprint 3, com origem do cronômetro explícita | Script de injeção pronto; captura coordenada e nova medição pendentes |
-| CF03 — consultas e telas | RNF02: mesmas seis telas, 5/25/100 VUs, base caracterizada; limiares por nível e por tela | Erros <1%, requisição p95 <3 s e p99 <5 s, abertura p95 <5 s, telas completas >99%; máximo também deve ser reportado para verificar o teto de 5 s do RNF02 original | Executado no EKS em setembro; resultados na seção 3.2 |
-| CF04 — elasticidade | RNF03: repetir carga crescente com HPA recebendo CPU; sustentar cada fase tempo suficiente para medir reação, incluindo retorno à carga baixa | Observar réplicas desejadas, criadas e prontas, tempo até atender tráfego e efeito em latência/erros; manter limiares do CF03 e registrar o maior nível aprovado | Métrica do HPA disponível em 24/09; escala efetiva no EKS pendente |
-| CF05 — falhas e recuperação | RNF05: distinguir timeout de cliente, interrupção do worker e indisponibilidade de dependência; marcar início/fim da falha | Cliente detecta timeout; serviço retoma; eventos aceitos reconciliados; rejeições e duração da indisponibilidade explícitas | Timeout de cliente e interrupção têm evidência histórica; timeout interno exige cenário próprio |
-| CF06 — eventos inválidos | RNF04: lote misto de entradas válidas e inválidas | Válidos antes/depois persistidos, inválidos identificáveis por causa e continuidade do consumidor | Evidência da Sprint 3 disponível |
-| CF07 — registros de falha | RNF11: coletar amostras durante CF02/CF05/CF06 | Horário, etapa/componente, causa e correlação; cenários distinguíveis e ausência de dado sensível desnecessário | Comprovação ainda parcial |
-| CF08 — ingestão até leitura | RNF05 e frescor: confirmar migration 030 e executar TI-05.2 na AWS; depois medir amostra/lote com identificação | Evento consultável em até 300 s no TI-05.2, campos preservados e redação de dado pessoal; uma amostra não é um p95 | Correção local validada; reexecução AWS pendente |
+| Disponibilidade na API | Evento consultável em até 300 s | Encontrado na 24ª consulta, após 242,24 s | Aprovado |
+| Conteúdo e proteção dos dados | Sessão, nome e dispositivo preservados, sem `user_id` | Campos conferidos e `user_id` ausente | Aprovado |
 
-O pico de CF01 dura **um minuto** no script atual. Uma janela sustentada maior
-requer parametrização antes da execução; repetir o roteiro não converte esse
-pico em um ensaio contínuo de longa duração. No CF04, o objetivo é observar a
-elasticidade após a correção do HPA. A carga deve aumentar com acompanhamento,
-sem presumir que ultrapassar 900 VUs seja condição necessária para disparar a
-escala.
+O resultado considera a correção do índice e a preparação da base. Como foi
+medido um evento, ele não representa um p95 nem comprova o comportamento sob
+carga. As consultas foram feitas em intervalos, então o tempo indica quando o
+evento foi encontrado. O caso de autorização de acesso, TI-05.1, permanece
+separado, pois usa outro caminho de entrada.
 
-O cenário de “fila cheia” é operacionalizado como acúmulo de mensagens com o
-consumidor interrompido, seguido de retomada e reconciliação. Esse ensaio mede
-pressão e recuperação da fila; não declara ter atingido uma quota da SQS.
+**Evidências:** [resultado consolidado, campo `resultados.TI-05.2`](evidencias/testes-carga-finais/evidencias-2026-10-05.json)
+e [diagnóstico original](testes-funcionais.md#diagnóstico-do-caso-reprovado).
 
-## 3. Resultados existentes e análise de desempenho e resiliência
+### 3.2 Acesso às telas no Kubernetes (CF03-A)
 
-### 3.1 Referência da Sprint 3: ingestão, lotes e recuperação
+**Procedimento:** executar as chamadas das seis telas com 5/25/100 usuários,
+por dois minutos em cada nível e pausa de 30 s, usando a base preparada e o
+HPA com métricas disponíveis.
 
-As medições abaixo pertencem à implantação histórica, conforme os
-[resultados de 02/09](assets/performance/evidencias-2026-09-02.json) e os
-[resultados por lote de 09/09](assets/performance/evidencias-lotes-2026-09-09.json).
+**Resultado esperado:** atender aos critérios de tempo, erros e telas
+completas do CF03, tanto no conjunto quanto por tela.
 
-| Ensaio | Resultado observado | Conclusão sustentada |
-|---|---|---|
-| Pico de ingestão | 10.000 eventos na fase de pico; p95 161,8 ms; 12.152/12.152 persistidos incluindo as demais fases e aquecimento | Capacidade de aceite e persistência naquele pico e ambiente |
-| Lote de 150.000 | Injeção 10,078 s; drenagem registrada de 120 s; 150.000 itens gravados; DLQ 0 | Recuperação e integridade registradas para esse lote |
-| Dois lotes, 300.000 | Drenagem 191 s; 300.000 itens gravados; DLQ 0 | Recuperação do acúmulo no ambiente histórico |
-| Três lotes, 450.000 | Drenagem 259 s; 450.000 itens gravados; DLQ 0 | Recuperação do acúmulo no ambiente histórico |
-| Quatro lotes, 600.000 | Drenagem 346 s; 600.000 itens gravados; DLQ 0 | Drenagem 104 s abaixo do limite operacional adotado de 450 s |
-| Eventos inválidos | 18/18 falhas identificadas e 150/150 válidos preservados | Isolamento das entradas inválidas no cenário executado |
-| Backlog de eventos | Fila 0 → 1.001 → 0 e banco +1.001 | Recuperação sem perda no recorte reconciliado |
-| Falhas do fluxo de mudanças | 96.020 aceitos no backlog e 28.800 na interrupção do worker, sem reconciliação completa | Retomada observada; ausência de perda ainda não comprovada nesses dois ensaios |
+| VUs | Requisições de carga | Erros | p95 HTTP | p99 HTTP | Máximo HTTP | p95 de abertura | Telas completas |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 5 | 124 | 20,16% | 30.001 ms | 30.001 ms | 30.001 ms | 30.002 ms | 42,86% |
+| 25 | 598 | 85,62% | 30.001 ms | 30.001 ms | 30.006 ms | 30.004 ms | 1,75% |
+| 100 | 8.368 | 98,29% | 30.000 ms | 30.001 ms | 30.005 ms | 30.002 ms | 1,00% |
 
-Os lotes demonstram recuperação de acúmulo, e não equivalência automática a uma
-taxa contínua de 10.000 eventos/min. Da mesma forma, a latência do fragmento HTTP
-não mede o atraso até a disponibilidade na leitura.
+**Resultado obtido: reprovado nos três níveis.** Foram 9.090 requisições de
+carga, além de uma de preparação, e 8.762 falhas HTTP. O aumento do volume no
+último nível veio principalmente de respostas de erro rápidas. Por isso, a
+mediana de 1 ms a 100 usuários não indica melhora.
 
-### 3.2 Evolução das consultas: do ASG ao EKS
+O banco atingiu 100% de CPU na média de um minuto. O HPA manteve duas réplicas,
+com uso de até 54% da CPU requisitada, abaixo do alvo de 60%. Os pods somaram
+oito reinícios e houve intervalos sem backend disponível.
 
-O teste de carga documentado em
-[`testes-funcionais.md`](testes-funcionais.md#testes-de-carga) é incorporado como
-evidência de evolução dos RNFs de desempenho. O roteiro
-[`carga_ui.js`](../apps/fullstack/tests/carga/carga_ui.js) reproduz as requisições
-das seis telas; não mede renderização visual de navegador. O indicador de
-abertura corresponde à conclusão das chamadas que compõem cada tela.
+Uma consulta isolada de sinais já havia falhado em 15,485 s, com timeout SQL
+de 15 s. A aplicação recalcula uma referência de sete dias nessa consulta,
+mas o custo de cada operação ainda precisa ser confirmado no plano SQL.
+O compartilhamento dos processos HTTP com as verificações de saúde dos pods
+também precisa ser investigado.
 
-| Rodada | Ambiente/origem do gerador | Requisições reportadas | Níveis | p95 de requisição a 100 VUs | Resultado e alcance |
-|---|---|---:|---|---:|---|
-| 18/09 | API em EC2/ASG, k6 em EC2 na VPC | 25.501 de carga | 5/25/100 VUs, 2 min por nível | 802 ms | Critérios atendidos; novas instâncias não entraram em serviço durante a janela |
-| 21/09 — A | Ingress do EKS, k6 em EC2 na VPC | 25.576 no total | 5/25/100 VUs, 2 min por nível | 662 ms | Zero erros; duas réplicas; HPA sem métrica |
-| 24/09 — A repetida | Ingress do EKS, k6 local fora da VPC | 24.177 no total | 5/25/100 VUs, 2 min por nível | 841 ms | Zero erros, limiares por tela atendidos; HPA com métrica, sem aumento de réplicas |
+Na tela Hipóteses, o processamento recusou 7.696.798 entradas, acima da
+proteção de 250.000. A preparação das camadas de dados, portanto, não garantiu
+a geração das hipóteses. O teste revelou um limite de consulta com histórico
+acumulado, sem permitir atribuir a diferença apenas ao código.
 
-Os totais dos JSONs do EKS incluem uma requisição adicional de preparação. As
-requisições de carga dos níveis somam 25.575 em 21/09 e 24.176 em 24/09. Essa
-diferença deve ser mantida ao comparar totais ou calcular taxas.
+**Evidências:** [campo `resultados.CF03-A`](evidencias/testes-carga-finais/evidencias-2026-10-05.json),
+com resultados por nível e tela, HPA, CPU do banco e diagnósticos.
 
-**Análise.** As rodadas de 18 e 21/09 usaram o mesmo roteiro e gerador dentro da
-VPC e sustentam a comparação entre caminhos. A variação do p95 a 100 usuários
-não estabelece superioridade geral de uma plataforma: são execuções pontuais.
-A rodada de 24/09 acrescenta latência de rede externa e valida a configuração
-com `metrics-server`; não deve ser interpretada como regressão causada por ele.
+### 3.3 Aumento automático de réplicas (CF04)
 
-Evidências: [carga original](evidencias/testes-carga.txt),
-[rodada A de 21/09](evidencias/carga-kubernetes/rodada-a-resultado.json),
-[rodada de 24/09](evidencias/carga-kubernetes-2026-09-24/carga-ui_resultado_20260925T004042Z.json)
-e [estado do HPA](evidencias/carga-kubernetes-2026-09-24/hpa-e-cluster.txt).
+**Procedimento:** usar 200/450/1.200 usuários por cinco minutos em cada nível,
+acompanhando o HPA durante a carga e a recuperação.
 
-### 3.3 Busca do limite e elasticidade ainda não medida
+**Resultado esperado:** observar aumento e redução de réplicas, mantendo os
+critérios de desempenho das consultas.
 
-| VUs na rodada B de 21/09 | Requisições de carga | Erros | p95 por requisição | p95 de abertura | Resultado |
-|---:|---:|---:|---:|---:|---|
-| 200 | 29.448 | 0% | 2.766 ms | 3.076 ms | Reprovado nos limiares por tela |
-| 450 | 37.254 | 15,21% | 9.486 ms | 10.166 ms | Reprovado |
-| 900 | 31.171 | 24,80% | 30.001 ms | 30.120 ms | Reprovado, com esgotamento do prazo |
+| VUs | Requisições de carga | Erros | p95 HTTP | p99 HTTP | Máximo HTTP | p95 de abertura | Telas completas |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 200 | 55.142 | 98,95% | 24.082 ms | 30.001 ms | 30.044 ms | 27.782 ms | 0,39% |
+| 450 | 188.424 | 99,98% | 57 ms | 29.874 ms | 30.026 ms | 89 ms | 0,00% |
+| 1.200 | 242.643 | 99,92% | 30.000 ms | 30.002 ms | 30.185 ms | 30.002 ms | 0,01% |
 
-A 200 VUs, a tela Agora alcançou p95 de 5.075 ms na abertura e 4.441 ms por
-requisição; Recorte alcançou 3.189 ms por requisição. Portanto, o agregado não
-autoriza aprovar esse nível. O maior nível aprovado observado foi 100 e o
-primeiro reprovado foi 200. Esse intervalo caracteriza **a configuração de duas
-réplicas com HPA sem métricas**, não o teto universal da aplicação.
+**Resultado obtido: escala observada, desempenho reprovado.** Foram 486.209
+requisições de carga e uma de preparação. A quantidade de réplicas passou de
+duas para três e depois voltou a duas. O novo pod ficou disponível cerca de
+13,85 s após sua criação, mas o atendimento continuou instável.
 
-O diagnóstico registrou `FailedGetResourceMetric` e ausência da API de métricas.
-Após a inclusão do add-on, a rodada de 24/09 registrou
-`ScalingActive=True`/`ValidMetricFound`, mas permaneceu em duas réplicas. A
-disponibilidade da métrica está comprovada; a elasticidade no EKS ainda não.
+O uso de CPU chegou a 144% do valor requisitado pelos pods, e houve 15
+reinícios adicionais. Após o fim da carga, os três pods foram observados
+disponíveis em 281,34 s. A observação continuou por mais de nove minutos e
+registrou a redução para duas réplicas. Houve falhas transitórias na coleta
+de métricas, diferentes da ausência permanente observada na rodada antiga.
 
-Na próxima rodada devem ser correlacionados: aumento da demanda, CPU dos pods,
-réplicas desejadas, chegada de pods prontos, distribuição do tráfego e recuperação
-da latência. A causa de eventual saturação deve ser investigada também no banco
-e nas conexões; CPU isolada não determina o gargalo.
+O p95 de 57 ms a 450 usuários acompanha 99,98% de erros. Assim, a escala
+funcionou, mas não resolveu o tempo das consultas nem a indisponibilidade.
+O gerador manteve ao menos 52% de CPU ociosa, sem indício de saturação de CPU,
+embora isso não elimine possíveis limites de rede.
 
-Evidências: [rodada B](evidencias/carga-kubernetes/rodada-b-resultado.json),
-[saída k6](evidencias/carga-kubernetes/rodada-b-saida-k6.txt) e
-[diagnóstico do cluster](evidencias/carga-kubernetes.txt).
+**Evidências:** [campo `resultados.CF04`](evidencias/testes-carga-finais/evidencias-2026-10-05.json),
+com resultados por nível e tela, réplicas, CPU do banco e gerador.
 
-### 3.4 Resiliência posterior: alcance dos ensaios locais
+### 3.4 Pico de recebimento de eventos (CF01)
 
-| Ensaio no kind em 24/09 | Resultado observado | Relação com a arquitetura |
-|---|---|---|
-| Remover pod com uma réplica | Reposição em 8,3 s; 354 falhas em 2.470 requisições, 14,3% | Reposição do processo não garante continuidade quando não existe outra réplica pronta |
-| Remover um dos dois pods | Reposição em 6,2 s; 2.262 requisições sem falhas | Sustenta a escolha de redundância no recorte local testado |
-| Rollout, imagem inválida e undo | 5.394 requisições, cinco timeouts, 0,09%; pods anteriores atenderam durante a imagem inválida | Demonstra o mecanismo de atualização/retorno; não houve zero falhas na janela completa |
-| Indisponibilidade do PostgreSQL | Backend saiu de Ready, permaneceu sem reinício e voltou após restauração do banco/schema | Demonstra separação entre prontidão e vida; houve timeouts/503 durante a indisponibilidade |
+**Procedimento:** executar aquecimento, carga normal, pico e retorno à carga
+normal. Depois, comparar os eventos aceitos com os registros no banco.
 
-As medições constam em
-[autocura](evidencias/resiliencia-kind-01-autocura.txt),
-[rollout/undo](evidencias/resiliencia-kind-02-rollout-e-undo.txt) e
-[perda do banco](evidencias/resiliencia-kind-03-perda-do-banco.txt).
-Não substituem a reconciliação de eventos do fluxo SQS nem comprovam esses
-tempos de recuperação na AWS.
+**Resultado esperado:** aceitar ao menos 1.000/10.000/1.000 eventos, com p95
+<2 s/<5 s/<2 s, sem rejeições ou descartes; gravar todos os aceitos sem
+duplicidade e terminar com fila e DLQ vazias.
 
-### 3.5 TI-05.2, migration 030 e frescor
+| Fase | Taxa programada | Duração | Eventos aceitos | Rejeitados | Execuções descartadas | p95 do recebimento |
+|---|---:|---:|---:|---:|---:|---:|
+| Normal | 1.000/min | 60 s | 1.001 | 0 | 0 | 60,7 ms |
+| Pico | 10.000/min | 60 s | 10.001 | 0 | 0 | 30,5 ms |
+| Recuperação | 1.000/min | 60 s | 1.000 | 0 | 0 | 34,1 ms |
 
-O TI-05.2 de 17/09 aceitou e persistiu o evento em bronze, mas ele não apareceu
-na leitura em 300 s. A investigação encontrou backlog histórico e varreduras
-por `_lsn` sem índice em `bronze.event`. A
-[migration 030](../apps/fullstack/db/migrations/030_indice_lsn_em_evento.sql)
-adicionou o índice; o
-[teste do plano SQL](../apps/fullstack/processing/tests/test_plano_da_etl.py)
-validou localmente a mudança do acesso. Essa validação local não comprova a
-latência final na AWS nem a resolução de todo o backlog.
+**Resultado obtido: aprovado.** Com os 151 eventos do aquecimento, foram
+12.153 eventos aceitos e gravados na bronze, sem duplicidade. A fila e a DLQ
+terminaram vazias, e o máximo HTTP foi de 1.175,12 ms. As pequenas diferenças
+entre a taxa programada e a contagem decorrem do agendamento do roteiro.
 
-O valor histórico de **38 min 32 s** do relatório da Sprint 3 corresponde a
-uma sentinela, após intervenção manual no watermark. É uma observação única,
-não p95. O script
-[`drenagem_lotes.sql`](../apps/fullstack/tools/loadtest/drenagem_lotes.sql)
-calcula percentis até a gravação em bronze; ele não calcula sozinho a distribuição
-até a disponibilidade na API.
+A aprovação vale para o pico de um minuto e a gravação no banco. Não mede
+sustentação prolongada nem disponibilidade na API. Os eventos usam o instante
+real do envio, posterior à janela do relógio virtual de leitura. A conferência
+foi feita por `load_test_id`, sem calcular atraso de persistência, pois esse
+roteiro não registra `load_test_sent_at`.
 
-A reexecução deve confirmar migration e estado do processamento, manter o prazo
-de 300 s do TI-05.2 e registrar o caminho de leitura utilizado. Para avaliar a
-arquitetura final, a leitura deve atravessar o Ingress; a verificação específica
-do authorizer em TI-05.1 exige o API Gateway e deve permanecer separada. Após o
-teste funcional, o frescor sob carga exige várias observações ou instrumentação
-da disponibilidade, com percentis e tamanho da amostra explícitos. Não se deve
-avançar manualmente o watermark durante a medição e atribuir o resultado à
-operação automática do pipeline.
+**Evidências:** [campo `resultados.CF01`](evidencias/testes-carga-finais/evidencias-2026-10-05.json),
+com resultado do k6 e conferência de eventos e filas.
 
-**Resultado da nova sessão:** pendente. O relato da reprovação e da correção
-está em [`testes-funcionais.md`](testes-funcionais.md#diagnóstico-do-caso-reprovado).
+### 3.5 Duas remessas de eventos e recuperação da fila (CF02)
 
-## 4. Observabilidade e evidências visuais
+**Procedimento:** parar o `event-worker`, enviar dois lotes de 150.000 eventos
+com 50 usuários e fragmentos de até 40.000 bytes, e retomar o consumidor.
+A injeção levou 28,035 s, com p95 de 429,9 ms e máximo de 1.452,5 ms por fragmento.
 
-### 4.1 Fontes e indicadores
+| Remessa | Eventos programados | Gravados na bronze | Diferença |
+|---|---:|---:|---:|
+| 1 | 150.000 | 149.927 | 73 |
+| 2 | 150.000 | 150.000 | 0 |
+| **Total** | **300.000** | **299.927** | **73** |
 
-A stack em [`observability/`](../apps/fullstack/observability/) usa Prometheus
-para métricas do k6 e Grafana para as fontes Prometheus/CloudWatch. O
-`metrics-server` usado pelo HPA é um componente distinto: sua existência não
-implica coleta histórica de CPU dos pods pelo Prometheus.
+A separação vem da conferência por lote no banco. Os tempos abaixo foram
+medidos para o conjunto das duas remessas; não há tempo isolado por remessa.
 
-| Indicador | Fonte e painel | O que observar na nova rodada |
-|---|---|---|
-| Latência | k6/Prometheus, percentis por cenário/rota | Alteração no pico e durante recuperação; p95/p99 com unidade em ms |
-| Throughput | k6/Prometheus, `rate(k6_http_reqs_total[1m])` | Requisições/s atingidas; eventos/s em contador próprio quando houver lotes |
-| Erros/s | k6/Prometheus, contador de respostas inesperadas por segundo | Início, duração e fim da degradação, além do percentual de erros |
-| CPU dos workers e banco | ECS/RDS via CloudWatch no Grafana | Média e máximo na mesma janela da carga |
-| CPU e réplicas do EKS | Amostras da API de métricas e dos objetos HPA/Deployment, preservadas com horário UTC | Relação entre demanda, alvo do HPA, escala e pods prontos |
-| Filas | SQS via CloudWatch | Mensagens visíveis/em voo, DLQ e idade da mais antiga |
+**Resultado esperado:** aceitar os 300.000 eventos e, após o pedido de
+retomada, gravá-los sem perda ou duplicação e esvaziar as filas dentro da
+referência de 450 s.
 
-Exemplos já usados pelo dashboard, com filtro da execução:
+| Verificação | Resultado obtido |
+|---|---|
+| Recebimento | 299.927 eventos aceitos e 73 rejeitados |
+| Falhas HTTP | Uma resposta 500 em 4.155 requisições |
+| Fila antes da retomada | 4.154 mensagens visíveis, sem mensagens em processamento ou na DLQ |
+| Primeira task em execução | 23,69 s após o pedido de retomada |
+| Eventos aceitos gravados | 299.927 na bronze aos 137,70 s, sem duplicidade |
+| Fila e DLQ vazias | Conferência concluída aos 165,01 s |
+| Tempo entre envio e gravação | p95 de 205,16 s e máximo de 211,28 s, para os 299.927 aceitos |
+
+**Resultado obtido: recuperação aprovada, cenário completo reprovado.**
+Todos os eventos aceitos foram gravados dentro da referência de recuperação,
+mas as 73 rejeições impediram a aprovação do recebimento integral. O erro 500
+foi registrado pelo API Gateway, sem informação suficiente para atribuir sua
+causa à fila, ao banco ou à parada do consumidor.
+
+O p95 até a gravação inclui a espera anterior à retomada. Ele é diferente do
+tempo de recuperação e não mede quando todo o lote ficou disponível na API.
+
+**Evidências:** [resultados por remessa](evidencias/testes-carga-finais/evidencias-lotes-2026-10-05.json),
+com injeção, recuperação, conferência no banco e registro do erro 500.
+
+### 3.6 Timeout do cliente e recuperação (CF05)
+
+**Procedimento:** limitar a espera a 1 ms em 100 consultas a `/api/v1/clock`
+para provocar timeouts. Após a pausa, realizar cinco consultas com prazo de 7 s.
+
+| Verificação | Resultado esperado | Resultado obtido | Situação |
+|---|---|---|---|
+| Prazo reduzido | Ao menos um timeout detectado em 100 consultas com prazo de 1 ms | 100 timeouts | Aprovado |
+| Consultas posteriores | Cinco HTTP 200, zero falhas e p95 <5 s, com prazo de 7 s por consulta | Zero falhas e p95 de 12,3 ms | Aprovado |
+
+A aprovação comprova a leitura após os timeouts do cliente. A indisponibilidade
+do banco e uma carga prolongada não foram provocadas nesse cenário.
+
+O requisito de registro de falhas, RNF11, continua parcialmente comprovado.
+O timeout SQL apresentou horário, componente e causa, mas sem identificador
+que acompanhasse a requisição entre serviços. O erro do API Gateway apresentou
+`requestId`, mas sem detalhe da causa. Esses registros ajudam na investigação,
+mas não cobrem todos os cenários do requisito. A correlação entre serviços
+permanece como melhoria adicional.
+
+**Evidências:** [campo `resultados.CF05` e critérios em `plano_execucao`](evidencias/testes-carga-finais/evidencias-2026-10-05.json).
+
+## 4. Indicadores de observabilidade
+
+O Grafana reúne as métricas do k6 armazenadas no Prometheus e os indicadores
+da AWS coletados no CloudWatch. Os painéis usam o identificador da execução e
+o mesmo intervalo de observação para relacionar carga, erros e consumo de
+recursos.
+
+| Indicador | O que foi analisado |
+|---|---|
+| Latência | p95 e p99 por cenário e rota, junto da proporção de respostas com sucesso |
+| Throughput | Requisições por segundo, distinguindo todas as respostas das respostas esperadas |
+| Erros por segundo | Taxa de respostas inesperadas e contador total de falhas |
+| CPU | Uso do banco e dos consumidores, além da CPU requisitada pelos pods usada como referência pelo HPA |
+| Réplicas e filas | Quantidade de pods disponíveis, aumento e redução de réplicas, acúmulo de mensagens e recuperação |
+
+As consultas abaixo calculam requisições e erros por segundo:
 
 ```promql
 sum(rate(k6_http_reqs_total{testid=~"$testid"}[1m]))
 sum(rate(k6_http_reqs_total{testid=~"$testid",expected_response="false"}[1m]))
 ```
 
-Na configuração histórica do painel de API Gateway, `Count`, `4xx` e `5xx`
-são consultados como `Sum` em períodos de 60 s. Antes de apresentar esses
-valores como taxas por segundo, é necessário conferir a conversão por 60; a
-unidade visual do eixo não faz essa conversão. Os percentis do cliente também
-devem conservar a identificação de rota/cenário, sem tratar o máximo entre
-percentis como um percentil global de todas as requisições.
+As capturas usam medições reais preservadas após os testes. As métricas do k6
+foram enviadas ao Prometheus por Remote Write, e seu histórico foi importado
+em um Prometheus local para consulta no Grafana. As amostras do Kubernetes
+foram coletadas aproximadamente a cada 12 s, e o CloudWatch forneceu médias
+de 60 s. A coleta do HPA é separada do histórico do Prometheus.
 
-### 4.2 Capturas históricas reaproveitadas
+O painel de latência mostra o **maior p95 entre as rotas**, enquanto os
+resultados do k6 preservam os percentis agregados. Ausência de amostra não
+representa zero. O painel do HPA descarta valores com mais de 25 s, e o painel do CF02
+não prolonga amostras do CloudWatch além de 75 s.
 
-As figuras abaixo pertencem aos ensaios de ingestão/resiliência documentados na
-Sprint 3. Demonstram a visualização já implementada. Não são capturas da nova
-sessão AWS nem das rodadas de carga das telas no EKS. O dashboard versionado de
-resiliência consulta CloudWatch para esses componentes; as figuras não devem
-ser atribuídas automaticamente ao Prometheus apenas por estarem no Grafana.
+**Figura 1: acesso às telas, CF03-A.** O aumento dos erros acompanha tempos
+próximos de 30 s, CPU elevada no banco e perda de disponibilidade dos pods.
+O HPA permaneceu com duas réplicas.
 
-**Figura 1 — Latência histórica da ingestão de mudanças.** A variação de cauda
-deve ser lida junto da janela do cenário, não como distribuição das consultas
-do dashboard.
+![Grafana: carga das telas](evidencias/testes-carga-finais/grafana-cf03-a.png)
 
-![Grafana: latência histórica da ingestão](assets/captura_dashboard_latencia.png)
+**Figura 2: escala automática, CF04.** As réplicas aumentam e depois diminuem,
+mas o volume de erros permanece elevado. O banco volta a atingir 100% de CPU.
 
-**Figura 2 — Requisições e erros históricos da ingestão.** A conversão de
-contagens por período para taxas deve ser auditada conforme a seção 4.1.
+![Grafana: escala automática](evidencias/testes-carga-finais/grafana-cf04.png)
 
-![Grafana: throughput e erros históricos](assets/captura_dashboard_throughput.png)
+**Figura 3: pico de eventos, CF01.** O throughput acompanha a taxa programada,
+e a fila acumulada é consumida. A confirmação da gravação de todos os eventos
+vem da conferência no banco apresentada no resultado.
 
-**Figura 3 — CPU histórica dos serviços ECS.** O consumo dos workers auxilia a
-análise da interrupção e retomada; não representa CPU dos pods do EKS.
+![Grafana: pico de eventos](evidencias/testes-carga-finais/grafana-cf01.png)
 
-![Grafana: CPU histórica dos serviços ECS](assets/captura_dashboard_cpu_ecs.png)
+**Figura 4: recuperação da fila, CF02.** A fila cresce com o consumidor parado
+e volta a zero após a retomada. O contador registra uma falha HTTP anterior
+à primeira amostra remota. Por isso, a taxa de erros aparece em zero nessa
+janela, embora o total registre a falha. A análise considera ambos.
 
-**Figura 4 — CPU histórica do RDS.** Deve ser correlacionada à latência e às
-consultas para investigar pressão no banco.
+![Grafana: recuperação da fila](evidencias/testes-carga-finais/grafana-cf02.png)
 
-![Grafana: CPU histórica do RDS](assets/captura_dashboard_cpu_rds.png)
+As séries, as amostras do CloudWatch e os dashboards das quatro figuras
+estão no [pacote detalhado](evidencias/testes-carga-finais/registros-detalhados-2026-10-05.zip).
+Os dashboards preservam expressões e unidades; sua importação exige associar
+a fonte `prometheus-final` ao histórico preservado. As capturas antigas continuam no
+[artefato da Sprint 3](testes-carga-inicial.md).
 
-**Figura 5 — Fila de mudanças e DLQ.** Crescimento e drenagem demonstram o
-comportamento operacional; a integridade depende também da reconciliação.
+## 5. O que os resultados mostraram e os impactos na arquitetura
 
-![Grafana: fila e DLQ históricas](assets/captura_dashboard_fila_changes_dlq.png)
+O pico de eventos e a consulta do evento no teste de integração foram
+aprovados. A recuperação dos eventos aceitos também foi confirmada, mas a
+rejeição de parte do lote impediu a aprovação completa desse cenário.
+Nas telas, aumentar réplicas não resolveu o tempo das consultas nem os erros.
 
-Fonte das cinco figuras: equipe do projeto, evidências preservadas da Sprint 3.
+| Observação | Decisão e situação |
+|---|---|
+| Eventos aceitos foram gravados após a recuperação da fila | Manter o recebimento separado do consumo por SQS. Investigar o erro de entrada e definir repetição segura sem duplicar eventos |
+| Consultas demoradas, CPU elevada no banco e reinícios da API | Analisar o plano SQL, a concorrência e as verificações de saúde dos pods. Materialização ou cache do cálculo de referência são propostas ainda não implementadas nem medidas |
+| HPA ajustou as réplicas, sem recuperar o atendimento | Manter a coleta de métricas e avaliar a política de escala junto da capacidade do banco. Mais réplicas, isoladamente, não resolveram o problema |
+| Ausência de índice em `_lsn` | Correção aplicada pela migration 030. A reexecução foi aprovada com a base preparada, sem isolar apenas o efeito do índice |
+| Inicialização de hipóteses acima do limite de 250 mil entradas | Dividir o processamento inicial em janelas menores, mantendo a proteção de entrada |
+| Fragmentos próximos de 240 KB produziram HTTP 414 | Manter o teto de 40.000 bytes validado nos testes por lote |
+| Falhas com informações incompletas nos logs | Completar a comprovação do RNF11 e acrescentar um identificador que acompanhe a requisição entre os serviços |
 
-### 4.3 Evidências a acrescentar na reexecução
+Uma próxima execução pode sustentar 10.000 eventos/min por 15 minutos,
+avaliando cada minuto e o total, com os mesmos limites de aceite e p95 do
+pico e reconciliação final. Para comparar uma otimização, repetir antes e
+depois a mesma base restaurada, relógio virtual, filtros, aquecimento, carga,
+recursos e configuração de processamento, alterando apenas a otimização.
+Esses ensaios estão **propostos, não executados**. O RNF04 conserva a evidência
+histórica; RNF05 não comprova recuperação de dependência indisponível, e
+RNF11 permanece parcial.
 
-As novas capturas devem usar intervalo absoluto em UTC, `test_id`, legenda,
-unidade e componente identificados. A janela deve incluir antes/durante/depois
-da carga ou falha. Para CF04, marcar a solicitação de escala e a entrada das
-novas réplicas em serviço. Um painel vazio não é evidência de zero erros.
+## 6. Evidências e reprodução
 
-O executor local com `COM_GRAFANA=1` envia métricas k6 ao Prometheus. Para esta
-complementação, foi preparada uma extensão local do executor existente
-[`gerador_ec2.sh`](../apps/fullstack/tests/carga/gerador_ec2.sh), preservada fora
-do commit desta pausa. O protótipo executa Prometheus restrito ao loopback da
-EC2, recebe as métricas reais do k6 por Remote Write e preserva um snapshot
-antes de encerrar a instância. Também registra início/fim UTC e `vmstat`, para
-verificar a capacidade do gerador. Sua incorporação à suíte permanece pendente.
-O envio usa as estatísticas de tendência do
-[Remote Write do k6](https://grafana.com/docs/k6/latest/results-output/real-time/prometheus-remote-write/)
-e marca as séries como inativas ao terminar. Percentis de séries distintas não
-são somados nem promediados para representar o percentil global.
+Seguindo a organização da Sprint 3, a entrega reúne:
 
-No procedimento preparado para a retomada, as amostras do cluster devem conservar
-seus horários de coleta. A conversão para
-OpenMetrics mantém esses timestamps; os blocos são importados, com o servidor
-parado, em uma instância local separada de Prometheus. Não há interpolação de
-CPU nem reconstrução de séries a partir dos resumos k6. Os auxiliares Python
-usados nessa coleta/importação são temporários e não integram o código entregue.
-O novo dashboard e sua fonte também foram guardados localmente para continuidade.
-Os painéis já existentes permanecem versionados em
-[`observability/`](../apps/fullstack/observability/); a configuração específica
-da nova rodada ainda precisa ser incorporada e validada com a carga completa.
+- [Evidências gerais](evidencias/testes-carga-finais/evidencias-2026-10-05.json): ambiente, plano, pico, consultas, escala, timeout e integração.
+- [Evidências por remessa](evidencias/testes-carga-finais/evidencias-lotes-2026-10-05.json): duas remessas de 150 mil eventos, aceite, recuperação e integridade.
+- As quatro capturas da seção 4.
+- [Registros detalhados](evidencias/testes-carga-finais/registros-detalhados-2026-10-05.zip): 39 arquivos originais e um manifesto SHA-256, para auditoria e reprodução sem espalhar os registros intermediários pela entrega.
 
-Uma execução curta do cenário de timeout confirmou o caminho EC2 → snapshot →
-Prometheus local. Ela ocorreu antes da carga da base, serviu à validação da
-coleta e não é apresentada como medição de capacidade das telas.
+O [guia original da suíte](../apps/fullstack/tests/carga/README.md) reúne os
+comandos dos testes anteriores. Seus roteiros e os quatro registros de
+preparação já existentes foram mantidos nos caminhos originais, sem alterações.
+Consolidar as evidências desta rodada não representa nova execução.
 
-**Situação:** novas capturas pendentes da retomada e execução. Os resumos
-JSON existentes sustentam os resultados numéricos, mas não permitem reconstruir
-uma série temporal real que não tenha sido preservada.
+Para repetir as medições, é necessário preparar a mesma base, registrar o
+relógio virtual, usar um novo `K6_TEST_ID` e selecionar o Ingress do EKS.
+O endereço padrão de `make env` aponta para a Lambda e avaliaria outro
+caminho. A origem da carga também deve ser mantida na EC2 para comparação.
 
-## 5. Impactos nas decisões de arquitetura
+O teste de acúmulo exige parar e depois restaurar o consumidor, além de
+conferir as filas e os eventos no banco. O comando de envio, isoladamente,
+não realiza essas etapas. Os resumos de CF01 e CF02 incorporam agora a
+conferência posterior, com referência ao arquivo e aos campos de origem;
+o aceite parcial de CF02 e a disponibilidade não medida na API permanecem explícitos.
 
-| Observação do teste | Decisão/correção | Verificação disponível e limite |
-|---|---|---|
-| Ingestão aceitou rajadas e drenou lotes após recuperação | Manter recepção desacoplada por SQS e consumidores independentes | Evidência histórica de aceite, drenagem e contagem; repetir no ambiente final para atualizar a comprovação |
-| Fragmentos próximos de 240 KB produziram HTTP 414 | Adotar fragmentação com teto operacional validado de 40.000 bytes no teste por lote | Lotes seguintes aceitos sem esse erro; preservar tamanho e distribuição do payload no comparativo |
-| Consultas do pipeline filtravam `_lsn` sem índice | Migration 030 adiciona índice em `bronze.event` | Plano SQL validado localmente; efeito remoto e TI-05.2 pendentes |
-| Backlog da carga inicial concorreu com novos eventos | Rever inicialização/gestão dos watermarks e acompanhar atraso por etapa | Diagnóstico existente; não há evidência de solução automática completa na nova sessão |
-| HPA não recebeu métricas no EKS | Declarar add-on `metrics-server` na infraestrutura | Métrica confirmada em 24/09; elasticidade ainda precisa de execução |
-| Uma réplica ficou indisponível ao remover pod; duas mantiveram atendimento no kind | Manter redundância e avaliar rollout/prontidão sob carga | Comportamento medido localmente; tempos não extrapolados para EKS |
-| Rodada antiga apresentou 502 associados à conexão persistente | Revisão do keep-alive documentada nos testes funcionais | Rodada corrigida passou; conservar configuração no ambiente comparado |
+Conferir os JSONs, as capturas e o pacote detalhado dispensa a AWS; uma nova
+medição exige o ambiente ativo. A reprodução integral da observabilidade
+depende dos snapshots do Prometheus e dos auxiliares locais de coleta,
+que não integram esta entrega. Os dashboards contêm consultas, não o histórico
+bruto do k6. Os registros no pacote podem ser extraídos com um descompactador.
 
-Cada decisão distingue o problema observado da hipótese sobre sua causa. Uma
-correção implementada ou um recurso configurado não equivale, por si só, a
-resultado aprovado na nova arquitetura.
-
-## 6. Reprodução e trabalho restante
-
-Os comandos abaixo usam Bash, executados a partir da raiz, depois de preparar
-o ambiente e suas variáveis locais. O perfil desta sessão é `g4`.
-
-```bash
-export AWS_PROFILE=g4 AWS_REGION=us-east-1
-make -C apps/fullstack observabilidade-up
-make -C apps/fullstack observabilidade-check
-
-make -C apps/fullstack teste-performance CENARIO=rnf01 COM_GRAFANA=1
-make -C apps/fullstack teste-lote-drenagem COM_GRAFANA=1
-make -C apps/fullstack teste-performance CENARIO=falha-timeout COM_GRAFANA=1
-```
-
-Para a leitura no EKS, selecionar explicitamente o Ingress. `make env` usa a
-Lambda de contingência como endereço inicial; usar esse valor sem revisão
-testaria outro caminho.
-
-```bash
-ARGUS_URL_EKS="$(make -s -C apps/fullstack k8s-url)"
-make -C apps/fullstack teste-carga-ui \
-  ARGUS_API_URL="$ARGUS_URL_EKS" COM_GRAFANA=1
-```
-
-O acúmulo exige parar apenas o consumidor do cenário, confirmar sua parada,
-registrar a fila e restaurar o dimensionamento anterior. A injeção é executada
-por `make -C apps/fullstack teste-lotes-acumulados LOTES=2 COM_GRAFANA=1`;
-esse comando sozinho não interrompe o consumidor nem comprova drenagem. O alvo
-`resiliencia-timeout` interrompe uma task; o nome não deve ser usado para
-classificar o resultado como timeout interno. Detalhes operacionais estão no
-[guia da suíte](../apps/fullstack/tests/carga/README.md).
-
-| Prioridade | Trabalho restante | Condição para encerrar |
-|---|---|---|
-| 1 | Retomar o ambiente provisionado, concluir a carga e preparar o processamento | Implantação saudável, migrations/versões registradas e contagens conferidas com o manifesto |
-| 2 | Executar TI-05.2 após migration 030 | Saída remota e tempo observado, com aprovação ou reprovação explícita |
-| 3 | Medir elasticidade efetiva no EKS | Aumento observado, tempo de reação, desempenho por fase e retorno após a carga |
-| 4 | Atualizar ingestão, acúmulo e recuperação | Eventos identificados/reconciliados, filas e DLQ verificadas |
-| 5 | Completar observabilidade e RNF11 | Novas capturas da janela medida e amostras sanitizadas de falha |
-| 6 | Atualizar a matriz de resultados | Cada conclusão ligada à evidência correspondente, mantendo limitações e resultados reprovados |
-
-Até a conclusão desses itens, a entrega comprova a evolução documentada em
-setembro e explicita o que ainda não foi medido. Nenhum cenário pendente deve
-receber resultado ou captura estimados.
+Os registros brutos do k6 e a extração local do pacote ficam em
+`apps/fullstack/tests/carga/resultados/`, um diretório ignorado pelo Git.
+Os arquivos públicos preservam os resultados sem tokens, credenciais ou
+endpoints do ambiente.
