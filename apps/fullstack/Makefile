@@ -513,6 +513,15 @@ agente-investigar-banco: ## Investiga um checkpoint real do PostgreSQL local (CH
 agente-checar: ## Confirma que o Ollama configurado no .env responde
 	cd $(AGENTE) && $(UV) agentectl checar-modelo
 
+.PHONY: agente-eval
+agente-eval: ## Avalia o modelo real contra os casos sinteticos (desfecho x roteiro-ouro)
+	@test -n "$$OLLAMA_URL" || { echo "defina OLLAMA_URL e OLLAMA_MODEL no .env"; exit 1; }
+	cd $(AGENTE) && $(UV) python scripts/avaliar_modelo.py
+
+.PHONY: agente-eval-seco
+agente-eval-seco: ## Ensaio seco do eval: usa o roteiro dos dois lados, sem rede
+	cd $(AGENTE) && $(UV) python scripts/avaliar_modelo.py --modelo roteiro
+
 .PHONY: docs
 docs: ## Abre a documentacao Swagger da API publicada
 	@$(call require_env,ARGUS_API_URL)
