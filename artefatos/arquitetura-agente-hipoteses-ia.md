@@ -232,3 +232,5 @@ if host not in {"localhost", "127.0.0.1", "::1"}:
 &emsp; As CLIs de linha de comando estão em [agentectl.py](../apps/fullstack/agente/src/argus_agente/agentectl.py). Os scripts de apoio em `tools/` são apenas cascas sobre o pacote: [agente_hipoteses_caso.py](../apps/fullstack/tools/agente_hipoteses_caso.py) e [agente_hipoteses_db.py](../apps/fullstack/tools/agente_hipoteses_db.py).
 
 &emsp; Os casos sintéticos usados nos testes estão em [fixtures/sinteticos](../apps/fullstack/agente/fixtures/sinteticos), e os roteiros que simulam um modelo, sem rede, estão em [fixtures/roteiros](../apps/fullstack/agente/fixtures/roteiros).
+
+&emsp; A avaliação do modelo real contra esses roteiros está em [avaliar_modelo.py](../apps/fullstack/agente/scripts/avaliar_modelo.py). Ela roda cada caso com o roteiro e com o Ollama configurado, compara o desfecho e mede as chamadas que a ferramenta recusou, para que um ajuste de prompt ou uma troca de modelo possam ser medidos sem o checkpoint do banco. Os achados dessa avaliação, e as correções de prompt que saíram deles, estão em [artefatos/comparacao-hipoteses/eval-modelo-real.md](comparacao-hipoteses/eval-modelo-real.md).

@@ -23,6 +23,7 @@ make -C apps/fullstack agente-ensaio   # lote completo com dublê, sem rede
 make -C apps/fullstack test-agente     # testes do ciclo, dos tetos e do validador
 make -C apps/fullstack agente-checar   # confirma que o Ollama do .env responde
 make -C apps/fullstack agente-lote     # lote real, contra o Ollama
+make -C apps/fullstack agente-eval     # avalia o modelo real contra as trajetorias-ouro
 make -C apps/fullstack agente-recorte-real   # reconstroi o recorte real da bronze (PostgreSQL local)
 make -C apps/fullstack agente-investigar-banco  # investiga o checkpoint do banco (CHECKPOINT=, ENTIDADE=)
 ```
