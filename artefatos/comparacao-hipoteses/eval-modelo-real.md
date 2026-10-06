@@ -1,8 +1,9 @@
 # Avaliação do modelo real contra as trajetórias-ouro
 
-Estado em 06/10/2026: **laço de avaliação criado; correção de prompt com
-resultado parcial; dois modelos distintos repetem a mesma chamada inválida, o que
-reorientou o trabalho para um freio em código em vez de troca de modelo.**
+Estado em 06/10/2026: **laço de avaliação criado; a causa raiz era a interface de
+`consultar_contexto`, não o modelo — assumir a entidade de assunto do recorte
+derrubou as chamadas inválidas de ~7 para 1, e dois casos passaram a investigar
+limpo. Um freio em código corta qualquer loop remanescente.**
 
 Este documento registra o que a avaliação do modelo real encontrou e o que foi
 mudado por causa dela. Ele é a continuação de [recorte-real-local.md](recorte-real-local.md),
@@ -169,14 +170,32 @@ Isso não faz o modelo acertar a chamada; corta o desperdício e torna o fracass
 legível — um caso que termina em `repeticao_de_chamada_invalida` mostra, no próprio
 desfecho, que o modelo travou numa chamada que não sabia formar.
 
+## O conserto da interface, e o que ele destravou
+
+Como dois modelos erravam igual, a causa raiz estava na ferramenta, não neles. O
+`consultar_contexto` passou a **assumir a entidade de assunto do recorte** quando
+`source` e `entity` são omitidos (prompt `2.4.0` e contrato atualizados). A chamada
+"natural" que os dois modelos faziam deixou de ser inválida. O efeito, medido ao
+vivo no `qwen3-coder:30b`:
+
+| Caso | Antes (inválidas) | Depois (inválidas) | Desfecho depois |
+|---|---|---|---|
+| `caso-01-deploy` | 3 a 4 | 0 | `resposta_invalida` (falha no JSON final, não mais na ferramenta) |
+| `caso-02-borda` | 3 | 1 | `hipotese` — investigou e concluiu |
+| `caso-03-fonte-atrasada` | 0 | 0 | `hipotese` (a divergência de julgamento conhecida) |
+
+As chamadas inválidas totais caíram de ~7 para 1, e essa única restante é um erro
+diferente e pontual (`consultar_serie` de uma série fora do inventário), não a
+omissão sistemática de `source`/`entity`, que desapareceu nos três casos. O agente
+agora investiga sem travar; o que sobra são falhas isoladas, não o loop que
+dominava antes.
+
 ## Próximos passos
 
-- Avaliar uma mudança no contrato do `consultar_contexto`, já que a exigência de
-  `source`/`entity` derruba dois modelos: por exemplo, assumir a entidade do caso
-  (que a abertura já anuncia) quando os dois forem omitidos. É uma decisão de
-  design, mexe no leitor, e precisa ser pesada contra a clareza do contrato atual.
-- Rodar `agente-eval` com o servidor menos ocupado e fechar a tabela dos três
-  casos num ciclo limpo, agora medindo também quantos casos param por
-  `repeticao_de_chamada_invalida`.
+- `caso-01`: o modelo investiga limpo, mas falha ao montar o JSON final da
+  conclusão (`resposta_invalida`). É um problema de formatação da resposta, não de
+  uso de ferramenta, e é o próximo ponto a atacar.
 - Decidir o tratamento do `caso-03`: aceitar a conclusão de nível de sintoma como
   válida, ou ajustar a trajetória-ouro para refletir o que se espera do agente.
+- Repetir o `agente-eval` em outros momentos para medir a variância: o servidor é
+  compartilhado e o modelo não é totalmente determinístico mesmo com temperatura 0.
