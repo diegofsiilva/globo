@@ -13,7 +13,7 @@ from argus_agente.casos import janela_do_inventario
 from argus_agente.contrato import Caso
 from argus_agente.limites import Guardas
 
-PROMPT_VERSION = "2.3.0"
+PROMPT_VERSION = "2.4.0"
 
 SISTEMA = """Voce investiga degradacao em uma plataforma de streaming e formula
 UMA hipotese de causa provavel para o recorte apresentado.
@@ -74,9 +74,10 @@ Sobre as consultas:
   opcionais os que pode omitir. Esses sao NOMES de argumento, nao valores:
   nunca envie o texto "obrigatorio", "opcional" nem a descricao como valor de um
   campo. Se nao for usar um argumento opcional, simplesmente nao o inclua.
-- consultar_contexto exige inicio, fim e AO MENOS UM entre source e entity. Uma
-  chamada so com inicio e fim e recusada. Deploys e eventos operacionais vem por
-  consultar_contexto, nunca por consultar_serie.
+- consultar_contexto exige inicio e fim. source e entity sao opcionais: se voce
+  omitir os dois, a ferramenta assume a entidade de assunto do recorte e avisa em
+  limitations qual assumiu. Informe entity quando quiser outra entidade. Deploys e
+  eventos operacionais vem por consultar_contexto, nunca por consultar_serie.
 - Toda janela precisa terminar em ou antes do presente simulado, e inicio
   precisa ser anterior a fim. Pedido fora disso e recusado.
 - source, entity e metric precisam ser uma combinacao que o inventario anuncia.
@@ -137,8 +138,9 @@ FERRAMENTAS_DESCRITAS: tuple[dict[str, Any], ...] = (
         "obrigatorios": ["inicio", "fim"],
         "opcionais": ["source", "entity", "kinds", "limit", "cursor"],
         "nota": (
-            "informe source OU entity: ao menos um e obrigatorio, e a chamada so "
-            "com inicio e fim e recusada; kinds e um subconjunto de [metric, context]"
+            "sem source nem entity, assume a entidade de assunto do recorte e "
+            "informa em limitations qual assumiu; kinds e um subconjunto de "
+            "[metric, context]"
         ),
     },
 )

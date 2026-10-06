@@ -71,7 +71,7 @@
                "inicio": "2026-08-21T02:00:00Z", "fim": "2026-08-21T08:00:00Z"}}
 ```
 
-&emsp; A ferramenta `consultar_contexto` devolve fatos que podem sustentar ou enfraquecer uma explicação, como deploys e transmissões ao vivo. Exige a janela e pelo menos uma entre `source` e `entity`. Aceita também `kinds`, que escolhe entre fatos de métrica e de contexto. Um evento entra na resposta se a sua duração se sobrepõe à janela, e não apenas se começa dentro dela.
+&emsp; A ferramenta `consultar_contexto` devolve fatos que podem sustentar ou enfraquecer uma explicação, como deploys e transmissões ao vivo. Exige a janela, e `source` e `entity` são opcionais: quando os dois são omitidos, a ferramenta assume a entidade de assunto do recorte e registra em `limitations` qual entidade assumiu, no formato `entidade_assumida:<entidade>`. Se o recorte não tiver uma única entidade de assunto, aí sim `source` ou `entity` volta a ser obrigatório. Aceita também `kinds`, que escolhe entre fatos de métrica e de contexto. Um evento entra na resposta se a sua duração se sobrepõe à janela, e não apenas se começa dentro dela.
 
 ```json
 {"action": "consultar", "rationale": "procurar mudança operacional próxima do efeito",

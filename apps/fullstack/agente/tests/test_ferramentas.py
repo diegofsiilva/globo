@@ -103,6 +103,19 @@ def test_contexto_enxerga_evento_iniciado_antes_da_janela(ferramentas):
     assert [item["metric"] for item in resposta["items"]] == ["deploy"]
 
 
+def test_contexto_sem_alvo_assume_a_entidade_de_assunto(ferramentas):
+    # Omitir source e entity nao e mais recusado: a ferramenta assume a entidade
+    # de assunto do recorte (playback) e avisa qual assumiu. Dois modelos travavam
+    # exatamente aqui, repetindo a chamada sem alvo.
+    resposta = ferramentas.consultar_contexto(
+        kinds=["context"],
+        inicio=iso(INICIO + dt.timedelta(minutes=116)),
+        fim=iso(FIM_JANELA),
+    )
+    assert [item["metric"] for item in resposta["items"]] == ["deploy"]
+    assert "entidade_assumida:playback" in resposta["limitations"]
+
+
 def test_inventario_nao_devolve_fact_id_citavel(ferramentas):
     assert fact_ids_de(ferramentas.inventariar_fatos()) == []
 

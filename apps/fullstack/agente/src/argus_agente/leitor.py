@@ -212,14 +212,24 @@ class CaseReader:
         return self._page("consultar_serie", params, items)
 
     def consultar_contexto(self, **params: Any) -> dict[str, Any]:
-        """Retorna fatos de uma fonte ou entidade, incluindo eventos sobrepostos."""
+        """Retorna fatos de uma fonte ou entidade, incluindo eventos sobrepostos.
+
+        Quando o pedido não traz source nem entity, assume a entidade de assunto
+        do recorte, a mesma que a abertura anuncia, e avisa em `limitations` qual
+        entidade foi assumida. Dois modelos diferentes travavam aqui por omitir os
+        dois campos; focar no assunto do caso é mais útil do que recusar. Se o
+        recorte não tiver uma única entidade de assunto, a exigência volta.
+        """
         required = {"inicio", "fim"}
         allowed = required | {"source", "entity", "kinds", "limit", "cursor"}
         if not required <= set(params) or set(params) - allowed:
             raise ValueError("parâmetros inválidos para consultar_contexto")
         source, entity = params.get("source"), params.get("entity")
+        entidade_assumida = None
         if not source and not entity:
-            raise ValueError("fonte ou entidade obrigatória")
+            entity = self._entidade_de_assunto()
+            entidade_assumida = entity
+            params = {**params, "entity": entity}
         start, end = self._window(params["inicio"], params["fim"])
         kinds = params.get("kinds", ["metric", "context"])
         if not isinstance(kinds, list) or not kinds or set(kinds) - {"metric", "context"}:
@@ -248,7 +258,25 @@ class CaseReader:
                 and finished >= start
             ):
                 items.append(self._project(fact))
-        return self._page("consultar_contexto", params, items)
+        envelope = self._page("consultar_contexto", params, items)
+        if entidade_assumida is not None:
+            envelope["limitations"] = [
+                f"entidade_assumida:{entidade_assumida}",
+                *envelope["limitations"],
+            ]
+        return envelope
+
+    def _entidade_de_assunto(self) -> str:
+        """Devolve a única entidade de assunto do recorte, ou recusa se não houver.
+
+        Raises:
+            ValueError: Se o recorte não tiver exatamente uma entidade de assunto,
+                caso em que source ou entity volta a ser obrigatório.
+        """
+        entidades = {fact["entity"] for fact in self.facts if fact["role"] == "subject"}
+        if len(entidades) != 1:
+            raise ValueError("fonte ou entidade obrigatória")
+        return next(iter(entidades))
 
     @staticmethod
     def _project(fact: dict[str, Any]) -> dict[str, Any]:
