@@ -143,6 +143,53 @@ def interpretar(passo: Any, *, fact_ids_vistos: set[str]) -> Passo:
     )
 
 
+def validar_desistencia_contra_consultas(
+    lacunas: list[dict[str, Any]], consultas: list[dict[str, Any]]
+) -> None:
+    """Recusa alegacao de ausencia para uma metrica ja devolvida.
+
+    O texto livre permite apenas uma checagem conservadora: compara marcadores
+    especificos de metrica, como 4xx e 5xx. Lacunas sobre uma quebra por UF,
+    ISP ou dispositivo nao sao rejeitadas por dados agregados da mesma metrica.
+    """
+    marcadores = {"4xx", "5xx", "apdex", "rpm"}
+    qualificadores = {"uf", "isp", "regiao", "dispositivo", "device", "quebra"}
+    problemas: list[str] = []
+    for lacuna in lacunas:
+        if lacuna["reason"] != "sem_dado":
+            continue
+        texto = _sem_acentos(lacuna["missing"].lower())
+        palavras = set(re.findall(r"[a-z0-9]+", texto))
+        if palavras & qualificadores:
+            continue
+        citados = palavras & marcadores
+        for consulta in consultas:
+            if consulta["ferramenta"] != "consultar_serie" or consulta["retornadas"] <= 0:
+                continue
+            argumentos = consulta["argumentos"]
+            metrica = str(argumentos.get("metric", "")).lower()
+            if citados & set(re.findall(r"[a-z0-9]+", metrica)):
+                problemas.append(
+                    f"lacuna sem_dado contradita: {consulta['retornadas']} fatos de "
+                    f"{metrica} ja foram devolvidos por consultar_serie; "
+                    "investigue esses fatos ou descreva uma lacuna mais especifica"
+                )
+                break
+    if problemas:
+        raise PassoInvalido(problemas)
+
+
+def _sem_acentos(texto: str) -> str:
+    """Normaliza acentos para comparar termos curtos de lacuna."""
+    import unicodedata
+
+    return "".join(
+        caractere
+        for caractere in unicodedata.normalize("NFKD", texto)
+        if not unicodedata.combining(caractere)
+    )
+
+
 def _validar_consulta(
     passo: dict[str, Any], problemas: list[str]
 ) -> tuple[str, dict[str, Any]]:

@@ -1,0 +1,209 @@
+{
+  "case_id": "caso-03-fonte-atrasada",
+  "schema_version": "2.0.0",
+  "criado_em": "2026-10-05T19:58:11.332043+00:00",
+  "recorte": {
+    "checkpoint_id": "103",
+    "origin": "synthetic",
+    "sim_now": "2026-08-20T20:15:00+00:00",
+    "input_lsn": 4000,
+    "recorte_id": "synthetic:103:f21ef51161bddac9",
+    "digest": "7d6f5c466892350f530ab9efb235ac35d41d93e0320b857b7446d77683b6a156"
+  },
+  "modelo": {
+    "provedor": "roteiro",
+    "model": "caso-03-fonte-atrasada",
+    "temperatura": 0.0
+  },
+  "prompt_version": "2.2.0",
+  "entrada": "{\"recorte\": {\"recorte_id\": \"synthetic:103:f21ef51161bddac9\", \"presente_simulado\": \"2026-08-20T20:15:00+00:00\", \"observacoes_de\": \"2026-08-19T14:00:00+00:00\", \"observacoes_ate\": \"2026-08-20T20:00:00+00:00\", \"nota_de_escopo\": \"janela de 3 h; a quebra por geografia tem atraso de fonte\"}, \"ferramentas\": [{\"nome\": \"inventariar_fatos\", \"para_que\": \"listar as series do recorte, com cobertura e indicacao de nulos\", \"argumentos\": {\"limit\": \"opcional, 1 a 200\", \"cursor\": \"opcional, continua a listagem\"}}, {\"nome\": \"consultar_serie\", \"para_que\": \"ler os pontos de uma metrica inventariada em uma janela\", \"argumentos\": {\"source\": \"obrigatorio\", \"entity\": \"obrigatorio\", \"metric\": \"obrigatorio\", \"inicio\": \"obrigatorio, ISO-8601\", \"fim\": \"obrigatorio, ISO-8601\", \"dimension_type\": \"opcional, exige dimension_value junto\", \"dimension_value\": \"opcional, exige dimension_type junto\", \"limit\": \"opcional, 1 a 200\", \"cursor\": \"opcional\"}}, {\"nome\": \"consultar_contexto\", \"para_que\": \"ler fatos de uma fonte ou entidade no periodo, incluindo eventos que comecaram antes da janela e ainda estavam em curso\", \"argumentos\": {\"inicio\": \"obrigatorio, ISO-8601\", \"fim\": \"obrigatorio, ISO-8601\", \"source\": \"informe source ou entity, ao menos um\", \"entity\": \"informe source ou entity, ao menos um\", \"kinds\": \"opcional, subconjunto de [metric, context]\", \"limit\": \"opcional, 1 a 200\", \"cursor\": \"opcional\"}}], \"orcamento\": {\"chamadas_restantes\": 12, \"itens_por_resposta\": 200, \"segundos_restantes\": 300}, \"inventario\": [{\"source\": \"npaw_geo\", \"kind\": \"metric\", \"entity\": \"globo\", \"metric\": \"error_rate\", \"dimension_type\": \"uf\", \"count\": 9, \"event_start_min\": \"2026-08-19T14:00:00Z\", \"event_start_max\": \"2026-08-19T16:00:00Z\", \"available_at_min\": \"2026-08-20T18:00:00Z\", \"available_at_max\": \"2026-08-20T20:00:00Z\", \"has_null_value\": false, \"has_null_sample_size\": true, \"group_ref\": \"c8759d77f8c47d7abbf29a8dfa4cbeb3e0da5ce0c522a71b52cd741422b15e95\"}, {\"source\": \"prometheus\", \"kind\": \"metric\", \"entity\": \"playback\", \"metric\": \"http_5xx_rate\", \"count\": 13, \"event_start_min\": \"2026-08-20T17:00:00Z\", \"event_start_max\": \"2026-08-20T20:00:00Z\", \"available_at_min\": \"2026-08-20T17:01:00Z\", \"available_at_max\": \"2026-08-20T20:01:00Z\", \"has_null_value\": false, \"has_null_sample_size\": true, \"group_ref\": \"e34141da99d87fdd0b270688d80aecdd291627ccd8f3c79b23fb818e4c11ad60\"}, {\"source\": \"rpaas\", \"kind\": \"metric\", \"entity\": \"playback.video.globo.com\", \"metric\": \"requests_total\", \"count\": 13, \"event_start_min\": \"2026-08-20T17:00:00Z\", \"event_start_max\": \"2026-08-20T20:00:00Z\", \"available_at_min\": \"2026-08-20T17:15:00Z\", \"available_at_max\": \"2026-08-20T20:15:00Z\", \"has_null_value\": false, \"has_null_sample_size\": false, \"group_ref\": \"1a8190c9de0f50c523ef711fc8ae4e9cfc25f19c4313d610d18059b997132539\"}]}",
+  "desfecho": "evidencia_insuficiente",
+  "hipotese": null,
+  "lacunas": [
+    {
+      "missing": "quebra do erro por UF: a serie existe, mas o ultimo dado disponivel e de 19/08",
+      "reason": "ainda_indisponivel"
+    },
+    {
+      "missing": "deploy ou evento operacional na janela",
+      "reason": "sem_dado"
+    },
+    {
+      "missing": "metricas internas do backend, como apdex do playback",
+      "reason": "sem_dado"
+    }
+  ],
+  "consultas": [
+    {
+      "ordem": 1,
+      "ferramenta": "consultar_serie",
+      "argumentos": {
+        "source": "prometheus",
+        "entity": "playback",
+        "metric": "http_5xx_rate",
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "limit": 200
+      },
+      "retornadas": 13,
+      "fact_ids": [
+        "19bac7d804ff021349c0e15f8a3ff5c68ada06eadd8aa4cb66ae8906ac489570:3000",
+        "49435d34e4b14551aa09f5efe007bfac30ea57b89470ca87006383db3a5ea4da:3001",
+        "378a77cf2a936c80aec8b090808711ccf55c10aacd82c411fb3767c74d7aa5b2:3002",
+        "ad27ca2612a2505b3d4f964bef132383c865da37f66873dd81c874c0b5e0d72c:3003",
+        "83a2552d0fc1948c9b8a6cdbd37a616f81ae78bb6604b359a9eb12bf845cd757:3004",
+        "7962e77d6a4337a773e4d7812c39e9a30bb88928b8708f1dea7a1ff86cc1943e:3005",
+        "1951e869316193edf900fa699357cc7300d479d40bb34080c839830e0431b4cf:3006",
+        "02c17fff73ce56606e5e24d75870967a9394fe4ce95934a22562282930e59a94:3007",
+        "ca0b21f889911fb411d2fdc3009b56e1af1ba1ac29c696cfb07426031e70bf0f:3008",
+        "6dbdfe3a90038e89931749f391bf4c4b218253d455023959b6a6e57303ea8d13:3009",
+        "ef0899667ae481222575ce311a45809c4ca826f9ccff1ae25973f38093359e8e:3010",
+        "3ab38286fcb7cecd81d48a882d3107dbcfcca4d88999fadface44371736abdbb:3011",
+        "e8f55f9d798ddb4a1c0d37d6fa513879605eed218880441c1b1432fa5a4ff678:3012"
+      ],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [],
+      "erro": null
+    },
+    {
+      "ordem": 2,
+      "ferramenta": "consultar_serie",
+      "argumentos": {
+        "source": "npaw_geo",
+        "entity": "globo",
+        "metric": "error_rate",
+        "dimension_type": "uf",
+        "dimension_value": "SP",
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "limit": 200
+      },
+      "retornadas": 0,
+      "fact_ids": [],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [
+        "sem_fatos_no_recorte_consultado"
+      ],
+      "erro": null
+    },
+    {
+      "ordem": 3,
+      "ferramenta": "consultar_contexto",
+      "argumentos": {
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "entity": "playback",
+        "kinds": [
+          "context"
+        ],
+        "limit": 200
+      },
+      "retornadas": 0,
+      "fact_ids": [],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [
+        "sem_fatos_no_recorte_consultado"
+      ],
+      "erro": null
+    },
+    {
+      "ordem": 4,
+      "ferramenta": "consultar_serie",
+      "argumentos": {
+        "source": "rpaas",
+        "entity": "playback.video.globo.com",
+        "metric": "requests_total",
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "limit": 200
+      },
+      "retornadas": 13,
+      "fact_ids": [
+        "becd643ea8018844d0875a9397e362e1bdaccf77dd4b277bd67fd7a998233503:3013",
+        "1c0ace96db5519e4d4c62c014ac6b0fd6b74b0451f24bb4ab8e24df70ce3e419:3014",
+        "097e9c2c832c9237845a777722a447c13c6c59a520ed92daba6f1d18102485b5:3015",
+        "6edb8a97f7f2729339e1d8b32cc8485ffc8e46b56aa8970f73c15ed9660e37c1:3016",
+        "3c5d4cd6385c04c598f1ef4118a63400064a123a8764d19d3d0d9982b2eacf6e:3017",
+        "2d8355d096485e2bcc3e320d3ab58dd94f1ae1a5e339be52221b351b9cf5a8cd:3018",
+        "4b0aa0c67ac07c68ff6793dab190b4a55c3100c5ab5ab2a75e63b86ec3e8f9fe:3019",
+        "cac8a72716121cd5305748eafb41eaa8bab31a0da2410e76725e7b36f2e13264:3020",
+        "e05484f697f7ae635cf434958b967bed3e3aab21ee84909636ee5b04a8ea292f:3021",
+        "6249e9de47645fe8302106ec3224528d4c200394e95d284f77c0378cd13b521a:3022",
+        "63623172f6d0b55ab7e3a42f8b88fb4d393c3b0f2c9ce0f2e08d47b42e5fccc1:3023",
+        "d828767fd694d637ba888f699901e8c9f1183b238278a5aa06e2579b60762ba9:3024",
+        "2495e33ae750f09dea66ccb05dbc393dd95a0e21d851a437f6a164ee09923708:3025"
+      ],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [],
+      "erro": null
+    }
+  ],
+  "passos": [
+    {
+      "ordem": 1,
+      "acao": "consultar",
+      "rationale": "comecar pelo erro do servico",
+      "problemas": [],
+      "segundos": 0.0,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"comecar pelo erro do servico\", \"tool\": \"consultar_serie\", \"arguments\": {\"source\": \"prometheus\", \"entity\": \"playback\", \"metric\": \"http_5xx_rate\", \"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\"}}"
+    },
+    {
+      "ordem": 2,
+      "acao": "consultar",
+      "rationale": "tentar separar o efeito por regiao",
+      "problemas": [],
+      "segundos": 0.0,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"tentar separar o efeito por regiao\", \"tool\": \"consultar_serie\", \"arguments\": {\"source\": \"npaw_geo\", \"entity\": \"globo\", \"metric\": \"error_rate\", \"dimension_type\": \"uf\", \"dimension_value\": \"SP\", \"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\"}}"
+    },
+    {
+      "ordem": 3,
+      "acao": "consultar",
+      "rationale": "procurar mudanca operacional ou evento programado",
+      "problemas": [],
+      "segundos": 0.0,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"procurar mudanca operacional ou evento programado\", \"tool\": \"consultar_contexto\", \"arguments\": {\"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\", \"entity\": \"playback\", \"kinds\": [\"context\"]}}"
+    },
+    {
+      "ordem": 4,
+      "acao": "consultar",
+      "rationale": "ver se o volume explica",
+      "problemas": [],
+      "segundos": 0.0,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"ver se o volume explica\", \"tool\": \"consultar_serie\", \"arguments\": {\"source\": \"rpaas\", \"entity\": \"playback.video.globo.com\", \"metric\": \"requests_total\", \"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\"}}"
+    },
+    {
+      "ordem": 5,
+      "acao": "desistir",
+      "rationale": "ha efeito, mas nada disponivel no recorte separa as causas possiveis",
+      "problemas": [],
+      "segundos": 0.0,
+      "saida_bruta": "{\"action\": \"desistir\", \"rationale\": \"ha efeito, mas nada disponivel no recorte separa as causas possiveis\", \"gaps\": [{\"missing\": \"quebra do erro por UF: a serie existe, mas o ultimo dado disponivel e de 19/08\", \"reason\": \"ainda_indisponivel\"}, {\"missing\": \"deploy ou evento operacional na janela\", \"reason\": \"sem_dado\"}, {\"missing\": \"metricas internas do backend, como apdex do playback\", \"reason\": \"sem_dado\"}]}"
+    }
+  ],
+  "validacao": {
+    "aprovado": true,
+    "avisos": []
+  },
+  "metricas": {
+    "orcamento": {
+      "max_chamadas": 12,
+      "max_itens_por_resposta": 200,
+      "max_segundos": 300.0,
+      "max_passos_invalidos": 1
+    },
+    "consumo": {
+      "chamadas": 4,
+      "itens": 26,
+      "passos": 5,
+      "passos_invalidos": 0,
+      "segundos": 0.0
+    },
+    "fatos_vistos": 26
+  },
+  "contestada": false,
+  "motivo": null
+}
