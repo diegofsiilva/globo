@@ -190,12 +190,37 @@ omissão sistemática de `source`/`entity`, que desapareceu nos três casos. O a
 agora investiga sem travar; o que sobra são falhas isoladas, não o loop que
 dominava antes.
 
+## Dois defeitos da checagem numérica
+
+A `resposta_invalida` do `caso-01` não era formato de JSON: a checagem numérica o
+reprovava duas vezes, por dois defeitos dela própria, já corrigidos.
+
+- **Direção negada lida como afirmada.** "A métrica requests_total não apresenta
+  quedas significativas" afirma estabilidade, mas a checagem via a palavra "queda"
+  e contradizia uma queda que o texto nega. Agora alta e queda ignoram a raiz
+  quando uma negação a precede.
+- **Correção que levava a um beco.** A mensagem de exagero pedia "use um termo
+  proporcional ou cite a variação"; o modelo citava o número ("redução de ~35%")
+  mas mantinha o adjetivo "significativa", e era reprovado de novo, gastando a
+  única retentativa. A mensagem agora manda tirar o adjetivo e descrever a
+  variação pelo tamanho real.
+
+Com os dois consertos, o `caso-01` passou a concluir (`hipotese`, sem chamada nem
+passo inválido). Foi medido ao vivo no `qwen3-coder:30b`.
+
+## Variância entre execuções
+
+Com temperatura 0, o modelo ainda não é determinístico: entre dois `agente-eval`
+seguidos, o `caso-02` concluiu `hipotese` em um e caiu em `resposta_invalida` no
+outro, por um motivo diferente a cada vez (em uma execução, uma alternativa com
+veredito `refutada` sem fatos citados). As correções desta investigação removem
+causas estruturais e reprodutíveis; o que sobra, caso a caso, é a variância do
+modelo perto do seu limite. Medir uma taxa estável exige repetir o `agente-eval`
+algumas vezes e olhar a distribuição, não um único número.
+
 ## Próximos passos
 
-- `caso-01`: o modelo investiga limpo, mas falha ao montar o JSON final da
-  conclusão (`resposta_invalida`). É um problema de formatação da resposta, não de
-  uso de ferramenta, e é o próximo ponto a atacar.
 - Decidir o tratamento do `caso-03`: aceitar a conclusão de nível de sintoma como
   válida, ou ajustar a trajetória-ouro para refletir o que se espera do agente.
-- Repetir o `agente-eval` em outros momentos para medir a variância: o servidor é
-  compartilhado e o modelo não é totalmente determinístico mesmo com temperatura 0.
+- Repetir o `agente-eval` algumas vezes para medir a variância do `caso-02` em vez
+  de reagir a uma única execução.
