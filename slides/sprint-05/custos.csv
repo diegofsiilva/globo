@@ -1,0 +1,13 @@
+item,usd_mes,tipo
+RDS_100GB,62,estimativa_historica
+Fargate,43.252412400000004,taxa_oficial_e_config_assumida
+EKS,73,taxa_oficial
+NAT_horas,32.85,taxa_oficial
+ALB_horas,16.425,taxa_oficial
+IPv4_3_enderecos,10.95,taxa_oficial_e_qtd_assumida
+subtotal_parcial,238.4774124,calculado
+nos_base,73,provisao_a_cotar
+servicos_auxiliares_base,30,reserva
+uso_variavel_base,10,reserva
+total_base,351.4774124,orcamento
+total_ampliado,494.4774124,orcamento
