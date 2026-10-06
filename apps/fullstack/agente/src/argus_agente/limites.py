@@ -103,9 +103,17 @@ class Guardas:
         Raises:
             TetoAtingido: Se o tempo de parede do caso acabou.
         """
+        self.verificar_tempo()
+        self.passos += 1
+
+    def verificar_tempo(self) -> None:
+        """Recusa uma resposta recebida depois do prazo do caso.
+
+        Raises:
+            TetoAtingido: Se o tempo de parede do caso acabou.
+        """
         if self.decorrido >= self.orcamento.max_segundos:
             raise TetoAtingido("tempo")
-        self.passos += 1
 
     def antes_da_chamada(self) -> None:
         """Verifica o teto de chamadas de ferramenta.

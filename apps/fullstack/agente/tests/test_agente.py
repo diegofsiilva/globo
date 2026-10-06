@@ -103,6 +103,55 @@ def test_teto_de_tempo_encerra_antes_de_pedir_outro_passo(caso, ferramentas):
     assert registro.motivo == "tempo"
 
 
+def test_resposta_apos_o_prazo_nao_vira_hipotese(caso, ferramentas):
+    tempo = [0.0]
+    todos = fact_ids_da_serie(ferramentas)
+
+    class ModeloLento(ModeloDeRoteiro):
+        def passo(self, mensagens):
+            resposta = super().passo(mensagens)
+            if resposta["action"] == "concluir":
+                tempo[0] = 6.0
+            return resposta
+
+    modelo = ModeloLento([consulta_serie(), conclusao(todos[:3])])
+    registro = investigar(
+        caso,
+        ferramentas,
+        modelo,
+        orcamento=Orcamento(max_segundos=5),
+        relogio=lambda: tempo[0],
+    )
+    assert registro.desfecho == "teto_atingido"
+    assert registro.motivo == "tempo"
+    assert registro.hipotese is None
+
+
+def test_limit_do_modelo_respeita_orcamento_menor(caso, ferramentas):
+    consulta = consulta_serie()
+    consulta["arguments"]["limit"] = 200
+    modelo = ModeloDeRoteiro(
+        [
+            consulta,
+            {
+                "action": "desistir",
+                "rationale": "fim",
+                "gaps": [{"missing": "contexto", "reason": "sem_dado"}],
+            },
+        ]
+    )
+    registro = investigar(
+        caso,
+        ferramentas,
+        modelo,
+        orcamento=Orcamento(max_itens_por_resposta=10),
+        relogio=_relogio_parado(),
+    )
+    assert registro.consultas[0]["argumentos"]["limit"] == 10
+    assert registro.consultas[0]["retornadas"] == 10
+    assert registro.metricas["consumo"]["itens"] == 10
+
+
 def test_resposta_malformada_ganha_uma_correcao_e_depois_encerra(caso, ferramentas):
     modelo = ModeloDeRoteiro(["isto nao e json", "tambem nao e"])
     registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())

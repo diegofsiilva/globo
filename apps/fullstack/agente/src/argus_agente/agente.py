@@ -112,6 +112,7 @@ def investigar(
                 registro.concluir(DESFECHO_ERRO, motivo=str(erro))
                 break
             except RespostaIlegivel as erro:
+                guardas.verificar_tempo()
                 _registrar_passo(registro, guardas, "ilegivel", "", [erro.detalhe])
                 registro.metricas.setdefault("respostas_ilegiveis", []).append(erro.bruto)
                 guardas.registrar_passo_invalido()
@@ -123,6 +124,7 @@ def investigar(
                 )
                 continue
 
+            guardas.verificar_tempo()
             mensagens.append(
                 {"role": "assistant", "content": json.dumps(bruto, ensure_ascii=False)}
             )
@@ -231,7 +233,8 @@ def _executar(
     argumentos = dict(consulta.argumentos)
     # O teto de itens e do executor, nao do modelo: quando ele nao pede um
     # `limit`, o orcamento do caso decide.
-    argumentos.setdefault("limit", guardas.orcamento.max_itens_por_resposta)
+    limite = guardas.orcamento.max_itens_por_resposta
+    argumentos["limit"] = min(argumentos.get("limit", limite), limite)
     try:
         envelope = despachar(ferramentas, consulta.ferramenta, argumentos)
     except (FerramentaIndisponivel, ValueError, TypeError, KeyError) as erro:
