@@ -1,8 +1,8 @@
 # Avaliação do modelo real contra as trajetórias-ouro
 
-Estado em 06/10/2026: **laço de avaliação criado; correção de prompt aplicada e
-validada ao vivo com resultado parcial — a causa menor das chamadas inválidas
-sumiu, mas a principal persiste porque o modelo ignora a instrução.**
+Estado em 06/10/2026: **laço de avaliação criado; correção de prompt com
+resultado parcial; dois modelos distintos repetem a mesma chamada inválida, o que
+reorientou o trabalho para um freio em código em vez de troca de modelo.**
 
 Este documento registra o que a avaliação do modelo real encontrou e o que foi
 mudado por causa dela. Ele é a continuação de [recorte-real-local.md](recorte-real-local.md),
@@ -121,26 +121,62 @@ Dois aprendizados, um de cada lado:
   sem `source` nem `entity`, mesmo com a exigência agora explícita no prompt, e
   ainda **repete a mesma chamada inválida** depois de o erro pedir que não repita.
   Uma instrução de texto não fez o `qwen3-coder:30b` fornecer um argumento
-  obrigatório. Isso é um limite de aderência do modelo, não um problema da
-  descrição — e é a evidência mais forte, até aqui, de que o gargalo é o modelo.
+  obrigatório. A seção seguinte mostra que trocar de modelo não resolve isso —
+  pelo contrário —, o que move a causa para a interface da ferramenta.
 
 A latência do servidor compartilhado ainda atrapalha a medição: um dos casos
 terminou como `erro_de_execucao` por queda no meio da investigação, e a primeira
-chamada chega a levar centenas de segundos. Uma execução limpa dos três casos,
-num momento de menor carga, ainda é útil para fechar a tabela, mas não muda o
-aprendizado principal.
+chamada chega a levar centenas de segundos.
+
+## Trocar de modelo piorou
+
+A hipótese natural era que o `qwen3-coder:30b`, um modelo de código, fosse ruim em
+seguir instruções, e que um modelo instruct resolvesse. O laço de avaliação foi
+usado para testar isso com o `gemma4:12b`, um modelo instruct disponível no mesmo
+servidor. O resultado contrariou a hipótese:
+
+| Modelo | Acertos | Chamadas inválidas (total) | Desfechos |
+|---|---|---|---|
+| `qwen3-coder:30b` | 1–2 de 3 | ~7 | hipótese / erro de execução |
+| `gemma4:12b` | 0 de 3 | 14 | `teto_atingido` nos três |
+
+O `gemma4:12b` cometeu **o mesmo** erro — `consultar_contexto` sem `source` nem
+`entity` — e o repetiu de cinco a seis vezes por caso, até esgotar o teto de
+chamadas sem concluir nada. O erro aparece agora em **duas famílias de modelo
+diferentes**, um coder e um instruct, e os dois **insistem** na chamada inválida
+depois de receber o erro.
+
+Quando dois modelos distintos erram igual e repetem o erro, o problema deixa de
+ser o modelo. É a interface da ferramenta — a exigência de `source` ou `entity` no
+`consultar_contexto` é fácil de esquecer — somada à ausência de um freio: nada
+impedia o modelo de repetir a mesma chamada inválida até morrer no teto. Esse é o
+achado que reorientou o trabalho.
+
+## Freio para a chamada inválida repetida
+
+Foi adicionada uma guarda em código (não no prompt, seguindo a regra de que teto é
+código): a **mesma** chamada inválida pode falhar um número limitado de vezes
+(`max_invalidas_iguais`, padrão 2) antes de o caso ser encerrado. A primeira falha
+continua sendo dado — volta ao modelo como erro, com a chance de corrigir —, mas a
+repetição, que é o sinal de que o modelo ignorou a correção, encerra o caso com o
+motivo `repeticao_de_chamada_invalida` em vez de gastar todo o orçamento. A
+assinatura da chamada ignora `limit` e `cursor`, para que variar a paginação não
+disfarce o mesmo pedido. A guarda está em
+[limites.py](../../apps/fullstack/agente/src/argus_agente/limites.py) e é acionada
+pelo executor em [agente.py](../../apps/fullstack/agente/src/argus_agente/agente.py).
+
+Isso não faz o modelo acertar a chamada; corta o desperdício e torna o fracasso
+legível — um caso que termina em `repeticao_de_chamada_invalida` mostra, no próprio
+desfecho, que o modelo travou numa chamada que não sabia formar.
 
 ## Próximos passos
 
-- **Testar um modelo instruct/reasoning no lugar do `qwen3-coder:30b`.** Como a
-  instrução de prompt não resolveu a chamada inválida de `consultar_contexto`,
-  este é agora o passo de maior retorno; o laço de avaliação já dá o baseline
-  (`caso-01` com 4 inválidas) para comparar de forma objetiva.
+- Avaliar uma mudança no contrato do `consultar_contexto`, já que a exigência de
+  `source`/`entity` derruba dois modelos: por exemplo, assumir a entidade do caso
+  (que a abertura já anuncia) quando os dois forem omitidos. É uma decisão de
+  design, mexe no leitor, e precisa ser pesada contra a clareza do contrato atual.
 - Rodar `agente-eval` com o servidor menos ocupado e fechar a tabela dos três
-  casos num ciclo limpo.
-- Avaliar um remédio em código para a chamada sem `source`/`entity`, já que o
-  modelo não cumpre a instrução sozinho — por exemplo, uma mensagem de erro mais
-  diretiva ou uma recusa que oriente a próxima chamada, sem preencher o argumento
-  pelo modelo.
+  casos num ciclo limpo, agora medindo também quantos casos param por
+  `repeticao_de_chamada_invalida`.
 - Decidir o tratamento do `caso-03`: aceitar a conclusão de nível de sintoma como
   válida, ou ajustar a trajetória-ouro para refletir o que se espera do agente.

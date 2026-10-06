@@ -166,7 +166,7 @@ if direcao != medicao.direcao_medida:
 
 ## 8. Limites de execução
 
-&emsp; Cada caso tem um orçamento: no máximo 12 chamadas de ferramenta, 200 itens por resposta, 300 segundos de tempo de parede e uma correção por resposta inválida. Os valores ficam em `Orcamento`, em [limites.py](../apps/fullstack/agente/src/argus_agente/limites.py), e são aplicados pelo executor, não pelo modelo:
+&emsp; Cada caso tem um orçamento: no máximo 12 chamadas de ferramenta, 200 itens por resposta, 300 segundos de tempo de parede, uma correção por resposta inválida e, no máximo, duas falhas iguais da mesma chamada. Os valores ficam em `Orcamento`, em [limites.py](../apps/fullstack/agente/src/argus_agente/limites.py), e são aplicados pelo executor, não pelo modelo:
 
 ```python
 def antes_da_chamada(self) -> None:
@@ -176,6 +176,8 @@ def antes_da_chamada(self) -> None:
 ```
 
 &emsp; Ao atingir qualquer limite, o caso é encerrado e o motivo fica registrado. Um caso encerrado por limite nunca produz hipótese apresentável. Os limites existem para que a investigação seja curta e auditável, e para que um modelo lento ou em loop não prenda o lote.
+
+&emsp; Um desses limites nasceu de um comportamento observado em dois modelos diferentes: ambos repetiam a mesma chamada de ferramenta inválida, depois de já terem recebido o erro, até esgotar o teto de chamadas sem concluir. Por isso a mesma chamada inválida só pode falhar duas vezes; na terceira, o executor encerra o caso com o motivo `repeticao_de_chamada_invalida`. A primeira falha continua voltando ao modelo como dado, com a chance de corrigir. A assinatura que identifica a repetição ignora os campos de paginação, para que variar o `limit` não disfarce o mesmo pedido. Os achados que motivaram essa guarda estão em [artefatos/comparacao-hipoteses/eval-modelo-real.md](comparacao-hipoteses/eval-modelo-real.md).
 
 &emsp; A chamada ao modelo tem um tratamento à parte. Como o servidor compartilhado às vezes fica ocupado por outros usuários, o cliente tenta a chamada duas vezes antes de desistir, e registra quantas tentativas foram feitas. Um servidor que continua fora do ar vira um erro de execução com o motivo gravado, e não uma resposta inventada.
 
