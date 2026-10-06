@@ -37,6 +37,11 @@ _ESTAVEL = (
     "mantem",
 )
 _MAGNITUDE = ("significativ", "acentu", "forte", "muito", "pico", "dispar", "expressiv")
+# Palavras que negam a direcao seguinte. "nao apresenta quedas" afirma estabilidade,
+# nao uma queda; sem isso a checagem contradizia uma observacao correta.
+_NEGACOES = frozenset(
+    ("nao", "sem", "nenhum", "nenhuma", "nunca", "inexistente", "sequer")
+)
 
 
 def _normalizar(texto: str) -> str:
@@ -45,18 +50,34 @@ def _normalizar(texto: str) -> str:
     return "".join(c for c in decomposto if not unicodedata.combining(c))
 
 
+def _afirma_direcao(tokens: list[str], raizes: tuple[str, ...]) -> bool:
+    """Se alguma raiz aparece em um token que nao esta negado logo antes.
+
+    So olha as tres palavras anteriores: "nao apresenta quedas" e "sem aumento"
+    negam a direcao, enquanto "o volume cai" a afirma.
+    """
+    for i, token in enumerate(tokens):
+        casou = any(raiz in token for raiz in raizes)
+        if casou and not (_NEGACOES & set(tokens[max(0, i - 3) : i])):
+            return True
+    return False
+
+
 def direcao_do_texto(texto: str) -> str | None:
-    """Extrai a direcao afirmada: alta, queda, estavel, ou None se ambigua/ausente."""
+    """Extrai a direcao afirmada: alta, queda, estavel, ou None se ambigua/ausente.
+
+    Alta e queda consideram a negacao; estavel e detectada pela expressao inteira,
+    porque as suas proprias formas ("sem mudanca", "nao muda") usam negacao.
+    """
     limpo = _normalizar(texto)
-    achados = {
-        direcao
-        for direcao, palavras in (
-            ("alta", _ALTA),
-            ("queda", _QUEDA),
-            ("estavel", _ESTAVEL),
-        )
-        if any(p in limpo for p in palavras)
-    }
+    tokens = limpo.split()
+    achados = set()
+    if _afirma_direcao(tokens, _ALTA):
+        achados.add("alta")
+    if _afirma_direcao(tokens, _QUEDA):
+        achados.add("queda")
+    if any(p in limpo for p in _ESTAVEL):
+        achados.add("estavel")
     return achados.pop() if len(achados) == 1 else None
 
 
@@ -187,10 +208,12 @@ def checar_evidencias(
             elif magnitude_do_texto(texto) and abs(medicao.variacao) < LIMIAR_MAGNITUDE:
                 registro["status"] = "exagero"
                 problemas.append(
-                    f"checagem numerica: '{texto}' usa adjetivo de magnitude, mas "
-                    f"{medicao.serie} variou {medicao.variacao:+.0%} "
-                    f"(de {medicao.antes} para {medicao.depois}); use um termo "
-                    "proporcional ou cite a variacao"
+                    f"checagem numerica: '{texto}' usa adjetivo de magnitude "
+                    f"(ex.: 'significativo'), mas {medicao.serie} variou "
+                    f"{medicao.variacao:+.0%} (de {medicao.antes} para "
+                    f"{medicao.depois}); tire o adjetivo e descreva a variacao pelo "
+                    f"tamanho real -- adjetivo de magnitude so vale a partir de "
+                    f"{LIMIAR_MAGNITUDE:.0%}"
                 )
             else:
                 registro["status"] = "coerente_com_citacoes"

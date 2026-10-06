@@ -71,6 +71,16 @@ def test_direcao_vem_do_texto_sem_acento_e_ambiguidade_vira_none():
     assert direcao_do_texto("os valores foram anotados") is None
 
 
+def test_direcao_negada_nao_e_afirmada():
+    # "nao apresenta quedas" afirma estabilidade, nao uma queda: nao pode ser lido
+    # como direcao queda, senao a checagem contradiz uma observacao correta.
+    assert direcao_do_texto("nao apresenta quedas significativas") is None
+    assert direcao_do_texto("sem aumento no volume") is None
+    assert direcao_do_texto("o volume nao caiu") is None
+    # A negacao nao atrapalha a estabilidade, cuja forma ja usa "sem"/"nao".
+    assert direcao_do_texto("o volume permanece sem mudanca") == "estavel"
+
+
 def test_magnitude_reconhece_adjetivos_de_forca():
     assert magnitude_do_texto("aumento significativo do erro")
     assert not magnitude_do_texto("o erro subiu um pouco")
@@ -113,6 +123,33 @@ def test_adjetivo_forte_para_variacao_pequena_vira_exagero():
     )
     assert problemas and "magnitude" in problemas[0]
     assert checagens[0]["status"] == "exagero"
+
+
+def test_exagero_orienta_a_tirar_o_adjetivo():
+    # A mensagem antiga oferecia "cite a variacao", mas citar o numero nao remove
+    # o adjetivo: o modelo citava e continuava reprovado. A correcao agora manda
+    # tirar o adjetivo.
+    valores = [0.20] * 8 + [0.25] * 8
+    leitor = _leitor(valores)
+    efeito = iso(INICIO + dt.timedelta(minutes=120))
+    problemas, _ = checar_evidencias(
+        _hipotese("aumento significativo do erro", _ids(leitor), efeito), leitor
+    )
+    assert "tire o adjetivo" in problemas[0]
+
+
+def test_observacao_de_estabilidade_por_negacao_nao_contradiz():
+    # Serie estavel (+0%); a observacao diz, corretamente, que nao ha quedas. Isso
+    # nao pode virar contradicao de uma queda que o texto nega.
+    valores = [0.40] * 16
+    leitor = _leitor(valores)
+    efeito = iso(INICIO + dt.timedelta(minutes=120))
+    problemas, checagens = checar_evidencias(
+        _hipotese("a serie nao apresenta quedas significativas", _ids(leitor), efeito),
+        leitor,
+    )
+    assert problemas == []
+    assert checagens[0]["status"] == "indeterminado"
 
 
 def test_pontos_nao_citados_nao_confirmam_observacao():
