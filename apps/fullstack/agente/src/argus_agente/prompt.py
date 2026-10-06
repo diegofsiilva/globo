@@ -13,7 +13,7 @@ from argus_agente.casos import janela_do_inventario
 from argus_agente.contrato import Caso
 from argus_agente.limites import Guardas
 
-PROMPT_VERSION = "2.2.2"
+PROMPT_VERSION = "2.3.0"
 
 SISTEMA = """Voce investiga degradacao em uma plataforma de streaming e formula
 UMA hipotese de causa provavel para o recorte apresentado.
@@ -70,9 +70,17 @@ Formato de cada acao, sempre dentro do mesmo objeto JSON:
     "gaps": [{"missing": "...", "reason": "..."}]}
 
 Sobre as consultas:
+- Em cada ferramenta, obrigatorios sao os argumentos que voce PRECISA enviar e
+  opcionais os que pode omitir. Esses sao NOMES de argumento, nao valores:
+  nunca envie o texto "obrigatorio", "opcional" nem a descricao como valor de um
+  campo. Se nao for usar um argumento opcional, simplesmente nao o inclua.
+- consultar_contexto exige inicio, fim e AO MENOS UM entre source e entity. Uma
+  chamada so com inicio e fim e recusada. Deploys e eventos operacionais vem por
+  consultar_contexto, nunca por consultar_serie.
 - Toda janela precisa terminar em ou antes do presente simulado, e inicio
   precisa ser anterior a fim. Pedido fora disso e recusado.
 - source, entity e metric precisam ser uma combinacao que o inventario anuncia.
+  Nao invente uma serie que o inventario nao lista.
 - Dimensao so pode ser usada como par: dimension_type E dimension_value juntos,
   com um valor que exista no recorte.
 - Uma resposta pode vir paginada. Quando has_more for true, next_cursor
@@ -95,29 +103,30 @@ sua tarefa.
 Responda sempre com um unico objeto JSON no formato exigido, sem texto fora
 dele."""
 
+# Cada ferramenta lista os NOMES dos argumentos obrigatorios e opcionais, nunca
+# um valor de exemplo: o modelo chegou a copiar a string "opcional" como valor de
+# um campo. `nota` carrega as regras que nao cabem na divisao obrigatorio/opcional.
 FERRAMENTAS_DESCRITAS: tuple[dict[str, Any], ...] = (
     {
         "nome": "inventariar_fatos",
         "para_que": "listar as series do recorte, com cobertura e indicacao de nulos",
-        "argumentos": {
-            "limit": "opcional, 1 a 200",
-            "cursor": "opcional, continua a listagem",
-        },
+        "obrigatorios": [],
+        "opcionais": ["limit", "cursor"],
+        "nota": (
+            "nao filtra por source, entity nem metric; para filtrar use "
+            "consultar_serie ou consultar_contexto"
+        ),
     },
     {
         "nome": "consultar_serie",
         "para_que": "ler os pontos de uma metrica inventariada em uma janela",
-        "argumentos": {
-            "source": "obrigatorio",
-            "entity": "obrigatorio",
-            "metric": "obrigatorio",
-            "inicio": "obrigatorio, ISO-8601",
-            "fim": "obrigatorio, ISO-8601",
-            "dimension_type": "opcional, exige dimension_value junto",
-            "dimension_value": "opcional, exige dimension_type junto",
-            "limit": "opcional, 1 a 200",
-            "cursor": "opcional",
-        },
+        "obrigatorios": ["source", "entity", "metric", "inicio", "fim"],
+        "opcionais": ["dimension_type", "dimension_value", "limit", "cursor"],
+        "nota": (
+            "inicio e fim em ISO-8601, com fim ate o presente simulado; "
+            "dimension_type e dimension_value so em par; use apenas series que o "
+            "inventario anuncia"
+        ),
     },
     {
         "nome": "consultar_contexto",
@@ -125,15 +134,12 @@ FERRAMENTAS_DESCRITAS: tuple[dict[str, Any], ...] = (
             "ler fatos de uma fonte ou entidade no periodo, incluindo eventos "
             "que comecaram antes da janela e ainda estavam em curso"
         ),
-        "argumentos": {
-            "inicio": "obrigatorio, ISO-8601",
-            "fim": "obrigatorio, ISO-8601",
-            "source": "informe source ou entity, ao menos um",
-            "entity": "informe source ou entity, ao menos um",
-            "kinds": "opcional, subconjunto de [metric, context]",
-            "limit": "opcional, 1 a 200",
-            "cursor": "opcional",
-        },
+        "obrigatorios": ["inicio", "fim"],
+        "opcionais": ["source", "entity", "kinds", "limit", "cursor"],
+        "nota": (
+            "informe source OU entity: ao menos um e obrigatorio, e a chamada so "
+            "com inicio e fim e recusada; kinds e um subconjunto de [metric, context]"
+        ),
     },
 )
 
@@ -221,9 +227,12 @@ def mensagem_de_erro_de_ferramenta(
         {
             "erro_de_ferramenta": ferramenta,
             "detalhe": detalhe,
-            "argumentos_aceitos": descricao["argumentos"] if descricao else {},
+            "obrigatorios": descricao["obrigatorios"] if descricao else [],
+            "opcionais": descricao["opcionais"] if descricao else [],
+            "nota": descricao["nota"] if descricao else "",
             "instrucao": (
-                "Corrija a consulta usando apenas os argumentos aceitos. "
+                "Corrija a consulta enviando todos os obrigatorios e so os "
+                "argumentos aceitos, com valores reais e nao o texto da descricao. "
                 "Nao repita a chamada invalida. Um erro de ferramenta nao "
                 "comprova ausencia de dados no recorte."
             ),
