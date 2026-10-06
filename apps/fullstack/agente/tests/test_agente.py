@@ -55,6 +55,30 @@ def test_desistencia_e_um_desfecho_valido(caso, ferramentas):
     assert registro.hipotese is None
 
 
+def test_desistencia_nao_pode_alegar_falta_de_serie_ja_consultada(caso, ferramentas):
+    todos = fact_ids_da_serie(ferramentas)
+    desistir = {
+        "action": "desistir",
+        "rationale": "faltam dados de erro",
+        "gaps": [{"missing": "dados da taxa de erros 5xx", "reason": "sem_dado"}],
+    }
+    modelo = ModeloDeRoteiro([consulta_serie(), desistir, conclusao(todos[:3])])
+    registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
+    assert registro.desfecho == "hipotese"
+    assert any("lacuna sem_dado contradita" in p for p in registro.passos[1]["problemas"])
+
+
+def test_serie_agregada_nao_resolve_lacuna_de_quebra_por_uf(caso, ferramentas):
+    desistir = {
+        "action": "desistir",
+        "rationale": "a quebra por UF nao foi consultada",
+        "gaps": [{"missing": "quebra de erros 5xx por UF", "reason": "sem_dado"}],
+    }
+    modelo = ModeloDeRoteiro([consulta_serie(), desistir])
+    registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
+    assert registro.desfecho == "evidencia_insuficiente"
+
+
 def test_teto_de_chamadas_encerra_o_caso(caso, ferramentas):
     modelo = ModeloDeRoteiro([consulta_serie() for _ in range(10)])
     registro = investigar(

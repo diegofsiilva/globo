@@ -51,6 +51,7 @@ from argus_agente.validador import (
     Desistencia,
     PassoInvalido,
     interpretar,
+    validar_desistencia_contra_consultas,
 )
 
 
@@ -134,6 +135,10 @@ def investigar(
                     )
                     if problemas_numericos:
                         raise PassoInvalido(problemas_numericos)
+                if isinstance(passo, Desistencia):
+                    validar_desistencia_contra_consultas(
+                        passo.lacunas, registro.consultas
+                    )
             except PassoInvalido as erro:
                 _registrar_passo(
                     registro,

@@ -13,10 +13,13 @@ from argus_agente.casos import janela_do_inventario
 from argus_agente.contrato import Caso
 from argus_agente.limites import Guardas
 
-PROMPT_VERSION = "2.2.0"
+PROMPT_VERSION = "2.2.2"
 
 SISTEMA = """Voce investiga degradacao em uma plataforma de streaming e formula
 UMA hipotese de causa provavel para o recorte apresentado.
+Sua tarefa ja esta definida: investigue o comportamento recente da entidade
+anunciada no inventario, proximo ao presente simulado, e compare com um periodo
+anterior do mesmo recorte. Nao desista alegando que falta uma pergunta do usuario.
 
 Como trabalhar:
 - Investigue em passos. A cada passo voce escolhe UMA acao: consultar uma
@@ -74,6 +77,12 @@ Sobre as consultas:
   com um valor que exista no recorte.
 - Uma resposta pode vir paginada. Quando has_more for true, next_cursor
   continua a mesma consulta -- e consome mais uma chamada do seu teto.
+- Comece por uma janela curta perto de observacoes_ate (por exemplo, as ultimas
+  3 horas), depois consulte uma janela anterior para comparar. Uma consulta de
+  muitos dias retorna primeiro os pontos antigos e pode esconder o periodo
+  recente na paginacao.
+- O inventario ja esta na abertura. inventariar_fatos aceita somente limit e
+  cursor; para filtrar source, entity ou metric use consultar_serie ou contexto.
 
 Limites que o executor aplica por fora, e que voce nao controla: numero de
 chamadas de ferramenta, itens por resposta e tempo total. Quando o orcamento
@@ -205,10 +214,19 @@ def mensagem_de_erro_de_ferramenta(
     Returns:
         str: JSON com o erro e o orcamento restante.
     """
+    descricao = next(
+        (item for item in FERRAMENTAS_DESCRITAS if item["nome"] == ferramenta), None
+    )
     return json.dumps(
         {
             "erro_de_ferramenta": ferramenta,
             "detalhe": detalhe,
+            "argumentos_aceitos": descricao["argumentos"] if descricao else {},
+            "instrucao": (
+                "Corrija a consulta usando apenas os argumentos aceitos. "
+                "Nao repita a chamada invalida. Um erro de ferramenta nao "
+                "comprova ausencia de dados no recorte."
+            ),
             "orcamento": _orcamento(guardas),
         },
         ensure_ascii=False,
@@ -230,8 +248,9 @@ def mensagem_de_correcao(problemas: list[str], guardas: Guardas) -> str:
             "resposta_rejeitada": problemas,
             "instrucao": (
                 "Corrija os pontos acima e responda de novo, no mesmo objeto JSON. "
-                "Em concluir, o campo answer com statement, scope, evidence_for e gaps "
-                "e obrigatorio. "
+                "A tarefa e investigar as metricas do recorte proximo ao presente "
+                "simulado; nao falta uma pergunta do usuario. Se desistir, declare "
+                "gaps reais com missing e reason. Em concluir, answer e obrigatorio. "
                 "Cite apenas fact_ids que apareceram nas respostas das ferramentas."
             ),
             "orcamento": _orcamento(guardas),
