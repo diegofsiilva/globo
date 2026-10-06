@@ -152,6 +152,33 @@ def test_erro_de_ferramenta_entra_no_rastro_e_consome_chamada(caso, ferramentas)
     assert registro.desfecho == "hipotese"
 
 
+def test_repetir_a_mesma_chamada_invalida_encerra_o_caso(caso, ferramentas):
+    # Dois modelos reais bateram na mesma chamada invalida ate esgotar o teto de
+    # chamadas. A guarda corta o loop na terceira falha identica (max padrao 2),
+    # antes de gastar as 12 chamadas, e grava o motivo.
+    ruim = consulta_serie(metric="metrica_que_nao_existe")
+    modelo = ModeloDeRoteiro([ruim, ruim, ruim, ruim, ruim])
+    registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
+    assert registro.desfecho == "teto_atingido"
+    assert registro.motivo == "repeticao_de_chamada_invalida"
+    assert registro.metricas["consumo"]["chamadas"] == 3
+
+
+def test_paginacao_nao_disfarca_a_mesma_chamada_invalida(caso, ferramentas):
+    # Variar so o `limit` nao cria uma consulta nova: a assinatura ignora os
+    # campos de paginacao, entao a guarda ainda reconhece o mesmo erro.
+    modelo = ModeloDeRoteiro(
+        [
+            consulta_serie(metric="metrica_que_nao_existe", limit=10),
+            consulta_serie(metric="metrica_que_nao_existe", limit=50),
+            consulta_serie(metric="metrica_que_nao_existe", limit=200),
+        ]
+    )
+    registro = investigar(caso, ferramentas, modelo, relogio=_relogio_parado())
+    assert registro.desfecho == "teto_atingido"
+    assert registro.motivo == "repeticao_de_chamada_invalida"
+
+
 def test_inventario_sozinho_nao_sustenta_hipotese(caso, ferramentas):
     inventario = {
         "action": "consultar",

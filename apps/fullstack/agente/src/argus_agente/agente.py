@@ -94,6 +94,7 @@ def investigar(
         "max_itens_por_resposta": orcamento.max_itens_por_resposta,
         "max_segundos": orcamento.max_segundos,
         "max_passos_invalidos": orcamento.max_passos_invalidos,
+        "max_invalidas_iguais": orcamento.max_invalidas_iguais,
     }
 
     mensagens: list[dict[str, str]] = [
@@ -246,7 +247,15 @@ def _executar(
                 erro=detalhe,
             ).para_json()
         )
-        return mensagem_de_erro_de_ferramenta(consulta.ferramenta, detalhe, guardas)
+        mensagem = mensagem_de_erro_de_ferramenta(consulta.ferramenta, detalhe, guardas)
+        # Depois de registrar o erro e montar a resposta ao modelo, conta a falha:
+        # se for a mesma chamada invalida de novo, a guarda encerra o caso. `limit`
+        # e `cursor` ficam de fora da assinatura -- variar a paginacao nao muda a
+        # consulta que falhou.
+        chave = {k: v for k, v in argumentos.items() if k not in ("limit", "cursor")}
+        assinatura = f"{consulta.ferramenta}:{json.dumps(chave, sort_keys=True)}"
+        guardas.registrar_chamada_invalida(assinatura)
+        return mensagem
 
     citaveis = fact_ids_de(envelope)
     fact_ids_vistos.update(citaveis)
