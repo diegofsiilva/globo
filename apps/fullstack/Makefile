@@ -522,6 +522,12 @@ agente-eval: ## Avalia o modelo real contra os casos sinteticos (desfecho x rote
 agente-eval-seco: ## Ensaio seco do eval: usa o roteiro dos dois lados, sem rede
 	cd $(AGENTE) && $(UV) python scripts/avaliar_modelo.py --modelo roteiro
 
+.PHONY: agente-eval-modelo
+agente-eval-modelo: ## Avalia um modelo especifico sem mexer no .env (MODELO=gemma4:12b)
+	@test -n "$(MODELO)" || { echo "uso: make agente-eval-modelo MODELO=<id>"; exit 1; }
+	@test -n "$$OLLAMA_URL" || { echo "defina OLLAMA_URL no .env"; exit 1; }
+	cd $(AGENTE) && $(UV) python scripts/avaliar_modelo.py --modelo-id "$(MODELO)"
+
 .PHONY: docs
 docs: ## Abre a documentacao Swagger da API publicada
 	@$(call require_env,ARGUS_API_URL)

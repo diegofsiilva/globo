@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -177,10 +178,15 @@ def main(argv: list[str] | None = None) -> int:
         help="modelo avaliado; `roteiro` e um ensaio seco que deve acertar tudo",
     )
     parser.add_argument(
+        "--modelo-id",
+        default="",
+        help="sobrescreve OLLAMA_MODEL so nesta execucao, para comparar modelos",
+    )
+    parser.add_argument(
         "--saida",
         type=Path,
         default=ROOT / "apps/fullstack/agente/saidas/eval",
-        help="diretorio do resumo (gitignored)",
+        help="diretorio base do resumo (gitignored); cada modelo ganha um subdir",
     )
     args = parser.parse_args(argv)
 
@@ -191,11 +197,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.modelo == "roteiro":
         fabrica = _modelo_de_roteiro
+        rotulo = "roteiro"
     else:
+        # --modelo-id vence o .env so nesta execucao, para comparar candidatos sem
+        # editar o .env a cada rodada.
+        if args.modelo_id:
+            os.environ["OLLAMA_MODEL"] = args.modelo_id
+        rotulo = os.getenv("OLLAMA_MODEL", "ollama")
         fabrica = lambda case_id: construir_modelo("ollama", case_id=case_id)  # noqa: E731
 
-    args.saida.mkdir(parents=True, exist_ok=True)
-    casos_dir = args.saida / "casos"
+    # Um subdir por modelo preserva o baseline ao testar um candidato novo.
+    saida = args.saida / rotulo.replace(":", "-").replace("/", "-")
+    casos_dir = saida / "casos"
     casos_dir.mkdir(parents=True, exist_ok=True)
 
     linhas: list[dict] = []
@@ -214,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
 
     _imprimir(linhas, identidade)
 
-    (args.saida / "resultado.json").write_text(
+    (saida / "resultado.json").write_text(
         json.dumps(
             {
                 "tipo": "eval_offline_modelo_vs_roteiro",
@@ -231,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         + "\n",
         encoding="utf-8",
     )
-    print(f"\nresumo em {args.saida / 'resultado.json'}")
+    print(f"\nresumo em {saida / 'resultado.json'}")
 
     return 0 if all(linha["acertou"] for linha in linhas) else 1
 
