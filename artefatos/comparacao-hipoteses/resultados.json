@@ -1,0 +1,870 @@
+{
+  "tipo": "ensaio_sintetico",
+  "limites": [
+    "agente usa roteiro fixo, nao Ollama",
+    "motor usa baseline inicial vazio; nao equivale a run publicado",
+    "mesmos fatos e corte causal; digest do motor publicado indisponivel"
+  ],
+  "casos": [
+    {
+      "case_id": "caso-01-deploy",
+      "recorte": {
+        "checkpoint_id": "101",
+        "origin": "synthetic",
+        "sim_now": "2026-08-20T20:15:00+00:00",
+        "input_lsn": 1300,
+        "recorte_id": "synthetic:101:2db402383094d32e",
+        "digest": "2163e85b3f0516af5692f245cf1a1ee24f9e81e3902ff7255f704fcf35e33f04"
+      },
+      "fatos_visiveis": 40,
+      "agente": {
+        "modo": "roteiro_fixo_sem_modelo",
+        "desfecho": "hipotese",
+        "hipotese": {
+          "statement": "Possivel regressao apos o deploy do playback: o erro 5xx sobe a partir das 19h",
+          "scope": {
+            "entity": "playback"
+          },
+          "evidence_for": [
+            {
+              "fact_ids": [
+                "0415ff63f203a7930dbf52c8739694162337345a55d01978a06d1b52b18537db:1220"
+              ],
+              "observation": "deploy do playback as 18:54, encerrado as 18:58",
+              "reading": "mudanca operacional seis minutos antes do inicio do efeito"
+            },
+            {
+              "fact_ids": [
+                "02c17fff73ce56606e5e24d75870967a9394fe4ce95934a22562282930e59a94:1007",
+                "ca0b21f889911fb411d2fdc3009b56e1af1ba1ac29c696cfb07426031e70bf0f:1200",
+                "6dbdfe3a90038e89931749f391bf4c4b218253d455023959b6a6e57303ea8d13:1009",
+                "ef0899667ae481222575ce311a45809c4ca826f9ccff1ae25973f38093359e8e:1010"
+              ],
+              "observation": "http_5xx_rate passa de 0,4 para 8,1 as 19:00",
+              "reading": "o degrau coincide com o deploy, nao e subida gradual"
+            },
+            {
+              "fact_ids": [
+                "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:1020",
+                "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:1021",
+                "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:1022",
+                "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:1023"
+              ],
+              "observation": "apdex cai de 0,95 para 0,63 no mesmo bucket",
+              "reading": "o efeito aparece na experiencia, nao so na contagem de erro"
+            }
+          ],
+          "evidence_against": [
+            {
+              "fact_ids": [
+                "4b0aa0c67ac07c68ff6793dab190b4a55c3100c5ab5ab2a75e63b86ec3e8f9fe:1032",
+                "cac8a72716121cd5305748eafb41eaa8bab31a0da2410e76725e7b36f2e13264:1033",
+                "e05484f697f7ae635cf434958b967bed3e3aab21ee84909636ee5b04a8ea292f:1034",
+                "6249e9de47645fe8302106ec3224528d4c200394e95d284f77c0378cd13b521a:1035",
+                "63623172f6d0b55ab7e3a42f8b88fb4d393c3b0f2c9ce0f2e08d47b42e5fccc1:1036"
+              ],
+              "observation": "volume entre 412 mil e 421 mil, estavel",
+              "reading": "pico de demanda nao explica o degrau"
+            }
+          ],
+          "alternativas": [
+            {
+              "explicacao": "regressao apos deploy",
+              "veredito": "sustentada",
+              "fact_ids": [
+                "02c17fff73ce56606e5e24d75870967a9394fe4ce95934a22562282930e59a94:1007",
+                "ca0b21f889911fb411d2fdc3009b56e1af1ba1ac29c696cfb07426031e70bf0f:1200",
+                "6dbdfe3a90038e89931749f391bf4c4b218253d455023959b6a6e57303ea8d13:1009",
+                "ef0899667ae481222575ce311a45809c4ca826f9ccff1ae25973f38093359e8e:1010",
+                "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:1020",
+                "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:1021",
+                "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:1022",
+                "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:1023"
+              ],
+              "observation": "degrau 5xx e queda de apdex no mesmo bucket"
+            },
+            {
+              "explicacao": "pico de demanda",
+              "veredito": "refutada",
+              "fact_ids": [
+                "4b0aa0c67ac07c68ff6793dab190b4a55c3100c5ab5ab2a75e63b86ec3e8f9fe:1032",
+                "cac8a72716121cd5305748eafb41eaa8bab31a0da2410e76725e7b36f2e13264:1033",
+                "e05484f697f7ae635cf434958b967bed3e3aab21ee84909636ee5b04a8ea292f:1034",
+                "6249e9de47645fe8302106ec3224528d4c200394e95d284f77c0378cd13b521a:1035",
+                "63623172f6d0b55ab7e3a42f8b88fb4d393c3b0f2c9ce0f2e08d47b42e5fccc1:1036"
+              ],
+              "observation": "o volume nao sobe"
+            }
+          ],
+          "gaps": [
+            {
+              "missing": "quebra do erro por regiao e ISP",
+              "reason": "ainda_indisponivel"
+            },
+            {
+              "missing": "versao ou commit do deploy",
+              "reason": "fora_do_catalogo"
+            }
+          ],
+          "effect_start": "2026-08-20T19:00:00+00:00",
+          "checagens": [
+            {
+              "lado": "evidence_for",
+              "observation": "deploy do playback as 18:54, encerrado as 18:58",
+              "status": "indeterminado",
+              "reading": "mudanca operacional seis minutos antes do inicio do efeito",
+              "interpretacao": "revisao_humana"
+            },
+            {
+              "lado": "evidence_for",
+              "observation": "http_5xx_rate passa de 0,4 para 8,1 as 19:00",
+              "status": "indeterminado",
+              "reading": "o degrau coincide com o deploy, nao e subida gradual",
+              "interpretacao": "revisao_humana"
+            },
+            {
+              "lado": "evidence_for",
+              "observation": "apdex cai de 0,95 para 0,63 no mesmo bucket",
+              "status": "coerente_com_citacoes",
+              "reading": "o efeito aparece na experiencia, nao so na contagem de erro",
+              "interpretacao": "revisao_humana",
+              "serie": "newrelic/apdex",
+              "antes": 0.94,
+              "depois": 0.62,
+              "variacao": -0.3404,
+              "direcao_afirmada": "queda",
+              "direcao_medida": "queda"
+            },
+            {
+              "lado": "evidence_against",
+              "observation": "volume entre 412 mil e 421 mil, estavel",
+              "status": "coerente_com_citacoes",
+              "reading": "pico de demanda nao explica o degrau",
+              "interpretacao": "revisao_humana",
+              "serie": "rpaas/requests_total",
+              "antes": 419500.0,
+              "depois": 415000.0,
+              "variacao": -0.0107,
+              "direcao_afirmada": "estavel",
+              "direcao_medida": "estavel"
+            }
+          ]
+        },
+        "lacunas": [
+          {
+            "missing": "quebra do erro por regiao e ISP",
+            "reason": "ainda_indisponivel"
+          },
+          {
+            "missing": "versao ou commit do deploy",
+            "reason": "fora_do_catalogo"
+          }
+        ],
+        "consultas": 5,
+        "arquivo": "agente-roteiro/casos/caso-01-deploy.json"
+      },
+      "motor": {
+        "modo": "funcoes_reais_sem_baseline_historico",
+        "anomalias": 0,
+        "candidatos_prefiltrados": 20,
+        "candidatos_avaliados": 20,
+        "candidatos_truncados": 0,
+        "hipoteses": [
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_player_live",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cloudarmor",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte rpaas",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_player_live",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_device",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_player",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_device",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cdn_vod_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_player",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_live_active",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_geo",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte apollo",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_error_category",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_error_attr",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cdn_live_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte newrelic",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte origin_live_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_live_qoe",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte tsuru",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte editorial",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          }
+        ],
+        "fontes_com_qualidade": 21,
+        "slots_de_baseline_apos_caso": 4
+      }
+    },
+    {
+      "case_id": "caso-02-borda",
+      "recorte": {
+        "checkpoint_id": "102",
+        "origin": "synthetic",
+        "sim_now": "2026-08-20T20:15:00+00:00",
+        "input_lsn": 2200,
+        "recorte_id": "synthetic:102:ae91e7cf3fbb5d5d",
+        "digest": "8883086fe9517a33f37ec38bdee97f34c90c65ce1be2507fbdfbeacb6169225c"
+      },
+      "fatos_visiveis": 67,
+      "agente": {
+        "modo": "roteiro_fixo_sem_modelo",
+        "desfecho": "hipotese",
+        "hipotese": {
+          "statement": "Possivel bloqueio na borda: o 4xx do RPaaS sobe a partir das 19h sem efeito no backend",
+          "scope": {
+            "entity": "playback.video.globo.com"
+          },
+          "evidence_for": [
+            {
+              "fact_ids": [
+                "e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007",
+                "31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008",
+                "05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009",
+                "cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010"
+              ],
+              "observation": "http_4xx_rate sobe de 1,1% para 6,8% as 19:00",
+              "reading": "o erro visivel ao usuario cresce na borda"
+            },
+            {
+              "fact_ids": [
+                "40e8555a9ca483dfb5ef93c4cd7f234813d157a951a13f05f5695c903e64208f:2020",
+                "684fe643eec2414aebe47e0ac16933cb77a6ce1eec9c5de9a9c3c5383ec72efd:2021",
+                "287532e244b15c248a6033ffa6f754d42e22de36f1d2d2814453f6ec1155db9d:2022",
+                "488847b7ca2a6982a98dfab73c8d641fad238f867d93030a803650d537dacf58:2023"
+              ],
+              "observation": "blocked_requests passa de cerca de 200 para 9.400",
+              "reading": "o bloqueio cresce no mesmo bucket, compativel com resposta de protecao"
+            }
+          ],
+          "evidence_against": [
+            {
+              "fact_ids": [
+                "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033",
+                "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034",
+                "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035",
+                "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036"
+              ],
+              "observation": "apdex do playback fica entre 0,93 e 0,94",
+              "reading": "se fosse falha de aplicacao, a experiencia cairia junto"
+            }
+          ],
+          "alternativas": [
+            {
+              "explicacao": "bloqueio na borda",
+              "veredito": "sustentada",
+              "fact_ids": [
+                "e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007",
+                "31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008",
+                "05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009",
+                "cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010"
+              ],
+              "observation": "4xx sobe de 1,1% para 6,8% as 19h"
+            },
+            {
+              "explicacao": "falha de aplicacao",
+              "veredito": "refutada",
+              "fact_ids": [
+                "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033",
+                "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034",
+                "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035",
+                "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036"
+              ],
+              "observation": "a experiencia nao cai"
+            }
+          ],
+          "gaps": [
+            {
+              "missing": "a regra do Cloud Armor que disparou os bloqueios",
+              "reason": "fora_do_catalogo"
+            },
+            {
+              "missing": "o vhost exato por tras dos 4xx do RPaaS",
+              "reason": "sem_dado"
+            },
+            {
+              "missing": "amostragem do RPaaS: sample_size perto de 2.100 contra 405 mil requisicoes",
+              "reason": "limite_de_ferramenta"
+            }
+          ],
+          "effect_start": "2026-08-20T19:00:00+00:00",
+          "checagens": [
+            {
+              "lado": "evidence_for",
+              "observation": "http_4xx_rate sobe de 1,1% para 6,8% as 19:00",
+              "status": "coerente_com_citacoes",
+              "reading": "o erro visivel ao usuario cresce na borda",
+              "interpretacao": "revisao_humana",
+              "serie": "rpaas/http_4xx_rate",
+              "antes": 1.2,
+              "depois": 7.1,
+              "variacao": 4.9167,
+              "direcao_afirmada": "alta",
+              "direcao_medida": "alta"
+            },
+            {
+              "lado": "evidence_for",
+              "observation": "blocked_requests passa de cerca de 200 para 9.400",
+              "status": "indeterminado",
+              "reading": "o bloqueio cresce no mesmo bucket, compativel com resposta de protecao",
+              "interpretacao": "revisao_humana"
+            },
+            {
+              "lado": "evidence_against",
+              "observation": "apdex do playback fica entre 0,93 e 0,94",
+              "status": "indeterminado",
+              "reading": "se fosse falha de aplicacao, a experiencia cairia junto",
+              "interpretacao": "revisao_humana"
+            }
+          ]
+        },
+        "lacunas": [
+          {
+            "missing": "a regra do Cloud Armor que disparou os bloqueios",
+            "reason": "fora_do_catalogo"
+          },
+          {
+            "missing": "o vhost exato por tras dos 4xx do RPaaS",
+            "reason": "sem_dado"
+          },
+          {
+            "missing": "amostragem do RPaaS: sample_size perto de 2.100 contra 405 mil requisicoes",
+            "reason": "limite_de_ferramenta"
+          }
+        ],
+        "consultas": 5,
+        "arquivo": "agente-roteiro/casos/caso-02-borda.json"
+      },
+      "motor": {
+        "modo": "funcoes_reais_sem_baseline_historico",
+        "anomalias": 0,
+        "candidatos_prefiltrados": 21,
+        "candidatos_avaliados": 21,
+        "candidatos_truncados": 0,
+        "hipoteses": [
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_player_live",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cloudarmor",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte rpaas",
+            "summary": "O canário classificou a fonte como incomplete; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 46.51851851851851,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_player_live",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_device",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_player",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_device",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cdn_vod_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_player",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_live_active",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_geo",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte apollo",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_error_category",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_error_attr",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cdn_live_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte newrelic",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte origin_live_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_live_qoe",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte tsuru",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte prometheus",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte editorial",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          }
+        ],
+        "fontes_com_qualidade": 21,
+        "slots_de_baseline_apos_caso": 4
+      }
+    },
+    {
+      "case_id": "caso-03-fonte-atrasada",
+      "recorte": {
+        "checkpoint_id": "103",
+        "origin": "synthetic",
+        "sim_now": "2026-08-20T20:15:00+00:00",
+        "input_lsn": 4000,
+        "recorte_id": "synthetic:103:f21ef51161bddac9",
+        "digest": "7d6f5c466892350f530ab9efb235ac35d41d93e0320b857b7446d77683b6a156"
+      },
+      "fatos_visiveis": 35,
+      "agente": {
+        "modo": "roteiro_fixo_sem_modelo",
+        "desfecho": "evidencia_insuficiente",
+        "hipotese": null,
+        "lacunas": [
+          {
+            "missing": "quebra do erro por UF: a serie existe, mas o ultimo dado disponivel e de 19/08",
+            "reason": "ainda_indisponivel"
+          },
+          {
+            "missing": "deploy ou evento operacional na janela",
+            "reason": "sem_dado"
+          },
+          {
+            "missing": "metricas internas do backend, como apdex do playback",
+            "reason": "sem_dado"
+          }
+        ],
+        "consultas": 4,
+        "arquivo": "agente-roteiro/casos/caso-03-fonte-atrasada.json"
+      },
+      "motor": {
+        "modo": "funcoes_reais_sem_baseline_historico",
+        "anomalias": 0,
+        "candidatos_prefiltrados": 21,
+        "candidatos_avaliados": 21,
+        "candidatos_truncados": 0,
+        "hipoteses": [
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_player_live",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cloudarmor",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte rpaas",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_player_live",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_device",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_player",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_device",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cdn_vod_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte youbora_player",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_live_active",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_geo",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte apollo",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_error_category",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_error_attr",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte cdn_live_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte newrelic",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte origin_live_errors",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte npaw_live_qoe",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte tsuru",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte prometheus",
+            "summary": "O canário classificou a fonte como incomplete; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 58.3287419651056,
+            "coverage": 0.5625
+          },
+          {
+            "family": "source_data_delay",
+            "title": "Possível falha ou atraso da fonte editorial",
+            "summary": "O canário classificou a fonte como silent; ausência não será tratada como incidente.",
+            "evaluation_status": "generated",
+            "score": 88.88888888888889,
+            "coverage": 0.5625
+          }
+        ],
+        "fontes_com_qualidade": 21,
+        "slots_de_baseline_apos_caso": 4
+      }
+    }
+  ]
+}

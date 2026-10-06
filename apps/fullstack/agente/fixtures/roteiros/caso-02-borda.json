@@ -1,0 +1,146 @@
+[
+  {
+    "action": "consultar",
+    "rationale": "a borda e onde o usuario bate primeiro",
+    "tool": "consultar_serie",
+    "arguments": {
+      "source": "rpaas",
+      "entity": "playback.video.globo.com",
+      "metric": "http_4xx_rate",
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z"
+    }
+  },
+  {
+    "action": "consultar",
+    "rationale": "ver se a subida de 4xx corresponde a bloqueio",
+    "tool": "consultar_serie",
+    "arguments": {
+      "source": "cloudarmor",
+      "entity": "edge",
+      "metric": "blocked_requests",
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z"
+    }
+  },
+  {
+    "action": "consultar",
+    "rationale": "checar se o backend tambem degrada",
+    "tool": "consultar_serie",
+    "arguments": {
+      "source": "newrelic",
+      "entity": "playback",
+      "metric": "apdex",
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z"
+    }
+  },
+  {
+    "action": "consultar",
+    "rationale": "procurar erro interno no mesmo periodo",
+    "tool": "consultar_serie",
+    "arguments": {
+      "source": "prometheus",
+      "entity": "playback",
+      "metric": "http_5xx_rate",
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z"
+    }
+  },
+  {
+    "action": "consultar",
+    "rationale": "ver se ha evento ao vivo em curso explicando o volume",
+    "tool": "consultar_contexto",
+    "arguments": {
+      "inicio": "2026-08-20T17:00:00Z",
+      "fim": "2026-08-20T20:00:00Z",
+      "entity": "globo",
+      "kinds": [
+        "context"
+      ]
+    }
+  },
+  {
+    "action": "concluir",
+    "rationale": "o efeito fica na borda e nao aparece no backend",
+    "answer": {
+      "statement": "Possivel bloqueio na borda: o 4xx do RPaaS sobe a partir das 19h sem efeito no backend",
+      "scope": {
+        "entity": "playback.video.globo.com"
+      },
+      "effect_start": "2026-08-20T19:00:00Z",
+      "evidence_for": [
+        {
+          "fact_ids": [
+            "e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007",
+            "31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008",
+            "05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009",
+            "cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010"
+          ],
+          "observation": "http_4xx_rate sobe de 1,1% para 6,8% as 19:00",
+          "reading": "o erro visivel ao usuario cresce na borda"
+        },
+        {
+          "fact_ids": [
+            "40e8555a9ca483dfb5ef93c4cd7f234813d157a951a13f05f5695c903e64208f:2020",
+            "684fe643eec2414aebe47e0ac16933cb77a6ce1eec9c5de9a9c3c5383ec72efd:2021",
+            "287532e244b15c248a6033ffa6f754d42e22de36f1d2d2814453f6ec1155db9d:2022",
+            "488847b7ca2a6982a98dfab73c8d641fad238f867d93030a803650d537dacf58:2023"
+          ],
+          "observation": "blocked_requests passa de cerca de 200 para 9.400",
+          "reading": "o bloqueio cresce no mesmo bucket, compativel com resposta de protecao"
+        }
+      ],
+      "evidence_against": [
+        {
+          "fact_ids": [
+            "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033",
+            "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034",
+            "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035",
+            "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036"
+          ],
+          "observation": "apdex do playback fica entre 0,93 e 0,94",
+          "reading": "se fosse falha de aplicacao, a experiencia cairia junto"
+        }
+      ],
+      "gaps": [
+        {
+          "missing": "a regra do Cloud Armor que disparou os bloqueios",
+          "reason": "fora_do_catalogo"
+        },
+        {
+          "missing": "o vhost exato por tras dos 4xx do RPaaS",
+          "reason": "sem_dado"
+        },
+        {
+          "missing": "amostragem do RPaaS: sample_size perto de 2.100 contra 405 mil requisicoes",
+          "reason": "limite_de_ferramenta"
+        }
+      ],
+      "alternativas": [
+        {
+          "explicacao": "bloqueio na borda",
+          "veredito": "sustentada",
+          "fact_ids": [
+            "e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007",
+            "31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008",
+            "05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009",
+            "cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010"
+          ],
+          "observation": "4xx sobe de 1,1% para 6,8% as 19h"
+        },
+        {
+          "explicacao": "falha de aplicacao",
+          "veredito": "refutada",
+          "fact_ids": [
+            "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033",
+            "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034",
+            "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035",
+            "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036"
+          ],
+          "observation": "a experiencia nao cai"
+        }
+      ]
+    }
+  }
+]

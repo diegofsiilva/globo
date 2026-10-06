@@ -81,7 +81,7 @@ def create_app(
         # UM pool para os dois repositorios. Cada execucao concorrente da Lambda
         # e um processo proprio, e dois pools por processo dobrariam o consumo
         # de conexao do RDS sem dobrar a concorrencia real.
-        pool = build_pool(url)
+        pool = build_pool(url, statement_timeout_ms=app.config["STATEMENT_TIMEOUT_MS"])
         app.extensions["db_pool"] = pool
         app.extensions["event_repository"] = repository or PostgresEventRepository(
             pool,

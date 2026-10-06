@@ -1,0 +1,366 @@
+{
+  "case_id": "caso-02-borda",
+  "schema_version": "2.0.0",
+  "criado_em": "2026-10-05T19:58:11.330891+00:00",
+  "recorte": {
+    "checkpoint_id": "102",
+    "origin": "synthetic",
+    "sim_now": "2026-08-20T20:15:00+00:00",
+    "input_lsn": 2200,
+    "recorte_id": "synthetic:102:ae91e7cf3fbb5d5d",
+    "digest": "8883086fe9517a33f37ec38bdee97f34c90c65ce1be2507fbdfbeacb6169225c"
+  },
+  "modelo": {
+    "provedor": "roteiro",
+    "model": "caso-02-borda",
+    "temperatura": 0.0
+  },
+  "prompt_version": "2.2.0",
+  "entrada": "{\"recorte\": {\"recorte_id\": \"synthetic:102:ae91e7cf3fbb5d5d\", \"presente_simulado\": \"2026-08-20T20:15:00+00:00\", \"observacoes_de\": \"2026-08-20T16:20:00+00:00\", \"observacoes_ate\": \"2026-08-20T20:00:00+00:00\", \"nota_de_escopo\": \"janela de 3 h com evento ao vivo em curso\"}, \"ferramentas\": [{\"nome\": \"inventariar_fatos\", \"para_que\": \"listar as series do recorte, com cobertura e indicacao de nulos\", \"argumentos\": {\"limit\": \"opcional, 1 a 200\", \"cursor\": \"opcional, continua a listagem\"}}, {\"nome\": \"consultar_serie\", \"para_que\": \"ler os pontos de uma metrica inventariada em uma janela\", \"argumentos\": {\"source\": \"obrigatorio\", \"entity\": \"obrigatorio\", \"metric\": \"obrigatorio\", \"inicio\": \"obrigatorio, ISO-8601\", \"fim\": \"obrigatorio, ISO-8601\", \"dimension_type\": \"opcional, exige dimension_value junto\", \"dimension_value\": \"opcional, exige dimension_type junto\", \"limit\": \"opcional, 1 a 200\", \"cursor\": \"opcional\"}}, {\"nome\": \"consultar_contexto\", \"para_que\": \"ler fatos de uma fonte ou entidade no periodo, incluindo eventos que comecaram antes da janela e ainda estavam em curso\", \"argumentos\": {\"inicio\": \"obrigatorio, ISO-8601\", \"fim\": \"obrigatorio, ISO-8601\", \"source\": \"informe source ou entity, ao menos um\", \"entity\": \"informe source ou entity, ao menos um\", \"kinds\": \"opcional, subconjunto de [metric, context]\", \"limit\": \"opcional, 1 a 200\", \"cursor\": \"opcional\"}}], \"orcamento\": {\"chamadas_restantes\": 12, \"itens_por_resposta\": 200, \"segundos_restantes\": 300}, \"inventario\": [{\"source\": \"cloudarmor\", \"kind\": \"metric\", \"entity\": \"edge\", \"metric\": \"blocked_requests\", \"count\": 13, \"event_start_min\": \"2026-08-20T17:00:00Z\", \"event_start_max\": \"2026-08-20T20:00:00Z\", \"available_at_min\": \"2026-08-20T17:15:00Z\", \"available_at_max\": \"2026-08-20T20:15:00Z\", \"has_null_value\": false, \"has_null_sample_size\": true, \"group_ref\": \"e4f9e343f681edf451dd721d275f3a7b3fd5a9228952ba9441e5d510d146e913\"}, {\"source\": \"editorial\", \"kind\": \"context\", \"entity\": \"globo\", \"metric\": \"live_event\", \"dimension_type\": \"channel\", \"count\": 1, \"event_start_min\": \"2026-08-20T16:20:00Z\", \"event_start_max\": \"2026-08-20T16:20:00Z\", \"available_at_min\": \"2026-08-20T16:20:00Z\", \"available_at_max\": \"2026-08-20T16:20:00Z\", \"has_null_value\": false, \"has_null_sample_size\": true, \"group_ref\": \"13b8967ac37d2a3e3a16bb3c69ed203a3b5eacacbcf6090d0241cbb4d74c432f\"}, {\"source\": \"newrelic\", \"kind\": \"metric\", \"entity\": \"playback\", \"metric\": \"apdex\", \"count\": 13, \"event_start_min\": \"2026-08-20T17:00:00Z\", \"event_start_max\": \"2026-08-20T20:00:00Z\", \"available_at_min\": \"2026-08-20T17:15:00Z\", \"available_at_max\": \"2026-08-20T20:15:00Z\", \"has_null_value\": false, \"has_null_sample_size\": true, \"group_ref\": \"408f97feddc751c34e504fef1e4694b4b5aee8d3894a957c20e1a6963201ea4a\"}, {\"source\": \"prometheus\", \"kind\": \"metric\", \"entity\": \"playback\", \"metric\": \"http_5xx_rate\", \"count\": 13, \"event_start_min\": \"2026-08-20T17:00:00Z\", \"event_start_max\": \"2026-08-20T20:00:00Z\", \"available_at_min\": \"2026-08-20T17:01:00Z\", \"available_at_max\": \"2026-08-20T20:01:00Z\", \"has_null_value\": false, \"has_null_sample_size\": true, \"group_ref\": \"891c7acfc087505703aaf9d1426c9e3c9537cd0b92ca4a70bea7925148b8dd1a\"}, {\"source\": \"rpaas\", \"kind\": \"metric\", \"entity\": \"playback.video.globo.com\", \"metric\": \"http_4xx_rate\", \"count\": 13, \"event_start_min\": \"2026-08-20T17:00:00Z\", \"event_start_max\": \"2026-08-20T20:00:00Z\", \"available_at_min\": \"2026-08-20T17:15:00Z\", \"available_at_max\": \"2026-08-20T20:15:00Z\", \"has_null_value\": false, \"has_null_sample_size\": false, \"group_ref\": \"bb8ca7674e765a709cd529214afc44bf5597f6457c0bcaee24631c9f08ac581f\"}, {\"source\": \"rpaas\", \"kind\": \"metric\", \"entity\": \"playback.video.globo.com\", \"metric\": \"requests_total\", \"count\": 13, \"event_start_min\": \"2026-08-20T17:00:00Z\", \"event_start_max\": \"2026-08-20T20:00:00Z\", \"available_at_min\": \"2026-08-20T17:15:00Z\", \"available_at_max\": \"2026-08-20T20:15:00Z\", \"has_null_value\": false, \"has_null_sample_size\": false, \"group_ref\": \"cca8b6e43a130e3eb6db3b1c56f6b5e4f1e84e752c6b68ffe73b396986e0782b\"}, {\"source\": \"tsuru\", \"kind\": \"context\", \"entity\": \"busca\", \"metric\": \"deploy\", \"count\": 1, \"event_start_min\": \"2026-08-20T18:50:00Z\", \"event_start_max\": \"2026-08-20T18:50:00Z\", \"available_at_min\": \"2026-08-20T18:52:00Z\", \"available_at_max\": \"2026-08-20T18:52:00Z\", \"has_null_value\": false, \"has_null_sample_size\": true, \"group_ref\": \"9c844b25ab9aaa5a6c987b4f95a22dfa2ce9ebd25db75d1d25377148829a0e85\"}]}",
+  "desfecho": "hipotese",
+  "hipotese": {
+    "statement": "Possivel bloqueio na borda: o 4xx do RPaaS sobe a partir das 19h sem efeito no backend",
+    "scope": {
+      "entity": "playback.video.globo.com"
+    },
+    "evidence_for": [
+      {
+        "fact_ids": [
+          "e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007",
+          "31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008",
+          "05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009",
+          "cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010"
+        ],
+        "observation": "http_4xx_rate sobe de 1,1% para 6,8% as 19:00",
+        "reading": "o erro visivel ao usuario cresce na borda"
+      },
+      {
+        "fact_ids": [
+          "40e8555a9ca483dfb5ef93c4cd7f234813d157a951a13f05f5695c903e64208f:2020",
+          "684fe643eec2414aebe47e0ac16933cb77a6ce1eec9c5de9a9c3c5383ec72efd:2021",
+          "287532e244b15c248a6033ffa6f754d42e22de36f1d2d2814453f6ec1155db9d:2022",
+          "488847b7ca2a6982a98dfab73c8d641fad238f867d93030a803650d537dacf58:2023"
+        ],
+        "observation": "blocked_requests passa de cerca de 200 para 9.400",
+        "reading": "o bloqueio cresce no mesmo bucket, compativel com resposta de protecao"
+      }
+    ],
+    "evidence_against": [
+      {
+        "fact_ids": [
+          "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033",
+          "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034",
+          "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035",
+          "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036"
+        ],
+        "observation": "apdex do playback fica entre 0,93 e 0,94",
+        "reading": "se fosse falha de aplicacao, a experiencia cairia junto"
+      }
+    ],
+    "alternativas": [
+      {
+        "explicacao": "bloqueio na borda",
+        "veredito": "sustentada",
+        "fact_ids": [
+          "e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007",
+          "31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008",
+          "05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009",
+          "cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010"
+        ],
+        "observation": "4xx sobe de 1,1% para 6,8% as 19h"
+      },
+      {
+        "explicacao": "falha de aplicacao",
+        "veredito": "refutada",
+        "fact_ids": [
+          "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033",
+          "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034",
+          "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035",
+          "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036"
+        ],
+        "observation": "a experiencia nao cai"
+      }
+    ],
+    "gaps": [
+      {
+        "missing": "a regra do Cloud Armor que disparou os bloqueios",
+        "reason": "fora_do_catalogo"
+      },
+      {
+        "missing": "o vhost exato por tras dos 4xx do RPaaS",
+        "reason": "sem_dado"
+      },
+      {
+        "missing": "amostragem do RPaaS: sample_size perto de 2.100 contra 405 mil requisicoes",
+        "reason": "limite_de_ferramenta"
+      }
+    ],
+    "effect_start": "2026-08-20T19:00:00+00:00",
+    "checagens": [
+      {
+        "lado": "evidence_for",
+        "observation": "http_4xx_rate sobe de 1,1% para 6,8% as 19:00",
+        "status": "coerente_com_citacoes",
+        "reading": "o erro visivel ao usuario cresce na borda",
+        "interpretacao": "revisao_humana",
+        "serie": "rpaas/http_4xx_rate",
+        "antes": 1.2,
+        "depois": 7.1,
+        "variacao": 4.9167,
+        "direcao_afirmada": "alta",
+        "direcao_medida": "alta"
+      },
+      {
+        "lado": "evidence_for",
+        "observation": "blocked_requests passa de cerca de 200 para 9.400",
+        "status": "indeterminado",
+        "reading": "o bloqueio cresce no mesmo bucket, compativel com resposta de protecao",
+        "interpretacao": "revisao_humana"
+      },
+      {
+        "lado": "evidence_against",
+        "observation": "apdex do playback fica entre 0,93 e 0,94",
+        "status": "indeterminado",
+        "reading": "se fosse falha de aplicacao, a experiencia cairia junto",
+        "interpretacao": "revisao_humana"
+      }
+    ]
+  },
+  "lacunas": [
+    {
+      "missing": "a regra do Cloud Armor que disparou os bloqueios",
+      "reason": "fora_do_catalogo"
+    },
+    {
+      "missing": "o vhost exato por tras dos 4xx do RPaaS",
+      "reason": "sem_dado"
+    },
+    {
+      "missing": "amostragem do RPaaS: sample_size perto de 2.100 contra 405 mil requisicoes",
+      "reason": "limite_de_ferramenta"
+    }
+  ],
+  "consultas": [
+    {
+      "ordem": 1,
+      "ferramenta": "consultar_serie",
+      "argumentos": {
+        "source": "rpaas",
+        "entity": "playback.video.globo.com",
+        "metric": "http_4xx_rate",
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "limit": 200
+      },
+      "retornadas": 13,
+      "fact_ids": [
+        "cdf2dee2e418ac2fae0c72b402107d42550493acd196c96499b50d0eaab75434:2000",
+        "850f6583135f658837d22682ab5bdb038cb4ffac2d27c2e3e7c05812d10d4a68:2001",
+        "359f40f46ce00c98fe21c39c4288044a53e1fa5238d90d2f009d969421d7201d:2002",
+        "a2fde8fdfaefd3d0ec83dedd8251f2b87ef41bb77bbed88e186fed6429c60529:2003",
+        "4a6f1171bc1d79a0abebb8c8a09f3c1e042904a826b8f0eba2d889ec2a1d7eff:2004",
+        "bd715e175b3c0590b92a951d9baaef8b069702818eb28922353d1a369a7761e3:2005",
+        "3bf04e0f9e8f93b477794477c618032510745ab11d8c11bdfe4d7595d2564db8:2006",
+        "e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007",
+        "31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008",
+        "05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009",
+        "cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010",
+        "b2362a2ab17984e055e713173fe6b713412d25682b02d9e7460c890c081dd4ea:2011",
+        "5f7e54c0704f2ca2aa580adbbce4045f5e08e49065ba0335a0098db0a01572b8:2012"
+      ],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [],
+      "erro": null
+    },
+    {
+      "ordem": 2,
+      "ferramenta": "consultar_serie",
+      "argumentos": {
+        "source": "cloudarmor",
+        "entity": "edge",
+        "metric": "blocked_requests",
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "limit": 200
+      },
+      "retornadas": 13,
+      "fact_ids": [
+        "2d5d2a6f03b9b33018bb1b5deb0aa0d29ee207664ecc437d4a7e749f778a3bac:2013",
+        "7a3b1e73a624a000c77dfee9565d3f4220ddf5500b7d214a1f735e7075d9a2ea:2014",
+        "c96a131fa3ba98d2a8d8827bb6bc9ecf7d128cb83204c2fcb1a42173e368ba72:2015",
+        "784168f8421938e57e614fc3c57ffc994444073eb2f7ff930e7de1bca8b4882b:2016",
+        "c4a2641bc1f28431c047ee42f34ce5686963f80a653b0651abb683e0a20dc4ff:2017",
+        "c31de690f1c5eef0e497e2c41b04fa866c6bd8f2b8a7efdc643f3f162ac6d20d:2018",
+        "32102ec1431567f6c46feb7896050b5d4a0b4c588b924c4b3bc7613fc5043265:2019",
+        "40e8555a9ca483dfb5ef93c4cd7f234813d157a951a13f05f5695c903e64208f:2020",
+        "684fe643eec2414aebe47e0ac16933cb77a6ce1eec9c5de9a9c3c5383ec72efd:2021",
+        "287532e244b15c248a6033ffa6f754d42e22de36f1d2d2814453f6ec1155db9d:2022",
+        "488847b7ca2a6982a98dfab73c8d641fad238f867d93030a803650d537dacf58:2023",
+        "8defbc89092e3522d1a90c14772f8d635c71edf602fd9601a812527412c5c381:2024",
+        "7df7a70916d36d0109df8d1f2e9cf70600e373bd7f69b76804393d2e40b707a0:2025"
+      ],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [],
+      "erro": null
+    },
+    {
+      "ordem": 3,
+      "ferramenta": "consultar_serie",
+      "argumentos": {
+        "source": "newrelic",
+        "entity": "playback",
+        "metric": "apdex",
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "limit": 200
+      },
+      "retornadas": 13,
+      "fact_ids": [
+        "01a6d9746e2abfa6b0a7272020ad4ab013890499d502275b62587e422604f7fd:2026",
+        "5acaeb413fd9479264d60b449ddebe928f60f9d120bae441996323d79649359d:2027",
+        "7b866631b37c74442b0e9f9a474ad21c15aaf0db76ad731997201d836aabf20e:2028",
+        "9c9419e0bc327fc82c102ecc471679af63b14996a3889bacda4a62f2556eb17f:2029",
+        "19ea5df114657d7dc1953ace53966e0d5fab2674929ab7bcfb8ffe1436f13a42:2030",
+        "e6d8cb65c3333e6a796bd79a95c1b1364475cd4fa790405751e19fc099be91ba:2031",
+        "7f08039c3124e616517ceef4cfca877d342c3607b0c3ab9ed4a98197dbc371ee:2032",
+        "121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033",
+        "cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034",
+        "9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035",
+        "16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036",
+        "bfd28a6c75bc4ff3afa327e937a22f38dcce11d790da32d6be456aa3d0f3573b:2037",
+        "90214ba1c2a99a3f6447f0b66a3b42c21a4894980b45ce853d5599f503bb4f92:2038"
+      ],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [],
+      "erro": null
+    },
+    {
+      "ordem": 4,
+      "ferramenta": "consultar_serie",
+      "argumentos": {
+        "source": "prometheus",
+        "entity": "playback",
+        "metric": "http_5xx_rate",
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "limit": 200
+      },
+      "retornadas": 13,
+      "fact_ids": [
+        "19bac7d804ff021349c0e15f8a3ff5c68ada06eadd8aa4cb66ae8906ac489570:2039",
+        "49435d34e4b14551aa09f5efe007bfac30ea57b89470ca87006383db3a5ea4da:2040",
+        "378a77cf2a936c80aec8b090808711ccf55c10aacd82c411fb3767c74d7aa5b2:2041",
+        "ad27ca2612a2505b3d4f964bef132383c865da37f66873dd81c874c0b5e0d72c:2042",
+        "83a2552d0fc1948c9b8a6cdbd37a616f81ae78bb6604b359a9eb12bf845cd757:2043",
+        "7962e77d6a4337a773e4d7812c39e9a30bb88928b8708f1dea7a1ff86cc1943e:2044",
+        "1951e869316193edf900fa699357cc7300d479d40bb34080c839830e0431b4cf:2045",
+        "02c17fff73ce56606e5e24d75870967a9394fe4ce95934a22562282930e59a94:2046",
+        "ca0b21f889911fb411d2fdc3009b56e1af1ba1ac29c696cfb07426031e70bf0f:2047",
+        "6dbdfe3a90038e89931749f391bf4c4b218253d455023959b6a6e57303ea8d13:2048",
+        "ef0899667ae481222575ce311a45809c4ca826f9ccff1ae25973f38093359e8e:2049",
+        "3ab38286fcb7cecd81d48a882d3107dbcfcca4d88999fadface44371736abdbb:2050",
+        "e8f55f9d798ddb4a1c0d37d6fa513879605eed218880441c1b1432fa5a4ff678:2051"
+      ],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [],
+      "erro": null
+    },
+    {
+      "ordem": 5,
+      "ferramenta": "consultar_contexto",
+      "argumentos": {
+        "inicio": "2026-08-20T17:00:00Z",
+        "fim": "2026-08-20T20:00:00Z",
+        "entity": "globo",
+        "kinds": [
+          "context"
+        ],
+        "limit": 200
+      },
+      "retornadas": 1,
+      "fact_ids": [
+        "414ccfd38ba84f454e0bb3f2b008dae443b4bf4669739f7838fb2889dcff7e0f:2110"
+      ],
+      "duracao_ms": 0,
+      "tem_mais": false,
+      "limitacoes": [],
+      "erro": null
+    }
+  ],
+  "passos": [
+    {
+      "ordem": 1,
+      "acao": "consultar",
+      "rationale": "a borda e onde o usuario bate primeiro",
+      "problemas": [],
+      "segundos": 0.0,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"a borda e onde o usuario bate primeiro\", \"tool\": \"consultar_serie\", \"arguments\": {\"source\": \"rpaas\", \"entity\": \"playback.video.globo.com\", \"metric\": \"http_4xx_rate\", \"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\"}}"
+    },
+    {
+      "ordem": 2,
+      "acao": "consultar",
+      "rationale": "ver se a subida de 4xx corresponde a bloqueio",
+      "problemas": [],
+      "segundos": 0.0,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"ver se a subida de 4xx corresponde a bloqueio\", \"tool\": \"consultar_serie\", \"arguments\": {\"source\": \"cloudarmor\", \"entity\": \"edge\", \"metric\": \"blocked_requests\", \"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\"}}"
+    },
+    {
+      "ordem": 3,
+      "acao": "consultar",
+      "rationale": "checar se o backend tambem degrada",
+      "problemas": [],
+      "segundos": 0.0,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"checar se o backend tambem degrada\", \"tool\": \"consultar_serie\", \"arguments\": {\"source\": \"newrelic\", \"entity\": \"playback\", \"metric\": \"apdex\", \"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\"}}"
+    },
+    {
+      "ordem": 4,
+      "acao": "consultar",
+      "rationale": "procurar erro interno no mesmo periodo",
+      "problemas": [],
+      "segundos": 0.001,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"procurar erro interno no mesmo periodo\", \"tool\": \"consultar_serie\", \"arguments\": {\"source\": \"prometheus\", \"entity\": \"playback\", \"metric\": \"http_5xx_rate\", \"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\"}}"
+    },
+    {
+      "ordem": 5,
+      "acao": "consultar",
+      "rationale": "ver se ha evento ao vivo em curso explicando o volume",
+      "problemas": [],
+      "segundos": 0.001,
+      "saida_bruta": "{\"action\": \"consultar\", \"rationale\": \"ver se ha evento ao vivo em curso explicando o volume\", \"tool\": \"consultar_contexto\", \"arguments\": {\"inicio\": \"2026-08-20T17:00:00Z\", \"fim\": \"2026-08-20T20:00:00Z\", \"entity\": \"globo\", \"kinds\": [\"context\"]}}"
+    },
+    {
+      "ordem": 6,
+      "acao": "concluir",
+      "rationale": "o efeito fica na borda e nao aparece no backend",
+      "problemas": [],
+      "segundos": 0.001,
+      "saida_bruta": "{\"action\": \"concluir\", \"rationale\": \"o efeito fica na borda e nao aparece no backend\", \"answer\": {\"statement\": \"Possivel bloqueio na borda: o 4xx do RPaaS sobe a partir das 19h sem efeito no backend\", \"scope\": {\"entity\": \"playback.video.globo.com\"}, \"effect_start\": \"2026-08-20T19:00:00Z\", \"evidence_for\": [{\"fact_ids\": [\"e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007\", \"31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008\", \"05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009\", \"cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010\"], \"observation\": \"http_4xx_rate sobe de 1,1% para 6,8% as 19:00\", \"reading\": \"o erro visivel ao usuario cresce na borda\"}, {\"fact_ids\": [\"40e8555a9ca483dfb5ef93c4cd7f234813d157a951a13f05f5695c903e64208f:2020\", \"684fe643eec2414aebe47e0ac16933cb77a6ce1eec9c5de9a9c3c5383ec72efd:2021\", \"287532e244b15c248a6033ffa6f754d42e22de36f1d2d2814453f6ec1155db9d:2022\", \"488847b7ca2a6982a98dfab73c8d641fad238f867d93030a803650d537dacf58:2023\"], \"observation\": \"blocked_requests passa de cerca de 200 para 9.400\", \"reading\": \"o bloqueio cresce no mesmo bucket, compativel com resposta de protecao\"}], \"evidence_against\": [{\"fact_ids\": [\"121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033\", \"cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034\", \"9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035\", \"16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036\"], \"observation\": \"apdex do playback fica entre 0,93 e 0,94\", \"reading\": \"se fosse falha de aplicacao, a experiencia cairia junto\"}], \"gaps\": [{\"missing\": \"a regra do Cloud Armor que disparou os bloqueios\", \"reason\": \"fora_do_catalogo\"}, {\"missing\": \"o vhost exato por tras dos 4xx do RPaaS\", \"reason\": \"sem_dado\"}, {\"missing\": \"amostragem do RPaaS: sample_size perto de 2.100 contra 405 mil requisicoes\", \"reason\": \"limite_de_ferramenta\"}], \"alternativas\": [{\"explicacao\": \"bloqueio na borda\", \"veredito\": \"sustentada\", \"fact_ids\": [\"e5aa9d77d6346f6bdb4b7b6b488d23e25eeaf0808d5eeb4a5d61c1ba9af8b78e:2007\", \"31516b3ba4b8a3bb353ab70bc589eab31bfb457277fe97b8e60d5e2e59a27ee3:2008\", \"05b6bc4c1176c2d685eb3901728006cd4f01333a99f0c90d1c62f5f9b45b769f:2009\", \"cea5b63b44209123948ab25c0410c54af4adf881f283cefde7986eda86a665ff:2010\"], \"observation\": \"4xx sobe de 1,1% para 6,8% as 19h\"}, {\"explicacao\": \"falha de aplicacao\", \"veredito\": \"refutada\", \"fact_ids\": [\"121d1d7587f0ce0d892fd86309f9d810869b0c946daeae5847bee99b7c161f6b:2033\", \"cc0d95c29800695477da494b58e0aaf2984970f26d1536d66dbee5de8357c64c:2034\", \"9dabc3279347c5273236eebbe1e67ddfa896fde53959d24bcc271c738bc8f14a:2035\", \"16473b3534700bc0f46e0814f39e2b08bd0bcfbd3acc19c1edba13b77539305e:2036\"], \"observation\": \"a experiencia nao cai\"}]}}"
+    }
+  ],
+  "validacao": {
+    "aprovado": true,
+    "avisos": []
+  },
+  "metricas": {
+    "orcamento": {
+      "max_chamadas": 12,
+      "max_itens_por_resposta": 200,
+      "max_segundos": 300.0,
+      "max_passos_invalidos": 1
+    },
+    "consumo": {
+      "chamadas": 5,
+      "itens": 53,
+      "passos": 6,
+      "passos_invalidos": 0,
+      "segundos": 0.001
+    },
+    "fatos_vistos": 53
+  },
+  "contestada": true,
+  "motivo": null
+}

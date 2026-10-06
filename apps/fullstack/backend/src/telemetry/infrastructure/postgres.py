@@ -655,7 +655,13 @@ def _decode_cursor(cursor: str | None) -> dict | None:
 # --------------------------------------------------------------------------- #
 
 
-def build_pool(database_url: str, *, min_size: int = 0, max_size: int = 2) -> ConnectionPool:
+def build_pool(
+    database_url: str,
+    *,
+    min_size: int = 0,
+    max_size: int = 2,
+    statement_timeout_ms: int = 15_000,
+) -> ConnectionPool:
     """Abre o pool de conexao da Lambda.
 
     `min_size=0` e proposital, e e o oposto do que se faz num worker: uma Lambda
@@ -671,6 +677,9 @@ def build_pool(database_url: str, *, min_size: int = 0, max_size: int = 2) -> Co
         database_url (str): DSN de conexao.
         min_size (int): Conexoes ociosas mantidas.
         max_size (int): Teto de conexoes por processo.
+        statement_timeout_ms (int): Teto de duracao de uma consulta. O padrao
+            serve a Lambda; o EKS, que nao tem o teto de 30 s dela, eleva o
+            valor pelo ambiente (ver `Config.STATEMENT_TIMEOUT_MS`).
 
     Returns:
         ConnectionPool: Pool aberto.
@@ -688,9 +697,10 @@ def build_pool(database_url: str, *, min_size: int = 0, max_size: int = 2) -> Co
             "autocommit": True,
             # JIT em CTE de 4,9 M linhas adiciona segundos no PRIMEIRO plano
             # (o caso da Lambda fria). work_mem maior evita hash/sort spilling
-            # para disco no t3.medium. statement_timeout abaixo dos 30 s da
-            # Lambda devolve 500 legivel em vez de 502 do API Gateway.
-            "options": "-c jit=off -c statement_timeout=15000 -c work_mem=64MB",
+            # para disco no t3.medium.
+            "options": (
+                f"-c jit=off -c statement_timeout={statement_timeout_ms} -c work_mem=64MB"
+            ),
         },
         check=ConnectionPool.check_connection,
     )
