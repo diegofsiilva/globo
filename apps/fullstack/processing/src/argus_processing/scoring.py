@@ -14,7 +14,23 @@ def score_features(
     *,
     contradiction: float,
 ) -> tuple[float, float, str, tuple[Feature, ...]]:
-    """Calcula score normalizado sem converter ausencia em zero."""
+    """Calcula score, cobertura e confiança a partir das features disponíveis.
+
+    Cada feature aplicável contribui com seu peso proporcional ao valor
+    normalizado entre zero e um. Features indisponíveis não viram zero: elas
+    reduzem a cobertura, enquanto features não aplicáveis saem do denominador.
+    A contradição reduz o score e também limita a confiança.
+
+    Args:
+        values: Mapa de identificador da feature para aplicabilidade, valor
+            opcional e explicação que será preservada no resultado.
+        contradiction: Força agregada das evidências contrárias, no intervalo
+            esperado de zero a um.
+
+    Returns:
+        Tupla com score de zero a cem, cobertura de zero a um, nível de
+        confiança e detalhamento das features com suas contribuições.
+    """
     available_weight = 0.0
     applicable_weight = 0.0
     weighted = 0.0
