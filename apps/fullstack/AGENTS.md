@@ -35,10 +35,13 @@ o `../../README.md` é a documentação para humanos.
    aborta quando o arquivo muda. Alteração de schema = novo arquivo
    `NNN_nome.sql`. `016_gold_checkpoint.sql` e `017_analysis_coordination.sql`
    são baseline congelado.
-6. **Leitura só através das views `v_*`.** O usuário `argus_reader` tem `SELECT`
-   apenas nas views, e toda view filtra `available_at <= sim.now()`. Uma consulta
-   escrita contra tabela base falha por permissão negada — isso é a barreira que
-   impede vazamento de futuro, não um descuido de `GRANT`.
+6. **A API pública lê através das views `v_*`.** O usuário `argus_reader` tem
+   `SELECT` apenas nas views, que aplicam o corte temporal; uma consulta da API
+   contra tabela base falha por permissão negada. O piloto offline em `agente/`
+   é uma exceção local: `banco.py` lê versões históricas por `input_lsn` e
+   `scripts/exportar_run_local.py` lê a entrada capturada de um run. Eles usam
+   conexão operacional somente no PostgreSQL local, transação `READ ONLY` e
+   corte temporal explícito. Não reutilize essa exceção em API ou deploy.
 7. **Os testes rodam contra um PostgreSQL de verdade** (`make -C apps/fullstack
    db-local`, porta 55432). Não troque o banco por dublê: a parte difícil deste
    sistema é o SQL. Sem o banco no ar, os testes que dependem dele são *pulados*,

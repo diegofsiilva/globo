@@ -8,7 +8,7 @@ modelo configurado em OLLAMA_* -- e mede onde o modelo diverge do roteiro.
 E barato de repetir, entao serve para comparar modelos e versoes de prompt sem
 precisar do checkpoint reconstruido do PostgreSQL. As divergencias saem no
 codigo de saida: o processo termina em 1 se algum caso nao chegou ao desfecho
-esperado, para que o alvo sirva de porteira em iteracao.
+esperado. Coincidencia de desfecho nao valida a causa nem as evidencias.
 """
 
 from __future__ import annotations
@@ -117,14 +117,14 @@ def _linha(case_id: str, esperado: RegistroDoCaso, obtido: RegistroDoCaso) -> di
         obtido (RegistroDoCaso): Resultado do modelo configurado.
 
     Returns:
-        dict: Campos comparaveis, com o veredito `acertou`.
+        dict: Campos comparaveis, com a coincidencia de desfecho.
     """
     consumo = obtido.metricas.get("consumo", {})
     return {
         "case_id": case_id,
         "desfecho_esperado": esperado.desfecho,
         "desfecho_obtido": obtido.desfecho,
-        "acertou": obtido.desfecho == esperado.desfecho,
+        "desfecho_correto": obtido.desfecho == esperado.desfecho,
         "chamadas": consumo.get("chamadas", 0),
         "chamadas_invalidas": _chamadas_invalidas(obtido),
         "passos_invalidos": consumo.get("passos_invalidos", 0),
@@ -144,16 +144,19 @@ def _imprimir(linhas: list[dict], identidade: dict) -> None:
         identidade (dict): Identidade do modelo avaliado.
     """
     print(f"\nModelo avaliado: {identidade}\n")
-    print("| Caso | Esperado | Obtido | Acertou | Chamadas | Invalidas | Fatos |")
+    print(
+        "| Caso | Esperado | Obtido | Desfecho correto | Chamadas | Invalidas | Fatos |"
+    )
     print("|---|---|---|---|---|---|---|")
     for linha in linhas:
         print(
             f"| {linha['case_id']} | {linha['desfecho_esperado']} "
-            f"| {linha['desfecho_obtido']} | {'sim' if linha['acertou'] else 'NAO'} "
+            f"| {linha['desfecho_obtido']} "
+            f"| {'sim' if linha['desfecho_correto'] else 'NAO'} "
             f"| {linha['chamadas']} | {linha['chamadas_invalidas']} "
             f"| {linha['fatos_vistos']} |"
         )
-    acertos = sum(1 for linha in linhas if linha["acertou"])
+    acertos = sum(1 for linha in linhas if linha["desfecho_correto"])
     invalidas = sum(linha["chamadas_invalidas"] for linha in linhas)
     print(
         f"\n{acertos}/{len(linhas)} casos no desfecho esperado; "
@@ -233,8 +236,8 @@ def main(argv: list[str] | None = None) -> int:
                 "tipo": "eval_offline_modelo_vs_roteiro",
                 "modelo": identidade,
                 "nota": (
-                    "roteiro = trajetoria-ouro; o modelo e comparado a ela nos "
-                    "mesmos casos sinteticos, sem banco nem motor"
+                    "roteiro = trajetoria-ouro; compara-se somente o desfecho "
+                    "nos mesmos casos sinteticos, sem validar causa ou evidencias"
                 ),
                 "casos": linhas,
             },
@@ -246,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"\nresumo em {saida / 'resultado.json'}")
 
-    return 0 if all(linha["acertou"] for linha in linhas) else 1
+    return 0 if all(linha["desfecho_correto"] for linha in linhas) else 1
 
 
 if __name__ == "__main__":

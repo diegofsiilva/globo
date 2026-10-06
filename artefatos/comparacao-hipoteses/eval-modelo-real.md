@@ -34,6 +34,10 @@ argumento errado), os passos em formato inválido e a trajetória completa, com 
 consulta e a hipótese. O processo termina com código de erro se algum caso não
 chegou ao desfecho esperado, então o alvo serve de porteira em iteração.
 
+O campo `desfecho_correto` mede somente se ambos terminaram como hipótese ou
+evidência insuficiente. Ele não mede se a causa, as evidências ou a trajetória
+coincidem; esses elementos continuam exigindo revisão do JSON de cada caso.
+
 ```bash
 make -C apps/fullstack agente-eval       # avalia o modelo real do .env
 make -C apps/fullstack agente-eval-seco  # ensaio seco: roteiro dos dois lados

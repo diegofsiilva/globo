@@ -11,9 +11,9 @@ import os
 from pathlib import Path
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
 from psycopg.rows import dict_row
 
+from argus_agente.banco import exigir_banco_local
 from argus_agente.leitor import CaseReader
 
 
@@ -24,8 +24,7 @@ def main() -> None:
     parser.add_argument("--saida", type=Path, required=True)
     args = parser.parse_args()
     url = os.environ["DATABASE_URL"]
-    if conninfo_to_dict(url).get("host") not in {"localhost", "127.0.0.1", "::1"}:
-        raise ValueError("exportacao permitida apenas no PostgreSQL local")
+    exigir_banco_local(url)
     with psycopg.connect(url, row_factory=dict_row) as conn, conn.transaction():
         conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         run = conn.execute(

@@ -28,6 +28,10 @@ de `../processing`. Leia `README.md` para rodar e
    aceite esses campos vindos da resposta do modelo.
 6. **Credencial não entra no repositório.** As chaves `OLLAMA_*` saem do
    `apps/fullstack/.env`, que é gitignored.
+   A leitura de checkpoint e a exportação de run usam `DATABASE_URL` operacional
+   apenas no PostgreSQL local. `argus_reader` não tem acesso às tabelas históricas;
+   esse acesso é uma exceção offline à regra das views da API. Preserve a
+   transação `READ ONLY`, o corte por `sim_now`/`input_lsn` e o limite de host.
 7. **Toda saída possível do ciclo vira um `desfecho` gravado.** Ao acrescentar
    um caminho de término, acrescente também o desfecho correspondente em
    `contrato.py` e o rótulo em `registro.py`.

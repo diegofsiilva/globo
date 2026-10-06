@@ -33,6 +33,13 @@ precisa de modelo, de rede nem de banco, e serve para verificar o ciclo inteiro
 numa máquina qualquer. O resultado vai para `saidas/lote-ensaio/`, que é
 gitignored.
 
+`agente-investigar-banco` e a exportação de um run são operações offline no
+PostgreSQL local. Precisam de `DATABASE_URL` com leitura operacional de `etl`,
+`silver` e, na exportação, `detect`; o papel `argus_reader` da API não lê essas
+tabelas. As consultas rodam em transação `READ ONLY` e aplicam o corte temporal
+do checkpoint antes de entregar fatos ao modelo. Essa exceção não se aplica à
+API nem ao banco publicado.
+
 Para usar o modelo de verdade, as chaves `OLLAMA_*` precisam estar no
 `apps/fullstack/.env` — as mesmas que o backend já usa, listadas em
 `.env.example`. Nenhuma credencial entra no repositório.

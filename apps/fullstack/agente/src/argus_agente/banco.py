@@ -18,6 +18,23 @@ from argus_agente.leitor import CaseReader
 
 MAX_FACTS = 10_000
 
+
+def exigir_banco_local(database_url: str) -> None:
+    """Recusa destino remoto, inclusive `hostaddr` que prevalece sobre `host`.
+
+    Args:
+        database_url (str): String de conexao libpq.
+
+    Raises:
+        ValueError: Se o destino nao for o PostgreSQL local.
+    """
+    destino = conninfo_to_dict(database_url)
+    if destino.get("host") not in {"localhost", "127.0.0.1", "::1"} or destino.get(
+        "hostaddr"
+    ):
+        raise ValueError("o piloto aceita apenas PostgreSQL local")
+
+
 FACTS_SQL = """
 WITH latest AS (
   SELECT DISTINCT ON (fact_key)
@@ -74,9 +91,7 @@ def load_checkpoint(
         raise ValueError("lookback_minutes deve estar entre 1 e 1440")
     if not 1 <= max_facts <= MAX_FACTS:
         raise ValueError("max_facts deve estar entre 1 e 10000")
-    host = conninfo_to_dict(database_url).get("host")
-    if host not in {"localhost", "127.0.0.1", "::1"}:
-        raise ValueError("o piloto aceita apenas PostgreSQL local")
+    exigir_banco_local(database_url)
     with (
         psycopg.connect(
             database_url, connect_timeout=10, autocommit=True, row_factory=dict_row
