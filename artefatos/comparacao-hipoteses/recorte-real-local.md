@@ -48,6 +48,15 @@ lacuna **contradiz o recorte**: há 1.541 fatos de 4xx nele, e 200 foram
 devolvidos ao agente. A revisão da hipótese deve mostrar esse erro de
 investigação, em vez de exibir a desistência como ausência comprovada de dados.
 
+> **Nota de 06/10/2026.** Esse desfecho é anterior às correções descritas em
+> [eval-modelo-real.md](eval-modelo-real.md): o prompt agora diz que
+> `inventariar_fatos` só aceita `limit`/`cursor`, um freio encerra a repetição de
+> chamada inválida, e nos casos sintéticos o agente com o modelo real passou a
+> investigar e concluir. O erro de investigação registrado acima tende a não se
+> repetir, mas **esta comparação em dados reais ainda não foi reexecutada** — o
+> resultado do agente desta tabela é o de antes das correções. Para uma leitura
+> atual, é preciso recarregar o recorte do banco local e rodar o agente de novo.
+
 O motor gerou quatro hipóteses operacionais `backend_internal` e vinte de
 qualidade de fonte. Isso é a saída observada do run reconstruído, não uma
 medida de acerto. Não foi feita validação da causa com rótulos de incidente;
