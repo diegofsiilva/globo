@@ -1,0 +1,544 @@
+{
+  "schema_version": 1,
+  "label": "2026-10-06-aws",
+  "method": {
+    "rounds": 3,
+    "samples_per_stage_language_workload": 150,
+    "total_samples": 7500,
+    "statistics": "mediana das amostras concatenadas; p95 nearest rank; RSS máximo dos três processos",
+    "environment": "três rodadas sequenciais na mesma EC2; processos novos por carga/linguagem",
+    "decision_threshold": null
+  },
+  "input_files_sha256": {
+    "rodada-01/resultados.json": "9399fd8c5eb465964c096ae0594e8ea7c3a71db0bcf8184cb0bdb9f1852eb0ea",
+    "rodada-02/resultados.json": "aa2483a3627c34e573ca89d01dfd2e7110349ec510e28c5519f50ad7de183194",
+    "rodada-03/resultados.json": "3da1f4221557bba0ca9c66502dd42f699bfe2369d2134a2b52bcd0bf70b9086a"
+  },
+  "workloads": [
+    {
+      "id": "ciclo_misto_v1",
+      "facts": 16,
+      "order": [
+        "python",
+        "go"
+      ],
+      "rounds": [
+        {
+          "round": 1,
+          "python_total_median_ms": 1.9552635,
+          "go_total_median_ms": 0.5236495,
+          "median_ratio_python_go": 3.7339164842132
+        },
+        {
+          "round": 2,
+          "python_total_median_ms": 1.964621,
+          "go_total_median_ms": 0.523713,
+          "median_ratio_python_go": 3.751331358969512
+        },
+        {
+          "round": 3,
+          "python_total_median_ms": 1.9849885,
+          "go_total_median_ms": 0.5288355,
+          "median_ratio_python_go": 3.753508416133183
+        }
+      ],
+      "python": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.19115,
+            "p95_ms": 0.19868,
+            "min_ms": 0.189022,
+            "max_ms": 0.23397
+          },
+          "detector": {
+            "median_ms": 0.0979485,
+            "p95_ms": 0.099274,
+            "min_ms": 0.096352,
+            "max_ms": 0.114059
+          },
+          "candidates": {
+            "median_ms": 0.7604785,
+            "p95_ms": 0.778429,
+            "min_ms": 0.750922,
+            "max_ms": 0.817724
+          },
+          "scoring": {
+            "median_ms": 0.8180785,
+            "p95_ms": 0.84675,
+            "min_ms": 0.806081,
+            "max_ms": 0.874574
+          },
+          "total": {
+            "median_ms": 1.972134,
+            "p95_ms": 2.016371,
+            "min_ms": 1.937815,
+            "max_ms": 2.260679
+          }
+        },
+        "max_peak_rss_bytes": 25100288
+      },
+      "go": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.034067,
+            "p95_ms": 0.04443,
+            "min_ms": 0.025535,
+            "max_ms": 0.093982
+          },
+          "detector": {
+            "median_ms": 0.014482,
+            "p95_ms": 0.02194,
+            "min_ms": 0.010864,
+            "max_ms": 0.065879
+          },
+          "candidates": {
+            "median_ms": 0.218169,
+            "p95_ms": 0.247548,
+            "min_ms": 0.209074,
+            "max_ms": 0.284266
+          },
+          "scoring": {
+            "median_ms": 0.245473,
+            "p95_ms": 0.645761,
+            "min_ms": 0.208681,
+            "max_ms": 0.912702
+          },
+          "total": {
+            "median_ms": 0.526329,
+            "p95_ms": 1.032423,
+            "min_ms": 0.475127,
+            "max_ms": 1.344882
+          }
+        },
+        "max_peak_rss_bytes": 9641984
+      },
+      "median_ratio_python_go": {
+        "quality": 5.611001849296973,
+        "detector": 6.763464991023339,
+        "candidates": 3.4857312450439792,
+        "scoring": 3.3326618406097617,
+        "total": 3.7469605512901625
+      }
+    },
+    {
+      "id": "disperso_256",
+      "facts": 256,
+      "order": [
+        "go",
+        "python"
+      ],
+      "rounds": [
+        {
+          "round": 1,
+          "python_total_median_ms": 14.20465,
+          "go_total_median_ms": 5.295724,
+          "median_ratio_python_go": 2.682286690167388
+        },
+        {
+          "round": 2,
+          "python_total_median_ms": 14.3038025,
+          "go_total_median_ms": 5.2530875,
+          "median_ratio_python_go": 2.7229324659069545
+        },
+        {
+          "round": 3,
+          "python_total_median_ms": 14.3953695,
+          "go_total_median_ms": 5.284218,
+          "median_ratio_python_go": 2.724219458773275
+        }
+      ],
+      "python": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.308672,
+            "p95_ms": 0.317957,
+            "min_ms": 0.305796,
+            "max_ms": 0.362715
+          },
+          "detector": {
+            "median_ms": 1.2358135,
+            "p95_ms": 1.270502,
+            "min_ms": 1.219776,
+            "max_ms": 1.44922
+          },
+          "candidates": {
+            "median_ms": 11.704711,
+            "p95_ms": 11.777295,
+            "min_ms": 11.554005,
+            "max_ms": 12.41973
+          },
+          "scoring": {
+            "median_ms": 0.8196465,
+            "p95_ms": 0.841992,
+            "min_ms": 0.806048,
+            "max_ms": 0.918597
+          },
+          "total": {
+            "median_ms": 14.3041595,
+            "p95_ms": 14.464126,
+            "min_ms": 14.148104,
+            "max_ms": 14.544143
+          }
+        },
+        "max_peak_rss_bytes": 25624576
+      },
+      "go": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.059946,
+            "p95_ms": 0.071113,
+            "min_ms": 0.050519,
+            "max_ms": 0.120656
+          },
+          "detector": {
+            "median_ms": 0.2363645,
+            "p95_ms": 0.745716,
+            "min_ms": 0.207458,
+            "max_ms": 1.277789
+          },
+          "candidates": {
+            "median_ms": 4.5982735,
+            "p95_ms": 5.646823,
+            "min_ms": 4.388919,
+            "max_ms": 5.945481
+          },
+          "scoring": {
+            "median_ms": 0.2486515,
+            "p95_ms": 0.594676,
+            "min_ms": 0.212028,
+            "max_ms": 0.735628
+          },
+          "total": {
+            "median_ms": 5.285113,
+            "p95_ms": 7.081913,
+            "min_ms": 4.961055,
+            "max_ms": 7.312966
+          }
+        },
+        "max_peak_rss_bytes": 9867264
+      },
+      "median_ratio_python_go": {
+        "quality": 5.149167584159077,
+        "detector": 5.228422626917324,
+        "candidates": 2.545457768007927,
+        "scoring": 3.2963666014482116,
+        "total": 2.7065002205250863
+      }
+    },
+    {
+      "id": "disperso_1024",
+      "facts": 1024,
+      "order": [
+        "python",
+        "go"
+      ],
+      "rounds": [
+        {
+          "round": 1,
+          "python_total_median_ms": 55.3960235,
+          "go_total_median_ms": 21.832044,
+          "median_ratio_python_go": 2.537372290931623
+        },
+        {
+          "round": 2,
+          "python_total_median_ms": 55.3910435,
+          "go_total_median_ms": 22.200994,
+          "median_ratio_python_go": 2.494980337366876
+        },
+        {
+          "round": 3,
+          "python_total_median_ms": 53.402204,
+          "go_total_median_ms": 21.958932,
+          "median_ratio_python_go": 2.4319126267160898
+        }
+      ],
+      "python": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.689926,
+            "p95_ms": 0.709908,
+            "min_ms": 0.681738,
+            "max_ms": 0.741511
+          },
+          "detector": {
+            "median_ms": 5.0765355,
+            "p95_ms": 5.147667,
+            "min_ms": 4.995895,
+            "max_ms": 5.270717
+          },
+          "candidates": {
+            "median_ms": 47.75132,
+            "p95_ms": 48.410973,
+            "min_ms": 45.539994,
+            "max_ms": 51.289876
+          },
+          "scoring": {
+            "median_ms": 0.826948,
+            "p95_ms": 0.863604,
+            "min_ms": 0.812338,
+            "max_ms": 1.080605
+          },
+          "total": {
+            "median_ms": 55.2077085,
+            "p95_ms": 55.720905,
+            "min_ms": 53.032606,
+            "max_ms": 62.919813
+          }
+        },
+        "max_peak_rss_bytes": 26984448
+      },
+      "go": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.148204,
+            "p95_ms": 0.406179,
+            "min_ms": 0.128434,
+            "max_ms": 0.532993
+          },
+          "detector": {
+            "median_ms": 1.220671,
+            "p95_ms": 2.889003,
+            "min_ms": 0.853061,
+            "max_ms": 3.005394
+          },
+          "candidates": {
+            "median_ms": 19.1561775,
+            "p95_ms": 21.683652,
+            "min_ms": 18.023776,
+            "max_ms": 22.83655
+          },
+          "scoring": {
+            "median_ms": 0.25768,
+            "p95_ms": 0.653332,
+            "min_ms": 0.211846,
+            "max_ms": 0.909326
+          },
+          "total": {
+            "median_ms": 21.9249475,
+            "p95_ms": 24.217857,
+            "min_ms": 19.523565,
+            "max_ms": 24.469886
+          }
+        },
+        "max_peak_rss_bytes": 13078528
+      },
+      "median_ratio_python_go": {
+        "quality": 4.655245472456884,
+        "detector": 4.158807328100692,
+        "candidates": 2.492737395025704,
+        "scoring": 3.209205215771499,
+        "total": 2.5180315026980113
+      }
+    },
+    {
+      "id": "denso_128",
+      "facts": 128,
+      "order": [
+        "go",
+        "python"
+      ],
+      "rounds": [
+        {
+          "round": 1,
+          "python_total_median_ms": 103.673493,
+          "go_total_median_ms": 55.6566095,
+          "median_ratio_python_go": 1.8627346137568799
+        },
+        {
+          "round": 2,
+          "python_total_median_ms": 104.101183,
+          "go_total_median_ms": 55.3371415,
+          "median_ratio_python_go": 1.8812172110480265
+        },
+        {
+          "round": 3,
+          "python_total_median_ms": 103.140879,
+          "go_total_median_ms": 55.8803295,
+          "median_ratio_python_go": 1.8457457198780476
+        }
+      ],
+      "python": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.2464155,
+            "p95_ms": 0.253792,
+            "min_ms": 0.243027,
+            "max_ms": 0.272656
+          },
+          "detector": {
+            "median_ms": 0.9948655,
+            "p95_ms": 1.018476,
+            "min_ms": 0.978115,
+            "max_ms": 1.103776
+          },
+          "candidates": {
+            "median_ms": 92.952477,
+            "p95_ms": 93.496792,
+            "min_ms": 91.909293,
+            "max_ms": 93.98697
+          },
+          "scoring": {
+            "median_ms": 9.9500045,
+            "p95_ms": 10.03836,
+            "min_ms": 9.844681,
+            "max_ms": 10.162596
+          },
+          "total": {
+            "median_ms": 103.6943735,
+            "p95_ms": 104.989263,
+            "min_ms": 102.62417,
+            "max_ms": 115.567902
+          }
+        },
+        "max_peak_rss_bytes": 25890816
+      },
+      "go": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.0496575,
+            "p95_ms": 0.163274,
+            "min_ms": 0.040156,
+            "max_ms": 0.375628
+          },
+          "detector": {
+            "median_ms": 0.167309,
+            "p95_ms": 0.402526,
+            "min_ms": 0.122404,
+            "max_ms": 0.607052
+          },
+          "candidates": {
+            "median_ms": 44.722916,
+            "p95_ms": 45.902373,
+            "min_ms": 43.023745,
+            "max_ms": 94.168897
+          },
+          "scoring": {
+            "median_ms": 8.2321325,
+            "p95_ms": 10.938692,
+            "min_ms": 7.700339,
+            "max_ms": 11.054145
+          },
+          "total": {
+            "median_ms": 55.5727695,
+            "p95_ms": 57.644699,
+            "min_ms": 53.402248,
+            "max_ms": 60.46994
+          }
+        },
+        "max_peak_rss_bytes": 13647872
+      },
+      "median_ratio_python_go": {
+        "quality": 4.962301767104667,
+        "detector": 5.946276052095224,
+        "candidates": 2.0784082370657586,
+        "scoring": 1.208678856906154,
+        "total": 1.8659205656468136
+      }
+    },
+    {
+      "id": "denso_512",
+      "facts": 512,
+      "order": [
+        "python",
+        "go"
+      ],
+      "rounds": [
+        {
+          "round": 1,
+          "python_total_median_ms": 1682.7069085,
+          "go_total_median_ms": 946.0419645,
+          "median_ratio_python_go": 1.7786810433819822
+        },
+        {
+          "round": 2,
+          "python_total_median_ms": 1682.094912,
+          "go_total_median_ms": 978.592931,
+          "median_ratio_python_go": 1.718891337464607
+        },
+        {
+          "round": 3,
+          "python_total_median_ms": 1672.5430815,
+          "go_total_median_ms": 977.1841775,
+          "median_ratio_python_go": 1.711594518219673
+        }
+      ],
+      "python": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.4332795,
+            "p95_ms": 0.448147,
+            "min_ms": 0.427298,
+            "max_ms": 0.560737
+          },
+          "detector": {
+            "median_ms": 4.144198,
+            "p95_ms": 4.213423,
+            "min_ms": 4.078195,
+            "max_ms": 4.552958
+          },
+          "candidates": {
+            "median_ms": 1581.529724,
+            "p95_ms": 1587.992092,
+            "min_ms": 1567.795404,
+            "max_ms": 1693.647441
+          },
+          "scoring": {
+            "median_ms": 92.111002,
+            "p95_ms": 95.107854,
+            "min_ms": 90.505561,
+            "max_ms": 96.869337
+          },
+          "total": {
+            "median_ms": 1680.39324,
+            "p95_ms": 1689.86683,
+            "min_ms": 1667.502071,
+            "max_ms": 1791.915965
+          }
+        },
+        "max_peak_rss_bytes": 28233728
+      },
+      "go": {
+        "summary": {
+          "quality": {
+            "median_ms": 0.094059,
+            "p95_ms": 0.242986,
+            "min_ms": 0.076808,
+            "max_ms": 0.85269
+          },
+          "detector": {
+            "median_ms": 0.8950045,
+            "p95_ms": 1.960158,
+            "min_ms": 0.513697,
+            "max_ms": 2.033135
+          },
+          "candidates": {
+            "median_ms": 829.3738415,
+            "p95_ms": 833.987423,
+            "min_ms": 795.473061,
+            "max_ms": 929.081758
+          },
+          "scoring": {
+            "median_ms": 147.40721,
+            "p95_ms": 157.464161,
+            "min_ms": 143.894717,
+            "max_ms": 258.283265
+          },
+          "total": {
+            "median_ms": 975.4477075,
+            "p95_ms": 987.31535,
+            "min_ms": 942.272043,
+            "max_ms": 1078.672237
+          }
+        },
+        "max_peak_rss_bytes": 43491328
+      },
+      "median_ratio_python_go": {
+        "quality": 4.606465091059866,
+        "detector": 4.630365545648095,
+        "candidates": 1.9068960761285354,
+        "scoring": 0.6248744684876676,
+        "total": 1.7226892093546697
+      }
+    }
+  ]
+}
