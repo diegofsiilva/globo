@@ -1,6 +1,0 @@
-## Fluxo Geral
-
-&emsp; Existe este problema (storytelling pequeno)->  entendemos suas causas (pesquisas, matrizes de forma bem superficial) -> criamos esta arquitetura para atender a isso -> implementamos este MVP -> implantamos dessa maneira -> testamos sob estas condições -> observamos estes resultados -> identificamos estes gargalos → calculamos estes custos (*ir além aq*) -> portanto, chegamos a esta conclusão.
-
-<img src="/assets/roteiro.png">
-<img src="/assets/storytelling.png">
