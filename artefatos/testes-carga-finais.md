@@ -6,6 +6,12 @@ A carga foi gerada pelo k6 e acompanhada no Grafana. Também foi repetido o test
 
 Como na Sprint 3, os resultados ficam concentrados em dois arquivos no formato JSON: um com os [cenários gerais](evidencias/testes-carga-finais/evidencias-2026-10-05.json) e outro com as [remessas de eventos](evidencias/testes-carga-finais/evidencias-lotes-2026-10-05.json). Cada remessa contém 150.000 eventos. Nesta rodada, foram enviadas duas remessas juntas, com o consumidor parado. Os ensaios de uma, três e quatro remessas continuam como evidência histórica, sem nova execução.
 
+O acesso às telas foi repetido como **CF03-B**, com evidência própria na seção 3.2.1 e três capturas feitas durante a execução. Essa repetição passou nos limites medidos, em outra janela do relógio virtual. A reprovação do CF03-A permanece válida para as condições em que foi medida.
+
+A repetição **CF03-C**, com 200/450/900 usuários, reprovou nos três níveis e está detalhada na seção 3.2.2. O aumento de réplicas foi observado, junto de CPU elevada no banco e reinícios da API.
+
+A repetição **CF02-B**, na seção 3.5.1, aprovou o recebimento e a recuperação dos 300.000 eventos, sem rejeições ou duplicidades. A falha da execução original permanece registrada.
+
 ## 1. Evolução dos testes e critérios de aprovação
 
 ### 1.1 O que foi aproveitado da Sprint 3
@@ -43,9 +49,11 @@ Nos critérios abaixo, o percentil 95 (p95) e o percentil 99 (p99) indicam os te
 
 Os critérios vêm de [requisitos.md](requisitos.md) e do [plano registrado antes da execução](evidencias/testes-carga-finais/evidencias-2026-10-05.json), preservado no campo `plano_execucao`. Os limites auxiliares do k6 e os 450 s de recuperação são critérios do ensaio. No CF01, o roteiro também exige falhas <1%/<5%/<1% por fase. A exigência adicional de zero rejeições é mais restritiva. O veredito combina os limites do k6 com a conferência posterior no banco, não apenas `aprovado_http`. O RNF03 trata de ampliar a capacidade de ingestão de pelo menos 1.000 para 2.000 requisições/minuto. Sua evidência continua sendo a da Sprint 3, pois o CF04 avalia a escala das consultas.
 
+No roteiro `carga_ui.js`, p99 e proporção de telas completas são limiares por nível. Por tela, os limiares automáticos cobrem p95 HTTP, p95 de abertura e falhas HTTP. A auditoria do CF03-B conferiu também o p99 por tela, os tempos máximos e os checks de HTTP 200 nos resumos brutos. A aprovação não foi deduzida apenas do campo `aprovado` produzido pelo roteiro.
+
 ## 2. Ambiente e forma de medição
 
-Os testes usaram a base histórica do parceiro, com **68.717.811 registros em 32 tabelas**, carregada a partir de `argus_dump.sql`. A camada bronze guarda os dados recebidos, a silver contém os dados tratados e a gold reúne resultados para consulta. Essas camadas foram preparadas antes da carga, sem avanço manual dos marcadores de processamento.
+A campanha que inclui CF03-A e CF04 usou a base histórica do parceiro, com **68.717.811 registros em 32 tabelas**, carregada a partir de `argus_dump.sql`. A camada bronze guarda os dados recebidos, a silver contém os dados tratados e a gold reúne resultados para consulta. Essas camadas foram preparadas antes da carga, sem avanço manual dos marcadores de processamento. A tabela abaixo descreve essa campanha. As condições do CF03-B estão na seção 3.2.1.
 
 | Componente | Configuração utilizada |
 |---|---|
@@ -56,9 +64,9 @@ Os testes usaram a base histórica do parceiro, com **68.717.811 registros em 32
 | Processamento regular | Lotes de 5.000 registros a cada 60 s entre bronze e silver, e ciclo de 900 s entre silver e gold |
 | Registro das execuções | Identificador `test_id`, roteiro, versão, horários, critérios, base e recursos disponíveis |
 
-A configuração, as contagens e os intervalos da base estão no campo `ambiente` das [evidências consolidadas](evidencias/testes-carga-finais/evidencias-2026-10-05.json). Os registros completos de preparação estão no pacote detalhado da seção 6.
+A configuração, as contagens e os intervalos da base estão no campo `ambiente` das [evidências consolidadas](evidencias/testes-carga-finais/evidencias-2026-10-05.json).
 
-A nova rodada consultou uma janela com mais histórico acumulado. A rodada anterior usava o relógio virtual próximo ao início dos dados. Por isso, os resultados não isolam apenas o efeito da mudança de arquitetura ou do HPA. As estatísticas da base e os registros das execuções preservam essas condições.
+O CF03-A e o CF04 consultaram uma janela com mais histórico acumulado. O CF03-B usou o relógio virtual próximo ao início dos dados. Por isso, os resultados não isolam apenas o efeito da mudança de arquitetura ou do HPA. As estatísticas da base e os registros das execuções preservam essas condições.
 
 Para interpretar os resultados, foram consideradas as seguintes medidas:
 
@@ -68,6 +76,25 @@ Para interpretar os resultados, foram consideradas as seguintes medidas:
 - **Recuperação:** tempo para retomar o serviço e processar o acúmulo. A fila vazia é conferida junto dos registros no banco e da DLQ, a fila de mensagens que não foram processadas normalmente.
 
 A confirmação de recebimento de um evento, sua gravação na bronze e sua disponibilidade na API são etapas distintas. A comparação entre eventos aceitos e gravados, chamada de reconciliação, verifica perdas e duplicidades. O tempo de resposta também é analisado junto dos erros, pois uma falha pode ser devolvida rapidamente.
+
+### 2.1 Ajustes nas reexecuções e seus motivos
+
+Os ajustes das reexecuções concentraram-se no executor dos testes e na coleta das evidências. Os limites de aprovação das consultas e a referência de 450 s para recuperação dos lotes foram mantidos.
+
+| Aspecto | Ajuste ou condição observada | Motivo e efeito na interpretação |
+|---|---|---|
+| Execução pelo WSL | Os scripts de carga usam finais de linha LF, com regra para preservar esse formato | Corrigir o erro `bash\r`, que impedia o início do comando no Linux |
+| Preparação da observabilidade | O executor usa o curl já instalado, corrige os caminhos dos arquivos do Prometheus e Grafana e verifica a disponibilidade dos dois antes da carga | Resolver falhas de preparação e permitir acompanhar as métricas durante a execução |
+| Encerramento do executor | Os resultados são publicados antes do marcador de conclusão, e o código de saída do k6 é preservado | Evitar a coleta de arquivos incompletos e tornar explícita a reprovação por limites de desempenho |
+| Níveis de consultas | O CF03-B usa 5/25/100 usuários. O CF03-C repete a configuração de 200/450/900 usuários da rodada B de consultas, com dois minutos por nível | Atender à repetição solicitada dos níveis maiores. A carga não foi reduzida em relação à rodada B e os limites de aprovação foram mantidos |
+| Recursos do gerador | O CF03-C usa `t4g.large`, enquanto o CF03-B usou `t4g.small` | Dar mais capacidade ao gerador da carga maior. A CPU do gerador foi medida para verificar se ele próprio apresentava saturação |
+| Execução dos lotes | Foi acrescentado o alvo `teste-lotes-acumulados-ec2` ao Makefile, reutilizando o roteiro de injeção existente | Permitir executar o cenário de acúmulo pelo gerador temporário. Foram mantidos dois lotes de 150.000 eventos, 50 usuários de injeção e fragmentos de até 40.000 bytes |
+| Validação do CF02-B | A fila vazia foi confirmada em duas observações e confrontada com a contagem exata por lote e índice no banco | Conferir perdas e duplicidades, pois as contagens aproximadas da SQS e o aceite HTTP não bastam para comprovar a gravação |
+| Janela dos dados | O CF03-B encontrou o relógio virtual próximo do início dos dados, diferente do CF03-A | Essa diferença é uma condição observada do ambiente e afeta o volume visível nas consultas. Não foi demonstrada como uma otimização nem permite atribuir a melhora somente ao executor |
+
+No CF02-B, a mudança de resultado foi de 73 eventos rejeitados para zero rejeições. O erro HTTP 500 da execução original não voltou a ocorrer. Os ajustes do executor não demonstram a causa desse erro nem comprovam sua correção. A aprovação descreve o que foi medido na repetição, preservando a reprovação original.
+
+No CF03-C, os ajustes permitiram executar e auditar novamente a carga maior, mas os três níveis continuaram reprovados. O aumento de duas para seis réplicas foi uma reação automática do HPA durante o teste, não uma alteração manual do seu limite para obter aprovação. Essa execução não repetiu o protocolo CF04 de cinco minutos por nível com 1.200 usuários.
 
 ## 3. Execução e resultados
 
@@ -109,6 +136,48 @@ Uma consulta isolada de sinais já havia falhado em 15,485 s, com timeout de 15 
 Na tela Hipóteses, o processamento recusou 7.696.798 entradas, acima da proteção de 250.000. A preparação das camadas de dados, portanto, não garantiu a geração das hipóteses. O teste revelou um limite de consulta com histórico acumulado, sem permitir atribuir a diferença apenas ao código.
 
 **Evidências:** [campo `resultados.CF03-A`](evidencias/testes-carga-finais/evidencias-2026-10-05.json), com resultados por nível e tela, HPA, CPU do banco e diagnósticos.
+
+#### 3.2.1 Reexecução das telas (CF03-B)
+
+**Procedimento:** executar `AWS_PROFILE=g4 make -C apps/fullstack teste-carga-ui-ec2`, com 5/25/100 usuários, dois minutos por nível, pausas de 30 s entre níveis e 2 s entre aberturas. O gerador foi uma EC2 `t4g.small`, com k6 0.54.0, Prometheus e Grafana na mesma instância. O destino foi conferido contra o Ingress do EKS.
+
+| VUs | Requisições de carga | Erros | p95 HTTP | p99 HTTP | Máximo HTTP | p95 de abertura | Telas completas |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 5 | 1.036 | 0,00% | 82,32 ms | 347,47 ms | 1.234,09 ms | 163,55 ms | 100,00% |
+| 25 | 5.108 | 0,00% | 193,69 ms | 1.197,33 ms | 1.807,81 ms | 274,00 ms | 100,00% |
+| 100 | 19.118 | 0,00% | 627,46 ms | 1.789,36 ms | 4.131,17 ms | 800,00 ms | 100,00% |
+
+**Resultado obtido: aprovado nos limites de desempenho da janela medida.** Foram **25.262 requisições de carga e uma de preparação**, totalizando **25.263**, sem falhas HTTP. As 7.219 aberturas produziram 14.438 checks aprovados e nenhum reprovado. Os critérios por tela também passaram nos três níveis. O maior tempo de abertura foi **4.195 ms**, na tela Agora com 100 usuários, abaixo de 5 s. O k6 terminou com código zero.
+
+Cada “abertura” representa o lote de chamadas da tela: todas devem responder HTTP 200. O roteiro não renderiza o frontend nem verifica o conteúdo semântico de cada resposta. Assim, esses números comprovam o tempo das consultas exercitadas, sem medir o tempo de renderização no navegador.
+
+**Observabilidade:** Grafana e Prometheus responderam HTTP 200 durante a carga. Foram preservadas amostras do Prometheus até próximo do encerramento, incluindo a fase de 100 usuários, e as capturas da seção 4.1. O log final não apresentou falhas de envio por Remote Write. A coleta de séries é parcial e não equivale a um snapshot completo do histórico.
+
+**Comparabilidade da base:** o relógio virtual do CF03-B estava próximo do início do conjunto de dados, enquanto o CF03-A consultou uma janela com mais histórico acumulado. O catálogo do PostgreSQL estimou **68.707.132 linhas nas 32 tabelas de origem**, sem somar suas partições em duplicidade. Isso confirma uma base com dados, mas não é uma nova contagem exata reconciliada com o dump nem comprova o mesmo volume visível nas views e nas camadas processadas. O gerador também mudou de `t4g.large` para `t4g.small`. Portanto, a melhora não pode ser atribuída a uma correção do gargalo observado no CF03-A. Esta rodada não comprova escala do HPA nem traz uma série completa de CPU do banco ou do gerador.
+
+**Tentativa preliminar:** foram registradas 25.003 requisições, zero falhas HTTP e aprovação numérica, mas a instalação do Docker falhou por conflito entre `curl` e `curl-minimal`. O log apresentou 85 mensagens de falha no envio ao Prometheus. Essa tentativa foi preservada como diagnóstico. A comprovação de observabilidade vem da repetição CF03-B. O executor foi corrigido para usar o curl existente, impedir a carga quando a preparação falha e publicar os resultados antes do marcador de conclusão.
+
+**Evidências:** [auditoria do CF03-B e da tentativa preliminar](evidencias/testes-carga-finais/evidencias-cf03-b.json), com resumos brutos, critérios recalculados, relógios, estimativas da base, séries consultadas e hashes dos arquivos e capturas.
+
+#### 3.2.2 Repetição com 200, 450 e 900 usuários (CF03-C)
+
+**Procedimento:** executar o mesmo roteiro de consultas em uma EC2 `t4g.large`, com dois minutos em cada nível, pausas de 30 s e 2 s entre aberturas. As métricas do HPA e dos pods foram coletadas durante a execução. O CloudWatch forneceu os indicadores de CPU do banco e do gerador.
+
+| VUs | Requisições de carga | Falhas HTTP | Erros | p95 HTTP | p99 HTTP | p95 de abertura | Telas completas |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 200 | 27.410 | 0 | 0,00% | 3.101,39 ms | 5.921,62 ms | 3.687,00 ms | 100,00% |
+| 450 | 36.237 | 1.478 | 4,08% | 7.238,10 ms | 9.508,69 ms | 8.031,00 ms | 92,70% |
+| 900 | 41.845 | 9.933 | 23,74% | 18.353,01 ms | 30.000,71 ms | 20.224,50 ms | 73,74% |
+
+**Resultado obtido: reprovado nos três níveis.** Foram **105.492 requisições de carga e uma de preparação**, totalizando **105.493**, com **11.411 falhas HTTP**. O k6 encerrou com código 99 por violação dos limiares.
+
+Com 200 usuários, a ausência de falhas HTTP não bastou para aprovação. O p95 HTTP ultrapassou 3 s e o p99 ultrapassou 5 s. Na tela Agora, o p95 de abertura chegou a 7.133 ms. As consultas de Recorte e Hipóteses também excederam o p95 de 3 s. Com 450 e 900 usuários, houve reprovação por latência, erros e proporção de telas completas. O maior tempo de abertura chegou a 30.013 ms.
+
+O HPA aumentou de **duas para seis réplicas**, com uso de até **130% da CPU requisitada**. Foram observados **oito reinícios adicionais** dos pods. A maior média de CPU do banco em um minuto foi **99,79%**. No gerador, a maior média foi **13,57%**, sem indício de saturação de CPU nas amostras coletadas. Esses indicadores apontam para a necessidade de investigar consultas, concorrência no banco e verificações de saúde. Eles não isolam a causa de cada falha.
+
+Esta repetição confirma que a aprovação até 100 usuários do CF03-B não se estende aos níveis maiores. Ela não substitui o CF04, que usa cinco minutos por nível e inclui 1.200 usuários. A redução posterior de réplicas não foi avaliada pelo protocolo desta repetição.
+
+**Evidências:** [resumos e auditoria do CF03-C](evidencias/testes-carga-finais/evidencias-cf03-c.json), com resultados por tela, contadores, limiares, amostras do HPA e CPU. Não foi preservada uma nova captura do Grafana nem um snapshot completo do Prometheus nesta repetição. As capturas da seção 4.1 pertencem ao CF03-B.
 
 ### 3.3 Aumento automático de réplicas (CF04)
 
@@ -178,6 +247,37 @@ O p95 até a gravação inclui a espera anterior à retomada. Ele é diferente d
 
 **Evidências:** [resultados por remessa](evidencias/testes-carga-finais/evidencias-lotes-2026-10-05.json), com injeção, recuperação, conferência no banco e registro do erro 500.
 
+#### 3.5.1 Repetição do acúmulo e recuperação (CF02-B)
+
+**Procedimento:** conferir as filas vazias, parar somente o consumidor de eventos e enviar duas remessas de 150.000 eventos por uma EC2 `t4g.large`. O roteiro usou 50 usuários de injeção e fragmentos de até 40.000 bytes. Depois do envio, o consumidor foi restaurado à quantidade original de uma task. A conferência no banco usou uma transação somente leitura.
+
+| Verificação | Resultado obtido |
+|---|---|
+| Recebimento | 300.000 eventos aceitos e zero rejeitados |
+| Requisições de envio | 4.250, sem falhas HTTP |
+| Duração do envio | 29,79 s |
+| Latência dos fragmentos | p95 de 434,5 ms e máximo de 1.481,8 ms |
+| Fila antes da retomada | 4.250 mensagens visíveis, sem mensagens em processamento ou na DLQ |
+| Primeira task em execução | Observada aos 30,15 s após o pedido de retomada |
+| Persistência integral | 300.000 eventos, com o último gravado aos 134,64 s após o pedido de retomada |
+| Filas vazias | Confirmadas em duas observações consecutivas, com a segunda aos 152,35 s |
+| Conferência exata no banco | Concluída aos 171,50 s, com 300.000 identidades distintas |
+| Tempo entre envio e gravação | p95 de 142,26 s e máximo de 145,73 s |
+
+| Remessa | Eventos aceitos | Eventos gravados | Duplicidades |
+|---|---:|---:|---:|
+| 1 | 150.000 | 150.000 | 0 |
+| 2 | 150.000 | 150.000 | 0 |
+| **Total** | **300.000** | **300.000** | **0** |
+
+**Resultado obtido: aprovado no recebimento, integridade e recuperação.** O k6 encerrou com código zero. Os dois lotes apresentaram todos os índices esperados, sem perdas nem duplicidades. A persistência e o esvaziamento das filas ocorreram dentro da referência de 450 s. O consumidor terminou com uma task desejada e uma em execução.
+
+As contagens da SQS são aproximadas e oscilaram durante o consumo. Por isso, a aprovação combina duas observações de filas vazias com a contagem exata no PostgreSQL. O tempo de persistência usa o horário de gravação registrado no banco. O instante de conferência indica quando essa gravação foi comprovada. Esses valores não medem a disponibilidade de todo o lote na API.
+
+A repetição não reproduziu as 73 rejeições da execução original. Isso comprova o sucesso desta rodada, sem demonstrar que a causa do erro anterior foi corrigida. Não houve alteração na aplicação entre o envio e a conferência deste cenário.
+
+**Evidências:** [auditoria do CF02-B](evidencias/testes-carga-finais/evidencias-cf02-b.json), com resumo bruto do k6, amostras das filas, restauração do consumidor e reconciliação por remessa. A figura 4 continua representando a execução original.
+
 ### 3.6 Timeout do cliente e recuperação (CF05)
 
 **Procedimento:** limitar a espera a 1 ms em 100 consultas a `/api/v1/clock` para provocar timeouts. Após a pausa, realizar cinco consultas com prazo de 7 s.
@@ -195,7 +295,7 @@ O requisito de registro de falhas, RNF11, continua parcialmente comprovado. O ti
 
 ## 4. Indicadores de observabilidade
 
-O Grafana reúne as métricas do k6 armazenadas no Prometheus e os indicadores da AWS coletados no CloudWatch. Os painéis usam o identificador da execução e o mesmo intervalo de observação para relacionar carga, erros e consumo de recursos.
+Na campanha que inclui CF03-A e CF04, o Grafana reúne as métricas do k6 armazenadas no Prometheus e os indicadores da AWS coletados no CloudWatch. Os painéis usam o identificador da execução e o mesmo intervalo de observação para relacionar carga, erros e consumo de recursos. A observabilidade do CF03-B é apresentada na seção 4.1.
 
 | Indicador | O que foi analisado |
 |---|---|
@@ -212,7 +312,7 @@ sum(rate(k6_http_reqs_total{testid=~"$testid"}[1m]))
 sum(rate(k6_http_reqs_total{testid=~"$testid",expected_response="false"}[1m]))
 ```
 
-As capturas usam medições reais preservadas após os testes. As métricas do k6 foram enviadas ao Prometheus por Remote Write, e seu histórico foi importado em um Prometheus local para consulta no Grafana. As amostras do Kubernetes foram coletadas aproximadamente a cada 12 s, e o CloudWatch forneceu médias de 60 s. A coleta do HPA é separada do histórico do Prometheus.
+As figuras 1 a 4 usam medições reais preservadas após os testes. As métricas do k6 foram enviadas ao Prometheus por Remote Write, e seu histórico foi importado em um Prometheus local para consulta no Grafana. As amostras do Kubernetes foram coletadas aproximadamente a cada 12 s, e o CloudWatch forneceu médias de 60 s. A coleta do HPA é separada do histórico do Prometheus.
 
 O painel de latência mostra o **maior p95 entre as rotas**, enquanto os resultados do k6 preservam os percentis agregados. Ausência de amostra não representa zero. O painel do HPA descarta valores com mais de 25 s, e o painel do CF02 não prolonga amostras do CloudWatch além de 75 s.
 
@@ -232,11 +332,33 @@ O painel de latência mostra o **maior p95 entre as rotas**, enquanto os resulta
 
 ![Grafana: recuperação da fila](evidencias/testes-carga-finais/grafana-cf02.png)
 
-As séries, as amostras do CloudWatch e os dashboards das quatro figuras estão no [pacote detalhado](evidencias/testes-carga-finais/registros-detalhados-2026-10-05.zip). Os dashboards preservam expressões e unidades. Sua importação exige associar a fonte `prometheus-final` ao histórico preservado. As capturas antigas continuam no [artefato da Sprint 3](testes-carga-inicial.md).
+Os resultados consolidados preservam os indicadores usados na análise das quatro figuras. As capturas antigas continuam no [artefato da Sprint 3](testes-carga-inicial.md). O histórico completo do Prometheus dessas figuras não está incluído nas evidências disponíveis.
+
+### 4.1 Capturas durante a reexecução CF03-B
+
+As três imagens abaixo foram fornecidas pelo operador e copiadas sem alteração. Elas mostram a execução em andamento. O resultado final é o resumo validado da seção 3.2.1.
+
+**Figura 5: throughput e latência durante a carga.** O throughput usa uma janela de um minuto. Os percentis exibidos são os maiores valores entre séries de cada cenário, conforme as consultas do dashboard, e não os percentis agregados da tabela final.
+
+![Grafana CF03-B: throughput e percentis durante o teste](evidencias/testes-carga-finais/grafana-cf03-b-latencia.png)
+
+**Figura 6: latência por rota e tráfego de dados.** A tabela identifica rota e cenário, enquanto o gráfico mostra bytes recebidos e enviados por segundo. Os valores retratam o intervalo capturado, sem demonstrar isoladamente a capacidade de rede do gerador.
+
+![Grafana CF03-B: latência por rota e dados recebidos e enviados](evidencias/testes-carga-finais/grafana-cf03-b-rotas.png)
+
+**Figura 7: progressão de usuários virtuais e requisições.** O gráfico registra a passagem por 5, 25 e 100 usuários. O painel mostra aproximadamente **12,5 mil requisições naquele intervalo**, com cálculo por `increase` no Prometheus. Esse valor parcial e aproximado não é o total final de **25.263 requisições** do k6.
+
+![Grafana CF03-B: usuários virtuais e contagem parcial de requisições](evidencias/testes-carga-finais/grafana-cf03-b-vus.png)
+
+A consulta de erros por segundo não retornou série nas amostras preservadas. Ausência de série não foi interpretada como zero. A confirmação de zero falhas veio dos contadores e checks do resumo final. As capturas e a coleta parcial comprovam o acompanhamento da carga, sem substituir o histórico completo ou a medição dos recursos da AWS.
 
 ## 5. O que os resultados mostraram e os impactos na arquitetura
 
-O pico de eventos e a consulta do evento no teste de integração foram aprovados. A recuperação dos eventos aceitos também foi confirmada, mas a rejeição de parte do lote impediu a aprovação completa desse cenário. Nas telas, aumentar réplicas não resolveu o tempo das consultas nem os erros.
+O pico de eventos e a consulta do evento no teste de integração foram aprovados. No CF02 original, as rejeições impediram a aprovação completa, embora os eventos aceitos tenham sido recuperados. O CF02-B aprovou o recebimento e a gravação de todos os 300.000 eventos, sem duplicidades, com filas vazias dentro do limite. Nas telas, aumentar réplicas não resolveu o tempo das consultas nem os erros.
+
+O CF03-B acrescenta uma aprovação das consultas em uma janela próxima do início do histórico, com observabilidade disponível. Como o CF03-A usou uma janela com mais histórico acumulado e outras condições de preparação e geração, sua reprovação permanece registrada. A aprovação da repetição não encerra a investigação dessas consultas.
+
+O CF03-C confirmou a reprovação com 200/450/900 usuários. Mesmo com seis réplicas, o banco permaneceu próximo da capacidade máxima de CPU e houve falhas e reinícios. A aprovação do CF03-B se limita à carga e à janela que ele mediu.
 
 | Observação | Decisão e situação |
 |---|---|
@@ -252,19 +374,19 @@ Uma próxima execução pode sustentar 10.000 eventos/min por 15 minutos, avalia
 
 ## 6. Evidências e reprodução
 
-Seguindo a organização da Sprint 3, a entrega reúne:
-
 - [Evidências gerais](evidencias/testes-carga-finais/evidencias-2026-10-05.json): ambiente, plano, pico, consultas, escala, timeout e integração.
 - [Evidências por remessa](evidencias/testes-carga-finais/evidencias-lotes-2026-10-05.json): duas remessas de 150 mil eventos, aceite, recuperação e integridade.
-- As quatro capturas da seção 4.
-- [Registros detalhados](evidencias/testes-carga-finais/registros-detalhados-2026-10-05.zip): 39 arquivos originais e um manifesto de integridade que usa o Secure Hash Algorithm de 256 bits (SHA-256, algoritmo de hash seguro), para auditoria e reprodução sem espalhar os registros intermediários pela entrega.
+- As quatro capturas da campanha inicial na seção 4.
+- [Auditoria da reexecução CF03-B](evidencias/testes-carga-finais/evidencias-cf03-b.json) e as três capturas da seção 4.1: resultados da repetição e da tentativa preliminar, validação numérica, condições de comparação e observabilidade parcial. O arquivo inclui hashes SHA-256 para conferir a integridade dos resumos e das imagens.
+- [Auditoria da repetição CF03-C](evidencias/testes-carga-finais/evidencias-cf03-c.json): consultas com 200/450/900 usuários, critérios por tela, réplicas, reinícios e CPU do banco e do gerador.
+- [Auditoria da repetição CF02-B](evidencias/testes-carga-finais/evidencias-cf02-b.json): recebimento integral, recuperação das filas e conferência dos 300.000 eventos no banco.
 
-O [guia original da suíte](../apps/fullstack/tests/carga/README.md) reúne os comandos dos testes anteriores. Seus roteiros e os quatro registros de preparação já existentes foram mantidos nos caminhos originais, sem alterações. Consolidar as evidências desta rodada não representa nova execução.
+O [guia original da suíte](../apps/fullstack/tests/carga/README.md) reúne os comandos dos testes anteriores. Os quatro registros de preparação permanecem como evidência histórica. O CF03-B registra uma execução adicional real, com os ajustes do executor descritos na seção 3.2.1.
 
 Para repetir as medições, é necessário preparar a mesma base, registrar o relógio virtual, usar um novo `K6_TEST_ID` e selecionar o Ingress do EKS. O endereço padrão de `make env` aponta para a Lambda e avaliaria outro caminho. A origem da carga também deve ser mantida na EC2 para comparação.
 
-O teste de acúmulo exige parar e depois restaurar o consumidor, além de conferir as filas e os eventos no banco. O comando de envio, isoladamente, não realiza essas etapas. Os resumos de CF01 e CF02 incorporam agora a conferência posterior, com referência ao arquivo e aos campos de origem. O aceite parcial de CF02 e a disponibilidade não medida na API permanecem explícitos.
+O teste de acúmulo exige parar e depois restaurar o consumidor, além de conferir as filas e os eventos no banco. O comando `AWS_PROFILE=g4 LOTES=2 make -C apps/fullstack teste-lotes-acumulados-ec2` realiza apenas o envio pela EC2 temporária. Ele não para o consumidor nem comprova sozinho a recuperação. Os resumos de CF01, CF02 e CF02-B incorporam a conferência posterior, com referência ao arquivo e aos campos de origem. O aceite parcial do CF02 original e a disponibilidade não medida na API permanecem explícitos.
 
-Conferir os JSONs, as capturas e o pacote detalhado dispensa a AWS. Uma nova medição exige o ambiente ativo. A reprodução integral da observabilidade depende dos snapshots do Prometheus e dos auxiliares locais de coleta, que não integram esta entrega. Os dashboards contêm consultas, não o histórico bruto do k6. Os registros no pacote podem ser extraídos com um descompactador.
+Conferir os JSONs e as capturas dispensa a AWS. Uma nova medição exige o ambiente ativo. A reprodução integral da observabilidade depende dos snapshots do Prometheus e dos auxiliares locais de coleta, que não integram esta entrega. Os dashboards contêm consultas, não o histórico bruto do k6.
 
-Os registros brutos do k6 e a extração local do pacote ficam em `apps/fullstack/tests/carga/resultados/`, um diretório ignorado pelo Git. Os arquivos públicos preservam os resultados sem tokens, credenciais ou endpoints do ambiente.
+Os registros brutos do k6 ficam em `apps/fullstack/tests/carga/resultados/`. Os arquivos públicos preservam os resultados sem tokens, credenciais ou endpoints do ambiente.
