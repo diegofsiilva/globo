@@ -19,6 +19,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+from contextlib import nullcontext
 from typing import Any
 
 from psycopg import sql
@@ -296,7 +297,7 @@ class EventRepository:
         """
         self._db = db
 
-    def put_many(self, linhas: list[dict[str, Any]]) -> int:
+    def put_many(self, linhas: list[dict[str, Any]], *, connection=None) -> int:
         """Grava o lote, ignorando o que ja estiver la.
 
         `DO NOTHING` e nao `DO UPDATE`: a chave e (ts, event_id), e event_id
@@ -307,6 +308,7 @@ class EventRepository:
 
         Args:
             linhas (list[dict[str, Any]]): Linhas ja montadas por keys.build_row.
+            connection: Transação externa para tornar arquivo e resultado atômicos.
 
         Returns:
             int: Quantas linhas foram efetivamente inseridas (as duplicatas
@@ -323,7 +325,10 @@ class EventRepository:
             sql.SQL(", ").join(sql.Placeholder() * len(self.COLUNAS)),
         )
 
-        with self._db.connection() as conn, conn.cursor() as cur:
+        contexto = (
+            nullcontext(connection) if connection is not None else self._db.connection()
+        )
+        with contexto as conn, conn.cursor() as cur:
             # Um unico lsn para o lote inteiro: aqui ele marca "chegou nesta
             # remessa", nao ordena linha a linha. bronze.event nao passa por
             # MERGE -- o evento de sessao e imutavel, nunca sofre update.

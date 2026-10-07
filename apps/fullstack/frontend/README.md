@@ -4,6 +4,27 @@ Dashboard estático em Next.js App Router. A entrada `/` redireciona para
 `/agora`; as demais URLs públicas são `/explorar`, `/comparar`, `/hipoteses`,
 `/timeline` e `/recorte`.
 
+A ferramenta auxiliar `/ingestao/` é acessada diretamente pela URL e não tem
+entrada na sidebar. Permite selecionar CSV/Parquet, organizar o lote, validar
+extensão/tamanho/duplicatas e abrir uma prévia local de até dez linhas com as
+colunas detectadas, usando os mesmos temas do dashboard. A leitura roda em
+worker e é cancelada ao fechar, trocar ou remover o arquivo; a amostra não
+valida o arquivo inteiro. Dentro da prévia, permite mapear as colunas ao envelope
+de eventos do app de TV e validar campos obrigatórios e tipos na amostra, com
+erros por linha. Mudar as escolhas exige nova validação; fechar a prévia descarta
+o mapeamento. Com a sessão do painel aberta, “Enviar arquivo”
+envia o original inteiro para processamento assíncrono. A página acompanha
+contadores, rejeições e retomada de falhas temporárias; o histórico dos últimos
+50 protocolos permanece na aba ao recarregar. A ingestão reutiliza a sessão
+existente, sem segundo formulário de credencial. Tokens nunca entram no bundle.
+O plano e as entregas estão em
+[plano-ingestao-arquivos.md](../../../artefatos/plano-ingestao-arquivos.md).
+
+O Ingress encaminha `/ingestion/*` ao serviço separado de arquivos, na mesma
+origem do dashboard. Em desenvolvimento com duas origens, configure
+`NEXT_PUBLIC_INGEST_API_URL` no build e `INGEST_CORS_ORIGINS` no serviço.
+Operação e limites: [worker/README.md](../worker/README.md).
+
 O contrato HTTP que a interface já chama e o que ela espera da API de leitura
 e do motor de hipóteses está em [rotas-frontend.md](./rotas-frontend.md).
 
@@ -19,6 +40,7 @@ src/
 │   │   ├── comparar/
 │   │   ├── explorar/
 │   │   ├── hipoteses/
+│   │   ├── ingestao/           # ferramenta auxiliar sem item na sidebar
 │   │   ├── recorte/
 │   │   └── timeline/
 │   ├── globals.css             # Tailwind, tema, animações e reset
