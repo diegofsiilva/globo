@@ -134,6 +134,38 @@ flowchart LR
 
 &emsp; As tags de frontend e backend são diferentes, portanto não se atribui a todos os componentes uma única revisão implantada. Não havia Jobs Kubernetes presentes na consulta, e os registros não incluem uma execução do loader. Os registros sanitizados de [Kubernetes](./evidencias/aplicacao_final_2026_10_06/kubernetes.json), [serviços AWS e Docker](./evidencias/aplicacao_final_2026_10_06/execucao.json) e [task definitions](./evidencias/aplicacao_final_2026_10_06/task_definitions.json) evidenciam o estado de execução dos componentes.
 
+## 5. Orquestração com Kubernetes
+
+### 5.1 Objetos e roteamento
+
+&emsp; Os manifestos em [k8s/base](../apps/fullstack/k8s/base/) descrevem o estado desejado da aplicação no namespace `argus`. Os Deployments controlam as réplicas e as atualizações dos pods, em consonância com o modelo descrito pela [documentação do Kubernetes](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/) (KUBERNETES, [s.d.]a). Os Services fornecem os destinos internos utilizados pelo Ingress.
+
+| Objeto | Configuração relevante | Efeito na operação |
+|---|---|---|
+| Deployments `argus-backend` e `argus-frontend` | Duas réplicas na base; `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1`. | Reconciliação do número de pods e atualização gradual com uma réplica adicional permitida. |
+| Service do backend | `ClusterIP`, porta 5000. | Roteamento interno para os pods da API. |
+| Service do frontend | `ClusterIP`, porta 80 para a porta 8080 do contêiner. | Roteamento interno para o nginx. |
+| Ingress `argus` | `/api` e `/health` para backend; `/` para frontend. | Dashboard e API publicados pela mesma origem. |
+| HPA do backend | Mínimo 2, máximo 6; alvo de 60% de utilização de CPU. | Ajuste do número de réplicas conforme a métrica disponível. |
+| HPA do frontend | Mínimo 2, máximo 4; alvo de 70% de utilização de CPU. | Ajuste independente da capacidade do dashboard. |
+| PDB por aplicação | `minAvailable: 1`. | Limitação de interrupções voluntárias efetuadas pela API de eviction. |
+| ConfigMap e Secret | Configuração operacional e valores sensíveis separados da imagem. | Implantação sem incorporar credenciais ao código ou ao bundle do frontend. |
+| Jobs `argus-db-migrate` e `argus-db-reader` | Execução sequencial de tarefas de banco. | Preparação do schema e do login de leitura antes da operação da API. |
+
+&emsp; Os objetos exercem funções complementares: o Deployment mantém réplicas, o Service seleciona os destinos e o Ingress expõe as rotas. O HPA ajusta a quantidade de pods, enquanto o provisionamento de nós pertence ao EKS Auto Mode. As consultas evidenciaram `ScalingActive=True` e `ValidMetricFound` em ambos os HPAs, com duas réplicas em cada Deployment. Esse estado comprova disponibilidade de métricas, mas não demonstra um aumento de escala.
+
+### 5.2 Sondas e encerramento
+
+&emsp; A aplicação diferencia startup, liveness e readiness, conforme a [documentação de sondas do Kubernetes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/) (KUBERNETES, [s.d.]b). No backend, startup e liveness utilizam `/health/live`, que verifica o processo sem acessar o banco. A readiness utiliza `/health/ready`, permitindo retirar um pod do atendimento quando a dependência não responde, sem transformar a queda do banco em reinícios sucessivos de todos os processos.
+
+&emsp; No frontend, as três sondas utilizam `/healthz`, pois o nginx serve arquivos estáticos. Os manifestos também definem `preStop` e períodos de encerramento para reduzir a interrupção de requisições em andamento durante atualizações. O funcionamento desses recursos depende da capacidade disponível e das condições do ambiente; sua presença não constitui garantia universal de ausência de erros.
+
 ## 8. Referências
 
 DOCKER. **Multi-stage builds**. [s.d.]. Disponível em: <https://docs.docker.com/build/building/multi-stage/>. Acesso em: 6 out. 2026.
+
+KUBERNETES. **Deployments**. [s.d.]a. Disponível em: <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>. Acesso em: 6 out. 2026.
+
+KUBERNETES. **Configure Liveness, Readiness and Startup Probes**. [s.d.]b. Disponível em: <https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/>. Acesso em: 6 out. 2026.
+
+KUBERNETES. **Disruptions**. [s.d.]c. Disponível em: <https://kubernetes.io/docs/concepts/workloads/pods/disruptions/>. Acesso em: 6 out. 2026.
