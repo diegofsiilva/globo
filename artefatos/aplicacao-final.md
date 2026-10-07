@@ -91,3 +91,49 @@ flowchart LR
 &emsp; A camada Bronze conserva eventos e o histórico de mudanças; a Silver normaliza sinais e mantém fatos de análise; a Gold reúne agregações, qualidade, hipóteses e evidências. O schema `detect` registra o estado de execução do detector, incluindo checkpoints e coordenação dos ciclos de análise.
 
 &emsp; Como o dataset contém dados históricos, o presente da aplicação é definido por `sim.now()`. As views de leitura aplicam a elegibilidade temporal dos registros por `available_at`, evitando a exposição de informações antes de sua disponibilidade simulada. O frontend utiliza esse relógio para ancorar consultas. A escolha de uma janela histórica permite investigar um caso armazenado mesmo quando a simulação está pausada.
+
+## 4. Conteinerização e execução dos componentes
+
+### 4.1 Construção das imagens
+
+&emsp; Os [Dockerfiles da aplicação](../apps/fullstack/) separam construção e execução em múltiplos estágios. Essa técnica permite copiar os artefatos necessários para a imagem final sem incluir todas as ferramentas do estágio de construção, conforme a [documentação do Docker](https://docs.docker.com/build/building/multi-stage/) (DOCKER, [s.d.]). Nos serviços Python, os arquivos `uv.lock` orientam a instalação das dependências; no frontend, `npm ci` utiliza o `package-lock.json`.
+
+| Imagem | Processo principal | Verificação de saúde |
+|---|---|---|
+| [backend](../apps/fullstack/backend/Dockerfile) | Gunicorn com dois workers e quatro threads por worker, porta 5000. | `/health/live` para o processo; `/health/ready` verifica a dependência de banco no Kubernetes. |
+| [frontend](../apps/fullstack/frontend/Dockerfile) | nginx em porta 8080, servindo arquivos estáticos. | `/healthz`. |
+| [worker](../apps/fullstack/worker/Dockerfile) | `python -m argus_worker`, com modo `event` ou `merge`. | Arquivo de heartbeat atualizado pelo ciclo do consumidor. |
+| [processing](../apps/fullstack/processing/Dockerfile) | `python -m argus_processing`. | Arquivo de heartbeat. |
+| [simulator](../apps/fullstack/simulator/Dockerfile) | `python -m argus_simulator`. | Arquivo de heartbeat. |
+| [loader](../apps/fullstack/loader/Dockerfile) | `python -m argus_loader`. | Tarefa finita, sem `HEALTHCHECK` contínuo. |
+
+&emsp; As imagens executam com usuários sem privilégio de root. Backend, frontend e processing possuem publicação para `amd64` e `arm64`, permitindo atender aos nós do cluster e aos ambientes locais; os componentes exclusivos do Fargate utilizam ARM64. As imagens publicadas são identificadas por tags vinculadas à revisão do código, e não por uma referência genérica `latest`.
+
+### 4.2 Execução direta em Docker
+
+&emsp; A execução local evidenciou a construção do backend com `make -C apps/fullstack image-backend` e sua execução no contêiner `argus-video-backend`, usando a imagem `argus-backend:dev`. A porta 15000 da interface local foi encaminhada à porta 5000 do contêiner. O registro de `docker ps` indicou estado `healthy`, e a consulta a `/health/live` retornou HTTP 200 com o corpo abaixo:
+
+```json
+{"status":"ok"}
+```
+
+&emsp; O [registro de execução Docker](./evidencias/aplicacao_final_2026_10_06/docker_execucao.txt) evidencia a execução do processo da API em contêiner Docker. O ensaio local não utilizou um banco de dados e, portanto, não comprova integração local com PostgreSQL. A consulta funcional com persistência foi demonstrada no ambiente AWS.
+
+### 4.3 Estado observado na AWS
+
+&emsp; As consultas ao ambiente AWS evidenciaram o EKS ativo, com Kubernetes 1.33, e o estado de execução dos componentes apresentado abaixo. As referências de imagem estão abreviadas para omitir o endereço do registro e identificadores da conta.
+
+| Componente | Ambiente | Estado registrado | Imagem identificada |
+|---|---|---|---|
+| Backend | EKS | 2 réplicas desejadas, prontas e disponíveis; pods Running, Ready e sem reinícios. | `argus-events-dev-backend:326769cbb9d9` |
+| Frontend | EKS | 2 réplicas desejadas, prontas e disponíveis; pods Running, Ready e sem reinícios. | `argus-events-dev-frontend:6b5fe5c6f213` |
+| Event worker | ECS Fargate | 1 task desejada, 1 em execução e nenhuma pendente. | `argus-events-dev-worker:326769cbb9d9`, comando `event`. |
+| Merge worker | ECS Fargate | 1 task desejada, 1 em execução e nenhuma pendente. | `argus-events-dev-worker:326769cbb9d9`, comando `merge`. |
+| Processing | ECS Fargate | 1 task desejada, 1 em execução e nenhuma pendente. | `argus-events-dev-processing:326769cbb9d9`. |
+| Simulator | ECS Fargate | Nenhuma task desejada ou em execução. | Imagem configurada, serviço pausado. |
+
+&emsp; As tags de frontend e backend são diferentes, portanto não se atribui a todos os componentes uma única revisão implantada. Não havia Jobs Kubernetes presentes na consulta, e os registros não incluem uma execução do loader. Os registros sanitizados de [Kubernetes](./evidencias/aplicacao_final_2026_10_06/kubernetes.json), [serviços AWS e Docker](./evidencias/aplicacao_final_2026_10_06/execucao.json) e [task definitions](./evidencias/aplicacao_final_2026_10_06/task_definitions.json) evidenciam o estado de execução dos componentes.
+
+## 8. Referências
+
+DOCKER. **Multi-stage builds**. [s.d.]. Disponível em: <https://docs.docker.com/build/building/multi-stage/>. Acesso em: 6 out. 2026.
