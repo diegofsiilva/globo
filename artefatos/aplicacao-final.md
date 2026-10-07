@@ -160,6 +160,31 @@ flowchart LR
 
 &emsp; No frontend, as três sondas utilizam `/healthz`, pois o nginx serve arquivos estáticos. Os manifestos também definem `preStop` e períodos de encerramento para reduzir a interrupção de requisições em andamento durante atualizações. O funcionamento desses recursos depende da capacidade disponível e das condições do ambiente; sua presença não constitui garantia universal de ausência de erros.
 
+## 6. Resiliência frente a falhas
+
+### 6.1 Proteções no processamento assíncrono
+
+&emsp; Os workers tratam reentregas com gravação idempotente. O merge worker registra o histórico e atualiza a tabela corrente na mesma transação, evitando divergência entre essas representações. Mensagens inválidas são encaminhadas à fila de rejeitados com o motivo; falhas transitórias podem resultar em novas tentativas. Essas decisões estão documentadas no [guia dos workers](../apps/fullstack/worker/AGENTS.md).
+
+&emsp; O processamento incremental conserva checkpoints e utiliza mecanismos de claim, lease, heartbeat e fencing para coordenar ciclos e proteger a publicação concorrente de resultados. A retomada é orientada pelo estado persistido, conforme o [guia do processamento](../apps/fullstack/processing/AGENTS.md). Esses mecanismos reduzem o risco de duplicação ou de resultados inconsistentes, sem eliminar a necessidade de observar filas, transações e dependências externas.
+
+### 6.2 Ensaio de reposição de pod
+
+&emsp; O ensaio de autocura no Kind local evidenciou a reposição de pod do backend durante carga k6. A comparação abaixo utiliza o [registro original](./evidencias/resiliencia-kind-01-autocura.txt) e os [resumos da rodada A](./evidencias/resiliencia-kind/k6-01-A-1replica.summary.json) e da [rodada B](./evidencias/resiliencia-kind/k6-01-B-2replicas.summary.json).
+
+| Cenário | Tempo da exclusão até o novo pod Ready | Requisições registradas | Falhas registradas |
+|---|---|---|---|
+| Uma réplica do backend, removida durante o ensaio | 8,3 segundos | 2.470 | 354, aproximadamente 14,3%. |
+| Duas réplicas do backend, com uma removida durante o ensaio | 6,2 segundos | 2.262 | 0. |
+
+&emsp; A comparação evidencia a diferença entre recompor a capacidade e manter atendimento durante a recomposição. Com uma réplica, houve um intervalo sem pod pronto; com duas, a réplica remanescente sustentou o tráfego observado. Os volumes e as durações das rodadas diferem, portanto a tabela não é um benchmark isolado do número de réplicas. Os tempos e as taxas pertencem ao ensaio local e não são medições de recuperação no EKS.
+
+### 6.3 Limites das proteções e da validação
+
+&emsp; O PDB limita interrupções voluntárias realizadas pela API de eviction, conforme a [documentação de interrupções do Kubernetes](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/) (KUBERNETES, [s.d.]c). Ele não impede a exclusão direta de um pod e não garante proteção contra falhas abruptas de nó ou de zona. A continuidade também depende de réplicas prontas, distribuição dos pods, capacidade para reagendamento e disponibilidade do banco.
+
+&emsp; Os ensaios de [rollout e rollback](./evidencias/resiliencia-kind-02-rollout-e-undo.txt) e de [perda do banco local](./evidencias/resiliencia-kind-03-perda-do-banco.txt) complementam as evidências de resiliência no ambiente local. As consultas ao ambiente AWS não incluíram injeção de falhas. Testes de perda de zona, restauração de RDS e aumento efetivo de escala no EKS exigem validações próprias; as limitações e os procedimentos estão registrados na seção 3 da [arquitetura final](./arquitetura-final.md).
+
 ## 8. Referências
 
 DOCKER. **Multi-stage builds**. [s.d.]. Disponível em: <https://docs.docker.com/build/building/multi-stage/>. Acesso em: 6 out. 2026.
