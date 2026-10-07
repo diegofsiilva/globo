@@ -1,0 +1,1398 @@
+{
+  "executado_em": "2026-10-05",
+  "organizacao": "Resultados consolidados por cenario, como nos testes da Sprint 3. Consolidacao documental; nenhuma nova execucao.",
+  "ambiente": {
+    "provedor": "AWS Academy Learner Lab",
+    "regiao": "us-east-1",
+    "k6": "0.54.0",
+    "gerador": "EC2 t4g.large na VPC",
+    "registros_conferidos": 68717811,
+    "tabelas_conferidas": 32,
+    "configuracao": {
+      "verificado_em_utc": "2026-10-05T14:22:31.680810+00:00",
+      "commit_imagem": "326769cbb9d9",
+      "backend": {
+        "replicas": 2,
+        "resources": {
+          "limits": {
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "250m",
+            "memory": "256Mi"
+          }
+        },
+        "readinessProbe": {
+          "failureThreshold": 3,
+          "httpGet": {
+            "path": "/health/ready",
+            "port": "http",
+            "scheme": "HTTP"
+          },
+          "periodSeconds": 5,
+          "successThreshold": 1,
+          "timeoutSeconds": 3
+        },
+        "livenessProbe": {
+          "failureThreshold": 3,
+          "httpGet": {
+            "path": "/health/live",
+            "port": "http",
+            "scheme": "HTTP"
+          },
+          "periodSeconds": 10,
+          "successThreshold": 1,
+          "timeoutSeconds": 3
+        },
+        "gunicorn_do_Dockerfile": {
+          "workers": 2,
+          "threads_por_worker": 4,
+          "keep_alive_s": 75
+        },
+        "pool_por_processo": {
+          "min_size": 0,
+          "max_size": 2,
+          "timeout_s": 10,
+          "statement_timeout_ms": 15000,
+          "work_mem": "64MB",
+          "jit": "off"
+        },
+        "digests_observados": [
+          "sha256:4a3af2cd75d79fa72202b6131d06774f542049c128e8e4ec9e0fa4f82661a7c4"
+        ]
+      },
+      "hpa": {
+        "minReplicas": 2,
+        "maxReplicas": 6,
+        "metrics": [
+          {
+            "resource": {
+              "name": "cpu",
+              "target": {
+                "averageUtilization": 60,
+                "type": "Utilization"
+              }
+            },
+            "type": "Resource"
+          }
+        ],
+        "behavior": {
+          "scaleDown": {
+            "policies": [
+              {
+                "periodSeconds": 60,
+                "type": "Percent",
+                "value": 50
+              }
+            ],
+            "selectPolicy": "Max",
+            "stabilizationWindowSeconds": 300
+          },
+          "scaleUp": {
+            "policies": [
+              {
+                "periodSeconds": 30,
+                "type": "Percent",
+                "value": 100
+              }
+            ],
+            "selectPolicy": "Max",
+            "stabilizationWindowSeconds": 0
+          }
+        }
+      },
+      "interpretacao": "pool por processo; teto teorico de 4 conexoes por pod, 8 com duas replicas e 24 com seis; nao representa conexoes observadas nem limite global do RDS",
+      "ecs_definicoes": {
+        "event_worker": {
+          "cpu": "256",
+          "memory_mib": "512",
+          "configuracao": {}
+        },
+        "merge_worker": {
+          "cpu": "256",
+          "memory_mib": "512",
+          "configuracao": {}
+        },
+        "processing": {
+          "cpu": "512",
+          "memory_mib": "1024",
+          "configuracao": {
+            "ANALYSIS_ENABLED": "true",
+            "ANALYSIS_MAX_INPUT_ROWS": "250000",
+            "ANALYSIS_POLL_SECONDS": "30",
+            "ETL_BRONZE_SILVER_BATCH_SIZE": "5000",
+            "ETL_BRONZE_SILVER_INTERVAL_SECONDS": "60",
+            "ETL_SILVER_GOLD_INTERVAL_SECONDS": "900",
+            "ETL_SILVER_GOLD_JANELA_MAX_SECONDS": "14400",
+            "TICK_SECONDS": "30"
+          }
+        }
+      },
+      "nodes_antes_da_carga": [
+        {
+          "tipo_instancia": "c6a.large",
+          "capacity": {
+            "cpu": "2",
+            "ephemeral-storage": "81854Mi",
+            "hugepages-1Gi": "0",
+            "hugepages-2Mi": "0",
+            "memory": "3881184Ki",
+            "pods": "27"
+          },
+          "allocatable": {
+            "cpu": "1780m",
+            "ephemeral-storage": "76173383962",
+            "hugepages-1Gi": "0",
+            "hugepages-2Mi": "0",
+            "memory": "3136736Ki",
+            "pods": "27"
+          },
+          "arquitetura": "amd64",
+          "kubeletVersion": "v1.33.13-eks-bca9cf6"
+        },
+        {
+          "tipo_instancia": "c6g.large",
+          "capacity": {
+            "cpu": "2",
+            "ephemeral-storage": "81854Mi",
+            "hugepages-1Gi": "0",
+            "hugepages-2Mi": "0",
+            "hugepages-32Mi": "0",
+            "hugepages-64Ki": "0",
+            "memory": "3899412Ki",
+            "pods": "27"
+          },
+          "allocatable": {
+            "cpu": "1780m",
+            "ephemeral-storage": "76173383962",
+            "hugepages-1Gi": "0",
+            "hugepages-2Mi": "0",
+            "hugepages-32Mi": "0",
+            "hugepages-64Ki": "0",
+            "memory": "3154964Ki",
+            "pods": "27"
+          },
+          "arquitetura": "arm64",
+          "kubeletVersion": "v1.33.13-eks-bca9cf6"
+        }
+      ]
+    },
+    "intervalos_da_base": {
+      "verificado_em_utc": "2026-10-05T14:18:23.071683+00:00",
+      "fonte": "estatisticas min/max dos row groups dos Parquets produzidos pelo conversor do repositorio",
+      "escopo": "intervalos do dado bruto; nao equivalem a linhas visiveis nas views",
+      "relogio_virtual_configurado": "2026-08-02T12:00:00Z",
+      "tabelas": [
+        {
+          "tabela": "signal_point",
+          "linhas": 18218743,
+          "colunas_temporais": [
+            {
+              "coluna": "ts",
+              "minimo": 1783814400000,
+              "maximo": 1785974368000,
+              "minimo_utc": "2026-07-12T00:00:00+00:00",
+              "maximo_utc": "2026-08-05T23:59:28+00:00"
+            }
+          ]
+        },
+        {
+          "tabela": "signal_bucket",
+          "linhas": 4936530,
+          "colunas_temporais": []
+        },
+        {
+          "tabela": "prom_point",
+          "linhas": 41191820,
+          "colunas_temporais": [
+            {
+              "coluna": "epoch_ms",
+              "minimo": 1783814529976,
+              "maximo": 1785974169161,
+              "minimo_utc": "2026-07-12T00:02:09.976000+00:00",
+              "maximo_utc": "2026-08-05T23:56:09.161000+00:00"
+            }
+          ]
+        },
+        {
+          "tabela": "device_hourly",
+          "linhas": 933436,
+          "colunas_temporais": [
+            {
+              "coluna": "hour_ts",
+              "minimo": 1783814400000,
+              "maximo": 1785970800000,
+              "minimo_utc": "2026-07-12T00:00:00+00:00",
+              "maximo_utc": "2026-08-05T23:00:00+00:00"
+            }
+          ]
+        },
+        {
+          "tabela": "service_overview",
+          "linhas": 385129,
+          "colunas_temporais": [
+            {
+              "coluna": "timestamp",
+              "minimo": 1783814405000,
+              "maximo": 1785973529000,
+              "minimo_utc": "2026-07-12T00:00:05+00:00",
+              "maximo_utc": "2026-08-05T23:45:29+00:00"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "plano_execucao": {
+    "registrado_em_utc": "2026-10-05T14:03:30.976959+00:00",
+    "natureza": "plano anterior a execucao; nao declara resultados",
+    "commit_documentacao": "137360a1027a2ab46967f10bffd2859c03e3804d",
+    "commit_imagens": "326769cbb9d9",
+    "base": {
+      "origem": "dump verificado e convertido em 04/10",
+      "total_registros_manifesto": 68717811,
+      "tabelas_populadas": 32,
+      "relogio_virtual_planejado": "2026-08-02T12:00:00Z",
+      "pre_condicoes": [
+        "contagens integrais conferidas pelo loader",
+        "PKs validas",
+        "33 migrations confirmadas",
+        "bootstrap de leitura concluido e ETL atualizado",
+        "workers ativos antes dos testes; simulador desligado"
+      ]
+    },
+    "rds": {
+      "classe": "db.t3.medium",
+      "storage_gib": 100,
+      "engine": "PostgreSQL 16.13"
+    },
+    "imagens_sem_alteracao_do_codigo": true,
+    "roteiros_sha256": {
+      "carga_ui.js": "381f3e3850a526d5159d46334cf19b26a955815dc749f70502ef01b3b7376a67",
+      "rnf01_capacidade_ingestao.js": "6a16ba58921d71d395f34de736b58e84afff29af69ca3d78e30eff407b9a042a",
+      "rnf01_lote_drenagem.js": "7eb989322216761fa431d400daec2c9ab895f050f192947eeea85f8686491677",
+      "falhas_resiliencia.js": "4cbf8a71a3286477b4d60c496d307c614671974377528e2a0d8a1e8517f15d66",
+      "helpers.js": "3e66a999957518c40ae4ff8315733af453b17672b1fcfbb1707604415a297ddd"
+    },
+    "gerador": {
+      "origem": "EC2 na mesma VPC, descartavel",
+      "tipo_planejado": "t4g.large",
+      "k6": "0.54.0",
+      "monitoramento": "vmstat a cada 5 s; verificar CPU/memoria e limitacao do gerador"
+    },
+    "cenarios": [
+      {
+        "id": "TI-05.2",
+        "procedimento": "pytest do evento postado na borda, leitura pelo Ingress EKS",
+        "limite_s": 300,
+        "polling_s": 10,
+        "amostra": 1
+      },
+      {
+        "id": "CF03-A",
+        "roteiro": "carga_ui.js",
+        "vus": [
+          5,
+          25,
+          100
+        ],
+        "duracao_por_nivel_s": 120,
+        "pausa_entre_niveis_s": 30,
+        "pensar_s": 2,
+        "criterios": "todos os thresholds originais, agregados e por tela; reportar maximo para RNF02"
+      },
+      {
+        "id": "CF04",
+        "roteiro": "carga_ui.js",
+        "vus": [
+          200,
+          450,
+          1200
+        ],
+        "duracao_por_nivel_s": 300,
+        "pausa_entre_niveis_s": 30,
+        "pensar_s": 2,
+        "hpa_backend": {
+          "min": 2,
+          "max": 6,
+          "cpu_alvo_percent_sobre_requests": 60,
+          "requests_cpu_m_por_pod": 250,
+          "estabilizacao_reducao_s": 300
+        },
+        "observacao_apos_carga_min_s": 360,
+        "criterios": "registrar aumento efetivo, pods prontos, efeitos em erros/latencia e retorno; manter thresholds do roteiro, registrar reprovacoes"
+      },
+      {
+        "id": "CF01",
+        "roteiro": "rnf01_capacidade_ingestao.js",
+        "pico_eventos_por_minuto": 10000,
+        "pico_duracao_s": 60,
+        "criterios": "thresholds originais e reconciliacao total dos eventos aceitos no bronze por test_id, com filas em voo e DLQ verificadas"
+      },
+      {
+        "id": "CF02",
+        "roteiro": "rnf01_lote_drenagem.js",
+        "eventos": 300000,
+        "lotes": 2,
+        "consumidor": "event-worker",
+        "procedimento": "confirmar consumidor parado, injetar lote, registrar acumulo, retomar e reconciliar",
+        "criterio_drenagem_referencia_s": 450,
+        "origem_cronometro": "solicitacao de retomada do consumidor; registrar separadamente primeira task RUNNING"
+      },
+      {
+        "id": "CF05",
+        "roteiro": "falhas_resiliencia.js",
+        "cenario": "timeout",
+        "timeout_cliente_ms": 1,
+        "timeout_recuperacao_s": 7,
+        "criterios": "ao menos um timeout detectado, cinco leituras de recuperacao sem falhas e p95 abaixo de 5 s",
+        "limite": "nao simula timeout interno nem indisponibilidade do banco"
+      }
+    ],
+    "observabilidade": {
+      "prometheus": "snapshot real do Remote Write do k6",
+      "grafana": "capturas com janela absoluta UTC e test_id",
+      "eks": "API metrics.k8s.io + HPA/Deployment a cada 10 s",
+      "rds": "CloudWatch CPU, conexoes, memoria e disco; medias de 60 s",
+      "interpretacao": "percentis de series nao somados; painel mostra maior p95 por rota e resumo k6 preserva percentis agregados"
+    },
+    "comparabilidade": "base derivada e relogio diferentes dos ensaios historicos; resultados complementares, sem atribuir variacao apenas ao HPA"
+  },
+  "resultados": {
+    "CF01": {
+      "requisito": "RNF01",
+      "test_id": "cf01-20261005T155154Z",
+      "alvo": "API de ingestão AWS",
+      "configuracao": {
+        "nominal": "1.000 eventos/min por 1 min",
+        "pico": "10.000 eventos/min por 1 min",
+        "recuperacao": "1.000 eventos/min por 1 min"
+      },
+      "resultado": {
+        "nominal": {
+          "aceitos": 1001,
+          "rejeitados": 0,
+          "sucesso_pct": "100.00",
+          "p95_ms": "60.7",
+          "iteracoes_descartadas": 0
+        },
+        "pico_10k": {
+          "aceitos": 10001,
+          "rejeitados": 0,
+          "sucesso_pct": "100.00",
+          "p95_ms": "30.5",
+          "iteracoes_descartadas": 0
+        },
+        "recuperacao": {
+          "aceitos": 1000,
+          "rejeitados": 0,
+          "sucesso_pct": "100.00",
+          "p95_ms": "34.1",
+          "iteracoes_descartadas": 0
+        }
+      },
+      "aprovado_http": true,
+      "persistencia_assincrona": "APROVADA: 12.153 eventos aceitos e gravados na bronze, sem duplicidade; fila e DLQ vazias. Ver consolidacao.",
+      "consolidacao": {
+        "origem": "registros-detalhados-2026-10-05.zip/cf01-execucao.json",
+        "campos_origem": [
+          "meta.reconciliacao_banco",
+          "meta.filas_finais",
+          "meta.fim_coleta_utc"
+        ],
+        "test_id_conferido": "cf01-20261005T155154Z",
+        "eventos_gravados": 12153,
+        "eventos_distintos": 12153,
+        "sessoes_distintas": 12153,
+        "filas_finais": {
+          "dlq": {
+            "ApproximateNumberOfMessages": 0,
+            "ApproximateNumberOfMessagesNotVisible": 0,
+            "ApproximateNumberOfMessagesDelayed": 0
+          },
+          "events": {
+            "ApproximateNumberOfMessages": 0,
+            "ApproximateNumberOfMessagesNotVisible": 0,
+            "ApproximateNumberOfMessagesDelayed": 0
+          }
+        },
+        "conferido_ate_utc": "2026-10-05T15:58:46.661882+00:00",
+        "disponibilidade_api": "NAO MEDIDA neste cenario",
+        "nota": "Consolidacao posterior ao k6 a partir da evidencia indicada; nao representa nova execucao.",
+        "eventos_aceitos": 12153,
+        "atraso_ate_bronze": "NAO MEDIDO: roteiro sem load_test_sent_at",
+        "aprovado_cenario": true
+      },
+      "inicio_k6_utc": "2026-10-05T15:53:15Z",
+      "fim_k6_utc": "2026-10-05T15:57:35Z",
+      "maximo_http_ms": 1175.122189,
+      "observabilidade": {
+        "inicio_utc": "2026-10-05T15:51:00+00:00",
+        "fim_utc": "2026-10-05T15:59:00+00:00",
+        "rds_cpu_maximo_das_medias_60s_pct": 56.36666666666666,
+        "amostras_rds_cpu": 8,
+        "fonte_no_pacote": "cf01-cloudwatch.json"
+      },
+      "limite": "Pico de um minuto; nao demonstra sustentacao por 15 minutos nem disponibilidade na API."
+    },
+    "CF03-A": {
+      "requisito": "carga-ui",
+      "test_id": "cf03-a-20261005T151301Z",
+      "meta": "erros < 1%, p95 < 3 s e p99 < 5 s por requisicao; tela aberta em < 5 s no p95",
+      "pensar_s": 2,
+      "total_requisicoes": 9091,
+      "niveis": {
+        "nivel_1": {
+          "usuarios": 5,
+          "duracao": "2m",
+          "requisicoes": 124,
+          "telas_abertas": 35,
+          "erros_pct": "20.16",
+          "p50_ms": "1606",
+          "p95_ms": "30001",
+          "p99_ms": "30001",
+          "max_ms": "30001",
+          "tela_p95_ms": "30002",
+          "telas_completas_pct": "42.86",
+          "telas": {
+            "agora": {
+              "tela_p50_ms": "15194",
+              "tela_p95_ms": "24876",
+              "tela_max_ms": "30003",
+              "req_p95_ms": "27803",
+              "erros_pct": "54.17"
+            },
+            "timeline": {
+              "tela_p50_ms": "1076",
+              "tela_p95_ms": "22602",
+              "tela_max_ms": "30000",
+              "req_p95_ms": "13971",
+              "erros_pct": "7.14"
+            },
+            "comparar": {
+              "tela_p50_ms": "30002",
+              "tela_p95_ms": "30002",
+              "tela_max_ms": "30002",
+              "req_p95_ms": "30000",
+              "erros_pct": "16.67"
+            },
+            "explorar": {
+              "tela_p50_ms": "30001",
+              "tela_p95_ms": "30002",
+              "tela_max_ms": "30002",
+              "req_p95_ms": "30000",
+              "erros_pct": "13.89"
+            },
+            "recorte": {
+              "tela_p50_ms": "10661",
+              "tela_p95_ms": "30002",
+              "tela_max_ms": "30002",
+              "req_p95_ms": "30001",
+              "erros_pct": "10.00"
+            },
+            "hipoteses": {
+              "tela_p50_ms": "724",
+              "tela_p95_ms": "7765",
+              "tela_max_ms": "8547",
+              "req_p95_ms": "6591",
+              "erros_pct": "0.00"
+            }
+          },
+          "limiares": {
+            "agregado": {
+              "erros": false,
+              "req_p95": false,
+              "req_p99": false,
+              "tela_p95": false,
+              "telas_completas": false
+            },
+            "telas": {
+              "agora": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "timeline": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "comparar": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "explorar": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "recorte": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "hipoteses": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": true
+              }
+            }
+          },
+          "criterios_falhos": [
+            "agregado.erros",
+            "agregado.req_p95",
+            "agregado.req_p99",
+            "agregado.tela_p95",
+            "agregado.telas_completas",
+            "telas.agora.abertura_p95",
+            "telas.agora.requisicao_p95",
+            "telas.agora.erros",
+            "telas.timeline.abertura_p95",
+            "telas.timeline.requisicao_p95",
+            "telas.timeline.erros",
+            "telas.comparar.abertura_p95",
+            "telas.comparar.requisicao_p95",
+            "telas.comparar.erros",
+            "telas.explorar.abertura_p95",
+            "telas.explorar.requisicao_p95",
+            "telas.explorar.erros",
+            "telas.recorte.abertura_p95",
+            "telas.recorte.requisicao_p95",
+            "telas.recorte.erros",
+            "telas.hipoteses.abertura_p95",
+            "telas.hipoteses.requisicao_p95"
+          ],
+          "aprovado": false
+        },
+        "nivel_2": {
+          "usuarios": 25,
+          "duracao": "2m",
+          "requisicoes": 598,
+          "telas_abertas": 171,
+          "erros_pct": "85.62",
+          "p50_ms": "2",
+          "p95_ms": "30001",
+          "p99_ms": "30001",
+          "max_ms": "30006",
+          "tela_p95_ms": "30004",
+          "telas_completas_pct": "1.75",
+          "telas": {
+            "agora": {
+              "tela_p50_ms": "30001",
+              "tela_p95_ms": "30006",
+              "tela_max_ms": "30007",
+              "req_p95_ms": "30001",
+              "erros_pct": "77.31"
+            },
+            "timeline": {
+              "tela_p50_ms": "23426",
+              "tela_p95_ms": "30002",
+              "tela_max_ms": "30002",
+              "req_p95_ms": "30001",
+              "erros_pct": "82.05"
+            },
+            "comparar": {
+              "tela_p50_ms": "5014",
+              "tela_p95_ms": "30004",
+              "tela_max_ms": "30008",
+              "req_p95_ms": "30001",
+              "erros_pct": "95.93"
+            },
+            "explorar": {
+              "tela_p50_ms": "25336",
+              "tela_p95_ms": "30001",
+              "tela_max_ms": "30002",
+              "req_p95_ms": "30000",
+              "erros_pct": "88.10"
+            },
+            "recorte": {
+              "tela_p50_ms": "23231",
+              "tela_p95_ms": "30002",
+              "tela_max_ms": "30002",
+              "req_p95_ms": "30001",
+              "erros_pct": "85.00"
+            },
+            "hipoteses": {
+              "tela_p50_ms": "1",
+              "tela_p95_ms": "17052",
+              "tela_max_ms": "17408",
+              "req_p95_ms": "17177",
+              "erros_pct": "73.33"
+            }
+          },
+          "limiares": {
+            "agregado": {
+              "erros": false,
+              "req_p95": false,
+              "req_p99": false,
+              "tela_p95": false,
+              "telas_completas": false
+            },
+            "telas": {
+              "agora": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "timeline": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "comparar": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "explorar": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "recorte": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "hipoteses": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              }
+            }
+          },
+          "criterios_falhos": [
+            "agregado.erros",
+            "agregado.req_p95",
+            "agregado.req_p99",
+            "agregado.tela_p95",
+            "agregado.telas_completas",
+            "telas.agora.abertura_p95",
+            "telas.agora.requisicao_p95",
+            "telas.agora.erros",
+            "telas.timeline.abertura_p95",
+            "telas.timeline.requisicao_p95",
+            "telas.timeline.erros",
+            "telas.comparar.abertura_p95",
+            "telas.comparar.requisicao_p95",
+            "telas.comparar.erros",
+            "telas.explorar.abertura_p95",
+            "telas.explorar.requisicao_p95",
+            "telas.explorar.erros",
+            "telas.recorte.abertura_p95",
+            "telas.recorte.requisicao_p95",
+            "telas.recorte.erros",
+            "telas.hipoteses.abertura_p95",
+            "telas.hipoteses.requisicao_p95",
+            "telas.hipoteses.erros"
+          ],
+          "aprovado": false
+        },
+        "nivel_3": {
+          "usuarios": 100,
+          "duracao": "2m",
+          "requisicoes": 8368,
+          "telas_abertas": 2392,
+          "erros_pct": "98.29",
+          "p50_ms": "1",
+          "p95_ms": "30000",
+          "p99_ms": "30001",
+          "max_ms": "30005",
+          "tela_p95_ms": "30002",
+          "telas_completas_pct": "1.00",
+          "telas": {
+            "agora": {
+              "tela_p50_ms": "2",
+              "tela_p95_ms": "30046",
+              "tela_max_ms": "30054",
+              "req_p95_ms": "30001",
+              "erros_pct": "99.83"
+            },
+            "timeline": {
+              "tela_p50_ms": "2",
+              "tela_p95_ms": "45",
+              "tela_max_ms": "30039",
+              "req_p95_ms": "31",
+              "erros_pct": "99.12"
+            },
+            "comparar": {
+              "tela_p50_ms": "3",
+              "tela_p95_ms": "120",
+              "tela_max_ms": "30042",
+              "req_p95_ms": "21",
+              "erros_pct": "98.30"
+            },
+            "explorar": {
+              "tela_p50_ms": "5",
+              "tela_p95_ms": "43",
+              "tela_max_ms": "30041",
+              "req_p95_ms": "30",
+              "erros_pct": "98.91"
+            },
+            "recorte": {
+              "tela_p50_ms": "4",
+              "tela_p95_ms": "30003",
+              "tela_max_ms": "30042",
+              "req_p95_ms": "30001",
+              "erros_pct": "98.00"
+            },
+            "hipoteses": {
+              "tela_p50_ms": "2",
+              "tela_p95_ms": "30001",
+              "tela_max_ms": "30041",
+              "req_p95_ms": "30001",
+              "erros_pct": "93.88"
+            }
+          },
+          "limiares": {
+            "agregado": {
+              "erros": false,
+              "req_p95": false,
+              "req_p99": false,
+              "tela_p95": false,
+              "telas_completas": false
+            },
+            "telas": {
+              "agora": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "timeline": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "comparar": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "explorar": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "recorte": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "hipoteses": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              }
+            }
+          },
+          "criterios_falhos": [
+            "agregado.erros",
+            "agregado.req_p95",
+            "agregado.req_p99",
+            "agregado.tela_p95",
+            "agregado.telas_completas",
+            "telas.agora.abertura_p95",
+            "telas.agora.requisicao_p95",
+            "telas.agora.erros",
+            "telas.timeline.erros",
+            "telas.comparar.erros",
+            "telas.explorar.erros",
+            "telas.recorte.abertura_p95",
+            "telas.recorte.requisicao_p95",
+            "telas.recorte.erros",
+            "telas.hipoteses.abertura_p95",
+            "telas.hipoteses.requisicao_p95",
+            "telas.hipoteses.erros"
+          ],
+          "aprovado": false
+        }
+      },
+      "aprovado": false,
+      "execucao": {
+        "cenario": "CF03-A",
+        "test_id": "cf03-a-20261005T151301Z",
+        "inicio_operacao_utc": "2026-10-05T15:13:01.313926+00:00",
+        "vus": [
+          5,
+          25,
+          100
+        ],
+        "duracao_por_nivel": "2m",
+        "observacao_posterior_s": 30,
+        "codigo_operacao": 0,
+        "fim_operacao_gerador_utc": "2026-10-05T15:22:34.278655+00:00",
+        "retornou_a_duas_replicas": true,
+        "observacao_posterior_real_s": 31.599,
+        "fim_coleta_utc": "2026-10-05T15:23:09.762443+00:00",
+        "arquivos_gerados": [
+          "carga-ui-ec2_instancia_20261005T152203Z.log",
+          "carga-ui-ec2_output_20261005T152203Z.txt",
+          "carga-ui-ec2_resultado_20261005T152203Z.json",
+          "carga-ui-ec2_summary_20261005T152203Z.json"
+        ],
+        "hpa_arquivo": "cf03-a-20261005T151301Z-hpa.jsonl",
+        "inicio_k6_utc": "2026-10-05T15:14:26Z",
+        "fim_k6_utc": "2026-10-05T15:21:47Z",
+        "codigo_k6": 99,
+        "operacao_nao_equivale_a_aprovacao": "Make pode retornar 0 apos recolher resultado k6 reprovado (codigo 99)."
+      },
+      "hpa": {
+        "amostras": 50,
+        "cpu_percent_min": 0,
+        "cpu_percent_max": 54,
+        "replicas_desejadas_min": 2,
+        "replicas_desejadas_max": 2,
+        "replicas_prontas_min": 0,
+        "replicas_prontas_max": 2,
+        "reinicios_observados_por_pod": {
+          "argus-backend-6d7cd4598c-dv6q6": 4,
+          "argus-backend-6d7cd4598c-twblf": 4
+        },
+        "cadencia_s": {
+          "nominal": 10,
+          "min": 11.745693,
+          "mediana": 12.083741,
+          "max": 15.269141,
+          "nota": "sleep de 10 s acrescido da duracao das consultas"
+        }
+      },
+      "falhas_http": 8762,
+      "observabilidade": {
+        "inicio_utc": "2026-10-05T15:13:00Z",
+        "fim_utc": "2026-10-05T15:24:00Z",
+        "rds_cpu_maximo_das_medias_60s_pct": 100.0,
+        "amostras_rds_cpu": 11,
+        "fonte_no_pacote": "cf03-a-cloudwatch.json"
+      },
+      "gerador_cpu_ociosa_min_pct": 94,
+      "fontes_no_pacote": [
+        "cf03-a-execucao.json",
+        "cf03-a-eventos-kubernetes.json"
+      ],
+      "diagnosticos": {
+        "consulta_signals": {
+          "natureza": "checagem de rota antes da carga de VUs; nao e resultado agregado k6",
+          "consulta_isolada": {
+            "inicio_utc": "2026-10-05T15:08:35.318821+00:00",
+            "rota": "/api/v1/signals",
+            "contexto": "verificacao isolada apos concluir bootstrap e reconciliacao",
+            "status": 500,
+            "fim_utc": "2026-10-05T15:08:50.803647+00:00",
+            "duracao_s": 15.485
+          },
+          "registros_erro": [
+            {
+              "ts": "2026-10-05T15:08:50+0000",
+              "level": "ERROR",
+              "logger": "telemetry.app",
+              "event": "unexpected_error",
+              "causa": "psycopg.errors.QueryCanceled: canceling statement due to statement timeout",
+              "correlacao_explicita_presente": false
+            },
+            {
+              "ts": "2026-10-05T15:05:21+0000",
+              "level": "ERROR",
+              "logger": "telemetry.app",
+              "event": "unexpected_error",
+              "causa": "psycopg.errors.QueryCanceled: canceling statement due to statement timeout",
+              "correlacao_explicita_presente": false
+            }
+          ],
+          "analise": "A rota recalcula o baseline de sete dias a cada requisicao. O log confirma cancelamento por statement_timeout de 15 s; ainda nao atribui toda a demora a um operador especifico do plano SQL.",
+          "fonte_codigo": "apps/fullstack/backend/src/telemetry/infrastructure/signals.py",
+          "mudanca_aplicacao_durante_checagem": false
+        },
+        "processamento": {
+          "contexto": "Tentativa de analise apos bootstrap e relogio congelado em 02/08. Configuracao original max_input_rows=250000. Nao alterar para obter aprovacao.",
+          "registros": [
+            {
+              "instante_utc": "2026-10-05T15:12:40Z",
+              "nivel": "ERROR",
+              "componente": "__main__",
+              "causa": "argus_processing.analysis_repository.CaptureLimitExceeded: input_limit_exceeded:7696798>250000"
+            }
+          ],
+          "interpretacao": "A protecao recusa a janela acumulada de 7.696.798 entradas. A preparacao de silver/gold terminou; isso nao significa que hipoteses foram produzidas."
+        }
+      }
+    },
+    "CF04": {
+      "requisito": "carga-ui",
+      "test_id": "cf04-20261005T152451Z",
+      "meta": "erros < 1%, p95 < 3 s e p99 < 5 s por requisicao; tela aberta em < 5 s no p95",
+      "pensar_s": 2,
+      "total_requisicoes": 486210,
+      "niveis": {
+        "nivel_1": {
+          "usuarios": 200,
+          "duracao": "5m",
+          "requisicoes": 55142,
+          "telas_abertas": 15786,
+          "erros_pct": "98.95",
+          "p50_ms": "1",
+          "p95_ms": "24082",
+          "p99_ms": "30001",
+          "max_ms": "30044",
+          "tela_p95_ms": "27782",
+          "telas_completas_pct": "0.39",
+          "telas": {
+            "agora": {
+              "tela_p50_ms": "1",
+              "tela_p95_ms": "30020",
+              "tela_max_ms": "30123",
+              "req_p95_ms": "29946",
+              "erros_pct": "99.08"
+            },
+            "timeline": {
+              "tela_p50_ms": "1",
+              "tela_p95_ms": "13",
+              "tela_max_ms": "30002",
+              "req_p95_ms": "9",
+              "erros_pct": "99.43"
+            },
+            "comparar": {
+              "tela_p50_ms": "2",
+              "tela_p95_ms": "3558",
+              "tela_max_ms": "30005",
+              "req_p95_ms": "1224",
+              "erros_pct": "96.34"
+            },
+            "explorar": {
+              "tela_p50_ms": "3",
+              "tela_p95_ms": "30001",
+              "tela_max_ms": "30014",
+              "req_p95_ms": "30001",
+              "erros_pct": "99.83"
+            },
+            "recorte": {
+              "tela_p50_ms": "2",
+              "tela_p95_ms": "10020",
+              "tela_max_ms": "30044",
+              "req_p95_ms": "10005",
+              "erros_pct": "99.56"
+            },
+            "hipoteses": {
+              "tela_p50_ms": "1",
+              "tela_p95_ms": "16",
+              "tela_max_ms": "30002",
+              "req_p95_ms": "11",
+              "erros_pct": "99.82"
+            }
+          },
+          "limiares": {
+            "agregado": {
+              "erros": false,
+              "req_p95": false,
+              "req_p99": false,
+              "tela_p95": false,
+              "telas_completas": false
+            },
+            "telas": {
+              "agora": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "timeline": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "comparar": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "explorar": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "recorte": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "hipoteses": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              }
+            }
+          },
+          "criterios_falhos": [
+            "agregado.erros",
+            "agregado.req_p95",
+            "agregado.req_p99",
+            "agregado.tela_p95",
+            "agregado.telas_completas",
+            "telas.agora.abertura_p95",
+            "telas.agora.requisicao_p95",
+            "telas.agora.erros",
+            "telas.timeline.erros",
+            "telas.comparar.erros",
+            "telas.explorar.abertura_p95",
+            "telas.explorar.requisicao_p95",
+            "telas.explorar.erros",
+            "telas.recorte.abertura_p95",
+            "telas.recorte.requisicao_p95",
+            "telas.recorte.erros",
+            "telas.hipoteses.erros"
+          ],
+          "aprovado": false
+        },
+        "nivel_2": {
+          "usuarios": 450,
+          "duracao": "5m",
+          "requisicoes": 188424,
+          "telas_abertas": 53747,
+          "erros_pct": "99.98",
+          "p50_ms": "1",
+          "p95_ms": "57",
+          "p99_ms": "29874",
+          "max_ms": "30026",
+          "tela_p95_ms": "89",
+          "telas_completas_pct": "0.00",
+          "telas": {
+            "agora": {
+              "tela_p50_ms": "2",
+              "tela_p95_ms": "30017",
+              "tela_max_ms": "30106",
+              "req_p95_ms": "29920",
+              "erros_pct": "99.89"
+            },
+            "timeline": {
+              "tela_p50_ms": "1",
+              "tela_p95_ms": "50",
+              "tela_max_ms": "30004",
+              "req_p95_ms": "22",
+              "erros_pct": "100.00"
+            },
+            "comparar": {
+              "tela_p50_ms": "2",
+              "tela_p95_ms": "133",
+              "tela_max_ms": "421",
+              "req_p95_ms": "46",
+              "erros_pct": "100.00"
+            },
+            "explorar": {
+              "tela_p50_ms": "4",
+              "tela_p95_ms": "254",
+              "tela_max_ms": "577",
+              "req_p95_ms": "120",
+              "erros_pct": "100.00"
+            },
+            "recorte": {
+              "tela_p50_ms": "2",
+              "tela_p95_ms": "42",
+              "tela_max_ms": "227",
+              "req_p95_ms": "29",
+              "erros_pct": "100.00"
+            },
+            "hipoteses": {
+              "tela_p50_ms": "1",
+              "tela_p95_ms": "14",
+              "tela_max_ms": "134",
+              "req_p95_ms": "9",
+              "erros_pct": "100.00"
+            }
+          },
+          "limiares": {
+            "agregado": {
+              "erros": false,
+              "req_p95": true,
+              "req_p99": false,
+              "tela_p95": true,
+              "telas_completas": false
+            },
+            "telas": {
+              "agora": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "timeline": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "comparar": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "explorar": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "recorte": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              },
+              "hipoteses": {
+                "abertura_p95": true,
+                "requisicao_p95": true,
+                "erros": false
+              }
+            }
+          },
+          "criterios_falhos": [
+            "agregado.erros",
+            "agregado.req_p99",
+            "agregado.telas_completas",
+            "telas.agora.abertura_p95",
+            "telas.agora.requisicao_p95",
+            "telas.agora.erros",
+            "telas.timeline.erros",
+            "telas.comparar.erros",
+            "telas.explorar.erros",
+            "telas.recorte.erros",
+            "telas.hipoteses.erros"
+          ],
+          "aprovado": false
+        },
+        "nivel_3": {
+          "usuarios": 1200,
+          "duracao": "5m",
+          "requisicoes": 242643,
+          "telas_abertas": 69516,
+          "erros_pct": "99.92",
+          "p50_ms": "43",
+          "p95_ms": "30000",
+          "p99_ms": "30002",
+          "max_ms": "30185",
+          "tela_p95_ms": "30002",
+          "telas_completas_pct": "0.01",
+          "telas": {
+            "agora": {
+              "tela_p50_ms": "93",
+              "tela_p95_ms": "30001",
+              "tela_max_ms": "30257",
+              "req_p95_ms": "30000",
+              "erros_pct": "99.99"
+            },
+            "timeline": {
+              "tela_p50_ms": "61",
+              "tela_p95_ms": "30001",
+              "tela_max_ms": "30430",
+              "req_p95_ms": "30000",
+              "erros_pct": "99.95"
+            },
+            "comparar": {
+              "tela_p50_ms": "42",
+              "tela_p95_ms": "30001",
+              "tela_max_ms": "30249",
+              "req_p95_ms": "30000",
+              "erros_pct": "99.88"
+            },
+            "explorar": {
+              "tela_p50_ms": "89",
+              "tela_p95_ms": "30002",
+              "tela_max_ms": "30424",
+              "req_p95_ms": "29990",
+              "erros_pct": "99.91"
+            },
+            "recorte": {
+              "tela_p50_ms": "81",
+              "tela_p95_ms": "30004",
+              "tela_max_ms": "30271",
+              "req_p95_ms": "30001",
+              "erros_pct": "99.91"
+            },
+            "hipoteses": {
+              "tela_p50_ms": "75",
+              "tela_p95_ms": "30002",
+              "tela_max_ms": "30260",
+              "req_p95_ms": "30001",
+              "erros_pct": "99.93"
+            }
+          },
+          "limiares": {
+            "agregado": {
+              "erros": false,
+              "req_p95": false,
+              "req_p99": false,
+              "tela_p95": false,
+              "telas_completas": false
+            },
+            "telas": {
+              "agora": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "timeline": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "comparar": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "explorar": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "recorte": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              },
+              "hipoteses": {
+                "abertura_p95": false,
+                "requisicao_p95": false,
+                "erros": false
+              }
+            }
+          },
+          "criterios_falhos": [
+            "agregado.erros",
+            "agregado.req_p95",
+            "agregado.req_p99",
+            "agregado.tela_p95",
+            "agregado.telas_completas",
+            "telas.agora.abertura_p95",
+            "telas.agora.requisicao_p95",
+            "telas.agora.erros",
+            "telas.timeline.abertura_p95",
+            "telas.timeline.requisicao_p95",
+            "telas.timeline.erros",
+            "telas.comparar.abertura_p95",
+            "telas.comparar.requisicao_p95",
+            "telas.comparar.erros",
+            "telas.explorar.abertura_p95",
+            "telas.explorar.requisicao_p95",
+            "telas.explorar.erros",
+            "telas.recorte.abertura_p95",
+            "telas.recorte.requisicao_p95",
+            "telas.recorte.erros",
+            "telas.hipoteses.abertura_p95",
+            "telas.hipoteses.requisicao_p95",
+            "telas.hipoteses.erros"
+          ],
+          "aprovado": false
+        }
+      },
+      "aprovado": false,
+      "execucao": {
+        "cenario": "CF04",
+        "test_id": "cf04-20261005T152451Z",
+        "inicio_operacao_utc": "2026-10-05T15:24:51.182003+00:00",
+        "vus": [
+          200,
+          450,
+          1200
+        ],
+        "duracao_por_nivel": "5m",
+        "observacao_posterior_s": 360,
+        "codigo_operacao": 0,
+        "fim_operacao_gerador_utc": "2026-10-05T15:43:24.207668+00:00",
+        "retornou_a_duas_replicas": true,
+        "observacao_posterior_real_s": 500.126,
+        "fim_coleta_utc": "2026-10-05T15:51:52.293979+00:00",
+        "arquivos_gerados": [
+          "carga-ui-ec2_instancia_20261005T154237Z.log",
+          "carga-ui-ec2_output_20261005T154237Z.txt",
+          "carga-ui-ec2_resultado_20261005T154237Z.json",
+          "carga-ui-ec2_summary_20261005T154237Z.json"
+        ],
+        "hpa_arquivo": "cf04-20261005T152451Z-hpa.jsonl",
+        "inicio_k6_utc": "2026-10-05T15:26:17Z",
+        "fim_k6_utc": "2026-10-05T15:42:21Z",
+        "codigo_k6": 99,
+        "operacao_nao_equivale_a_aprovacao": "Make pode retornar 0 apos recolher resultado k6 reprovado (codigo 99)."
+      },
+      "hpa": {
+        "amostras": 134,
+        "cpu_percent_min": 0,
+        "cpu_percent_max": 144,
+        "replicas_desejadas_min": 2,
+        "replicas_desejadas_max": 3,
+        "replicas_prontas_min": 0,
+        "replicas_prontas_max": 3,
+        "reinicios_observados_por_pod": {
+          "argus-backend-6d7cd4598c-dv6q6": 6,
+          "argus-backend-6d7cd4598c-twblf": 6,
+          "argus-backend-6d7cd4598c-pmq7s": 3
+        },
+        "cadencia_s": {
+          "nominal": 10,
+          "min": 11.741937,
+          "mediana": 12.089955,
+          "max": 12.598484,
+          "nota": "sleep de 10 s acrescido da duracao das consultas"
+        }
+      },
+      "falhas_http": 485413,
+      "observabilidade": {
+        "inicio_utc": "2026-10-05T15:24:00+00:00",
+        "fim_utc": "2026-10-05T15:52:00+00:00",
+        "rds_cpu_maximo_das_medias_60s_pct": 100.0,
+        "amostras_rds_cpu": 28,
+        "fonte_no_pacote": "cf04-cloudwatch.json"
+      },
+      "gerador_cpu_ociosa_min_pct": 52,
+      "fontes_no_pacote": [
+        "cf04-execucao.json",
+        "cf04-eventos-kubernetes.json"
+      ]
+    },
+    "CF02": {
+      "arquivo": "evidencias-lotes-2026-10-05.json",
+      "cenario": "Duas remessas de 150000 eventos com consumidor parado",
+      "recuperacao_dos_aceitos": "aprovada",
+      "cenario_completo": "reprovado: 73 rejeicoes"
+    },
+    "CF05": {
+      "cenario": "timeout",
+      "test_id": "cf05-20261005T160456Z",
+      "timeouts_detectados": 100,
+      "recuperacao_falhas_pct": "0.00",
+      "recuperacao_p95_ms": "12.3",
+      "limite": "Timeout do cliente de 1 ms; nao provoca indisponibilidade do banco."
+    },
+    "TI-05.2": {
+      "cenario": "TI-05.2",
+      "inicio_utc": "2026-10-05T15:08:38.674127+00:00",
+      "fim_utc": "2026-10-05T15:12:57.013889+00:00",
+      "duracao_execucao_s": 258.034814,
+      "codigo_pytest": 0,
+      "caminho_leitura": "Ingress EKS",
+      "migrations": "001-033; indice 030 validado",
+      "limite_s": 300,
+      "polling_s": 10,
+      "amostra": 1,
+      "sha256_roteiro": "e438e0f290f1f642232dd48d8e5d051a6258de84c61e219b126ed5a06fea4bde",
+      "metodo": "Wrapper de observacao no cliente; chama a funcao original com os mesmos argumentos e devolve a resposta original. Nao registra tokens, endpoints nem payloads.",
+      "envio_ate_primeira_observacao_s": 242.244129,
+      "ultima_consulta_vazia_utc": "2026-10-05T15:12:46.584248+00:00",
+      "primeira_observacao_utc": "2026-10-05T15:12:56.875785+00:00",
+      "consultas_ate_encontrar": 24,
+      "observacao_final": {
+        "inicio_utc": "2026-10-05T15:12:56.584480+00:00",
+        "rota": "/api/v1/events",
+        "metodo": "GET",
+        "status_http": 200,
+        "itens_retornados": 1,
+        "fim_utc": "2026-10-05T15:12:56.875785+00:00",
+        "duracao_s": 0.291334
+      },
+      "fonte_no_pacote": "ti05-aws-2026-10-05.json"
+    }
+  },
+  "registros_detalhados": {
+    "arquivo": "registros-detalhados-2026-10-05.zip",
+    "conteudo": "JSONs originais de preparacao, execucao, diagnosticos, CloudWatch, series e dashboards; JSONL de HPA; manifesto SHA-256 para conferir os arquivos."
+  },
+  "limitacoes": [
+    "Rodadas historicas usavam outra janela de dados; nao ha comparacao controlada da arquitetura.",
+    "RNF04 conserva evidencia historica; RNF11 permanece parcialmente comprovado.",
+    "Pico sustentado e falha de dependencia continuam propostos, nao executados."
+  ]
+}

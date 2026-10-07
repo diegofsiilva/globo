@@ -42,6 +42,9 @@ EVENTS_SRC ?= $(HOME)/Downloads/Events
 
 # Parquet gerado por tools/etl_dump.py a partir do dump.
 PARQUET_DIR ?= ../../data/parquet
+ARGUS_DUMP_PATH ?= $(abspath ../../argus_dump.sql)
+ARGUS_DUMP_UPLOAD_PATH ?= $(ARGUS_DUMP_PATH)
+ARGUS_DUMP_UPLOAD_NAME ?= $(notdir $(ARGUS_DUMP_UPLOAD_PATH))
 
 # PostgreSQL local para migrations e testes. Porta 55432 e nao 5432 para nao
 # colidir com um Postgres que ja esteja instalado na maquina.
@@ -299,6 +302,7 @@ test-hypothesis-batch: ## Valida o lote CDC sem usar AWS ou banco
 .PHONY: test-observabilidade
 test-observabilidade: ## Valida scripts, Compose e dashboards sem acessar AWS nem subir containers
 	bash -n $(TESTES_CARGA)/executar_testes.sh
+	bash -n $(TESTES_CARGA)/gerador_ec2.sh
 	@command -v docker >/dev/null 2>&1 \
 		&& $(OBSERVABILITY_COMPOSE) config --quiet \
 		|| echo "  compose pulado: Docker ausente."
@@ -578,7 +582,7 @@ events-json: ## Converte os CSVs do BI em JSON canonico (fixtures)
 
 .PHONY: parquet
 parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
-	cd $(TOOLS) && $(UV) python etl_dump.py --dump ../../../argus_dump.sql --out ../$(PARQUET_DIR)
+	cd $(TOOLS) && $(UV) python etl_dump.py --dump "$(ARGUS_DUMP_PATH)" --out "$(abspath $(PARQUET_DIR))"
 
 # --------------------------------------------------------------------------- #
 # Imagens
@@ -847,9 +851,9 @@ auth-show-ingest: ## Imprime o token de ingestao (o unico recuperavel)
 origem-sync: ## Sobe o dump e o Parquet para o bucket de origem
 	@$(call require_env,AWS_PROFILE)
 	@bucket=$$(cd $(INFRA) && terraform output -raw origem_bucket); \
-	aws s3 sync $(PARQUET_DIR)/ "s3://$$bucket/parquet/" --profile $$AWS_PROFILE; \
-	echo "subindo o dump (4 GB, demora)..."; \
-	aws s3 cp ../../argus_dump.sql "s3://$$bucket/dump/" --profile $$AWS_PROFILE
+	aws s3 sync "$(PARQUET_DIR)/" "s3://$$bucket/parquet/" --profile $$AWS_PROFILE; \
+	echo "subindo o dump selecionado..."; \
+	aws s3 cp "$(ARGUS_DUMP_UPLOAD_PATH)" "s3://$$bucket/dump/$(ARGUS_DUMP_UPLOAD_NAME)" --profile $$AWS_PROFILE
 
 .PHONY: load
 load: ## Dispara a carga inicial das 33 tabelas no RDS
@@ -1179,6 +1183,13 @@ teste-lotes-acumulados: ## Injeta 2-4 lotes logicos (LOTES=2); use com o event-w
 	case "$$lotes" in 2|3|4) ;; *) echo "LOTES deve ser 2, 3 ou 4"; exit 2;; esac; \
 	K6_QUANTIDADE_LOTES="$$lotes" $(TESTES_CARGA)/executar_testes.sh rnf01-acumulo \
 		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-lotes-acumulados-ec2
+teste-lotes-acumulados-ec2: ## Injeta 2 a 4 lotes pela EC2, com o consumidor previamente parado
+	@$(call require_env,AWS_PROFILE)
+	@lotes=$${LOTES:-2}; \
+	case "$$lotes" in 2|3|4) ;; *) echo "LOTES deve ser 2, 3 ou 4"; exit 2;; esac; \
+	K6_QUANTIDADE_LOTES="$$lotes" $(TESTES_CARGA)/gerador_ec2.sh rnf01-acumulo
 
 # Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
 # ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.
