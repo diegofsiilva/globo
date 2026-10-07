@@ -23,6 +23,7 @@ SIMULATOR  := simulator
 PROCESSING := processing
 LOADER     := loader
 BACKEND    := backend
+AGENTE     := agente
 INFRA      := infra
 TOOLS      := tools
 FRONTEND   := frontend
@@ -41,6 +42,9 @@ EVENTS_SRC ?= $(HOME)/Downloads/Events
 
 # Parquet gerado por tools/etl_dump.py a partir do dump.
 PARQUET_DIR ?= ../../data/parquet
+ARGUS_DUMP_PATH ?= $(abspath ../../argus_dump.sql)
+ARGUS_DUMP_UPLOAD_PATH ?= $(ARGUS_DUMP_PATH)
+ARGUS_DUMP_UPLOAD_NAME ?= $(notdir $(ARGUS_DUMP_UPLOAD_PATH))
 
 # PostgreSQL local para migrations e testes. Porta 55432 e nao 5432 para nao
 # colidir com um Postgres que ja esteja instalado na maquina.
@@ -119,6 +123,14 @@ IMAGE_TAG ?= $(GIT_SHA)
 # O Terraform le variavel por TF_VAR_*; `export` aqui vale para todos os alvos.
 export TF_VAR_worker_image_tag = $(IMAGE_TAG)
 
+# Os comandos `*_run_command` saem do `terraform output` com `--profile g4`
+# escrito no texto. Canalizados direto para o bash, os alvos `migrate-aws`,
+# `db-reader-aws` e `load` ignoravam o AWS_PROFILE do .env e da linha de
+# comando: com qualquer outro nome de profile a task nem era criada, e o erro
+# era `UnrecognizedClientException`, que manda procurar credencial vencida.
+# Este filtro troca o profile do texto pelo que o resto do Makefile ja usa.
+COM_PROFILE = sed "s/--profile g4/--profile $$AWS_PROFILE/"
+
 .PHONY: help
 help: ## Lista os alvos
 	@echo "Argus — alvos disponiveis:"
@@ -144,6 +156,7 @@ install: ## Instala as dependencias de todos os apps Python
 	cd $(PROCESSING) && uv sync --all-groups
 	cd $(LOADER) && uv sync --all-groups
 	cd $(BACKEND) && uv sync --extra dev
+	cd $(AGENTE) && uv sync --all-groups
 
 .PHONY: env
 env: ## Cria o .env a partir dos outputs do Terraform
@@ -242,7 +255,7 @@ migrate-status: ## Mostra quais migrations ja rodaram (usa DATABASE_URL)
 .PHONY: migrate-aws
 migrate-aws: ## Aplica as migrations pendentes no RDS, pela VPC
 	@$(call require_env,AWS_PROFILE)
-	@cd $(INFRA) && terraform output -raw migration_run_command | bash
+	@cd $(INFRA) && terraform output -raw migration_run_command | $(COM_PROFILE) | bash
 	@echo
 	@echo "Acompanhe: make logs SERVICO=processing"
 
@@ -256,7 +269,7 @@ migrate-status-aws: ## Lista as migrations aplicadas no RDS, pela VPC
 .PHONY: db-reader-aws
 db-reader-aws: ## Cria/atualiza o usuario de leitura no RDS, pela VPC
 	@$(call require_env,AWS_PROFILE)
-	@cd $(INFRA) && terraform output -raw db_reader_run_command | bash
+	@cd $(INFRA) && terraform output -raw db_reader_run_command | $(COM_PROFILE) | bash
 	@echo
 	@echo "Acompanhe: make logs SERVICO=processing"
 
@@ -280,7 +293,7 @@ gen-ddl: ## Regera a migration 004 a partir do schema do dump
 # --------------------------------------------------------------------------- #
 
 .PHONY: test
-test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch ## Roda as suites que tem teste
+test: test-worker test-simulator test-processing test-backend test-authorizer test-frontend test-observabilidade test-hypothesis-batch test-agente ## Roda as suites que tem teste
 
 .PHONY: test-hypothesis-batch
 test-hypothesis-batch: ## Valida o lote CDC sem usar AWS ou banco
@@ -289,6 +302,7 @@ test-hypothesis-batch: ## Valida o lote CDC sem usar AWS ou banco
 .PHONY: test-observabilidade
 test-observabilidade: ## Valida scripts, Compose e dashboards sem acessar AWS nem subir containers
 	bash -n $(TESTES_CARGA)/executar_testes.sh
+	bash -n $(TESTES_CARGA)/gerador_ec2.sh
 	@command -v docker >/dev/null 2>&1 \
 		&& $(OBSERVABILITY_COMPOSE) config --quiet \
 		|| echo "  compose pulado: Docker ausente."
@@ -327,6 +341,37 @@ test-simulator: ## Testes do relogio e do emissor do simulador
 .PHONY: test-processing
 test-processing: ## Testes do ETL incremental (watermarks, workers)
 	cd $(PROCESSING) && TEST_DATABASE_URL=$${TEST_DATABASE_URL:-$(PG_TEST_URL)} $(UV) pytest
+
+GO ?= go
+.PHONY: benchmark-fixtures benchmark-fixtures-check benchmark-go-test benchmark-paridade
+benchmark-fixtures: ## Regenera os JSONs sintéticos do motor (revisar o diff)
+	cd $(PROCESSING) && $(UV) python -m benchmarks.gerar_fixtures
+
+benchmark-fixtures-check: ## Confere se o gerador reproduz os JSONs versionados
+	cd $(PROCESSING) && $(UV) python -m benchmarks.gerar_fixtures --check
+
+benchmark-go-test: ## Valida a tradução Go do cálculo isolado do motor
+	cd $(PROCESSING)/benchmarks/golang && "$(GO)" test ./...
+
+benchmark-paridade: benchmark-fixtures-check benchmark-go-test ## Compara as saídas completas Python e Go
+	cd $(PROCESSING) && $(UV) python -m benchmarks.verificar_paridade --go "$(GO)"
+
+BENCHMARK_ARGS ?=
+.PHONY: benchmark-medir
+benchmark-medir: benchmark-fixtures-check benchmark-go-test ## Valida paridade e mede tempo e pico de RSS local
+	cd $(PROCESSING) && $(UV) python -m benchmarks.medicao.executar --go "$(GO)" $(BENCHMARK_ARGS)
+
+BENCHMARK_AWS_ARGS ?=
+.PHONY: benchmark-aws
+benchmark-aws: benchmark-fixtures-check ## Cria EC2 temporaria, mede Python/Golang e recolhe os JSONs
+	cd $(PROCESSING) && $(UV) python -m benchmarks.medicao.aws $(BENCHMARK_AWS_ARGS)
+
+# O piloto do agente nao toca banco, AWS nem rede: o modelo entra por dublê de
+# roteiro. O alvo roda em qualquer maquina, e e por isso que ele esta no `test`.
+.PHONY: test-agente
+test-agente: ## Testes do piloto de hipoteses com IA (ciclo, tetos e validador)
+	cd $(AGENTE) && $(UV) pytest
+
 
 .PHONY: test-frontend
 test-frontend: ## Testes de contratos e componentes do dashboard
@@ -370,6 +415,7 @@ lint: ## Verifica estilo sem alterar arquivos
 	cd $(PROCESSING) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(LOADER) && $(UV) ruff check src
 	cd $(BACKEND) && $(UV) --extra dev ruff check src tests
+	cd $(AGENTE) && $(UV) ruff check src tests && $(UV) ruff format --check src tests
 	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff check handler.py tests
 	cd $(FRONTEND) && npm run lint
 	cd $(INFRA) && terraform fmt -check -recursive
@@ -385,6 +431,7 @@ fmt: ## Formata o codigo e o Terraform
 	cd $(PROCESSING) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(LOADER) && ($(UV) ruff check --fix src || true) && $(UV) ruff format src
 	cd $(BACKEND) && ($(UV) --extra dev ruff check --fix src tests || true) && $(UV) --extra dev ruff format src tests
+	cd $(AGENTE) && ($(UV) ruff check --fix src tests || true) && $(UV) ruff format src tests
 	cd $(AUTHORIZER) && uv run --quiet --with ruff ruff format handler.py tests
 	cd $(INFRA) && terraform fmt -recursive
 
@@ -473,6 +520,58 @@ else
 	@echo "amostra carregada; relogio virtual posicionado no ultimo evento."
 endif
 
+# --------------------------------------------------------------------------- #
+# Piloto de hipoteses com IA (experimental, fora do motor deterministico)
+# --------------------------------------------------------------------------- #
+
+# AGENTE_CASOS aceita um arquivo ou um diretorio de casos.
+AGENTE_CASOS ?= $(AGENTE)/fixtures
+AGENTE_SAIDA ?= $(AGENTE)/saidas/lote
+
+.PHONY: agente-ensaio
+agente-ensaio: ## Roda o lote do piloto com o dublê de roteiro, sem rede nem modelo
+	cd $(AGENTE) && $(UV) agentectl --modelo roteiro --roteiro fixtures/roteiros \
+	  lote fixtures --saida saidas/lote-ensaio
+
+.PHONY: agente-lote
+agente-lote: ## Roda o lote do piloto no Ollama (precisa das chaves OLLAMA_* no .env)
+	@test -n "$$OLLAMA_URL" || { echo "defina OLLAMA_URL e OLLAMA_MODEL no .env"; exit 1; }
+	cd $(AGENTE) && $(UV) agentectl lote ../$(AGENTE_CASOS) --saida ../$(AGENTE_SAIDA)
+
+.PHONY: agente-recorte-real
+agente-recorte-real: ## Reconstroi um recorte real da bronze (PostgreSQL local) para o piloto
+	@test -n "$$DATABASE_URL" || { echo "defina DATABASE_URL (make db-url)"; exit 1; }
+	psql "$$DATABASE_URL" -v ON_ERROR_STOP=1 \
+	  -v entidade='$(or $(AGENTE_ENTIDADE),br1|playback.video.globo.com)' \
+	  -v janela_inicio='$(or $(AGENTE_JANELA_INICIO),2026-08-18 00:00+00)' \
+	  -v janela_fim='$(or $(AGENTE_JANELA_FIM),2026-08-31 00:00+00)' \
+	  -v presente='$(or $(AGENTE_PRESENTE),2026-08-21 08:00+00)' \
+	  -f $(AGENTE)/scripts/reconstruir_recorte_real.sql
+
+.PHONY: agente-investigar-banco
+agente-investigar-banco: ## Investiga um checkpoint real do PostgreSQL local (CHECKPOINT=, ENTIDADE=)
+	@test -n "$$DATABASE_URL" -a -n "$(CHECKPOINT)" -a -n "$(ENTIDADE)" || { echo "defina DATABASE_URL, CHECKPOINT e ENTIDADE"; exit 1; }
+	cd $(AGENTE) && $(UV) agentectl investigar-banco --checkpoint $(CHECKPOINT) --entidade "$(ENTIDADE)" --lookback $(or $(LOOKBACK),360)
+
+.PHONY: agente-checar
+agente-checar: ## Confirma que o Ollama configurado no .env responde
+	cd $(AGENTE) && $(UV) agentectl checar-modelo
+
+.PHONY: agente-eval
+agente-eval: ## Avalia o modelo real contra os casos sinteticos (desfecho x roteiro-ouro)
+	@test -n "$$OLLAMA_URL" || { echo "defina OLLAMA_URL e OLLAMA_MODEL no .env"; exit 1; }
+	cd $(AGENTE) && $(UV) python scripts/avaliar_modelo.py
+
+.PHONY: agente-eval-seco
+agente-eval-seco: ## Ensaio seco do eval: usa o roteiro dos dois lados, sem rede
+	cd $(AGENTE) && $(UV) python scripts/avaliar_modelo.py --modelo roteiro
+
+.PHONY: agente-eval-modelo
+agente-eval-modelo: ## Avalia um modelo especifico sem mexer no .env (MODELO=gemma4:12b)
+	@test -n "$(MODELO)" || { echo "uso: make agente-eval-modelo MODELO=<id>"; exit 1; }
+	@test -n "$$OLLAMA_URL" || { echo "defina OLLAMA_URL no .env"; exit 1; }
+	cd $(AGENTE) && $(UV) python scripts/avaliar_modelo.py --modelo-id "$(MODELO)"
+
 .PHONY: docs
 docs: ## Abre a documentacao Swagger da API publicada
 	@$(call require_env,ARGUS_API_URL)
@@ -491,7 +590,7 @@ events-json: ## Converte os CSVs do BI em JSON canonico (fixtures)
 
 .PHONY: parquet
 parquet: ## Converte o dump MySQL em Parquet (demora ~5 min)
-	cd $(TOOLS) && $(UV) python etl_dump.py --dump ../../../argus_dump.sql --out ../$(PARQUET_DIR)
+	cd $(TOOLS) && $(UV) python etl_dump.py --dump "$(ARGUS_DUMP_PATH)" --out "$(abspath $(PARQUET_DIR))"
 
 # --------------------------------------------------------------------------- #
 # Imagens
@@ -760,15 +859,15 @@ auth-show-ingest: ## Imprime o token de ingestao (o unico recuperavel)
 origem-sync: ## Sobe o dump e o Parquet para o bucket de origem
 	@$(call require_env,AWS_PROFILE)
 	@bucket=$$(cd $(INFRA) && terraform output -raw origem_bucket); \
-	aws s3 sync $(PARQUET_DIR)/ "s3://$$bucket/parquet/" --profile $$AWS_PROFILE; \
-	echo "subindo o dump (4 GB, demora)..."; \
-	aws s3 cp ../../argus_dump.sql "s3://$$bucket/dump/" --profile $$AWS_PROFILE
+	aws s3 sync "$(PARQUET_DIR)/" "s3://$$bucket/parquet/" --profile $$AWS_PROFILE; \
+	echo "subindo o dump selecionado..."; \
+	aws s3 cp "$(ARGUS_DUMP_UPLOAD_PATH)" "s3://$$bucket/dump/$(ARGUS_DUMP_UPLOAD_NAME)" --profile $$AWS_PROFILE
 
 .PHONY: load
 load: ## Dispara a carga inicial das 33 tabelas no RDS
 	@$(call require_env,AWS_PROFILE)
 	@echo "Disparando a task de carga (20 a 30 min para 68,7 M linhas)..."
-	@cd $(INFRA) && terraform output -raw loader_run_command | bash
+	@cd $(INFRA) && terraform output -raw loader_run_command | $(COM_PROFILE) | bash
 
 .PHONY: load-local
 load-local: ## Carrega os Parquet no banco LOCAL (util para desenvolver)
@@ -969,6 +1068,20 @@ replay: ## Reenvia os eventos de exemplo para a API de ingestao
 # O envio e separado da preparacao para permitir
 # revisar as 52 mudancas antes de colocá-las na fila.
 .PHONY: hypothesis-batch-prepare hypothesis-batch-send hypothesis-batch-verify
+.PHONY: hypothesis-agent-case
+hypothesis-agent-case: ## Repete um caso sintético do agente (AGENT_CASE=degradacao_sintetica)
+	@case_name="$${AGENT_CASE:-degradacao_sintetica}"; \
+	cd $(TOOLS) && $(UV) python agente_hipoteses_caso.py \
+	  --case "../$(AGENTE)/fixtures/sinteticos/$${case_name}.json"
+
+.PHONY: hypothesis-agent-db
+hypothesis-agent-db: ## Consulta fatos reais de um checkpoint (CHECKPOINT_ID=... ENTITY=... AGENT_QUERIES=...)
+	@$(call require_env,DATABASE_URL)
+	@test -n "$(CHECKPOINT_ID)" -a -n "$(ENTITY)" || { echo "CHECKPOINT_ID e ENTITY obrigatórios"; exit 1; }
+	@cd $(TOOLS) && $(UV) python agente_hipoteses_db.py \
+	  --checkpoint-id "$(CHECKPOINT_ID)" --entity "$(ENTITY)" \
+	  $(if $(AGENT_QUERIES),--queries "$(AGENT_QUERIES)")
+
 hypothesis-batch-prepare: ## Prepara lote CDC (BATCH_FILE=/caminho/fora/do/repo.json)
 	@$(call require_env,DATABASE_URL)
 	@test -n "$(BATCH_FILE)" || { echo "defina BATCH_FILE" >&2; exit 1; }
@@ -1078,6 +1191,13 @@ teste-lotes-acumulados: ## Injeta 2-4 lotes logicos (LOTES=2); use com o event-w
 	case "$$lotes" in 2|3|4) ;; *) echo "LOTES deve ser 2, 3 ou 4"; exit 2;; esac; \
 	K6_QUANTIDADE_LOTES="$$lotes" $(TESTES_CARGA)/executar_testes.sh rnf01-acumulo \
 		$(if $(filter 1 sim true,$(COM_GRAFANA)),--com-grafana,)
+
+.PHONY: teste-lotes-acumulados-ec2
+teste-lotes-acumulados-ec2: ## Injeta 2 a 4 lotes pela EC2, com o consumidor previamente parado
+	@$(call require_env,AWS_PROFILE)
+	@lotes=$${LOTES:-2}; \
+	case "$$lotes" in 2|3|4) ;; *) echo "LOTES deve ser 2, 3 ou 4"; exit 2;; esac; \
+	K6_QUANTIDADE_LOTES="$$lotes" $(TESTES_CARGA)/gerador_ec2.sh rnf01-acumulo
 
 # Carga sustentada para os testes de RNF01 (1.000 ev/min) e RNF03 (2.000
 # ev/min com os workers escalados). `--rate` e por SEGUNDO, dai a divisao.

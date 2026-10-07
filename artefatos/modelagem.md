@@ -1,6 +1,6 @@
 # Modelagem de Software
 
-&emsp;Este documento reúne a modelagem de software da Plataforma Argus em três
+&emsp;Este documento reúne a modelagem de software da Plataforma Linceu em três
 visões complementares. Os casos de uso descrevem o comportamento observável do
 sistema a partir dos seus atores. O diagrama de classes detalha o modelo de
 domínio e o vocabulário das aplicações. Os diagramas de sequência acompanham,
@@ -14,7 +14,7 @@ no diagrama de sequência que a ordem dessa colaboração fica visível.
 
 ### 1.1 Objetivo e fronteira
 
-&emsp;Esta seção descreve o comportamento da Plataforma Argus a partir do
+&emsp;Esta seção descreve o comportamento da Plataforma Linceu a partir do
 diagrama de casos de uso e dos requisitos já definidos para o projeto (GRUPO
 GLOBO; INTELI, 2026). O foco está nas interações observáveis entre a plataforma,
 as fontes de telemetria, o usuário operacional, o evento temporal que inicia o
@@ -35,20 +35,20 @@ produção ficam fora dela.
 
 | Ator | Tipo | Responsabilidade e interesse principal |
 |---|---|---|
-| Fontes de telemetria | Sistema externo | Publicar eventos de sessão e mudanças das fontes monitoradas para que sejam armazenados e analisados pelo Argus. |
+| Fontes de telemetria | Sistema externo | Publicar eventos de sessão e mudanças das fontes monitoradas para que sejam armazenados e analisados pelo Linceu. |
 | Novo checkpoint disponível | Evento temporal | Informar que uma nova fotografia consistente da camada analítica está pronta para processamento. Não representa uma pessoa, mas o estímulo temporal que inicia o UC02. |
-| Usuário Operacional | Ator humano principal | Monitorar a plataforma, explorar dados e investigar degradações. Abrange, sobretudo, os perfis de Engenharia de Observabilidade e Suporte N2 definidos no [entendimento de UX](entendimento_ux.md) (EQUIPE ARGUS, 2026b). |
+| Usuário Operacional | Ator humano principal | Monitorar a plataforma, explorar dados e investigar degradações. Abrange, sobretudo, os perfis de Engenharia de Observabilidade e Suporte N2 definidos no [entendimento de UX](entendimento_ux.md) (EQUIPE LINCEU, 2026b). |
 | Amazon CloudWatch | Sistema de apoio | Disponibilizar logs, métricas e alarmes sobre a saúde da ingestão e dos componentes da plataforma. |
 
 O Usuário Operacional aparece duas vezes no diagrama, o que serve apenas para reduzir o cruzamento de associações. As duas figuras são o mesmo papel, com as mesmas permissões conceituais.
 
 ### 1.3 Diagrama de casos de uso
 
-<p align="center"><sub>Figura 1 - Diagrama de casos de uso da Plataforma Argus</sub></p>
+<p align="center"><sub>Figura 1 - Diagrama de casos de uso da Plataforma Linceu</sub></p>
 
 <div align="center">
 
-![Diagrama de casos de uso da Plataforma Argus](./assets/diagrama_casos_uso.jpg)
+![Diagrama de casos de uso da Plataforma Linceu](./assets/diagrama_casos_uso.jpg)
 
 </div>
 
@@ -88,7 +88,7 @@ Em UML, `<<include>>` indica um comportamento obrigatório do caso base e `<<ext
 | UC12 | Consultar a trajetória de uma sessão | Usuário Operacional | Extensão de UC07 | RF08 e RF16; US06 e US08 |
 | UC13 | Registrar validade sobre uma hipótese | Usuário Operacional | Extensão de UC10 | RF17 |
 
-A rastreabilidade indica afinidade entre cada caso de uso e os [requisitos](requisitos.md) (EQUIPE ARGUS, 2026c), sem impor uma relação de um para um. Um requisito pode participar de mais de um objetivo do usuário, assim como um caso de uso pode reunir vários requisitos complementares.
+A rastreabilidade indica afinidade entre cada caso de uso e os [requisitos](requisitos.md) (EQUIPE LINCEU, 2026c), sem impor uma relação de um para um. Um requisito pode participar de mais de um objetivo do usuário, assim como um caso de uso pode reunir vários requisitos complementares.
 
 ### 1.5 Descrições dos casos de uso
 
@@ -98,9 +98,9 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.1 UC01 - Ingerir telemetria
 
-**Escopo e nível.** Plataforma Argus, da recepção de um evento até sua persistência rastreável na camada de entrada. Objetivo de sistema externo.
+**Escopo e nível.** Plataforma Linceu, da recepção de um evento até sua persistência rastreável na camada de entrada. Objetivo de sistema externo.
 
-**Atores.** Iniciador: Fontes de telemetria. Apoio: serviço de autorização e infraestrutura de mensageria, ambos internos à fronteira do Argus.
+**Atores.** Iniciador: Fontes de telemetria. Apoio: serviço de autorização e infraestrutura de mensageria, ambos internos à fronteira do Linceu.
 
 **Interessados e interesses.** As fontes querem entregar dados sem depender da capacidade instantânea de processamento; o operador precisa de dados íntegros e recentes; a plataforma depende de reprocessamento, idempotência e falhas rastreáveis; segurança exige autenticação e ausência de dado pessoal desnecessário.
 
@@ -112,10 +112,10 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 1. A fonte prepara um evento conforme o contrato aplicável.
 2. A fonte o envia ao ponto único de ingestão por conexão segura, apresentando sua credencial.
-3. O Argus autentica a origem e identifica se o conteúdo é um evento de sessão ou uma mudança de dado monitorado.
-4. O Argus aceita a mensagem e a encaminha ao fluxo assíncrono correspondente.
+3. O Linceu autentica a origem e identifica se o conteúdo é um evento de sessão ou uma mudança de dado monitorado.
+4. O Linceu aceita a mensagem e a encaminha ao fluxo assíncrono correspondente.
 5. O consumidor valida envelope, identificadores, instante, tipo e demais campos obrigatórios.
-6. O Argus registra o evento no histórico de entrada e atualiza a visão corrente quando aplicável.
+6. O Linceu registra o evento no histórico de entrada e atualiza a visão corrente quando aplicável.
 7. O consumidor confirma o processamento e registra métricas e rastreabilidade.
 
 **Fluxos alternativos e exceções.**
@@ -135,9 +135,9 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.2 UC02 - Processar telemetria e detectar
 
-**Escopo e nível.** Plataforma Argus, do reconhecimento de um novo checkpoint analítico até a publicação de uma execução consistente de qualidade, detecção e hipóteses. Objetivo de processamento automático.
+**Escopo e nível.** Plataforma Linceu, do reconhecimento de um novo checkpoint analítico até a publicação de uma execução consistente de qualidade, detecção e hipóteses. Objetivo de processamento automático.
 
-**Atores.** Iniciador: Novo checkpoint disponível. O serviço de processamento executa o comportamento dentro da fronteira do Argus.
+**Atores.** Iniciador: Novo checkpoint disponível. O serviço de processamento executa o comportamento dentro da fronteira do Linceu.
 
 **Interessados e interesses.** O operador precisa que as degradações sejam detectadas com os dados que realmente estariam disponíveis naquele instante; a equipe de dados quer resultados reproduzíveis; a plataforma precisa evitar publicação duplicada ou incompleta diante de concorrência, falha ou retomada de workers.
 
@@ -148,7 +148,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 **Fluxo básico.**
 
 1. Um novo checkpoint analítico fica disponível.
-2. O Argus identifica o checkpoint elegível ainda não concluído para o manifesto ativo.
+2. O Linceu identifica o checkpoint elegível ainda não concluído para o manifesto ativo.
 3. Reserva o trabalho, define o instante simulado e a posição máxima da origem e obtém uma concessão temporária exclusiva.
 4. Captura uma fotografia com os fatos de versão e disponibilidade compatíveis com o checkpoint.
 5. Calcula e registra um resumo verificável das entradas.
@@ -176,7 +176,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.3 UC03 - Produzir hipóteses de causa provável
 
-**Escopo e nível.** Motor de hipóteses do Argus, das anomalias detectadas até a persistência de explicações candidatas e suas evidências. Subfunção incluída no processamento automático.
+**Escopo e nível.** Motor de hipóteses do Linceu, das anomalias detectadas até a persistência de explicações candidatas e suas evidências. Subfunção incluída no processamento automático.
 
 **Atores.** Iniciador indireto: UC02.
 
@@ -217,7 +217,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.4 UC04 - Monitorar o estado atual da plataforma
 
-**Escopo e nível.** Dashboard Argus, na visão consolidada do estado operacional atual. Objetivo do usuário.
+**Escopo e nível.** Dashboard Linceu, na visão consolidada do estado operacional atual. Objetivo do usuário.
 
 **Atores.** Iniciador: Usuário Operacional.
 
@@ -230,11 +230,11 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 **Fluxo básico.**
 
 1. O usuário abre a visão atual do dashboard.
-2. O Argus identifica o instante de referência, o período e o escopo ativos.
+2. O Linceu identifica o instante de referência, o período e o escopo ativos.
 3. O sistema consulta sinais e anomalias publicados para essa janela.
-4. O Argus apresenta os principais indicadores e destaca as degradações por severidade e impacto.
+4. O Linceu apresenta os principais indicadores e destaca as degradações por severidade e impacto.
 5. O usuário seleciona um sinal para ver valor atual, referência, limiar, tendência e contexto.
-6. O Argus mostra os detalhes e os caminhos para hipóteses, timeline e recorte.
+6. O Linceu mostra os detalhes e os caminhos para hipóteses, timeline e recorte.
 7. O usuário encerra o acompanhamento ou inicia o UC06.
 
 **Fluxos alternativos e exceções.**
@@ -253,7 +253,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.5 UC05 - Explorar a telemetria coletada
 
-**Escopo e nível.** Dashboard e API de leitura do Argus, para pesquisa, agrupamento e visualização dos dados coletados. Objetivo do usuário.
+**Escopo e nível.** Dashboard e API de leitura do Linceu, para pesquisa, agrupamento e visualização dos dados coletados. Objetivo do usuário.
 
 **Atores.** Iniciador: Usuário Operacional.
 
@@ -261,16 +261,16 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 **Pré-condições.** O usuário está autorizado; existe telemetria publicada para leitura; e as dimensões consultáveis estão registradas em uma lista segura.
 
-**Pós-condições.** O Argus apresenta o conjunto, a série ou o agrupamento do período e dos filtros escolhidos, preserva o estado da investigação para refinamento e não altera dado de origem.
+**Pós-condições.** O Linceu apresenta o conjunto, a série ou o agrupamento do período e dos filtros escolhidos, preserva o estado da investigação para refinamento e não altera dado de origem.
 
 **Fluxo básico.**
 
 1. O usuário abre a área de exploração.
-2. O Argus apresenta a janela temporal atual, os filtros ativos e um resumo dos dados disponíveis.
+2. O Linceu apresenta a janela temporal atual, os filtros ativos e um resumo dos dados disponíveis.
 3. O usuário escolhe um tipo de evento ou métrica.
 4. O usuário aplica um ou mais filtros de escopo.
 5. O usuário escolhe como agrupar ou cruzar os resultados.
-6. O Argus valida os parâmetros e consulta as visões publicadas.
+6. O Linceu valida os parâmetros e consulta as visões publicadas.
 7. O sistema apresenta indicadores, série temporal e distribuição por grupo, mantendo visíveis período, filtros e unidade.
 8. O usuário refina a consulta, abre um recorte relevante ou encerra a exploração.
 
@@ -291,7 +291,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.6 UC06 - Investigar uma degradação
 
-**Escopo e nível.** Plataforma Argus, da seleção de uma degradação até a reunião de evidências suficientes para orientar uma decisão humana. Objetivo do usuário.
+**Escopo e nível.** Plataforma Linceu, da seleção de uma degradação até a reunião de evidências suficientes para orientar uma decisão humana. Objetivo do usuário.
 
 **Atores.** Iniciador: Usuário Operacional.
 
@@ -304,13 +304,13 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 **Fluxo básico.**
 
 1. O usuário seleciona uma degradação ou parte de um sinal, hipótese, sessão ou relato.
-2. O Argus preserva a janela, o escopo e a âncora que originaram a investigação.
+2. O Linceu preserva a janela, o escopo e a âncora que originaram a investigação.
 3. O sistema apresenta o resumo do problema, com métricas desviantes, severidade, início e impacto conhecido.
-4. O Argus executa o UC07.
-5. O Argus executa o UC08.
+4. O Linceu executa o UC07.
+5. O Linceu executa o UC08.
 6. O usuário confronta o recorte, a referência histórica e as fontes disponíveis.
 7. Quando necessário, o usuário aprofunda por hipótese, timeline ou sessão.
-8. O Argus mantém as evidências e sua proveniência vinculadas ao mesmo contexto.
+8. O Linceu mantém as evidências e sua proveniência vinculadas ao mesmo contexto.
 9. O usuário encerra com uma conclusão provisória ou registra que faltam evidências.
 
 **Fluxos alternativos e exceções.**
@@ -332,7 +332,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.7 UC07 - Identificar e ajustar o recorte afetado
 
-**Escopo e nível.** Área de diagnóstico do Argus que delimita população, entidades e dimensões relacionadas a uma degradação. Subfunção obrigatória de objetivo do usuário.
+**Escopo e nível.** Área de diagnóstico do Linceu que delimita população, entidades e dimensões relacionadas a uma degradação. Subfunção obrigatória de objetivo do usuário.
 
 **Atores.** Iniciador indireto: UC06. Participante: Usuário Operacional.
 
@@ -344,13 +344,13 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 **Fluxo básico.**
 
-1. O Argus recebe a janela e o escopo da investigação.
+1. O Linceu recebe a janela e o escopo da investigação.
 2. O sistema apresenta a distribuição do sinal ou dos erros entre as dimensões relevantes.
 3. O usuário seleciona uma dimensão com concentração significativa.
-4. O Argus aplica o valor escolhido ao conjunto de filtros cumulativos.
+4. O Linceu aplica o valor escolhido ao conjunto de filtros cumulativos.
 5. O sistema recalcula volume, participação no tráfego, participação nos erros, taxa e diferença em relação aos demais grupos.
 6. O usuário adiciona, substitui ou remove filtros até obter um recorte explicativo e com cobertura suficiente.
-7. O Argus registra o recorte ativo no contexto da investigação.
+7. O Linceu registra o recorte ativo no contexto da investigação.
 8. O usuário confirma o recorte ou abre uma sessão representativa pelo UC12.
 
 **Fluxos alternativos e exceções.**
@@ -371,7 +371,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.8 UC08 - Comparar com períodos anteriores
 
-**Escopo e nível.** Área de comparação do Argus, que confronta a janela investigada com uma referência histórica equivalente. Subfunção obrigatória de objetivo do usuário.
+**Escopo e nível.** Área de comparação do Linceu, que confronta a janela investigada com uma referência histórica equivalente. Subfunção obrigatória de objetivo do usuário.
 
 **Atores.** Iniciador indireto: UC06. Participante: Usuário Operacional.
 
@@ -383,12 +383,12 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 **Fluxo básico.**
 
-1. O Argus recebe a janela e o recorte atuais.
+1. O Linceu recebe a janela e o recorte atuais.
 2. O sistema sugere uma referência histórica compatível.
 3. O usuário confirma ou escolhe outra referência.
-4. O Argus valida se as janelas têm duração, granularidade e filtros comparáveis.
+4. O Linceu valida se as janelas têm duração, granularidade e filtros comparáveis.
 5. O sistema consulta os dados atuais e históricos sem incluir informação posterior ao instante analisado.
-6. O Argus apresenta as séries alinhadas, os valores de cada janela, a variação absoluta e percentual e, quando houver, a significância estatística.
+6. O Linceu apresenta as séries alinhadas, os valores de cada janela, a variação absoluta e percentual e, quando houver, a significância estatística.
 7. Destaca mudanças de infraestrutura, eventos editoriais ou diferenças de cobertura entre os períodos.
 8. O usuário incorpora a comparação à investigação.
 
@@ -410,7 +410,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.9 UC09 - Acompanhar a integridade da ingestão
 
-**Escopo e nível.** Operação da Plataforma Argus, com métricas, logs e alarmes para avaliar a saúde do caminho de entrada dos dados. Objetivo do usuário.
+**Escopo e nível.** Operação da Plataforma Linceu, com métricas, logs e alarmes para avaliar a saúde do caminho de entrada dos dados. Objetivo do usuário.
 
 **Atores.** Iniciador: Usuário Operacional. Apoio: Amazon CloudWatch.
 
@@ -423,11 +423,11 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 **Fluxo básico.**
 
 1. O usuário abre a visão de integridade da ingestão ou recebe indicação de um alarme.
-2. O Argus consulta o estado publicado das fontes, filas, consumidores e persistência, com métricas, logs e alarmes vindos do CloudWatch.
+2. O Linceu consulta o estado publicado das fontes, filas, consumidores e persistência, com métricas, logs e alarmes vindos do CloudWatch.
 3. A plataforma apresenta recência, volume recebido, backlog, tentativas, mensagens não processadas, saúde dos serviços e atraso dos checkpoints.
 4. O usuário compara o comportamento atual com os limites operacionais.
 5. O usuário seleciona um componente ou uma fonte com desvio.
-6. O Argus mostra a referência da falha, o período e a evidência disponível.
+6. O Linceu mostra a referência da falha, o período e a evidência disponível.
 7. O usuário registra ou encaminha a ocorrência pelo processo operacional externo.
 
 **Fluxos alternativos e exceções.**
@@ -447,7 +447,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.10 UC10 - Analisar hipóteses de causa provável
 
-**Escopo e nível.** Dashboard e API de hipóteses do Argus, da listagem das explicações candidatas até a avaliação detalhada de uma delas. Extensão de objetivo do usuário.
+**Escopo e nível.** Dashboard e API de hipóteses do Linceu, da listagem das explicações candidatas até a avaliação detalhada de uma delas. Extensão de objetivo do usuário.
 
 **Atores.** Iniciador: Usuário Operacional, durante o UC06.
 
@@ -460,10 +460,10 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 **Fluxo básico.**
 
 1. O usuário solicita as hipóteses associadas à investigação.
-2. O Argus lista as hipóteses publicadas em ordem de relevância, com resumo do escopo e das fontes.
+2. O Linceu lista as hipóteses publicadas em ordem de relevância, com resumo do escopo e das fontes.
 3. O usuário seleciona uma hipótese.
 4. O sistema apresenta a explicação candidata, o estado da revisão e a execução que a produziu.
-5. O Argus detalha score, confiança, cobertura e contribuição dos fatores.
+5. O Linceu detalha score, confiança, cobertura e contribuição dos fatores.
 6. O sistema separa evidências favoráveis, contrárias e indisponíveis, indicando origem e instante.
 7. O usuário confronta a hipótese com o recorte e a comparação da investigação.
 8. O usuário abre a âncora na timeline, revisa o recorte ou executa o UC13.
@@ -486,7 +486,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.11 UC11 - Reconstruir a timeline do incidente
 
-**Escopo e nível.** Área de timeline do Argus, que ordena sinais, mudanças e contexto de várias fontes ao redor de uma degradação. Extensão de objetivo do usuário.
+**Escopo e nível.** Área de timeline do Linceu, que ordena sinais, mudanças e contexto de várias fontes ao redor de uma degradação. Extensão de objetivo do usuário.
 
 **Atores.** Iniciador: Usuário Operacional, durante o UC06.
 
@@ -499,9 +499,9 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 **Fluxo básico.**
 
 1. O usuário abre a timeline a partir da investigação.
-2. O Argus recupera a âncora, a janela e o escopo ativos.
+2. O Linceu recupera a âncora, a janela e o escopo ativos.
 3. O sistema consulta sinais e eventos disponíveis nas fontes relacionadas.
-4. O Argus normaliza os instantes para uma escala comum, preservando horário e granularidade originais.
+4. O Linceu normaliza os instantes para uma escala comum, preservando horário e granularidade originais.
 5. O sistema ordena os itens e os distribui por fonte ou domínio operacional.
 6. A plataforma apresenta a timeline visual e uma cronologia textual equivalente.
 7. O usuário seleciona um item para ler valor, descrição, origem e relação com a degradação.
@@ -514,7 +514,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 - A3. Fonte sem eventos na janela: a raia fica marcada como vazia ou indisponível, sem se confundir com normalidade.
 - A4. Granularidades diferentes: os dados vão para o intervalo compatível, com a precisão declarada da fonte.
 - A5. Janela ampliada: o período cresce para procurar causas anteriores ou efeitos posteriores.
-- E1. Âncora ou intervalo inválido: o Argus pede uma janela válida e preserva o contexto anterior.
+- E1. Âncora ou intervalo inválido: o Linceu pede uma janela válida e preserva o contexto anterior.
 - E2. Falha parcial de fonte: os demais itens são apresentados com aviso de cobertura incompleta.
 - E3. Nenhuma fonte disponível: a timeline não é reconstruída, e cronologia vazia não vira evidência.
 - E4. Falha de consulta: a tela mostra referência rastreável e permite nova tentativa.
@@ -525,7 +525,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.12 UC12 - Consultar a trajetória de uma sessão
 
-**Escopo e nível.** Consulta de eventos do Argus, para reconstruir a sequência individual de uma sessão ou, como variação, o histórico de um dispositivo. Extensão de subfunção de investigação.
+**Escopo e nível.** Consulta de eventos do Linceu, para reconstruir a sequência individual de uma sessão ou, como variação, o histórico de um dispositivo. Extensão de subfunção de investigação.
 
 **Atores.** Iniciador: Usuário Operacional, a partir do UC07.
 
@@ -538,7 +538,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 **Fluxo básico.**
 
 1. O usuário seleciona uma sessão representativa no recorte.
-2. O Argus valida o identificador e consulta os eventos da sessão.
+2. O Linceu valida o identificador e consulta os eventos da sessão.
 3. O sistema ordena os eventos pelo instante de ocorrência, resume dispositivo e aplicativo e destaca início, navegação, reprodução, requisições e erros.
 4. O usuário seleciona um evento para consultar seus detalhes permitidos.
 5. O sistema apresenta tipo, instante, código de erro, duração, rota e contexto técnico disponível.
@@ -561,7 +561,7 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 
 #### 1.5.13 UC13 - Registrar validade sobre uma hipótese
 
-**Escopo e nível.** API de feedback e histórico de revisões do Argus, para registrar a avaliação humana de uma hipótese publicada. Extensão de objetivo do usuário.
+**Escopo e nível.** API de feedback e histórico de revisões do Linceu, para registrar a avaliação humana de uma hipótese publicada. Extensão de objetivo do usuário.
 
 **Atores.** Iniciador: Usuário Operacional, após analisar uma hipótese no UC10.
 
@@ -577,9 +577,9 @@ requisitos especiais e, por fim, variantes, frequência e questões ainda aberta
 2. O usuário escolhe um veredito: concorda, concorda parcialmente ou discorda.
 3. Opcionalmente, informa uma observação dentro do limite aceito.
 4. O dashboard envia a hipótese, o veredito e a chave de idempotência.
-5. O Argus valida autorização, publicação da hipótese, tamanho e conteúdo do pedido.
+5. O Linceu valida autorização, publicação da hipótese, tamanho e conteúdo do pedido.
 6. O feedback é registrado em estrutura que só aceita acréscimos (*append-only*).
-7. O Argus recalcula o estado de revisão da hipótese e confirma o registro ao usuário.
+7. O Linceu recalcula o estado de revisão da hipótese e confirma o registro ao usuário.
 
 **Fluxos alternativos e exceções.**
 
@@ -686,7 +686,7 @@ fronteiras, e nenhum deles importa código do outro.
    [Ingestão] BaseEvent/ChangeEvent    ▼
        │  BaseConsumer → ChangeRepository   [Leitura] EventRepository (porta)
        ▼                                     PostgresEventRepository / GoldRepository
-   ┌───────────────── Banco Argus (PostgreSQL) ─────────────────┐
+   ┌───────────────── Banco Linceu (PostgreSQL) ─────────────────┐
    │  bronze  ·  silver  ·  gold  ·  detect  ·  sim  ·  etl     │
    └───────────────────────────────────────────────────────────┘
        ▲                                     ▲
@@ -713,7 +713,7 @@ fronteiras de infraestrutura. A densidade é inevitável num diagrama que cobre 
 classes de uma vez; quem preferir ler por partes encontra o mesmo conteúdo
 recortado nas seções 2.4 a 2.8.
 
-<p align="center"><sub>Figura 3 - Diagrama de classes unificado da Plataforma Argus</sub></p>
+<p align="center"><sub>Figura 3 - Diagrama de classes unificado da Plataforma Linceu</sub></p>
 
 <div align="center">
 
@@ -998,7 +998,7 @@ classDiagram
         +target group HTTP 5000
         +health check /health/live
     }
-    class Banco["Banco Argus: bronze / silver / gold / detect / sim / etl"] {
+    class Banco["Banco Linceu: bronze / silver / gold / detect / sim / etl"] {
         <<RDS PostgreSQL 16>>
     }
     class Dashboard["Dashboard (Next.js, export estático)"] {
@@ -2475,9 +2475,9 @@ citação aponte a fonte exata.
 - AMAZON WEB SERVICES. *User Guide for Application Load Balancers*, 2026c. Disponível em: [https://docs.aws.amazon.com/elasticloadbalancing/latest/application/](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/). Acesso em: 9 set. 2026.
 - COCKBURN, Alistair. *Hexagonal Architecture (Ports and Adapters)*. 2005. Disponível em: [https://alistair.cockburn.us/hexagonal-architecture/](https://alistair.cockburn.us/hexagonal-architecture/). Acesso em: 9 set. 2026.
 - COCKBURN, Alistair. *Writing Effective Use Cases*. Boston: Addison-Wesley, 2001.
-- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Arquitetura inicial da Plataforma Argus*, 2026a. Artefato do repositório: [arquitetura-inicial.md](arquitetura-inicial.md).
-- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Entendimento de UX*, 2026b. Artefato do repositório: [entendimento_ux.md](entendimento_ux.md).
-- EQUIPE ARGUS (Inteli, T15, Grupo 4). *Requisitos funcionais e não funcionais*, 2026c. Artefato do repositório: [requisitos.md](requisitos.md).
+- EQUIPE LINCEU (Inteli, T15, Grupo 4). *Arquitetura inicial da Plataforma Linceu*, 2026a. Artefato do repositório: [arquitetura-inicial.md](arquitetura-inicial.md).
+- EQUIPE LINCEU (Inteli, T15, Grupo 4). *Entendimento de UX*, 2026b. Artefato do repositório: [entendimento_ux.md](entendimento_ux.md).
+- EQUIPE LINCEU (Inteli, T15, Grupo 4). *Requisitos funcionais e não funcionais*, 2026c. Artefato do repositório: [requisitos.md](requisitos.md).
 - EVANS, Eric. *Domain-Driven Design: Tackling Complexity in the Heart of Software*. Boston: Addison-Wesley, 2003.
 - GRUPO GLOBO; INTELI. *TAPI - Turma 15 - Ciência da Computação - Módulo 7: Monitoração Agêntica*. Documento de definição do projeto parceiro, 2026.
 - INTERNATIONAL ORGANIZATION FOR STANDARDIZATION. *ISO 8601-1:2019 — Date and time — Representations for information interchange — Part 1: Basic rules*. Genebra: ISO, 2019.

@@ -119,6 +119,9 @@ def register_manifest(
         payload (dict[str, Any]): Catalogos e parametros.
         code_version (str): Versao do codigo.
 
+    Returns:
+        None: A função persiste o manifesto sem produzir valor de retorno.
+
     Raises:
         RuntimeError: Se o hash recalculado nao bater com o informado.
     """
@@ -165,7 +168,31 @@ def claim_and_capture(
     max_input_rows: int = 250_000,
     context_minutes: int = 60,
 ) -> CapturedWork | None:
-    """Reivindica o proximo checkpoint e fixa sua entrada no mesmo snapshot."""
+    """Reivindica trabalho e captura fatos no mesmo snapshot repetível.
+
+    Cria ou bloqueia o cursor do manifesto e do fluxo, resolve claims ativos
+    e escolhe o próximo checkpoint elegível. Em uma única transação
+    ``REPEATABLE READ`` grava a identidade das versões de fatos que alimentam
+    o run. Se outra réplica já detém o claim, se não há checkpoint novo ou se
+    os limites de captura são excedidos, não inicia um ciclo concorrente.
+
+    Args:
+        db: Pool de conexões do Argus.
+        worker_id: Identificador desta réplica ou tentativa.
+        manifest_hash: Identidade do catálogo e dos parâmetros do detector.
+        lease_seconds: Duração inicial do claim em tempo real.
+        max_input_rows: Limite de fatos capturados para um run.
+        context_minutes: Janela de contexto anterior ao checkpoint.
+
+    Returns:
+        Captura imutável com fatos, janela, checkpoint e claim, ou ``None``
+        quando não há trabalho que esta réplica possa reivindicar.
+
+    Raises:
+        CaptureLimitExceeded: Se a captura exceder o limite de linhas.
+        InputDigestMismatch: Se os fatos capturados não corresponderem ao
+            resumo persistido para a entrada do run.
+    """
     exceeded: str | None = None
     claim_row: dict[str, Any] | None = None
     window_start: dt.datetime | None = None
@@ -619,6 +646,15 @@ def load_historical_anomalies(
     uma hipótese do período original sem recalcular o passado com informação do
     futuro. O fato do finding anterior precisa estar explicitamente registrado
     em ``run_input_fact`` no run atual.
+
+    Args:
+        db: Pool de conexões do Argus.
+        captured: Captura atual, usada para limitar a busca às versões de
+            fatos que este run realmente observou.
+
+    Returns:
+        Findings anteriores concluídos e disponíveis no instante simulado da
+        captura, preservando seus identificadores persistidos.
     """
     rows = db.fetch_all(
         """
@@ -697,6 +733,10 @@ def persist_result(
         captured (CapturedWork): O trabalho analisado.
         result (AnalysisResult): Anomalias, baselines, qualidade e hipoteses.
         duration_ms (int): Duracao do ciclo, para a estatistica do run.
+
+    Returns:
+        None: As anomalias, baselines, findings e hipóteses são persistidos
+        dentro da transação protegida.
     """
     claim = captured.claim
     with commit_protegido(db, claim) as conn, conn.cursor(row_factory=dict_row) as cur:
@@ -1068,6 +1108,9 @@ def promote_manifest(
         gate_metrics (dict[str, Any]): Metricas que justificaram a decisao,
             gravadas junto com o evento.
         withdraw (bool): `True` retira; `False` publica.
+
+    Returns:
+        None: A publicação ou retirada é registrada como evento append-only.
     """
     action = "withdrawn" if withdraw else "published"
     with db.connection() as conn:

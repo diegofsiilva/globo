@@ -1,0 +1,27 @@
+{
+  "data_verificacao": "2026-10-04",
+  "natureza": "preparacao; nao e resultado de teste de carga",
+  "perfil_aws": "g4",
+  "ambiente_cli": "Ubuntu no WSL",
+  "regiao_inventario": "us-east-1",
+  "autenticacao_sts": "aprovada",
+  "consultas_inventario": "aprovadas",
+  "recursos_encontrados": {
+    "instancias_rds": 0,
+    "clusters_eks": 0,
+    "clusters_ecs": 0,
+    "repositorios_ecr": 0,
+    "buckets_s3": 0,
+    "vpcs": 1,
+    "vpc_existente": "default"
+  },
+  "precondicoes_locais": {
+    "terraform_tfvars_presente": false,
+    "terraform_state_local_presente": false,
+    "env_aplicacao_presente": false,
+    "dump_no_caminho_documentado": false,
+    "parquets_no_caminho_documentado": false
+  },
+  "conclusao": "Credencial g4 valida no WSL. A implantacao precisa ser recriada e a base representativa precisa ser localizada antes da reexecucao comparavel.",
+  "dados_omitidos": "Credenciais, tokens, identidade, identificador de conta e endpoints."
+}

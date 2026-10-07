@@ -2,7 +2,7 @@
 
 Este relatório demonstra a execução dos testes relacionados aos requisitos não funcionais definidos na Sprint 1. O conteúdo está organizado pelos três critérios de avaliação: planos de teste revisados, resultados com análise e visualização de indicadores de observabilidade.
 
-Foram avaliados os dois fluxos de ingestão do Argus: eventos de frontend, processados pelo `event-worker`, e mudanças do CDC simulado, processadas pelo `merge-worker`. Ambos usam API Gateway, SQS e PostgreSQL.
+Foram avaliados os dois fluxos de ingestão do Linceu: eventos de frontend, processados pelo `event-worker`, e mudanças do CDC simulado, processadas pelo `merge-worker`. Ambos usam API Gateway, SQS e PostgreSQL.
 
 | Requisito ou cenário | Resultado principal | Situação |
 |---|---|---|
@@ -255,7 +255,7 @@ depende de intervenção manual, o que não escala para reimplantações futuras
 
 ### 3.1 Stack e indicadores
 
-A stack local unificada usa Prometheus e Grafana em `apps/fullstack/observability/`. O Prometheus recebe métricas k6; o Grafana provisiona os dashboards **Argus - Testes de Carga (RNF01/02/03)** e **RNF04/05/11 - Resiliência Argus**, com Prometheus e CloudWatch como fontes.
+A stack local unificada usa Prometheus e Grafana em `apps/fullstack/observability/`. O Prometheus recebe métricas k6; o Grafana provisiona os dashboards **Linceu - Testes de Carga (RNF01/02/03)** e **RNF04/05/11 - Resiliência Linceu**, com Prometheus e CloudWatch como fontes.
 
 | Indicador solicitado | Fonte | Visualização e evidência |
 |---|---|---|

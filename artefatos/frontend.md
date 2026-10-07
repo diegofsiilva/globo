@@ -1,12 +1,12 @@
 # Front-end
 
-&emsp; Este artefato documenta a implementação da interface gráfica do Argus, plataforma de monitoração agêntica da telemetria do Globoplay. O relatório reúne a visão funcional das telas, a organização e a qualidade do código, os resultados dos testes de entradas do usuário, a rastreabilidade dos requisitos, a integração com o back-end e a publicação do site estático na AWS S3.
+&emsp; Este artefato documenta a implementação da interface gráfica do Linceu, plataforma de monitoração agêntica da telemetria do Globoplay. O relatório reúne a visão funcional das telas, a organização e a qualidade do código, os resultados dos testes de entradas do usuário, a rastreabilidade dos requisitos, a integração com o back-end e a publicação do site estático na AWS S3.
 
 &emsp; A aplicação é construída em Next.js e exportada como site estático. Em execução, o navegador consulta a API Flask, que lê o PostgreSQL. As evidências automatizadas desta entrega foram produzidas com uma fixture pequena e determinística no banco isolado `argus_test`. Assim, os dados das capturas são sintéticos e controlados, mas percorrem o fluxo real **navegador → Flask → PostgreSQL**; não são respostas HTTP simuladas dentro do teste ponta a ponta.
 
 ## 1. Visão geral da interface
 
-&emsp; O Argus oferece a engenheiros de observabilidade e analistas de suporte uma visão única para detectar degradações, explorar sua concentração, comparar o comportamento atual com referências históricas, examinar hipóteses e reconstruir o contexto de um incidente. A entrada `/` redireciona para `/agora`, e as seis áreas públicas compartilham cabeçalho, período, tema, escopo e navegação responsiva.
+&emsp; O Linceu oferece a engenheiros de observabilidade e analistas de suporte uma visão única para detectar degradações, explorar sua concentração, comparar o comportamento atual com referências históricas, examinar hipóteses e reconstruir o contexto de um incidente. A entrada `/` redireciona para `/agora`, e as seis áreas públicas compartilham cabeçalho, período, tema, escopo e navegação responsiva.
 
 ### 1.1 Funcionalidades implementadas
 
@@ -127,11 +127,11 @@
   <a href="https://drive.google.com/file/d/1HltsgZBqs5GeT-ADOx9BUANbAv2kHGSW/view?usp=sharing">Assistir à demonstração da interface (Google Drive)</a>
 </p>
 
-<p align="center"><sub>Vídeo 1 — Demonstração da interface do Argus.</sub></p>
+<p align="center"><sub>Vídeo 1 — Demonstração da interface do Linceu.</sub></p>
 
 ## 2. Organização e qualidade do código
 
-&emsp; O código-fonte está em [`apps/fullstack/frontend`](../apps/fullstack/frontend). A especificação de entrega usa o caminho genérico `/apps/frontend`; no monorepo Argus, o equivalente concreto é `/apps/fullstack/frontend`, ao lado do back-end, do worker, do banco e da infraestrutura do mesmo MVP. A documentação registra essa diferença para que o avaliador encontre o código sem sugerir uma migração artificial de diretório.
+&emsp; O código-fonte está em [`apps/fullstack/frontend`](../apps/fullstack/frontend). A especificação de entrega usa o caminho genérico `/apps/frontend`; no monorepo Linceu, o equivalente concreto é `/apps/fullstack/frontend`, ao lado do back-end, do worker, do banco e da infraestrutura do mesmo MVP. A documentação registra essa diferença para que o avaliador encontre o código sem sugerir uma migração artificial de diretório.
 
 ### 2.1 Estrutura de pastas
 
@@ -429,7 +429,7 @@ make -C apps/fullstack test-frontend-e2e
 
 &emsp; Roteiro recomendado para cumprir o critério:
 
-1. **0:00–0:20:** abrir o endereço S3 e apresentar o objetivo do Argus;
+1. **0:00–0:20:** abrir o endereço S3 e apresentar o objetivo do Linceu;
 2. **0:20–1:20:** navegar por Agora, Explorar e Comparar, aplicando fonte + métrica e trocando a referência histórica;
 3. **1:20–2:10:** abrir Hipóteses, Timeline e a sessão `PLAYER-500` em Recorte, destacando score, evidências e fontes;
 4. **2:10–2:35:** demonstrar tema, teclado e viewport móvel;

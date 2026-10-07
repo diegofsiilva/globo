@@ -1,0 +1,155 @@
+{
+  "capturado_em": "2026-10-06T17:44:03.944619-03:00",
+  "pods": [
+    {
+      "nome": "argus-backend-7fdcdf9994-f5rrs",
+      "fase": "Running",
+      "ready": true,
+      "restarts": 0,
+      "imagens": [
+        "argus-events-dev-backend:326769cbb9d9"
+      ]
+    },
+    {
+      "nome": "argus-backend-7fdcdf9994-zldlm",
+      "fase": "Running",
+      "ready": true,
+      "restarts": 0,
+      "imagens": [
+        "argus-events-dev-backend:326769cbb9d9"
+      ]
+    },
+    {
+      "nome": "argus-frontend-6cc9dd498b-nh49p",
+      "fase": "Running",
+      "ready": true,
+      "restarts": 0,
+      "imagens": [
+        "argus-events-dev-frontend:6b5fe5c6f213"
+      ]
+    },
+    {
+      "nome": "argus-frontend-6cc9dd498b-wqqb8",
+      "fase": "Running",
+      "ready": true,
+      "restarts": 0,
+      "imagens": [
+        "argus-events-dev-frontend:6b5fe5c6f213"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "nome": "argus-backend",
+      "tipo": "ClusterIP",
+      "portas": [
+        5000
+      ]
+    },
+    {
+      "nome": "argus-frontend",
+      "tipo": "ClusterIP",
+      "portas": [
+        80
+      ]
+    }
+  ],
+  "deployments": [
+    {
+      "nome": "argus-backend",
+      "desejadas": 2,
+      "prontas": 2,
+      "disponiveis": 2
+    },
+    {
+      "nome": "argus-frontend",
+      "desejadas": 2,
+      "prontas": 2,
+      "disponiveis": 2
+    }
+  ],
+  "jobs": [],
+  "ingress": [
+    {
+      "nome": "argus",
+      "rotas": [
+        {
+          "caminho": "/api",
+          "service": "argus-backend"
+        },
+        {
+          "caminho": "/health",
+          "service": "argus-backend"
+        },
+        {
+          "caminho": "/",
+          "service": "argus-frontend"
+        }
+      ]
+    }
+  ],
+  "hpa": [
+    {
+      "nome": "argus-backend",
+      "min": 2,
+      "max": 6,
+      "atuais": 2,
+      "desejadas": 2,
+      "condicoes": [
+        {
+          "tipo": "AbleToScale",
+          "estado": "True",
+          "motivo": "ReadyForNewScale"
+        },
+        {
+          "tipo": "ScalingActive",
+          "estado": "True",
+          "motivo": "ValidMetricFound"
+        },
+        {
+          "tipo": "ScalingLimited",
+          "estado": "True",
+          "motivo": "TooFewReplicas"
+        }
+      ]
+    },
+    {
+      "nome": "argus-frontend",
+      "min": 2,
+      "max": 4,
+      "atuais": 2,
+      "desejadas": 2,
+      "condicoes": [
+        {
+          "tipo": "AbleToScale",
+          "estado": "True",
+          "motivo": "ReadyForNewScale"
+        },
+        {
+          "tipo": "ScalingActive",
+          "estado": "True",
+          "motivo": "ValidMetricFound"
+        },
+        {
+          "tipo": "ScalingLimited",
+          "estado": "True",
+          "motivo": "TooFewReplicas"
+        }
+      ]
+    }
+  ],
+  "pdb": [
+    {
+      "nome": "argus-backend",
+      "minAvailable": 1,
+      "healthy": 2,
+      "disruptionsAllowed": 1
+    },
+    {
+      "nome": "argus-frontend",
+      "minAvailable": 1,
+      "healthy": 2,
+      "disruptionsAllowed": 1
+    }
+  ]
+}

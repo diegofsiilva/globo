@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "active_benchmark_instances": 0,
+  "remaining_benchmark_security_groups": 0,
+  "remaining_benchmark_buckets": 0,
+  "remaining_ebs_volumes_in_region": 0
+}

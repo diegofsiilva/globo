@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { QuerySourceError } from "@/lib/operational-state";
 import {
   fetchSignals,
+  toActiveDegradation,
   toSignalDeviation,
   type SignalItem,
 } from "@/app/(operations)/agora/_lib/signals-source";
@@ -47,11 +48,44 @@ describe("contrato da tela Agora", () => {
       threshold: "10 (z ≥ 3)",
       scope: "playback-api",
       relatedPaths: {
-        timeline: "/timeline?sinal=signal-1",
+        // O instante da detecção vai junto: é o que centra a Timeline no desvio.
+        timeline: "/timeline?sinal=signal-1&t=2026-07-14T11%3A45%3A00.000Z",
         cut: "/recorte?sinal=signal-1",
+        hypotheses: "/hipoteses?source=prometheus&entity=playback-api",
       },
     });
     expect(signal.trend).toEqual([4, 19, 34]);
+  });
+
+  test("[TA-14] apresenta métrica em bytes na unidade, e não o número cru", () => {
+    const signal = toSignalDeviation({
+      ...SIGNAL,
+      metric: "memory",
+      current_value: 1_126_974_805.33,
+      baseline: 1_138_704_534.19,
+      threshold_value: null,
+      z: -18.12,
+    });
+
+    // O valor cru tem treze dígitos e esconde que a diferença é de 11 MiB.
+    expect(signal).toMatchObject({
+      current: "1,05 GiB",
+      baseline: "1,06 GiB",
+      delta: "-11,19 MiB",
+      zScore: "-18,12",
+    });
+  });
+
+  test("[TA-15] o card de degradação ativa nomeia a métrica e não inventa sessões", () => {
+    const card = toActiveDegradation({ ...SIGNAL, sessions_impacted: null });
+
+    expect(card).toMatchObject({
+      metric: "error_rate_pct",
+      currentValue: "12",
+      impactedSessions: null,
+      baselineMultiplier: "×3",
+      openFor: "15 min",
+    });
   });
 
   test("[TA-03] classifica timeout do backend como falha repetível", async () => {

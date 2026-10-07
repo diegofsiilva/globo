@@ -1,26 +1,18 @@
-# Kubernetes — caminho síncrono do Argus
+# Kubernetes: caminho síncrono do Argus
 
-O cluster orquestra **dashboard, API de leitura, ingestão por arquivos e os Jobs
-de banco** (migration e login de leitura). O caminho
-assíncrono — workers de SQS, `processing`, `simulator` e `loader` — continua no
-**ECS Fargate**, sem nenhuma alteração.
+O cluster orquestra dashboard, API de leitura e os Jobs de banco (migration
+e login de leitura). O caminho
+assíncrono, workers de SQS, `processing`, `simulator` e `loader`, continua no
+ECS Fargate, sem nenhuma alteração.
 
-A ingestão por arquivos acrescenta `argus-file-api` e `argus-file-worker`, ambos
-usando a imagem `worker`, com fila PostgreSQL e sem clientes AWS nesse fluxo.
-O Ingress encaminha `/ingestion` à porta 5002. `make k8s-secret` inclui o hash
-`dashboard` do segredo de autenticação e reinicia a API de arquivos após rotação.
-Aplique a migration 034 antes de subir esses Deployments. No kind, preencha
-`DASHBOARD_TOKEN_SHA256` em `secret.env` com o hash da credencial local do painel.
-Consulte [o runbook de arquivos](../worker/README.md).
-
-Isso é escolha de plataforma por característica de carga, não migração pela
-metade. As razões estão em [`infra/eks.tf`](../infra/eks.tf) e no artefato
+Essa é uma escolha de plataforma por característica de carga. As razões estão
+em [`infra/eks.tf`](../infra/eks.tf) e no artefato
 [`conteineres-final.md`](../../../artefatos/conteineres-final.md); em resumo:
 
 | Caminho | Onde roda | Por quê |
 |---|---|---|
-| Síncrono (dashboard + API) | **EKS Auto Mode** | Substitui o ASG da Sprint 3 (removido do Terraform na Sprint 4), que subia o contêiner à mão pelo `user_data` e levava ~300s para repor uma instância. Ganha rolling update sem queda, reposição em segundos e escala por métrica. |
-| Assíncrono (ingestão, ETL, simulação) | **ECS Fargate** | Já entrega estado desejado, rolling deploy e health check — e **IAM por task**, que este cluster não consegue oferecer: o Learner Lab bloqueia IRSA e Pod Identity. |
+| Síncrono (dashboard + API) | EKS Auto Mode | Orquestra o contêiner com rolling update sem queda, reposição em segundos e escala por métrica, em vez da reposição em cerca de 300s de um caminho anterior em EC2 que subia o contêiner à mão pelo `user_data`. |
+| Assíncrono (ingestão, ETL, simulação) | ECS Fargate | Já entrega estado desejado, rolling deploy, health check e IAM por task, que este cluster não consegue oferecer: o Learner Lab bloqueia IRSA e Pod Identity. |
 
 Nenhum pod deste cluster fala com a AWS. O backend não tem `boto3` (removido de
 propósito, ver `backend/pyproject.toml`) e o frontend é nginx servindo arquivo
@@ -44,18 +36,18 @@ overlay `aws`, `make k8s-apply` troca cada um pela referência completa lida de
 `terraform output ecr_repository_urls`; no `kind`, o transformer `images:` do
 kustomize aponta para as imagens `:dev` locais.
 
-Os `Job`s ficam **fora** da base de propósito: `spec.template` de um Job é
+Os `Job`s ficam fora da base de propósito: `spec.template` de um Job é
 imutável, então incluí-los faria todo `make k8s-apply` com tag nova falhar com
 `field is immutable`. `make k8s-migrate` faz `delete` antes do `apply`.
 
-São dois Jobs porque `migrate.py aplicar` **não cria** o login `argus_api`:
+São dois Jobs porque `migrate.py aplicar` não cria o login `argus_api`:
 `criar-leitor` é subcomando à parte. `argus-db-migrate` aplica o schema;
 `argus-db-reader` cria (ou atualiza) o login, e só pode rodar depois, porque o
 `GRANT argus_reader` depende do papel que a migration 001 cria. O alvo aplica
 um de cada vez, filtrando o YAML renderizado por `-l app.kubernetes.io/name`,
 e espera o primeiro completar. Num banco novo, só o primeiro Job deixa o
 backend em `0/1` com `PoolTimeout` e, por baixo, `password authentication
-failed for user "argus_api"` — foi o que aconteceu no lab limpo de 18/09.
+failed for user "argus_api"`, o que acontece em um laboratório recém-criado.
 
 ## A decisão central: uma origem só
 
@@ -69,15 +61,15 @@ Um único Ingress serve os dois serviços:
 
 O frontend é construído com `NEXT_PUBLIC_API_URL=/`. O cliente faz
 `fetch(`${API_URL.replace(/\/$/, "")}${path}`)` e `path` já começa com `/api/v1`
-(`frontend/src/lib/api/client.ts:26,85`), então a chamada vira **relativa**.
+(`frontend/src/lib/api/client.ts:26,85`), então a chamada vira relativa.
 
 Três consequências:
 
-1. O navegador nunca emite preflight — **o CORS deixa de ser parâmetro
-   operacional**. Até a Sprint 3 o dashboard vinha do S3 e a API do ALB: duas
-   origens e uma lista de permitidos para manter em dia.
-2. A imagem do frontend **deixa de depender do endereço do ambiente**. A mesma
-   tag roda no `kind` e no EKS — o que importa aqui, onde o hostname do ALB muda
+1. O navegador nunca emite preflight, o CORS deixa de ser parâmetro
+   operacional. Antes dessa unificação, o dashboard vinha do S3 e a API do
+   ALB: duas origens e uma lista de permitidos para manter em dia.
+2. A imagem do frontend deixa de depender do endereço do ambiente. A mesma
+   tag roda no `kind` e no EKS, o que importa aqui, onde o hostname do ALB muda
    a cada sessão do lab.
 3. Não há rewrite de caminho. O prefixo chega intacto ao Flask.
 
@@ -101,15 +93,15 @@ open http://localhost:8080/
 curl -s http://localhost:8080/api/v1/clock
 ```
 
-O overlay `kind` usa **uma réplica** por Deployment e `AUTH_REQUIRED=0`. O
-segredo vem de `secret.env` (copiado de `secret.env.example`, gitignored) — são
+O overlay `kind` usa uma réplica por Deployment e `AUTH_REQUIRED=0`. O
+segredo vem de `secret.env` (copiado de `secret.env.example`, gitignored), são
 credenciais de um banco descartável que vive dentro do cluster.
 
 `make kind-down` destrói tudo.
 
-> **Recursos.** Um nó só rodando control plane, ingress-nginx, metrics-server,
+> Recursos. Um nó só rodando control plane, ingress-nginx, metrics-server,
 > Postgres e a aplicação pede folga de CPU. Em Docker Desktop ou Colima, menos
-> de 4 vCPU faz o próprio API server começar a dar `TLS handshake timeout` — o
+> de 4 vCPU faz o próprio API server começar a dar `TLS handshake timeout`, o
 > sintoma aparece como "o cluster caiu", e é só falta de CPU.
 
 ## AWS
@@ -135,20 +127,20 @@ make k8s-status
 make k8s-url            # http://<hostname do ALB>
 ```
 
-O `metrics-server` **não vem** com o Auto Mode: um cluster recém-criado nasce
+O `metrics-server` não vem com o Auto Mode: um cluster recém-criado nasce
 com `kube-system` vazio e sem o APIService `v1beta1.metrics.k8s.io`, e o HPA
-fica em `<unknown>/60%` com `ScalingActive=False` — foi assim no lab limpo de
-18/09. Ele é o add-on `aws_eks_addon.metrics_server` declarado em
+fica em `<unknown>/60%` com `ScalingActive=False`. Ele é o add-on
+`aws_eks_addon.metrics_server` declarado em
 [`infra/eks.tf`](../infra/eks.tf), instalado pelo `make tf-apply` junto com o
 cluster; `cpu: 0%/60%` aparece uns dois minutos depois. No `kind` é o
 `kind-up` que o instala.
 
 ### Multi-arquitetura
 
-As node pools padrão do Auto Mode são **amd64**; as máquinas do time e o Fargate
-são **arm64**. `make k8s-push` publica as duas arquiteturas numa lista de
+As node pools padrão do Auto Mode são amd64; as máquinas do time e o Fargate
+são arm64. `make k8s-push` publica as duas arquiteturas numa lista de
 manifestos. Publicar só arm64 coloca o pod em `CrashLoopBackOff` com
-`exec format error` — a mesma falha que já mordeu o time no ASG.
+`exec format error`, a mesma falha que já mordeu o time no ASG.
 
 Por isso `docker buildx build --push`, e não `docker build` + `docker push`: uma
 lista de manifestos só existe no registry, e o `push` empurraria apenas a
@@ -157,15 +149,15 @@ arquitetura carregada no daemon local.
 ### Segredos
 
 Sem IRSA e sem Pod Identity, o pod não lê o Secrets Manager sozinho.
-`make k8s-secret` lê os outputs do Terraform e canaliza direto para o `kubectl` —
-o valor **nunca toca o disco**, nem o repositório, nem o `tfstate`.
+`make k8s-secret` lê os outputs do Terraform e canaliza direto para o `kubectl`:
+o valor nunca toca o disco, nem o repositório, nem o `tfstate`.
 
-São cinco chaves, e duas delas são URLs de banco **diferentes**:
+São cinco chaves, e duas delas são URLs de banco diferentes:
 
 | Chave | Usuário | Quem consome |
 |---|---|---|
 | `DATABASE_URL` | `argus_api` (só lê as views `v_*`) | Deployment do backend |
-| `DATABASE_URL_MASTER` | mestre | **Jobs `argus-db-migrate` e `argus-db-reader`** |
+| `DATABASE_URL_MASTER` | mestre | Jobs `argus-db-migrate` e `argus-db-reader` |
 | `DB_READER_PASSWORD` | — | Job `argus-db-reader`, que cria o login de leitura com esta senha |
 | `USER_ID_HASH_SALT` | — | Deployment do backend |
 | `DASHBOARD_TOKEN_SHA256` | — | Deployment do backend |
@@ -173,19 +165,19 @@ São cinco chaves, e duas delas são URLs de banco **diferentes**:
 Confundir as duas primeiras falha com `permission denied for schema` no meio da
 migration, deixando o banco parcialmente migrado.
 
-> Variável vinda de `secretKeyRef` **não recarrega** em pod que já está de pé.
-> Depois de `make auth-rotate`, rode `make k8s-secret` — ele termina com
+> Variável vinda de `secretKeyRef` não recarrega em pod que já está de pé.
+> Depois de `make auth-rotate`, rode `make k8s-secret`, ele termina com
 > `rollout restart`.
 
-## Resiliência — o que dá para demonstrar
+## Resiliência: o que dá para demonstrar
 
-**As três sondas atacam problemas diferentes**, e trocá-las de lugar tem
+As três sondas atacam problemas diferentes, e trocá-las de lugar tem
 consequência concreta:
 
 | Sonda | Alvo | Se estivesse trocada |
 |---|---|---|
 | `startupProbe` | `/health/live` | Sem ela, a liveness contaria falha durante o boot e reiniciaria o pod em laço |
-| `livenessProbe` | `/health/live` (não toca no banco) | Em `/health/ready`, uma queda do RDS **mataria todos os pods ao mesmo tempo** |
+| `livenessProbe` | `/health/live` (não toca no banco) | Em `/health/ready`, uma queda do RDS mataria todos os pods ao mesmo tempo |
 | `readinessProbe` | `/health/ready` (consulta o banco) | Em `/health/live`, o pod receberia tráfego sem banco e responderia 500 |
 
 ```bash

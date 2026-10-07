@@ -1,6 +1,6 @@
 # Arquitetura inicial da solução 
 
-&emsp; Este artefato detalha a arquitetura da solução Argus v3: seus componentes,
+&emsp; Este artefato detalha a arquitetura da solução Linceu v3: seus componentes,
 tecnologias, fluxos de comunicação, decisões arquiteturais e plano de implantação
 na AWS. O estado descrito considera a implementação consolidada na branch
 `develop`, incluindo ingestão, carga inicial, processamento incremental,
@@ -108,9 +108,9 @@ de comunicação efetivamente usado.
 
 <div align="center">
 
-<sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
+<sub>Figura 1 — Implantação do Linceu na AWS, região `us-east-1`</sub>
 
-![Diagrama de implantação do Argus v3](assets/arquitetura-implantacao-v3.svg)
+![Diagrama de implantação do Linceu v3](assets/arquitetura-implantacao-v3.svg)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 

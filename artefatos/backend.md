@@ -44,13 +44,13 @@ quem as implementou, não desta frente.
 
 ### 2.1 Diagrama de implantação
 
-&emsp; Para contextualizar o ecossistema no qual a API de leitura se insere, a figura abaixo exibe o diagrama de implantação do Argus na AWS, detalhado em profundidade no artefato de arquitetura inicial.
+&emsp; Para contextualizar o ecossistema no qual a API de leitura se insere, a figura abaixo exibe o diagrama de implantação do Linceu na AWS, detalhado em profundidade no artefato de arquitetura inicial.
 
 <div align="center">
 
-<sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
+<sub>Figura 1 — Implantação do Linceu na AWS, região `us-east-1`</sub>
 
-![Diagrama de implantação do Argus v3](assets/arquitetura-implantacao-v3.svg)
+![Diagrama de implantação do Linceu v3](assets/arquitetura-implantacao-v3.svg)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 

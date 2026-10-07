@@ -33,6 +33,9 @@ const SAMPLE_COLUMNS = ["Hora", "Modelo", "SO", "Evento", "Erro"];
 
 type HeatmapCellValue = { sessions: number; errorRate: number | null };
 
+/** Recorte de partida: a dimensão de dispositivo só existe nesta fonte. */
+const DEFAULT_SCOPE = { source: "youbora_device" } as const;
+
 /** Declara o recorte afetado e mede o efeito de cada ajuste sobre ele. */
 export function RecorteContent() {
   const [hour, setHour] = useState<string | null>(null);
@@ -43,7 +46,7 @@ export function RecorteContent() {
   // recortam a consulta depois que a pessoa escolhe um valor.
   // O eixo `entity` só representa dispositivo dentro desta fonte. Sem o
   // recorte inicial, o heatmap misturava pods, vhosts e aparelhos.
-  const scopeFilters = useScopeFilters({ source: "youbora_device" });
+  const scopeFilters = useScopeFilters(DEFAULT_SCOPE);
   const scope = scopeFilters.scope;
 
   // Sessões e taxa são métricas com unidades distintas. `error_rate_pct` já

@@ -12,8 +12,11 @@ export const operationsLayoutStyles = {
     "m-0 flex items-center gap-2 whitespace-nowrap font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-primary md:text-[11px] [&>[data-live-dot]]:size-1.5 [&>[data-live-dot]]:shrink-0 [&>[data-live-dot]]:rounded-full [&>[data-live-dot]]:bg-primary [&>[data-live-dot]]:animate-agora-live-pulse motion-reduce:[&>[data-live-dot]]:animate-none",
   navigationSlot:
     "fixed bottom-0 left-0 top-24 z-10 hidden w-44 min-w-0 md:block",
+  // Em tela compacta os cinco períodos não cabem ao lado do status e do tema:
+  // o grupo encolhia e cortava as opções mais longas, que ficavam inalcançáveis.
+  // Ele passa a rolar na horizontal, com os itens em largura natural.
   periods:
-    "min-w-0 shrink bg-background [&_[data-slot=toggle-group-item]]:h-11 [&_[data-slot=toggle-group-item]]:min-h-11 [&_[data-slot=toggle-group-item]]:min-w-11 [&_[data-slot=toggle-group-item]]:px-2 sm:shrink-0 md:[&_[data-slot=toggle-group-item]]:h-8 md:[&_[data-slot=toggle-group-item]]:min-h-8",
+    "min-w-0 shrink overflow-x-auto [scrollbar-width:none] bg-background [&_[data-slot=toggle-group-item]]:shrink-0 [&_[data-slot=toggle-group-item]]:whitespace-nowrap [&_[data-slot=toggle-group-item]]:h-11 [&_[data-slot=toggle-group-item]]:min-h-11 [&_[data-slot=toggle-group-item]]:min-w-11 [&_[data-slot=toggle-group-item]]:px-2 sm:shrink-0 md:[&_[data-slot=toggle-group-item]]:h-8 md:[&_[data-slot=toggle-group-item]]:min-h-8",
   routeGrid:
     "grid min-h-dvh scroll-mt-24 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] pt-24 [&_[data-operations-slot=scope]]:col-start-1 [&_[data-operations-slot=scope]]:row-start-1 [&_[data-operations-slot=content]]:col-start-1 [&_[data-operations-slot=content]]:row-start-2 [&_[data-operations-slot=content]]:min-w-0 md:scroll-mt-12 md:grid-cols-[176px_minmax(0,1fr)] md:pt-12 md:[&_[data-operations-slot=scope]]:col-span-2 md:[&_[data-operations-slot=content]]:col-start-2",
   siteHeader:

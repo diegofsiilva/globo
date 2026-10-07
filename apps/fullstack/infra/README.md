@@ -1,4 +1,4 @@
-# Infra — Argus v3
+# Infraestrutura do Argus
 
 Terraform de dois fluxos de ingestão sobre um banco relacional:
 
@@ -8,7 +8,7 @@ App de TV  ──> API Gateway (ingestão) ──> SQS ──> ECS (event worker
 Simulador  ──> API Gateway (mudanças) ──> SQS ──> ECS (merge worker) ─┘
 ```
 
-> **Aplicado e validado** na AWS Academy Learner Lab (profile `g4`, us-east-1).
+> Aplicado e validado na AWS Academy Learner Lab (profile `g4`, us-east-1).
 > Ver [§ AWS Academy](#aws-academy--learner-lab) para as adaptações que esse
 > ambiente exige; elas não são poucas.
 
@@ -21,7 +21,7 @@ e no [plano da v3](../../../artefatos/plano-argus-v3.md).
 
 ### 1. Escolher a conta
 
-O Terraform usa as credenciais padrão do ambiente. Confira **antes** de aplicar:
+O Terraform usa as credenciais padrão do ambiente. Confira antes de aplicar:
 
 ```bash
 export AWS_PROFILE=g4
@@ -30,7 +30,7 @@ aws sts get-caller-identity --profile g4
 aws ec2 describe-vpcs --profile g4 --max-results 5
 ```
 
-> **O id da conta do Learner Lab muda a cada sessão nova.** O `existing_role_arn`
+> O id da conta do Learner Lab muda a cada sessão nova. O `existing_role_arn`
 > do `terraform.tfvars` carrega esse id: se ele estiver de uma sessão anterior, o
 > apply falha (ou, pior, o state passa a descrever uma conta que já não existe).
 > Confira e atualize antes de todo apply em conta nova.
@@ -57,14 +57,14 @@ cp terraform.tfvars.example terraform.tfvars
 ```
 
 Os campos que exigem decisão são o `existing_role_arn` (acima) e a senha do
-banco. `db_allowed_cidr` fica **vazio**: o RDS é privado e o acesso
+banco. `db_allowed_cidr` fica vazio: o RDS é privado e o acesso
 administrativo passa pela task `migration`, dentro da VPC.
 
 ---
 
 ## Deploy
 
-**A ordem importa, e não é a intuitiva.** As task definitions referenciam a
+A ordem importa, e não é a intuitiva. As task definitions referenciam a
 imagem pelo SHA do commit; se o `apply` rodar antes do `push`, os serviços
 procuram uma tag que ainda não existe no ECR e entram em `ImagePullBackOff`, com
 o erro aparecendo como "imagem não encontrada", longe da linha que o causou.
@@ -85,7 +85,7 @@ make -C apps/fullstack frontend-deploy   # 5. dashboard no website S3
 make -C apps/fullstack smoke             # 6. 401/403/200, latência e tamanho
 ```
 
-**Entre o `tf-apply` e o `auth-rotate` a API responde 403 em tudo.** O segredo
+Entre o `tf-apply` e o `auth-rotate` a API responde 403 em tudo. O segredo
 nasce vazio e o authorizer falha fechado, que é o comportamento correto e não um
 defeito. Faça os dois na mesma sessão.
 
@@ -114,11 +114,11 @@ make -C apps/fullstack lambda-hash  # hash local == CodeSha256 publicado?
 cd apps/fullstack/infra && terraform plan   # tem que dar zero mudanças
 ```
 
-São **quatro** imagens, não uma:
+São quatro imagens, não uma:
 
 | Imagem | Serviço |
 |---|---|
-| `worker` | merge worker **e** event worker — a mesma imagem, `command` diferente |
+| `worker` | merge worker e event worker, a mesma imagem com `command` diferente |
 | `simulator` | relógio virtual e emissor de mudanças |
 | `processing` | ETL incremental (bronze->silver e silver->gold); detector e canário seguem no-op |
 | `loader` | carga inicial, task one-shot |
@@ -191,7 +191,7 @@ payload original, intacto.
 
 ### Reprocessar uma DLQ
 
-Depois de corrigir a causa, no console do SQS: DLQ → **Start DLQ redrive**. A
+Depois de corrigir a causa, no console do SQS: DLQ → Start DLQ redrive. A
 policy `redrive_allow_policy` já autoriza o caminho de volta para a fila
 principal. Como a escrita é idempotente (o MERGE só sobrescreve quando o `_lsn`
 que chega é maior que o corrente), reprocessar não duplica nem regride.
@@ -215,14 +215,14 @@ Namespace `Argus/Ingestion`, dimensão `Service`:
 | `ItemsReceived` | itens que chegaram da fila (evento ou mudança) |
 | `ItemsWritten` | linhas efetivamente gravadas |
 | `ItemsQuarantined` | itens desviados para a DLQ |
-| `ItemsDeduplicated` | duplicatas colapsadas — é a taxa de reentrega do SQS |
+| `ItemsDeduplicated` | duplicatas colapsadas, a taxa de reentrega do SQS |
 | `ChangesMerged` | mudanças aplicadas na tabela corrente pelo MERGE |
 | `EventsUnknownType` | `event_name` que o worker ainda não conhece |
 | `EventsIncomplete` | evento válido, mas sem campos recomendados |
 | `WriteFailed` | itens que o banco recusou após os retries |
-| `LagSimSeconds` | atraso do pipeline em tempo **virtual** |
+| `LagSimSeconds` | atraso do pipeline em tempo virtual |
 | `SourcesSilent` | fontes que pararam de reportar |
-| `CycleLatency` | tempo de **processamento** do ciclo, em ms |
+| `CycleLatency` | tempo de processamento do ciclo, em ms |
 | `PollWait` | quanto o long polling ficou bloqueado esperando, em ms |
 
 `CycleLatency` e `PollWait` são separadas de propósito: o long polling bloqueia
@@ -266,25 +266,25 @@ avisado):
 | SQS (duas filas) | ~US$ 0 (1 M req/mês no free tier) |
 | S3 (origem versionado + site) | ~US$ 2 |
 | CloudWatch Logs + 11 alarmes | ~US$ 4 |
-| **Total** | **~US$ 106/mês** |
+| Total | ~US$ 106/mês |
 
 O RDS é o item dominante e é 24/7 por natureza, porque guarda o resultado da carga
 inicial, então desligá-lo não é a mesma coisa que desligar um worker.
 
 Para economizar crédito do lab, `make pause` zera os `desired_count` dos services
-e deixa o banco de pé; só `terraform destroy` derruba tudo, **inclusive a carga**.
+e deixa o banco de pé; só `terraform destroy` derruba tudo, inclusive a carga.
 
-O item que **não** está aqui e seria o maior de todos é o NAT Gateway (~US$ 32/mês
+O item que não está aqui e seria o maior de todos é o NAT Gateway (~US$ 32/mês
 + tráfego). Ele é evitado por `assign_public_ip = true`.
 
 ---
 
-## AWS Academy — Learner Lab
+## AWS Academy Learner Lab
 
 Três coisas do laboratório quebram um Terraform escrito para conta normal. As
 três estão resolvidas por variável, sem bifurcar o código:
 
-**1. `iam:CreateRole` é negado.** O ambiente obriga a usar a `LabRole` pronta.
+1. `iam:CreateRole` é negado. O ambiente obriga a usar a `LabRole` pronta.
 
 ```hcl
 create_iam_roles  = false
@@ -292,12 +292,12 @@ existing_role_arn = "arn:aws:iam::<conta>:role/LabRole"
 ```
 
 A `LabRole` confia em `apigateway.amazonaws.com`, `ecs-tasks.amazonaws.com` e
-`lambda.amazonaws.com`. Mas ela é **muito** mais permissiva do que o necessário:
+`lambda.amazonaws.com`. Mas ela é muito mais permissiva do que o necessário:
 numa conta normal deixe `create_iam_roles = true` e cada componente ganha
 permissão mínima.
 
-A lista de confiança tem 53 serviços e **`vpc-flow-logs.amazonaws.com` não está
-entre eles**, verificado na conta. Por isso `flow_logs_destination` tem `s3`
+A lista de confiança tem 53 serviços e `vpc-flow-logs.amazonaws.com` não está
+entre eles, verificado na conta. Por isso `flow_logs_destination` tem `s3`
 como padrão: esse destino usa política de bucket em vez de papel IAM. O caminho
 do CloudWatch é criado sem erro e simplesmente nunca escreve, que é o pior modo
 de falha possível para uma evidência de entrega.
@@ -307,7 +307,7 @@ aws iam get-role --role-name LabRole --profile g4 \
   --query 'Role.AssumeRolePolicyDocument.Statement[].Principal.Service' --output json
 ```
 
-**2. O Secrets Manager é imprevisível no lab.** A senha do RDS pode vir do
+2. O Secrets Manager é imprevisível no lab. A senha do RDS pode vir do
 `tfvars` em vez do Secrets Manager:
 
 ```hcl
@@ -318,7 +318,7 @@ db_password                      = "..."
 Isso só é aceitável porque `terraform.tfvars` está no `.gitignore`. Numa conta
 normal, deixe `true`: a senha nasce aleatória e nunca toca o disco.
 
-**3. Nem toda classe de instância é ofertável.** Antes do primeiro apply em conta
+3. Nem toda classe de instância é ofertável. Antes do primeiro apply em conta
 nova, confirme:
 
 ```bash
@@ -327,7 +327,7 @@ aws rds describe-orderable-db-instance-options --profile g4 \
   --query 'OrderableDBInstanceOptions[].DBInstanceClass' --output text
 ```
 
-**4. A SCP da organização nega `s3:GetBucketObjectLockConfiguration`.** O provider
+4. A SCP da organização nega `s3:GetBucketObjectLockConfiguration`. O provider
 AWS chama exatamente essa API ao reler qualquer `aws_s3_bucket` recém-criado. O
 bucket nasce, o `apply` falha na releitura, e o recurso fica no estado quebrando
 todo `plan` seguinte. Apenas essa chamada é negada: `GetBucketPolicy`,
@@ -347,13 +347,13 @@ que são anteriores a esta entrega e ainda não têm a mesma válvula. O paliati
 para eles é `terraform plan -refresh=false`, já que estão no estado e sem refresh
 o provider não os relê.
 
-**Credenciais expiram.** A sessão do laboratório vence em algumas horas. Quando
+Credenciais expiram. A sessão do laboratório vence em algumas horas. Quando
 vence, a AWS anexa uma policy `voc-cancel-cred` que nega tudo, e os comandos
 falham com `AccessDenied ... explicit deny`, e não com `ExpiredToken`, o que
 confunde. `sts get-caller-identity` continua respondendo mesmo assim. Reinicie o
 lab e atualize o profile `g4`.
 
-**Crédito é limitado.** Para pausar sem destruir nada:
+Crédito é limitado. Para pausar sem destruir nada:
 
 ```bash
 make -C .. pause      # zera os services, mantém o banco e a carga
@@ -368,7 +368,7 @@ Voltar retoma o consumo de onde parou.
 
 ## Rede: pública vs privada
 
-O padrão é a **VPC dedicada** de `vpc.tf` (`create_network = true`): duas
+O padrão é a VPC dedicada de `vpc.tf` (`create_network = true`): duas
 sub-redes públicas e duas privadas, em duas AZs, com NAT Gateway.
 
 O que separa pública de privada não é nada na sub-rede: é a tabela de rota
@@ -380,34 +380,34 @@ caminho de entrada.
 
 | Sub-rede | Quem mora lá |
 |---|---|
-| Pública | ALB do Ingress do EKS, NAT Gateway, bastion — os únicos com motivo para ter endereço roteável |
+| Pública | ALB do Ingress do EKS, NAT Gateway, bastion, os únicos com motivo para ter endereço roteável |
 | Privada | nós do EKS, tasks Fargate, Lambda de leitura, subnet group do RDS |
 
 Antes desta camada, as tasks rodavam na VPC default com `assign_public_ip =
 true`. O único controle que impedia alguém de alcançá-las era o security group
-sem regra de entrada. Com sub-rede privada some também a rota: **dois controles
-independentes em vez de um**.
+sem regra de entrada. Com sub-rede privada some também a rota: dois controles
+independentes em vez de um.
 
 As duas chaves andam juntas, e o Terraform recusa a combinação errada já no
 `plan`. `create_network = true` com `assign_public_ip = true` põe a task numa
 sub-rede sem rota para o IGW, onde o endereço público não serve para nada e o
 pull do ECR falha.
 
-Um **gateway endpoint de S3** (grátis) está associado à tabela de rota privada.
+Um gateway endpoint de S3 (grátis) está associado à tabela de rota privada.
 Ele tira do NAT os ~200 MB de Parquet que o `loader` lê por carga, e o NAT
 cobra por GB trafegado.
 
-**Um NAT, não um por AZ.** A recomendação da AWS para produção é um por zona,
+Um NAT, não um por AZ. A recomendação da AWS para produção é um por zona,
 para que a queda de uma não leve junto a saída da outra. Aqui é um só, por custo
 (~US$ 32/mês cada). A consequência está assumida: se a AZ do NAT cair, os nós
 da outra zona continuam servindo tráfego pelo ALB do Ingress, porque o caminho de
 leitura não passa pelo NAT, mas perdem a saída para a internet.
 
-**Trocar de rede recria o banco.** A AWS não move uma instância RDS entre VPCs, e
+Trocar de rede recria o banco. A AWS não move uma instância RDS entre VPCs, e
 um subnet group só aceita sub-redes da própria VPC. Tire um snapshot manual antes
 de ligar ou desligar `create_network` num ambiente já aplicado.
 
-O RDS **não é exceção** à postura privada: ele aceita conexão apenas dos security
+O RDS não é exceção à postura privada: ele aceita conexão apenas dos security
 groups autorizados. Não há regra para CIDR externo.
 
 Até a adequação do RNF09 o banco era público, restrito ao IP de quem estava
@@ -420,12 +420,13 @@ make -C .. migrate-status-aws
 make -C .. migrate-aws
 ```
 
-### Caminho EC2 da Sprint 3 (removido na Sprint 4)
+### Caminho de leitura em EC2
 
-Caminho EC2 (ASG+ALB) da Sprint 3 removido na Sprint 4; a leitura pública vem
-do Ingress do EKS (ver `../k8s/README.md`) e, como contingência, da Lambda
-(`terraform output read_api_url`). `ec2_api.tf.example` continua no repositório
-só como exemplo comentado da equivalência com EC2, e não faz parte do estado.
+A arquitetura não mantém o caminho de leitura em EC2 (ASG+ALB); a leitura
+pública vem do Ingress do EKS (ver `../k8s/README.md`) e, como contingência, da
+Lambda (`terraform output read_api_url`). `ec2_api.tf.example` continua no
+repositório apenas como exemplo comentado da equivalência com EC2, e não faz
+parte do estado.
 
 ### Saída da sub-rede privada: NAT ou endpoints
 
@@ -439,7 +440,7 @@ Cinco interfaces em duas AZs passam de US$ 70/mês contra os ~US$ 32 do NAT.
 
 ### Ligar a rede dedicada num stack que já existe
 
-**A AWS não move uma instância RDS entre VPCs.** Um subnet group só pode conter
+A AWS não move uma instância RDS entre VPCs. Um subnet group só pode conter
 sub-redes da mesma VPC da instância, então trocar a rede recria o banco, e com ele
 as 33 tabelas carregadas.
 
@@ -462,7 +463,7 @@ make -C .. load
 da conta do Learner Lab. Se houver dado produzido pelo simulador que a carga
 inicial não reproduza, restaure do snapshot em vez de recarregar.
 
-**Valide o NAT antes de depender dele.** Entre criar a rede e mover os serviços,
+Valide o NAT antes de depender dele. Entre criar a rede e mover os serviços,
 suba uma task avulsa na sub-rede privada e confirme que ela alcança a AWS. Sem
 esse passo, uma task em crash loop tem duas causas possíveis e nenhuma pista: rota
 de saída ausente e defeito de aplicação são indistinguíveis pelo sintoma.
@@ -481,7 +482,7 @@ nenhuma para o ECR: ela não baixa a imagem e o service entra em crash loop. A
 combinação oposta, `create_network = true` com `assign_public_ip = true`, é recusada
 no `plan`, porque põe a task numa sub-rede sem rota para o Internet Gateway.
 
-Voltar atrás **também recria o banco**, pelo mesmo motivo da ida. Snapshot antes.
+Voltar atrás também recria o banco, pelo mesmo motivo da ida. Snapshot antes.
 
 ---
 
@@ -494,23 +495,23 @@ da VPC, com origem, destino, porta e bytes.
 
 Na prática é o que responde, sem instrumentar nada:
 
-- a task **está mesmo saindo pelo NAT**? (`ACCEPT` de um IP `10.0.1x.x` para fora)
+- a task está mesmo saindo pelo NAT? (`ACCEPT` de um IP `10.0.1x.x` para fora)
 - quem está batendo na 5432 e sendo recusado? (`REJECT` para o IP do banco)
 
 `traffic_type = "ALL"`, e não `REJECT`: o rejeitado sozinho conta metade da
 história, e é o `ACCEPT` que prova que a máquina privada saiu.
 
-O formato é explícito, e não o padrão, porque o padrão **não traz**
+O formato é explícito, e não o padrão, porque o padrão não traz
 `pkt-srcaddr` e `pkt-dstaddr`, que são o endereço real antes da tradução do NAT. Sem eles
 todo tráfego de saída das sub-redes privadas aparece vindo do NAT, e fica
 impossível dizer *qual* instância falou com quem.
 
-A agregação está em **60 segundos** em vez dos 600 do padrão. Numa apresentação,
+A agregação está em 60 segundos em vez dos 600 do padrão. Numa apresentação,
 esperar dez minutos pelo primeiro registro é a diferença entre mostrar a
 evidência e falar sobre ela. No destino S3 ainda há a latência própria da
 entrega, de cerca de cinco minutos, que esse parâmetro não encurta.
 
-**O destino padrão é S3**, pela restrição da `LabRole` descrita na seção AWS
+O destino padrão é S3, pela restrição da `LabRole` descrita na seção AWS
 Academy. Numa conta normal, `flow_logs_destination = "cloudwatch"` é melhor: o
 Logs Insights consulta os registros com uma linguagem de consulta, sem baixar
 arquivo.
@@ -541,7 +542,7 @@ aws s3 ls --recursive "$(terraform output -raw flow_log_destino)/" | tail -20
 
 ## Segurança e lacunas conhecidas
 
-**Superfície de rede.** As tasks ficam em sub-rede **privada**, sem endereço
+Superfície de rede. As tasks ficam em sub-rede privada, sem endereço
 público, e alcançam a AWS pelo NAT Gateway; o security group continua sem regra
 de entrada. São dois controles independentes: não há regra que autorize entrada e
 não há rota por onde ela chegaria. O RDS é privado e só aceita conexão dos
@@ -550,11 +551,11 @@ security groups autorizados; não há porta aberta para fora da VPC.
 Com `create_network = false` o desenho volta ao anterior, de sub-rede pública com IP
 público, e aí o security group passa a ser o único controle.
 
-**Dado pessoal.** A API de leitura remove identificadores e cabeçalhos sensíveis
+Dado pessoal. A API de leitura remove identificadores e cabeçalhos sensíveis
 na resposta (RNF10). O evento cru fica no banco, com criptografia em repouso, e o
 usuário `argus_reader` que a Lambda usa só tem `SELECT` nas views `v_*`.
 
-**Autenticação (RNF09).** As duas HTTP APIs ficam atrás de um Lambda authorizer do
+Autenticação (RNF09). As duas HTTP APIs ficam atrás de um Lambda authorizer do
 tipo `REQUEST`, com cache de cinco minutos por token no API Gateway. São dois
 tokens aleatórios de 256 bits, um por audiência: `dashboard` para leitura e `ingest`
 para escrita. Um não vale no lugar do outro, o que impede que a
@@ -564,7 +565,7 @@ token novo vale imediatamente. Se apenas a limpeza falhar, os tokens continuam
 publicados, o alvo avisa que o antigo pode valer por até cinco minutos e termina
 com erro.
 
-O Secrets Manager guarda apenas o **SHA-256** de cada token. O valor em claro
+O Secrets Manager guarda apenas o SHA-256 de cada token. O valor em claro
 existe no terminal de quem rodou `make auth-rotate`, que o imprime uma única vez, e
 e, só no caso do de ingestão, num segundo segredo que a task do simulador lê pelo bloco
 `secrets` da task definition. Usar `environment` ali exporia o token em qualquer
@@ -575,8 +576,8 @@ make -C .. auth-rotate        # gera os dois, grava os hashes, imprime uma vez
 make -C .. auth-show-ingest   # relê o de ingestao (o de leitura nao e recuperavel)
 ```
 
-Sem o cabeçalho, o API Gateway responde **401** sem invocar a função; com token
-inválido, **403**.
+Sem o cabeçalho, o API Gateway responde 401 sem invocar a função; com token
+inválido, 403.
 
 Três rotas ficam públicas: `GET /health/live` (sonda de vida) e `GET /docs` +
 `GET /openapi.json`. As duas últimas porque o Swagger UI é aberto por navegação,
@@ -584,11 +585,11 @@ que não carrega `Authorization`; protegidas, devolveriam 401 antes de a página
 renderizar, e não haveria onde clicar em "Authorize". Elas expõem a forma da API,
 nunca dado; toda rota que devolve dado continua exigindo o Bearer.
 
-**Limitação assumida:** o token identifica um *serviço*, não uma pessoa. Não há
+Limitação assumida: o token identifica um *serviço*, não uma pessoa. Não há
 como saber qual integrante fez uma consulta, e a resposta a um vazamento é
 rotacionar, não revogar um usuário. Identidade individual exigiria Cognito.
 
-**Transporte: limitação temporária do Learner Lab.** O papel `voclabs` desta
+Transporte: limitação temporária do Learner Lab. O papel `voclabs` desta
 conta não permite criar Origin Access Control, CloudFront Function nem Response
 Headers Policy. Por isso o dashboard voltou ao endpoint de website do S3, que
 serve somente HTTP e exige leitura pública dos objetos. A API e os dados

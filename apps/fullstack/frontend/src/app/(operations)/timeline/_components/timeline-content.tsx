@@ -2,6 +2,8 @@
 
 /** Tela 05 — Timeline: seis fontes sobre um eixo temporal único. */
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { ScreenFrame } from "../../_components/screen-frame";
@@ -9,7 +11,15 @@ import { useOperationsUi, type ScreenPeriod } from "../../_components/operations
 import { useSimClock, windowEndingAt } from "../../_lib/sim-clock";
 import { normalizeQueryFailure } from "@/lib/operational-state";
 import { fetchTimeline } from "../_lib/http-source";
-import { toChronology, toCorrelationWindow, toTimeAxis, toTimelineRows } from "../_lib/adapt";
+import {
+  formatMoment,
+  toChronology,
+  toCorrelationWindow,
+  toMarker,
+  toTimeAxis,
+  toTimelineRows,
+  windowAround,
+} from "../_lib/adapt";
 import { timelineStyles as styles } from "./timeline.styles";
 
 /** Minutos de cada período, para converter o rótulo na janela consultada. */
@@ -18,19 +28,41 @@ const periodMinutes: Record<ScreenPeriod, number> = {
   "30 min": 30,
   "3 h": 180,
   "24 h": 1_440,
+  "72 h": 4_320,
 };
+
+/** Largura, em px, da coluna de rótulos das raias (`row` em timeline.styles). */
+const LANE_LABEL_WIDTH = 150;
+
+/** Posiciona um elemento sobre o eixo, descontando a coluna de rótulos. */
+function axisOffset(percent: number): string {
+  return `calc(${LANE_LABEL_WIDTH}px + (100% - ${LANE_LABEL_WIDTH}px) * ${percent / 100})`;
+}
 
 /** Reconstrói a sequência do incidente com as fontes que a originaram. */
 export function TimelineContent() {
-  const { period: sharedPeriod } = useOperationsUi();
+  const { period: sharedPeriod, hrefWithDemoState } = useOperationsUi();
   const clock = useSimClock();
+  const searchParams = useSearchParams();
   const period = sharedPeriod ?? "30 min";
+
+  // "Abrir na timeline", na tela de Hipóteses, manda a hipótese e o instante do
+  // efeito na URL. Sem ler os dois, a tela abria sempre na janela que termina
+  // agora, e uma hipótese de ontem caía num eixo em que ela não aparece.
+  const hypothesisId = searchParams.get("hipotese");
+  const anchorParam = searchParams.get("t");
+  const anchor = anchorParam && Number.isFinite(new Date(anchorParam).getTime())
+    ? new Date(anchorParam)
+    : null;
+
   const currentWindow = clock.snapshot
-    ? windowEndingAt(clock.snapshot.simNow, periodMinutes[period])
+    ? anchor
+      ? windowAround(anchor, clock.snapshot.simNow, periodMinutes[period])
+      : windowEndingAt(clock.snapshot.simNow, periodMinutes[period])
     : null;
 
   const query = useQuery({
-    queryKey: ["timeline", period, currentWindow?.to],
+    queryKey: ["timeline", period, currentWindow?.from, currentWindow?.to],
     queryFn: ({ signal }) => fetchTimeline(currentWindow!, signal),
     enabled: Boolean(currentWindow),
     refetchInterval: 30_000,
@@ -40,11 +72,15 @@ export function TimelineContent() {
   const timeAxis = response ? toTimeAxis(response) : [];
   const timelineRows = response ? toTimelineRows(response) : [];
   const chronology = response ? toChronology(response) : [];
-  const correlationWindow = response ? toCorrelationWindow(response) : null;
+  const correlationWindow = response ? toCorrelationWindow(response, hypothesisId) : null;
+  const marker = response && anchor ? toMarker(response, anchor.toISOString()) : null;
+  const scope = response
+    ? `janela ${period}${anchor ? ` centrada em ${formatMoment(anchor.getTime())}` : ""} · ${response.lanes.length} fontes`
+    : undefined;
 
   return (
     <ScreenFrame
-      scopeSummary={response ? `janela ${period} · ${response.lanes.length} fontes` : undefined}
+      scopeSummary={scope}
       operational={{
         state: clock.error && !clock.snapshot
           ? "error"
@@ -60,7 +96,7 @@ export function TimelineContent() {
                   ? "empty"
                   : "ready",
         title: "Timeline correlacionada",
-        scope: response ? `janela ${period} · ${response.lanes.length} fontes` : undefined,
+        scope,
         failure: clock.error
           ? normalizeQueryFailure(clock.error)
           : query.error
@@ -80,6 +116,17 @@ export function TimelineContent() {
         <p>Seis fontes em silos, um único eixo de tempo. Janela de correlação destacada.</p>
       </header>
 
+      {anchor && (
+        <p className={styles.focus}>
+          <span>
+            Janela centrada {hypothesisId ? <>na hipótese <strong>#{hypothesisId}</strong></> : "no instante"}
+            {" · "}efeito em <strong>{formatMoment(anchor.getTime())}</strong>
+          </span>
+          <Link href={hrefWithDemoState("/hipoteses")}>Voltar às hipóteses</Link>
+          <Link href={hrefWithDemoState("/timeline")}>Ver a janela de agora</Link>
+        </p>
+      )}
+
       {response && correlationWindow && (
         <>
           <figure
@@ -97,10 +144,19 @@ export function TimelineContent() {
                 <div
                   className={styles.band}
                   style={{
-                    left: `${correlationWindow.band.start}%`,
-                    width: `${correlationWindow.band.width}%`,
+                    // O percentual é da JANELA, e o eixo começa depois da
+                    // coluna de rótulos: aplicado à largura inteira, o
+                    // destaque cobria os nomes das raias e ficava deslocado
+                    // em relação aos eventos.
+                    left: axisOffset(correlationWindow.band.start),
+                    width: `calc((100% - ${LANE_LABEL_WIDTH}px) * ${correlationWindow.band.width / 100})`,
                   }}
                 />
+              )}
+              {marker !== null && (
+                <div className={styles.marker} style={{ left: axisOffset(marker) }}>
+                  <span>{hypothesisId ? `hipótese #${hypothesisId}` : "instante"}</span>
+                </div>
               )}
               {timelineRows.map((row) => (
                 <div className={styles.row} key={row.label}>

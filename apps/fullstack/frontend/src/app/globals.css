@@ -271,20 +271,35 @@
   overflow-wrap: anywhere;
 }
 
-/* Limites de legibilidade pedidos para uso prolongado: as classes históricas
-   continuam definindo hierarquia, mas não podem reduzir conteúdo operacional
-   abaixo do piso de 11 px no desktop e 12 px em telas compactas. */
+/* Limites de legibilidade pedidos para uso prolongado: nenhum conteúdo
+   operacional abaixo do piso de 11 px no desktop e 12 px em telas compactas.
+
+   O piso é um PADRÃO, e não um `!important`. `1em` em `font-size` é o tamanho
+   do PAI: com `!important`, todo `span`, `strong`, `p` e `button` dentro de
+   `main` herdava os 14 px do corpo e os seis degraus da escala deixavam de
+   valer -- o score de uma hipótese (`text-display`, 28 px) e o rótulo acima
+   dele (`text-micro`, 12 px) saíam do mesmo tamanho. Sem o `!important`, a
+   seletora de especificidade zero perde para qualquer utilitário de tamanho, e
+   o piso continua valendo para o texto que não declara nenhum. */
 @layer utilities {
   main :where(p, span, small, label, dt, dd, th, td, time, b, strong, a, button, input) {
-    font-size: max(11px, 1em) !important;
+    font-size: max(11px, 1em);
     overflow-wrap: anywhere;
   }
 }
 
 @media (max-width: 767px) {
-  main :where(p, span, small, label, dt, dd, th, td, time, b, strong, a, button, input) {
-    font-size: max(12px, 1em) !important;
+  /* Dentro da camada pelo mesmo motivo: regra fora de `@layer` vence todo
+     utilitário, e o piso voltaria a achatar a escala em tela compacta. */
+  @layer utilities {
+    main :where(p, span, small, label, dt, dd, th, td, time, b, strong, a, button, input) {
+      font-size: max(12px, 1em);
+    }
   }
+
+  /* O único tamanho fixo abaixo do piso compacto. Os demais usos de 11 px já
+     são `md:`, e portanto não valem nesta largura. */
+  main .text-\[11px\] { font-size: 12px; }
 
   .groupBar { overflow: visible !important; }
   .groupBar > div {

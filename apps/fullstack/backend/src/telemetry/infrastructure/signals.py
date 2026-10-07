@@ -135,6 +135,16 @@ class SignalsRepository:
                 -- Le o historico uma vez. O LATERAL anterior repetia uma busca
                 -- no banco para cada serie da janela e excedia o timeout depois
                 -- que o dump passou a conter milhoes de buckets.
+                --
+                -- So as horas do dia que a janela contem. O baseline e por
+                -- `hora_brt`, e as duas juncoes abaixo so usam o historico
+                -- das horas presentes em `janela`: sem este predicado a CTE
+                -- materializava os sete dias inteiros (1 M de buckets numa
+                -- carga de seis dias) para aproveitar 1/24 deles, e a view
+                -- avaliava `sim.now()` linha a linha -- a consulta sem filtro
+                -- de fonte passava dos 15 s do `statement_timeout`. O
+                -- resultado e o mesmo; o predicado barato roda antes do filtro
+                -- da view e descarta as outras 23 horas.
                 historico AS MATERIALIZED (
                   SELECT h.bucket_ts, h.source, h.entity, h.metric,
                          h.hora_brt, h.value
@@ -142,6 +152,9 @@ class SignalsRepository:
                    WHERE h.bucket_ts >= %s AND h.bucket_ts < %s
                      AND h.value IS NOT NULL
                      AND NOT (h.source = ANY(%s))
+                     AND h.hora_brt = ANY(
+                           ARRAY(SELECT DISTINCT j.hora_brt FROM janela j)
+                         )
                      {filtro_historico}
                 ),
                 baseline_ultimo AS MATERIALIZED (

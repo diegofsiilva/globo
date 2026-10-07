@@ -1,0 +1,39 @@
+{
+  "tipo": "comparacao_real_local_experimental",
+  "origem": "amostra Parquet do parceiro; checkpoint reconstruido de bronze.signal_bucket, sem replay CDC",
+  "checkpoint_id": 1,
+  "run_id": 1,
+  "sim_now": "2026-07-26T20:00:00Z",
+  "input_lsn": 11581216,
+  "fatos_compartilhados": 4623,
+  "entidade": "br1|playback.video.globo.com",
+  "motor": {
+    "status_run": "completed",
+    "hipoteses_geradas": 24,
+    "hipoteses_descartadas": 13,
+    "geradas_por_familia": {
+      "backend_internal": 4,
+      "source_data_delay": 20
+    }
+  },
+  "agente": {
+    "provedor": "ollama",
+    "modelo": "qwen3-coder:30b",
+    "prompt_version": "2.2.0",
+    "desfecho": "evidencia_insuficiente",
+    "hipoteses": 0,
+    "consultas": 4,
+    "consultas_com_erro": 3,
+    "fatos_lidos": 200,
+    "lacuna_declarada": {
+      "missing": "dados sobre a taxa de erros 4xx para a entidade especificada",
+      "reason": "sem_dado"
+    }
+  },
+  "checagem_independente": {
+    "fatos_4xx_no_recorte": 1541,
+    "fatos_4xx_retornados_ao_agente": 200,
+    "lacuna_4xx": "contradita_pelos_fatos",
+    "avaliacao_da_causa": "nao_realizada"
+  }
+}

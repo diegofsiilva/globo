@@ -1,0 +1,143 @@
+{
+  "executado_em": "2026-10-05",
+  "ambiente": {
+    "provedor": "AWS Academy Learner Lab",
+    "regiao": "us-east-1",
+    "eventos_por_lote": 150000,
+    "quantidade_lotes": 2,
+    "total_eventos": 300000,
+    "vus_injecao": 50,
+    "maximo_bytes_por_fragmento": 40000,
+    "consumidor_durante_injecao": "event-worker parado"
+  },
+  "criterios": {
+    "eventos_aceitos": 300000,
+    "rejeicoes": 0,
+    "recuperacao_maxima_s": 450,
+    "origem_cronometro": "solicitacao de retomada do consumidor",
+    "integridade": "aceitos = gravados = eventos distintos",
+    "filas_finais": 0
+  },
+  "resultados": [
+    {
+      "cenario": "CF02 - duas remessas represadas",
+      "test_id": "cf02-20261005T155846Z",
+      "injecao": {
+        "inicio_aproximado_utc": "2026-10-05T16:00:23.442Z",
+        "fim_utc": "2026-10-05T16:00:51.595Z",
+        "duracao_s": "28.035",
+        "eventos_aceitos": 299927,
+        "eventos_rejeitados": 73,
+        "requisicoes": 4155,
+        "vazao_aceite_eventos_s": "10698.36",
+        "fragmento_p95_ms": "429.9",
+        "fragmento_max_ms": "1452.5"
+      },
+      "remessas": [
+        {
+          "lote": "cf02-20261005T155846Z-lote-01",
+          "eventos_programados": 150000,
+          "eventos_gravados": 149927,
+          "indices_distintos": 149927,
+          "diferenca_programado_gravado": 73
+        },
+        {
+          "lote": "cf02-20261005T155846Z-lote-02",
+          "eventos_programados": 150000,
+          "eventos_gravados": 150000,
+          "indices_distintos": 150000,
+          "diferenca_programado_gravado": 0
+        }
+      ],
+      "solicitacao_retomada_utc": "2026-10-05T16:02:11.335059+00:00",
+      "primeira_task_running_s": 23.69,
+      "fila_antes_retomada": {
+        "dlq": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "events": {
+          "ApproximateNumberOfMessages": 4154,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        }
+      },
+      "consolidacao": {
+        "origem": "registros-detalhados-2026-10-05.zip/cf02-execucao.json",
+        "campos_origem": [
+          "meta.reconciliacao_banco",
+          "meta.filas_finais",
+          "meta.fim_coleta_utc",
+          "meta.solicitacao_retomada_utc"
+        ],
+        "test_id_conferido": "cf02-20261005T155846Z",
+        "eventos_gravados": 299927,
+        "eventos_distintos": 299927,
+        "sessoes_distintas": 299927,
+        "filas_finais": {
+          "dlq": {
+            "ApproximateNumberOfMessages": 0,
+            "ApproximateNumberOfMessagesNotVisible": 0,
+            "ApproximateNumberOfMessagesDelayed": 0
+          },
+          "events": {
+            "ApproximateNumberOfMessages": 0,
+            "ApproximateNumberOfMessagesNotVisible": 0,
+            "ApproximateNumberOfMessagesDelayed": 0
+          }
+        },
+        "conferido_ate_utc": "2026-10-05T16:04:56.344525+00:00",
+        "disponibilidade_api": "NAO MEDIDA neste cenario",
+        "nota": "Consolidacao posterior ao k6 a partir da evidencia indicada; nao representa nova execucao.",
+        "eventos_aceitos": 299927,
+        "eventos_rejeitados": 73,
+        "origem_cronometro_utc": "2026-10-05T16:02:11.335059+00:00",
+        "persistencia_confirmada_s": 137.7,
+        "conferencia_final_s": 165.01,
+        "referencia_recuperacao_s": 450,
+        "aprovado_recuperacao_aceitos": true,
+        "aprovado_cenario": false
+      },
+      "atraso_ate_bronze": {
+        "amostra": 299927,
+        "p95_s": 205.1574795,
+        "max_s": "211.284925"
+      },
+      "falha_ingestao": {
+        "test_id": "cf02-20261005T155846Z",
+        "fonte": "Access log do API Gateway, janela 16:00:20-16:01:00 UTC",
+        "falhas": [
+          {
+            "requestId": "ExxvzirUoAMESBA=",
+            "requestTime": "05/Oct/2026:16:00:23 +0000",
+            "httpMethod": "POST",
+            "routeKey": "POST /v1/events",
+            "status": "500",
+            "responseLength": "35",
+            "integrationError": "-",
+            "latency": "60"
+          }
+        ],
+        "interpretacao": "Um HTTP 500 na borda; integrationError sem detalhe (-). Nao atribuir a quota da fila, ao banco ou ao consumidor sem evidencia adicional. O requestId correlaciona a borda; nao foi encontrado detalhe da causa interna."
+      },
+      "observabilidade": {
+        "inicio_utc": "2026-10-05T15:58:00Z",
+        "fim_utc": "2026-10-05T16:06:00Z",
+        "rds_cpu_maximo_das_medias_60s_pct": 57.00496782582602,
+        "amostras_rds_cpu": 8,
+        "fonte_no_pacote": "cf02-cloudwatch.json"
+      },
+      "situacao": "Recuperacao dos aceitos aprovada; cenario completo reprovado por 73 rejeicoes."
+    }
+  ],
+  "observacoes": [
+    "Somente o conjunto de duas remessas foi reexecutado nesta rodada; uma, tres e quatro remessas pertencem a Sprint 3.",
+    "Tempos medidos para as duas remessas juntas; nao ha tempo de drenagem isolado por remessa.",
+    "Diferenca por remessa obtida na reconciliacao do banco; 73 rejeicoes confirmadas no total pelo k6.",
+    "SQS conta fragmentos, nao eventos. Disponibilidade na API nao medida neste cenario."
+  ],
+  "registros_detalhados": {
+    "arquivo": "registros-detalhados-2026-10-05.zip"
+  }
+}

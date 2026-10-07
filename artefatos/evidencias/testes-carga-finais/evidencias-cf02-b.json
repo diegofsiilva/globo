@@ -1,0 +1,653 @@
+{
+  "cenario": "CF02-B",
+  "auditoria": {
+    "criterios": {
+      "aceitou_300000": true,
+      "zero_rejeicoes": true,
+      "zero_falhas_http": true,
+      "fragmento_p95_menor_5s": true,
+      "persistencia_integral": true,
+      "sem_duplicidades": true,
+      "lotes_completos": true,
+      "filas_vazias_ate_450s": true,
+      "persistencia_ate_450s": true,
+      "consumidor_restaurado": true,
+      "k6_e_executor_aprovados": true
+    },
+    "aprovado": true,
+    "eventos_persistidos": 300000,
+    "duplicidades": 0,
+    "ultimo_evento_persistido_desde_retomada_s": 134.642,
+    "filas_vazias_confirmadas_s": 152.348,
+    "primeiro_consumidor_running_s": 30.15,
+    "reconciliacao_concluida_desde_retomada_s": 171.501,
+    "frescor_p95_s": 142.25710834999998,
+    "frescor_max_s": "145.734436"
+  },
+  "injecao_bruta": {
+    "requisito": "RNF01-lotes",
+    "test_id": "cf02-b-20261007T005748Z",
+    "configuracao": {
+      "eventos_por_lote": 150000,
+      "quantidade_lotes": 2,
+      "total_eventos": 300000,
+      "vus_injecao": 50,
+      "maximo_bytes_por_fragmento": 40000
+    },
+    "injecao": {
+      "inicio_aproximado_utc": "2026-10-07T01:00:28.522Z",
+      "fim_utc": "2026-10-07T01:00:58.392Z",
+      "duracao_s": "29.785",
+      "eventos_aceitos": 300000,
+      "eventos_rejeitados": 0,
+      "requisicoes": 4250,
+      "vazao_aceite_eventos_s": "10072.12",
+      "fragmento_p95_ms": "434.5",
+      "fragmento_max_ms": "1481.8"
+    },
+    "sentinela_session_id": "cf02-b-20261007T005748Z-sentinela",
+    "drenagem": "PENDENTE: medir fila, persistencia, DLQ e disponibilidade na API apos o aceite"
+  },
+  "resumo_bruto": {
+    "root_group": {
+      "name": "",
+      "path": "",
+      "id": "d41d8cd98f00b204e9800998ecf8427e",
+      "groups": {},
+      "checks": {
+        "fragmento foi aceito": {
+          "passes": 4250,
+          "fails": 0,
+          "name": "fragmento foi aceito",
+          "path": "::fragmento foi aceito",
+          "id": "611ca4203f63fa423a2e8fc657485d22"
+        },
+        "fragmento respondeu em ate 5s": {
+          "path": "::fragmento respondeu em ate 5s",
+          "id": "341fcad8afb92a8d1927f0598dbd5de4",
+          "passes": 4250,
+          "fails": 0,
+          "name": "fragmento respondeu em ate 5s"
+        }
+      }
+    },
+    "metrics": {
+      "iterations": {
+        "count": 50,
+        "rate": 1.6739555096523804
+      },
+      "http_reqs": {
+        "count": 4251,
+        "rate": 142.31969743064536
+      },
+      "http_req_sending": {
+        "avg": 11.721784920254091,
+        "min": 0.067649,
+        "med": 0.144472,
+        "max": 721.995129,
+        "p(90)": 21.748391,
+        "p(95)": 101.86833999999993
+      },
+      "requisicoes_lote": {
+        "count": 4250,
+        "rate": 142.28621832045232
+      },
+      "latencia_fragmento_ms": {
+        "avg": 271.12326960329415,
+        "min": 12.140047,
+        "med": 256.724463,
+        "max": 1481.776459,
+        "p(90)": 372.6178735,
+        "p(95)": 434.5294443,
+        "thresholds": {
+          "p(95)<5000": false
+        }
+      },
+      "http_req_tls_handshaking": {
+        "p(90)": 0,
+        "p(95)": 0,
+        "avg": 0.27486353610915076,
+        "min": 0,
+        "med": 0,
+        "max": 42.918886
+      },
+      "http_req_receiving": {
+        "avg": 85.79636903434502,
+        "min": 0.018708,
+        "med": 79.391526,
+        "max": 591.348091,
+        "p(90)": 156.430732,
+        "p(95)": 183.03400949999994
+      },
+      "data_sent": {
+        "count": 168446205,
+        "rate": 5639429.058795687
+      },
+      "eventos_por_fragmento": {
+        "avg": 70.58823529411765,
+        "min": 26,
+        "med": 71,
+        "max": 73,
+        "p(90)": 72,
+        "p(95)": 72
+      },
+      "checks": {
+        "passes": 8500,
+        "fails": 0,
+        "value": 1
+      },
+      "eventos_lote_aceitos": {
+        "count": 300000,
+        "rate": 10043.733057914282,
+        "thresholds": {
+          "count>=300000": false
+        }
+      },
+      "http_req_duration{expected_response:true}": {
+        "min": 12.140047,
+        "med": 256.721458,
+        "max": 1481.776459,
+        "p(90)": 372.616701,
+        "p(95)": 434.529377,
+        "avg": 271.0627165702188
+      },
+      "http_req_blocked": {
+        "avg": 2.031993554457769,
+        "min": 0.00018,
+        "med": 0.000681,
+        "max": 393.247168,
+        "p(90)": 0.000886,
+        "p(95)": 0.0010094999999999998
+      },
+      "http_req_waiting": {
+        "p(90)": 220.913603,
+        "p(95)": 243.55779099999998,
+        "avg": 173.54456261561927,
+        "min": 11.97827,
+        "med": 163.928181,
+        "max": 1353.073024
+      },
+      "data_received": {
+        "rate": 91887.83716736463,
+        "count": 2744632
+      },
+      "http_req_duration": {
+        "med": 256.721458,
+        "max": 1481.776459,
+        "p(90)": 372.616701,
+        "p(95)": 434.529377,
+        "avg": 271.0627165702188,
+        "min": 12.140047
+      },
+      "eventos_lote_rejeitados": {
+        "count": 0,
+        "rate": 0,
+        "thresholds": {
+          "count==0": false
+        }
+      },
+      "vus_max": {
+        "value": 50,
+        "min": 50,
+        "max": 50
+      },
+      "http_req_failed": {
+        "passes": 0,
+        "fails": 4251,
+        "value": 0
+      },
+      "vus": {
+        "value": 39,
+        "min": 39,
+        "max": 50
+      },
+      "bytes_por_fragmento": {
+        "p(95)": 39970,
+        "avg": 39502.31788235294,
+        "min": 14765,
+        "med": 39721,
+        "max": 40000,
+        "p(90)": 39939
+      },
+      "falhas_lote": {
+        "passes": 0,
+        "fails": 4250,
+        "thresholds": {
+          "rate==0": false
+        },
+        "value": 0
+      },
+      "http_req_connecting": {
+        "avg": 0.05207648553281581,
+        "min": 0,
+        "med": 0,
+        "max": 8.252051,
+        "p(90)": 0,
+        "p(95)": 0
+      },
+      "iteration_duration": {
+        "avg": 29085.56805888,
+        "min": 26976.733706,
+        "med": 29265.1525655,
+        "max": 29785.185315,
+        "p(90)": 29607.6992916,
+        "p(95)": 29647.9661478
+      }
+    },
+    "setup_data": {
+      "quantidadeLotes": 2,
+      "simNow": "2026-07-12T10:40:54.719286+00:00",
+      "testId": "cf02-b-20261007T005748Z",
+      "totalEventos": 300000,
+      "vusInjecao": 50
+    }
+  },
+  "operacao": {
+    "test_id": "cf02-b-20261007T005748Z",
+    "amostras": [
+      {
+        "observado_em_utc": "2026-10-07T01:01:08.923648+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 4250,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 4.567,
+        "consumidor_running": 0
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:01:17.047428+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 4250,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 12.862,
+        "consumidor_running": 0
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:01:25.344522+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 4250,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 20.955,
+        "consumidor_running": 0
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:01:33.438505+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 4250,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 30.15,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:01:42.633624+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 4080,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 39.216,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:01:51.710316+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 4250,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 47.131,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:01:59.617284+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 3760,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 55.071,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:02:07.559577+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 3410,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 63.545,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:02:16.029968+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 2700,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 71.471,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:02:23.955552+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 4060,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 79.304,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:02:31.787226+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 2020,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 87.423,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:02:39.903848+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 1660,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 95.377,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:02:47.865177+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 1660,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 103.229,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:02:55.711006+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 1990,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 111.577,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:03:04.108294+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 2020,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 119.609,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:03:12.111637+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 1330,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 128.556,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:03:21.042186+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 690,
+          "ApproximateNumberOfMessagesNotVisible": 10,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 136.418,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:03:28.899810+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 144.51,
+        "consumidor_running": 1
+      },
+      {
+        "observado_em_utc": "2026-10-07T01:03:37.003652+00:00",
+        "queue_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "dlq_url": {
+          "ApproximateNumberOfMessages": 0,
+          "ApproximateNumberOfMessagesNotVisible": 0,
+          "ApproximateNumberOfMessagesDelayed": 0
+        },
+        "desde_retomada_s": 152.348,
+        "consumidor_running": 1
+      }
+    ],
+    "consumidor_inicial": {
+      "desired": 1,
+      "running": 1
+    },
+    "filas_iniciais": {
+      "observado_em_utc": "2026-10-07T00:57:49.980332+00:00",
+      "queue_url": {
+        "ApproximateNumberOfMessages": 0,
+        "ApproximateNumberOfMessagesNotVisible": 0,
+        "ApproximateNumberOfMessagesDelayed": 0
+      },
+      "dlq_url": {
+        "ApproximateNumberOfMessages": 0,
+        "ApproximateNumberOfMessagesNotVisible": 0,
+        "ApproximateNumberOfMessagesDelayed": 0
+      }
+    },
+    "parada_solicitada_em_utc": "2026-10-07T00:57:51.687107+00:00",
+    "consumidor_parado_em_utc": "2026-10-07T00:58:00.444034+00:00",
+    "injecao": {
+      "requisito": "RNF01-lotes",
+      "test_id": "cf02-b-20261007T005748Z",
+      "configuracao": {
+        "eventos_por_lote": 150000,
+        "quantidade_lotes": 2,
+        "total_eventos": 300000,
+        "vus_injecao": 50,
+        "maximo_bytes_por_fragmento": 40000
+      },
+      "injecao": {
+        "inicio_aproximado_utc": "2026-10-07T01:00:28.522Z",
+        "fim_utc": "2026-10-07T01:00:58.392Z",
+        "duracao_s": "29.785",
+        "eventos_aceitos": 300000,
+        "eventos_rejeitados": 0,
+        "requisicoes": 4250,
+        "vazao_aceite_eventos_s": "10072.12",
+        "fragmento_p95_ms": "434.5",
+        "fragmento_max_ms": "1481.8"
+      },
+      "sentinela_session_id": "cf02-b-20261007T005748Z-sentinela",
+      "drenagem": "PENDENTE: medir fila, persistencia, DLQ e disponibilidade na API apos o aceite"
+    },
+    "fila_antes_retomada": {
+      "observado_em_utc": "2026-10-07T01:01:05.370962+00:00",
+      "queue_url": {
+        "ApproximateNumberOfMessages": 4250,
+        "ApproximateNumberOfMessagesNotVisible": 0,
+        "ApproximateNumberOfMessagesDelayed": 0
+      },
+      "dlq_url": {
+        "ApproximateNumberOfMessages": 0,
+        "ApproximateNumberOfMessagesNotVisible": 0,
+        "ApproximateNumberOfMessagesDelayed": 0
+      }
+    },
+    "retomada_solicitada_em_utc": "2026-10-07T01:01:07.474875+00:00",
+    "primeiro_running_s": 30.15,
+    "filas_vazias_confirmadas_s": 152.348,
+    "consumidor_final": {
+      "desiredCount": 1,
+      "runningCount": 1
+    },
+    "fim_observacao_utc": "2026-10-07T01:03:42.240719+00:00",
+    "executor_exit": 0
+  },
+  "reconciliacao": {
+    "test_id": "cf02-b-20261007T005748Z",
+    "conferido_em_utc": "2026-10-07T01:03:58.975862+00:00",
+    "linhas": [
+      {
+        "lote": "cf02-b-20261007T005748Z-lote-01",
+        "eventos": 150000,
+        "identidades_distintas": 150000,
+        "menor_indice": 0,
+        "maior_indice": 149999,
+        "primeiro_capturado": "2026-10-07 01:01:37.580905+00:00",
+        "ultimo_capturado": "2026-10-07 01:02:59.725911+00:00",
+        "frescor_medio_s": "90.5801597737266667",
+        "frescor_p95_s": 120.74532635,
+        "frescor_max_s": "135.378129"
+      },
+      {
+        "lote": "cf02-b-20261007T005748Z-lote-02",
+        "eventos": 150000,
+        "identidades_distintas": 150000,
+        "menor_indice": 0,
+        "maior_indice": 149999,
+        "primeiro_capturado": "2026-10-07 01:02:16.338315+00:00",
+        "ultimo_capturado": "2026-10-07 01:03:22.116741+00:00",
+        "frescor_medio_s": "122.2704900018933333",
+        "frescor_p95_s": 144.2685233,
+        "frescor_max_s": "145.734436"
+      },
+      {
+        "lote": null,
+        "eventos": 300000,
+        "identidades_distintas": 300000,
+        "menor_indice": 0,
+        "maior_indice": 149999,
+        "primeiro_capturado": "2026-10-07 01:01:37.580905+00:00",
+        "ultimo_capturado": "2026-10-07 01:03:22.116741+00:00",
+        "frescor_medio_s": "106.4253248878100000",
+        "frescor_p95_s": 142.25710834999998,
+        "frescor_max_s": "145.734436"
+      }
+    ],
+    "somente_leitura": true
+  },
+  "integridade_sha256": {
+    "resultado": "a14660282bea042ad7d085a342eb036bda2a16194e0c1a0713700fe40367f4bb",
+    "resumo": "8ead07ee8a95822ab5d18987a7cc66b52399030530b7110644b5a854a6a81557"
+  },
+  "limites": [
+    "A fila usa contagens aproximadas, conferidas em duas amostras vazias e reconciliadas com contagem exata no banco.",
+    "Persistencia em bronze nao comprova disponibilidade de todo o lote na API.",
+    "O tempo ate a gravacao inclui a espera com o consumidor parado.",
+    "Sem nova captura do Grafana ou snapshot completo do Prometheus nesta repeticao."
+  ]
+}

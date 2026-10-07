@@ -3,8 +3,15 @@
 import { createContext, Suspense, useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-/** Períodos oferecidos no seletor da moldura, do mais curto ao mais longo. */
-export const SCREEN_PERIODS = ["15 min", "30 min", "3 h", "24 h"] as const;
+/**
+ * Períodos oferecidos no seletor da moldura, do mais curto ao mais longo.
+ *
+ * O teto é 72 h, e não 24 h: quem investiga um incidente chega depois dele, e
+ * com 24 h as hipóteses de anteontem não tinham como aparecer na tela. Não vai
+ * além porque a Timeline lê seis fontes na janela inteira — 72 h respondem em
+ * cerca de 6 s; 7 dias, em mais de 10 s, perto do limite da consulta.
+ */
+export const SCREEN_PERIODS = ["15 min", "30 min", "3 h", "24 h", "72 h"] as const;
 /** Um dos períodos de {@link SCREEN_PERIODS}. */
 export type ScreenPeriod = (typeof SCREEN_PERIODS)[number];
 

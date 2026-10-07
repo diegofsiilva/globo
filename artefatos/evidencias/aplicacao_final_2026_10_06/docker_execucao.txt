@@ -1,0 +1,31 @@
+$ make -C apps/fullstack image-backend
+Build concluído: argus-backend:dev
+
+$ docker ps --filter name=argus-video-backend
+NAMES                 IMAGE               STATUS                    PORTS
+argus-video-backend   argus-backend:dev   Up 10 minutes (healthy)   127.0.0.1:15000->5000/tcp
+
+$ curl -i http://127.0.0.1:15000/health/live
+HTTP/1.1 200 OK
+Server: gunicorn
+Date: Tue, 06 Oct 2026 20:51:44 GMT
+Connection: keep-alive
+Content-Type: application/json
+Content-Length: 16
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Request-Id
+Access-Control-Expose-Headers: X-Request-Id
+Access-Control-Max-Age: 300
+X-Request-Id: 71b56cda-e1f7-4e3e-904d-44dbbe38f018
+
+{"status":"ok"}
+
+
+$ docker logs --tail 6 argus-video-backend
+{"ts": "2026-10-06T20:49:22+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "b21b213a-94f9-49c5-a139-8a0b02e1fdb7", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.2, "bytes": 16}
+{"ts": "2026-10-06T20:49:53+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "633ac05b-c8ab-432f-bac8-283df65f3327", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.1, "bytes": 16}
+{"ts": "2026-10-06T20:50:23+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "3718205f-f27d-4d2a-8489-165ff13b9238", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.1, "bytes": 16}
+{"ts": "2026-10-06T20:50:54+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "e0a744ca-f0af-415c-bb07-149debeeea82", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.1, "bytes": 16}
+{"ts": "2026-10-06T20:51:24+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "190577e6-755c-4268-a912-ef4d29b228f5", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.1, "bytes": 16}
+{"ts": "2026-10-06T20:51:44+0000", "level": "INFO", "logger": "telemetry.app", "event": "http_request", "request_id": "71b56cda-e1f7-4e3e-904d-44dbbe38f018", "route": "/health/live", "method": "GET", "status": 200, "latency_ms": 0.1, "bytes": 16}

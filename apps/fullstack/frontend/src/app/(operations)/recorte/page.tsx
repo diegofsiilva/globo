@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { QueryProvider } from "@/providers/query-provider";
 import { RecorteContent } from "./_components/recorte-content";
 
@@ -12,7 +13,11 @@ export const metadata: Metadata = {
 export default function RecortePage() {
   return (
     <QueryProvider>
-      <RecorteContent />
+      {/* O recorte é lido da query string, e no export estático isso exige um
+          limite de Suspense. */}
+      <Suspense fallback={null}>
+        <RecorteContent />
+      </Suspense>
     </QueryProvider>
   );
 }

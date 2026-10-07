@@ -1,0 +1,109 @@
+{
+  "migrations": [
+    {
+      "version": "001_schemas_e_extensoes"
+    },
+    {
+      "version": "002_sim_relogio_e_falhas"
+    },
+    {
+      "version": "003_bronze_change_log"
+    },
+    {
+      "version": "004_bronze_corrente_argus"
+    },
+    {
+      "version": "005_bronze_event"
+    },
+    {
+      "version": "006_silver"
+    },
+    {
+      "version": "007_gold"
+    },
+    {
+      "version": "008_detect"
+    },
+    {
+      "version": "009_views_v"
+    },
+    {
+      "version": "010_merge_e_etl"
+    },
+    {
+      "version": "011_poda_de_particao_nas_views"
+    },
+    {
+      "version": "012_indice_de_observabilidade"
+    },
+    {
+      "version": "013_relogio_pausavel"
+    },
+    {
+      "version": "014_catalogo_de_fontes"
+    },
+    {
+      "version": "015_etl_incremental"
+    },
+    {
+      "version": "016_gold_checkpoint"
+    },
+    {
+      "version": "017_analysis_coordination"
+    },
+    {
+      "version": "018_analysis_inputs"
+    },
+    {
+      "version": "019_detection_contract"
+    },
+    {
+      "version": "020_source_quality"
+    },
+    {
+      "version": "021_hypothesis_engine"
+    },
+    {
+      "version": "022_hypothesis_views"
+    },
+    {
+      "version": "023_deploy_events"
+    },
+    {
+      "version": "024_deploy_event_available_at"
+    },
+    {
+      "version": "025_indice_fonte_metrica_tempo"
+    },
+    {
+      "version": "026_indice_baseline_horario"
+    },
+    {
+      "version": "027_dados_operacionais_e_revisao"
+    },
+    {
+      "version": "028_merge_do_log_funde_pk"
+    },
+    {
+      "version": "029_watermark_inclui_eventos"
+    },
+    {
+      "version": "030_indice_lsn_em_evento"
+    },
+    {
+      "version": "031_lab_hypothesis_preview"
+    },
+    {
+      "version": "032_hypotheses_visible_on_generation"
+    },
+    {
+      "version": "033_all_generated_hypothesis_revisions"
+    }
+  ],
+  "indice_030": [
+    {
+      "indice": "bronze.event_lsn",
+      "indisvalid": true
+    }
+  ]
+}

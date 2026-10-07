@@ -17,7 +17,7 @@ export type SignalDeviation = {
   detectedAt: string;
   lastObservedAt: string;
   interpretation: string;
-  relatedPaths: { timeline: string; cut: string };
+  relatedPaths: { timeline: string; cut: string; hypotheses?: string };
   metric: string;
   scope: string;
   sessions: string;
@@ -25,6 +25,8 @@ export type SignalDeviation = {
   source: string;
   title: string;
   trend: number[];
+  /** Desvio em desvios-padrão, que é a chave de ordenação da lista. */
+  zScore?: string;
 };
 
 export type OpenDegradation = {
