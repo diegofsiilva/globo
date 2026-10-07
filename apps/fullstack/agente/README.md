@@ -2,8 +2,8 @@
 
 Execução experimental, separada do motor determinístico. Um agente investiga os
 fatos de um checkpoint e formula a própria explicação candidata, ou declara que
-a evidência é insuficiente. Ele **não** recebe as anomalias, o score nem as
-hipóteses das 11 famílias — a comparação entre as duas abordagens acontece
+a evidência é insuficiente. Ele não recebe as anomalias, o score nem as
+hipóteses das 11 famílias, a comparação entre as duas abordagens acontece
 depois, com uma pessoa no meio.
 
 O desenho está em
@@ -41,7 +41,7 @@ do checkpoint antes de entregar fatos ao modelo. Essa exceção não se aplica �
 API nem ao banco publicado.
 
 Para usar o modelo de verdade, as chaves `OLLAMA_*` precisam estar no
-`apps/fullstack/.env` — as mesmas que o backend já usa, listadas em
+`apps/fullstack/.env`, as mesmas que o backend já usa, listadas em
 `.env.example`. Nenhuma credencial entra no repositório.
 
 ## Onde fica o quê

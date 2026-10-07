@@ -1,10 +1,10 @@
 # Arquitetura do agente de hipóteses com IA
 
-&emsp; Este documento explica como o agente de hipóteses funciona, por que ele foi desenhado dessa forma e onde cada parte está implementada no repositório. O agente é uma execução experimental que roda separada do motor determinístico do Argus. Os formatos exatos de entrada e saída, com exemplos de JSON, estão no [contrato do agente](contrato-agente-hipoteses.md).
+&emsp; Este documento explica como o agente de hipóteses funciona, por que ele foi desenhado dessa forma e onde cada parte está implementada no repositório. O agente é uma execução experimental que roda separada do motor determinístico do Linceu. Os formatos exatos de entrada e saída, com exemplos de JSON, estão no [contrato do agente](contrato-agente-hipoteses.md).
 
 ## 1. O problema que o agente tenta resolver
 
-&emsp; O Argus detecta anomalias e explica cada uma delas com 11 famílias de regras escritas à mão. Por exemplo, se um deploy aconteceu pouco antes de o erro subir, o motor sugere uma possível regressão causada pelo deploy. Esse método é previsível e fácil de auditar, mas só enxerga as explicações que alguém pensou em escrever como regra.
+&emsp; O Linceu detecta anomalias e explica cada uma delas com 11 famílias de regras escritas à mão. Por exemplo, se um deploy aconteceu pouco antes de o erro subir, o motor sugere uma possível regressão causada pelo deploy. Esse método é previsível e fácil de auditar, mas só enxerga as explicações que alguém pensou em escrever como regra.
 
 &emsp; O agente testa outra abordagem. Ele recebe os mesmos dados que o motor teria naquele instante e investiga por conta própria: escolhe o que consultar, em que ordem, e formula uma explicação candidata. O resultado é uma hipótese com as evidências citadas, ou a declaração de que os dados não bastam. A decisão sobre a causa continua sendo de uma pessoa.
 
@@ -177,7 +177,7 @@ def antes_da_chamada(self) -> None:
 
 &emsp; Ao atingir qualquer limite, o caso é encerrado e o motivo fica registrado. Um caso encerrado por limite nunca produz hipótese apresentável. Os limites existem para que a investigação seja curta e auditável, e para que um modelo lento ou em loop não prenda o lote.
 
-&emsp; Um desses limites nasceu de um comportamento observado em dois modelos diferentes: ambos repetiam a mesma chamada de ferramenta inválida, depois de já terem recebido o erro, até esgotar o teto de chamadas sem concluir. Por isso a mesma chamada inválida só pode falhar duas vezes; na terceira, o executor encerra o caso com o motivo `repeticao_de_chamada_invalida`. A primeira falha continua voltando ao modelo como dado, com a chance de corrigir. A assinatura que identifica a repetição ignora os campos de paginação, para que variar o `limit` não disfarce o mesmo pedido. Os achados que motivaram essa guarda estão em [artefatos/comparacao-hipoteses/eval-modelo-real.md](comparacao-hipoteses/eval-modelo-real.md).
+&emsp; Um desses limites trata a repetição de chamadas inválidas. Quando o modelo repete a mesma chamada de ferramenta inválida depois de já ter recebido o erro, a investigação pode se esgotar sem concluir. Por isso a mesma chamada inválida só pode falhar duas vezes; na terceira, o executor encerra o caso com o motivo `repeticao_de_chamada_invalida`. A primeira falha continua voltando ao modelo como dado, com a chance de corrigir. A assinatura que identifica a repetição ignora os campos de paginação, para que variar o `limit` não disfarce o mesmo pedido.
 
 &emsp; A chamada ao modelo tem um tratamento à parte. Como o servidor compartilhado às vezes fica ocupado por outros usuários, o cliente tenta a chamada duas vezes antes de desistir, e registra quantas tentativas foram feitas. Um servidor que continua fora do ar vira um erro de execução com o motivo gravado, e não uma resposta inventada.
 
@@ -201,7 +201,7 @@ if host not in {"localhost", "127.0.0.1", "::1"}:
 
 &emsp; O recorte real usado nos testes merece uma explicação. O banco local foi carregado a partir da bronze, mas não tem o registro de mudanças (`change_log`) para as séries de sinais. Por isso, a função oficial que constrói os fatos não tem o que ler. O script [reconstruir_recorte_real.sql](../apps/fullstack/agente/scripts/reconstruir_recorte_real.sql) recria esses fatos a partir de `bronze.signal_bucket`, usando a mesma expressão da função oficial e a versão real de cada linha. O resultado é um checkpoint marcado como reconstruído. Ele não é uma reprodução do fluxo de captura de mudanças, e essa diferença deve ser lembrada ao interpretar os casos.
 
-&emsp; O checkpoint escolhido foi identificado pela inspeção manual da série bruta. Ele não foi escolhido por nenhum resultado do motor, mas essa escolha é humana, e isso fica registrado no próprio checkpoint.
+&emsp; O checkpoint escolhido foi identificado pela inspeção manual da série bruta. Essa escolha é humana e fica registrada no próprio checkpoint, sem partir de nenhum resultado do motor.
 
 ## 11. O que o agente não faz
 
@@ -235,4 +235,4 @@ if host not in {"localhost", "127.0.0.1", "::1"}:
 
 &emsp; Os casos sintéticos usados nos testes estão em [fixtures/sinteticos](../apps/fullstack/agente/fixtures/sinteticos), e os roteiros que simulam um modelo, sem rede, estão em [fixtures/roteiros](../apps/fullstack/agente/fixtures/roteiros).
 
-&emsp; A avaliação do modelo real contra esses roteiros está em [avaliar_modelo.py](../apps/fullstack/agente/scripts/avaliar_modelo.py). Ela roda cada caso com o roteiro e com o Ollama configurado, compara o desfecho e mede as chamadas que a ferramenta recusou, para que um ajuste de prompt ou uma troca de modelo possam ser medidos sem o checkpoint do banco. Os achados dessa avaliação, e as correções de prompt que saíram deles, estão em [artefatos/comparacao-hipoteses/eval-modelo-real.md](comparacao-hipoteses/eval-modelo-real.md).
+&emsp; A avaliação do modelo real contra esses roteiros está em [avaliar_modelo.py](../apps/fullstack/agente/scripts/avaliar_modelo.py). Ela roda cada caso com o roteiro e com o Ollama configurado, compara o desfecho e mede as chamadas que a ferramenta recusou, para que um ajuste de prompt ou uma troca de modelo possam ser medidos sem o checkpoint do banco.
