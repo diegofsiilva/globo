@@ -129,6 +129,46 @@ function formatNumber(value: number): string {
   return numberFormatter.format(value);
 }
 
+const compactFormatter = new Intl.NumberFormat("pt-BR", {
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
+
+const BYTE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB"];
+
+/** Métricas cujo valor é uma contagem de bytes (`memory`, `*_bytes`). */
+function isByteMetric(metric: string): boolean {
+  return /(^|_)(memory|bytes)(_|$)/.test(metric);
+}
+
+function formatBytes(value: number): string {
+  let scaled = Math.abs(value);
+  let unit = 0;
+  while (scaled >= 1024 && unit < BYTE_UNITS.length - 1) {
+    scaled /= 1024;
+    unit += 1;
+  }
+  return `${value < 0 ? "-" : ""}${formatNumber(scaled)} ${BYTE_UNITS[unit]}`;
+}
+
+/**
+ * Formata um valor na unidade da sua métrica.
+ *
+ * A API devolve o número cru. Para memória isso é uma contagem de bytes, e
+ * `1.126.974.805,33` contra `1.138.704.534,19` obriga o operador a contar
+ * dígitos para descobrir que a diferença é de 11 MiB em 1 GiB. Contagens na
+ * casa dos milhões saem em notação compacta pelo mesmo motivo.
+ *
+ * @param metric Nome da métrica, que é o que indica a unidade.
+ * @param value Valor na unidade nativa.
+ * @returns Valor legível, com unidade quando ela é conhecida.
+ */
+export function formatMetricValue(metric: string, value: number): string {
+  if (isByteMetric(metric)) return formatBytes(value);
+  if (Math.abs(value) >= 1_000_000) return compactFormatter.format(value);
+  return formatNumber(value);
+}
+
 function formatTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
@@ -165,10 +205,21 @@ function normalizeTrend(values: number[]): number[] {
   return values.map((value) => Math.round(((value - min) / span) * 30) + 4);
 }
 
+/**
+ * Caminho da tela de Hipóteses já restrita ao sinal.
+ *
+ * `source` e `entity` são os filtros de evidência que `GET /api/v1/hypotheses`
+ * aceita: a lista abre só com as hipóteses que citam esta série.
+ */
+function hypothesesPath(item: SignalItem): string {
+  const params = new URLSearchParams({ source: item.source, entity: item.entity });
+  return `/hipoteses?${params}`;
+}
+
 /** Converte um sinal da API na forma que a tabela/painel de detalhe espera. */
 export function toSignalDeviation(item: SignalItem): SignalDeviation {
   const delta = item.current_value - item.baseline;
-  const deltaLabel = `${delta >= 0 ? "+" : ""}${formatNumber(delta)}`;
+  const deltaLabel = `${delta >= 0 ? "+" : ""}${formatMetricValue(item.metric, delta)}`;
 
   return {
     id: item.id,
@@ -177,13 +228,16 @@ export function toSignalDeviation(item: SignalItem): SignalDeviation {
     title: item.title,
     severity: item.severity,
     trend: normalizeTrend(item.trend),
-    current: formatNumber(item.current_value),
-    baseline: formatNumber(item.baseline),
+    current: formatMetricValue(item.metric, item.current_value),
+    baseline: formatMetricValue(item.metric, item.baseline),
     delta: deltaLabel,
+    // A lista é ordenada por |z|; sem o número na tela, a ordem parece
+    // arbitrária -- um Δ de +1,22 aparece acima de um Δ de -11 MiB.
+    zScore: formatNumber(item.z),
     sessions: item.sessions_impacted?.toLocaleString("pt-BR") ?? "não disponível",
     threshold:
       item.threshold_value != null
-        ? `${formatNumber(item.threshold_value)} (z ≥ ${formatNumber(item.threshold_z)})`
+        ? `${formatMetricValue(item.metric, item.threshold_value)} (z ≥ ${formatNumber(item.threshold_z)})`
         : `z ≥ ${formatNumber(item.threshold_z)} (desvio-padrão)`,
     detectedAt: formatTime(item.detected_at),
     // O backend não devolve o instante do ÚLTIMO ponto observado separado
@@ -198,8 +252,11 @@ export function toSignalDeviation(item: SignalItem): SignalDeviation {
       `desvio ${severityLabelLong(item.severity)} há ${item.consecutive_buckets_over_threshold} ` +
       `bucket(s) seguido(s) acima do limiar.`,
     relatedPaths: {
-      timeline: `/timeline?sinal=${item.id}`,
-      cut: `/recorte?sinal=${item.id}`,
+      // `t` é o que a Timeline lê para centrar a janela; só com `sinal` ela
+      // abria na janela que termina agora, com o desvio fora do eixo.
+      timeline: `/timeline?sinal=${encodeURIComponent(item.id)}&t=${encodeURIComponent(item.detected_at)}`,
+      cut: `/recorte?sinal=${encodeURIComponent(item.id)}`,
+      hypotheses: hypothesesPath(item),
     },
   };
 }
@@ -218,13 +275,21 @@ export function toOpenDegradation(item: SignalItem): OpenDegradation {
   };
 }
 
-/** Converte o sinal mais severo no card de degradação ativa. */
+/**
+ * Converte o sinal mais severo no card de degradação ativa.
+ *
+ * Devolve o nome da métrica junto do valor, e `null` quando não há sessões
+ * atribuídas: o card rotulava qualquer valor como "falha de play" e a duração
+ * como "sem reclamação aberta", duas afirmações que o sinal não sustenta.
+ */
 export function toActiveDegradation(item: SignalItem) {
   return {
     title: item.title,
     detectedAt: formatTime(item.detected_at),
-    failureRate: formatNumber(item.current_value),
-    impactedSessions: item.sessions_impacted?.toLocaleString("pt-BR") ?? "não disponível",
+    metric: item.metric,
+    hypothesesPath: hypothesesPath(item),
+    currentValue: formatMetricValue(item.metric, item.current_value),
+    impactedSessions: item.sessions_impacted?.toLocaleString("pt-BR") ?? null,
     baselineMultiplier: item.multiplier != null ? `×${formatNumber(item.multiplier)}` : "—",
     openFor: formatDuration(item.time_since_detection_seconds),
   };

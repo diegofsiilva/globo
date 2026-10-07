@@ -73,6 +73,9 @@ class OllamaHypothesisRefiner:
             timeout_seconds (float): Limite total da chamada HTTP.
             opener (Callable[..., Any]): Transporte injetavel para testes.
 
+        Returns:
+            None: Armazena configuração e transporte para chamadas futuras.
+
         Raises:
             ValueError: Se URL, modelo ou timeout forem invalidos.
         """
@@ -138,7 +141,15 @@ class OllamaHypothesisRefiner:
         return _validate_grounding(generated, sources, model, hypothesis["hypothesis_id"])
 
     def _resolve_model(self) -> str:
-        """Usa o modelo configurado ou descobre o primeiro instalado no Ollama."""
+        """Usa o modelo configurado ou consulta o primeiro modelo instalado.
+
+        Returns:
+            Nome do modelo a enviar ao endpoint Ollama.
+
+        Raises:
+            RefinementUnavailableError: Se o servidor não listar um modelo
+                válido ou a consulta falhar.
+        """
         if self.model:
             return self.model
         request = Request(f"{self.endpoint.removesuffix('/api/chat')}/api/tags", method="GET")
@@ -188,6 +199,9 @@ class SSHOllamaOpener:
             remote_host (str): Host do Ollama visto de dentro do servidor.
             remote_port (int): Porta do Ollama vista de dentro do servidor.
 
+        Returns:
+            None: Armazena as credenciais e prepara a sessão SSH reutilizável.
+
         Raises:
             ValueError: Quando uma credencial obrigatoria esta vazia.
         """
@@ -209,7 +223,23 @@ class SSHOllamaOpener:
         self._lock = threading.Lock()
 
     def __call__(self, request: Request, *, timeout: float) -> _SSHResponse:
-        """Executa uma `Request` com curl dentro do servidor SSH."""
+        """Executa a requisição HTTP no host remoto pelo SSH.
+
+        O corpo é enviado pela entrada padrão do ``curl`` e a saída fica
+        limitada a ``MAX_RESPONSE_BYTES`` para impedir resposta ilimitada.
+
+        Args:
+            request: Requisição HTTP montada pelo cliente Ollama.
+            timeout: Limite em segundos para conexão e execução remotas.
+
+        Returns:
+            Resposta em memória com a interface de leitura usada por
+            ``urlopen``.
+
+        Raises:
+            OSError: Se SSH, ``curl`` ou a leitura da resposta falharem.
+            RefinementUnavailableError: Se a senha remota estiver expirada.
+        """
         try:
             client = self._connected_client(timeout)
             url = f"http://{self.remote_host}:{self.remote_port}{request.selector}"
@@ -243,7 +273,18 @@ class SSHOllamaOpener:
             raise OSError("falha na conexao SSH com o Ollama") from error
 
     def _connected_client(self, timeout: float) -> paramiko.SSHClient:
-        """Cria uma sessao SSH uma vez e a reutiliza entre as inferencias."""
+        """Cria a conexão SSH se necessário e reutiliza sessões ativas.
+
+        Args:
+            timeout: Limite em segundos para autenticação e abertura da sessão.
+
+        Returns:
+            Cliente SSH conectado e armazenado para as próximas chamadas.
+
+        Raises:
+            paramiko.SSHException: Se a conexão ou a autenticação falharem.
+            OSError: Se o transporte não puder ser estabelecido.
+        """
         with self._lock:
             current = self._client.get_transport() if self._client else None
             if current and current.is_active():
@@ -272,21 +313,58 @@ class _SSHResponse:
     """Resposta em memoria compativel com a pequena interface de `urlopen`."""
 
     def __init__(self, payload: bytes) -> None:
+        """Armazena em memória o corpo retornado pelo comando remoto.
+
+        Args:
+            payload: Bytes recebidos do endpoint Ollama.
+
+        Returns:
+            None: O construtor apenas inicializa o corpo da resposta.
+        """
         self.payload = payload
 
     def __enter__(self) -> _SSHResponse:
+        """Permite usar a resposta com o protocolo de context manager.
+
+        Returns:
+            A própria resposta, sem abrir outro recurso.
+        """
         return self
 
     def __exit__(self, *_args: Any) -> None:
+        """Encerra o contexto sem trabalho de limpeza adicional.
+
+        Args:
+            *_args: Informações de exceção fornecidas pelo protocolo; não são
+                usadas porque a resposta reside apenas em memória.
+
+        Returns:
+            None: A exceção do bloco não é suprimida.
+        """
         return None
 
     def read(self, amount: int) -> bytes:
-        """Le no maximo a quantidade solicitada pelo chamador."""
+        """Devolve até a quantidade de bytes solicitada.
+
+        Args:
+            amount: Número máximo de bytes a devolver.
+
+        Returns:
+            Prefixo do corpo armazenado com no máximo ``amount`` bytes.
+        """
         return self.payload[:amount]
 
 
 def _build_sources(hypothesis: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Transforma a hipotese em unidades atomicas que podem ser citadas."""
+    """Transforma campos e evidências em fontes citáveis por identificador.
+
+    Args:
+        hypothesis: Hipótese publicada com métricas, features e evidências.
+
+    Returns:
+        Mapa de identificadores estáveis para os valores que podem sustentar
+        afirmações do refinador.
+    """
     sources: dict[str, dict[str, Any]] = {}
     for field in (
         "title",
@@ -325,7 +403,24 @@ def _validate_grounding(
     model: str,
     hypothesis_id: int,
 ) -> dict[str, Any]:
-    """Recusa estrutura, limites ou referencias que escapem da hipotese."""
+    """Valida o contrato do Ollama e restringe cada afirmação às fontes dadas.
+
+    Textos vazios, listas fora dos limites, campos inesperados e IDs de fonte
+    inexistentes são rejeitados antes da resposta chegar ao dashboard.
+
+    Args:
+        generated: Objeto decodificado do JSON devolvido pelo modelo.
+        sources: Fontes autorizadas, indexadas por identificador.
+        model: Nome efetivo do modelo que produziu a resposta.
+        hypothesis_id: Identificador da hipótese refinada.
+
+    Returns:
+        Resposta normalizada com claims, limitações e apenas as fontes citadas.
+
+    Raises:
+        RefinementUnavailableError: Se o conteúdo estiver fora do contrato,
+            dos limites configurados ou citar fonte não fornecida.
+    """
     if not isinstance(generated, dict) or set(generated) != {
         "answerable",
         "claims",
@@ -385,7 +480,14 @@ def _validate_grounding(
 
 
 def _json_default(value: Any) -> str:
-    """Serializa datas sem ensinar o encoder a aceitar objetos arbitrarios."""
+    """Converte datas para ISO e outros valores para texto no JSON do prompt.
+
+    Args:
+        value: Valor que o codificador JSON não consegue serializar.
+
+    Returns:
+        Representação textual usada no payload enviado ao modelo.
+    """
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     return str(value)

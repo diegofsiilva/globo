@@ -38,6 +38,12 @@ export type OperationalPresentation = {
   onRetry?: () => unknown | Promise<unknown>;
   onResetFilters?: () => void;
   onUseCached?: () => void;
+  /**
+   * Próximo passo oferecido no estado vazio quando o vazio não veio de filtro
+   * (ampliar o período, por exemplo). Sem isso a tela dizia "nenhum resultado"
+   * e deixava o operador adivinhar o que mudar.
+   */
+  emptyAction?: { label: string; onAction: () => void };
 };
 
 /**
@@ -99,6 +105,7 @@ export function OperationalStateBoundary({
         <EmptyState
           title={presentation.title}
           onReset={demoState !== null ? clearDemoState : presentation.onResetFilters}
+          action={demoState !== null ? undefined : presentation.emptyAction}
         />
       )}
       {state === "error" && (
@@ -130,9 +137,16 @@ export function OperationalStateBoundary({
       )}
       {state === "refreshing" && (
         <>
-          <div className="mt-4 flex items-center gap-2 border-y border-info/40 bg-info/6 px-4 py-3 text-sm text-info" role="status">
-            <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-            Atualizando a consulta. Os dados anteriores permanecem visíveis.
+          {/* Altura zero de propósito. As telas reconsultam a cada 30 s, e uma
+              faixa no fluxo empurrava a tela inteira para baixo e de volta a
+              cada ciclo -- a linha que o operador estava lendo saía do lugar.
+              O aviso flutua no canto do conteúdo e não desloca nada. */}
+          <div className="relative h-0" role="status">
+            <span className="absolute right-0 top-3 z-[1] inline-flex items-center gap-1.5 rounded-badge border border-info/40 bg-surface px-2.5 py-1 font-mono text-micro text-info">
+              <RefreshCw className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              Atualizando
+              <span className="sr-only">a consulta. Os dados anteriores permanecem visíveis.</span>
+            </span>
           </div>
           {children}
         </>
@@ -162,7 +176,15 @@ function LoadingState({ title }: { title: string }) {
   );
 }
 
-function EmptyState({ title, onReset }: { title: string; onReset?: () => void }) {
+function EmptyState({
+  title,
+  onReset,
+  action,
+}: {
+  title: string;
+  onReset?: () => void;
+  action?: OperationalPresentation["emptyAction"];
+}) {
   return (
     <Alert className="my-6 max-w-3xl">
       <SearchX aria-hidden="true" />
@@ -172,10 +194,19 @@ function EmptyState({ title, onReset }: { title: string; onReset?: () => void })
           A consulta foi concluída, mas não encontrou dados neste recorte. Isso é diferente de uma
           falha de coleta ou de uma consulta interrompida.
         </p>
-        {onReset && (
-          <Button type="button" variant="outline" size="sm" onClick={onReset}>
-            Rever filtros
-          </Button>
+        {(onReset || action) && (
+          <div className="flex flex-wrap gap-2">
+            {action && (
+              <Button type="button" size="sm" onClick={action.onAction}>
+                {action.label}
+              </Button>
+            )}
+            {onReset && (
+              <Button type="button" variant="outline" size="sm" onClick={onReset}>
+                Rever filtros
+              </Button>
+            )}
+          </div>
         )}
       </AlertDescription>
     </Alert>

@@ -4,7 +4,7 @@ export const accessGateStyles = {
     "flex min-h-dvh items-center justify-center bg-background px-4 py-10 text-foreground",
   card: "w-full max-w-md",
   brand:
-    "mb-6 flex items-center gap-2.5 uppercase [&_strong]:text-[11px] [&_strong]:font-bold [&_strong]:tracking-[0.09em] [&_span]:font-mono [&_span]:text-[10px] [&_span]:tracking-[0.12em] [&_span]:text-muted-foreground",
+    "mb-6 flex items-center gap-2.5 uppercase [&_strong]:text-[11px] [&_strong]:font-bold [&_strong]:tracking-[0.09em] [&_span]:font-mono [&_span]:text-[11px] [&_span]:tracking-[0.12em] [&_span]:text-muted-foreground",
   brandMark: "size-3 shrink-0 rounded-mark bg-primary",
   title: "m-0 text-subhead font-semibold",
   intro: "mt-2 mb-6 text-body text-muted-foreground",

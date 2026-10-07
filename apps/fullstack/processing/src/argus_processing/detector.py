@@ -102,7 +102,27 @@ def detect(
     min_samples: int = 12,
     z_threshold: float = 3.5,
 ) -> tuple[tuple[Anomaly, ...], dict[tuple[str, str, str, int], Baseline]]:
-    """Avalia subjects em ordem causal e devolve estado novo sem mutar a entrada."""
+    """Detecta desvios nas métricas e calcula o próximo estado dos baselines.
+
+    Os fatos de métrica são ordenados por instante causal. Cada observação é
+    comparada ao baseline anterior da mesma fonte, entidade, métrica e hora
+    local; somente depois dessa comparação o estado é atualizado. Fatos
+    inválidos, sem política ou mais antigos que o baseline são ignorados.
+    A entrada nunca é mutada.
+
+    Args:
+        facts: Fatos disponíveis na captura atual.
+        baselines: Baselines anteriores indexados por fonte, entidade,
+            métrica e hora de Brasília.
+        catalog: Políticas de transformação e materialidade das métricas.
+        alpha: Peso da observação nova na atualização EWMA.
+        min_samples: Amostras mínimas antes de avaliar um desvio.
+        z_threshold: Limite absoluto do z-score para considerar anomalia.
+
+    Returns:
+        Tupla com as anomalias detectadas e uma cópia atualizada dos
+        baselines, sem alterar o mapeamento recebido.
+    """
     state = {
         key: Baseline(value.mean, value.variance, value.n, value.last_event_at)
         for key, value in baselines.items()

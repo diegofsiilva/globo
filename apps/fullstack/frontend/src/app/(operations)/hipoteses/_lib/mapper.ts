@@ -40,6 +40,46 @@ const confidenceLabels: Record<string, Hypothesis["confidence"]> = {
   low: "baixa",
 };
 
+/** Rótulo pt-BR da natureza da hipótese (`kind` em 021_hypothesis_engine.sql). */
+const kindLabels: Record<string, string> = {
+  operational: "operacional",
+  context: "contexto",
+  data_quality: "qualidade de dado",
+};
+
+/** Rótulo pt-BR da revisão humana (`review_status` em 021_hypothesis_engine.sql). */
+const reviewLabels: Record<string, NonNullable<Hypothesis["reviewStatus"]>> = {
+  unreviewed: "não revisada",
+  confirmed: "confirmada",
+  partially_confirmed: "parcialmente confirmada",
+  rejected: "rejeitada",
+};
+
+const polarityLabels: Record<string, NonNullable<EvidenceSource["polarity"]>> = {
+  favorable: "a favor",
+  contrary: "contra",
+  missing: "ausente",
+};
+
+/**
+ * Filtros que `GET /api/v1/hypotheses` aceita, com o rótulo exibido e o valor
+ * enviado. A rota valida cada um contra um conjunto fechado e responde 422 a
+ * valor desconhecido, então as opções saem daqui e não de texto livre.
+ */
+export const HYPOTHESIS_FILTERS = [
+  { key: "family", label: "família", options: invert(familyLabels) },
+  { key: "kind", label: "tipo", options: invert(kindLabels) },
+  { key: "confidence", label: "confiança", options: invert(confidenceLabels) },
+  { key: "review_status", label: "revisão", options: invert(reviewLabels) },
+] as const;
+
+/** Chaves de filtro aceitas pela tela. */
+export type HypothesisFilterKey = (typeof HYPOTHESIS_FILTERS)[number]["key"];
+
+function invert(labels: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(labels).map(([value, label]) => [label, value]));
+}
+
 /** Converte a página da API no relatório da tela. */
 export function toHypothesesReport(
   page: ApiHypothesesPage,
@@ -87,6 +127,11 @@ function toHypothesis(item: ApiHypothesis): Hypothesis {
     evidence: (item.evidence ?? []).map(toEvidence),
     timelineAnchor: item.effect_start,
     segment: scopeLabel(item.scope),
+    summary: item.summary,
+    effect: effectLabel(item.effect_start, item.effect_end),
+    kind: kindLabels[item.kind] ?? item.kind,
+    coverage: item.coverage,
+    reviewStatus: reviewLabels[item.review_status] ?? "não revisada",
   };
 }
 
@@ -123,7 +168,28 @@ function toEvidence(item: ApiEvidence): EvidenceSource {
       ? `${formatNumber(item.observed)} contra ${formatNumber(item.expected)} esperado`
       : null;
   const partes = [item.metric, item.entity, medida, item.explanation].filter(Boolean);
-  return { source: `${item.source}:${item.evidence_id}`, detail: partes.join(" · ") };
+  const instante = new Date(item.event_at).getTime();
+  return {
+    source: `${item.source}:${item.evidence_id}`,
+    detail: partes.join(" · "),
+    polarity: polarityLabels[item.polarity],
+    at: Number.isFinite(instante) ? formatMoment(instante) : undefined,
+  };
+}
+
+/**
+ * Quando o efeito foi observado.
+ *
+ * O dia vai junto: a lista cobre até 24 h do relógio virtual, e duas hipóteses
+ * com o mesmo título em dias diferentes ficavam indistinguíveis.
+ */
+function effectLabel(start: string, end: string): string | undefined {
+  const inicio = new Date(start).getTime();
+  const fim = new Date(end).getTime();
+  if (!Number.isFinite(inicio)) return undefined;
+  if (!Number.isFinite(fim) || fim <= inicio) return formatMoment(inicio);
+  const mesmoDia = dayFormatter.format(new Date(inicio)) === dayFormatter.format(new Date(fim));
+  return `${formatMoment(inicio)} → ${mesmoDia ? formatTime(fim) : formatMoment(fim)}`;
 }
 
 function scopeLabel(scope: Record<string, string> | null | undefined): string {
@@ -149,4 +215,10 @@ function formatNumber(value: number): string {
 
 function formatTime(epoch: number): string {
   return timeFormatter.format(new Date(epoch));
+}
+
+const dayFormatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" });
+
+function formatMoment(epoch: number): string {
+  return `${dayFormatter.format(new Date(epoch))} ${formatTime(epoch)}`;
 }

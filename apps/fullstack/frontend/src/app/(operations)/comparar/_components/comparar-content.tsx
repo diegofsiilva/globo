@@ -36,6 +36,7 @@ const periodMinutes: Record<ScreenPeriod, number> = {
   "30 min": 30,
   "3 h": 180,
   "24 h": 1_440,
+  "72 h": 4_320,
 };
 
 // `sessions` chega com a latência de 28 h da NPAW e deixa as janelas de 15/30

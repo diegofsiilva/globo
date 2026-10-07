@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
+import { submitHypothesisFeedback } from "@/app/(operations)/hipoteses/_lib/feedback";
+import { groupHypotheses } from "@/app/(operations)/hipoteses/_lib/grouping";
 import { createHttpHypothesesSource } from "@/app/(operations)/hipoteses/_lib/http-source";
+import type { Hypothesis } from "@/app/(operations)/hipoteses/_lib/types";
+import { HYPOTHESIS_FILTERS } from "@/app/(operations)/hipoteses/_lib/mapper";
 import { refineHypothesis } from "@/app/(operations)/hipoteses/_lib/refinement";
 
 describe("contrato HTTP da tela Hipóteses", () => {
@@ -80,6 +84,58 @@ describe("contrato HTTP da tela Hipóteses", () => {
     });
     expect(report.hypotheses[0].factors[0].contribution).toBe(82);
     expect(report.hypotheses[0].evidence[0].detail).toContain("12 contra 4 esperado");
+    // O que permite triar sem abrir cada hipótese: quando, de que tipo, com
+    // quanta evidência -- e de que lado cada evidência está.
+    expect(report.hypotheses[0]).toMatchObject({
+      summary: "Erro corroborado",
+      kind: "operacional",
+      coverage: 0.9,
+      // `pending` não é um valor do motor: o desconhecido cai em "não revisada"
+      // em vez de exibir a chave crua.
+      reviewStatus: "não revisada",
+    });
+    expect(report.hypotheses[0].effect).toMatch(/^\d{2}\/\d{2} \d{2}:\d{2} → \d{2}:\d{2}$/);
+    expect(report.hypotheses[0].evidence[0].polarity).toBe("a favor");
+  });
+
+  test("[TA-12] os filtros da tela enviam os valores que a API valida", () => {
+    const valores = Object.fromEntries(
+      HYPOTHESIS_FILTERS.map((filtro) => [filtro.key, filtro.options]),
+    );
+
+    // A rota responde 422 a valor fora do conjunto fechado: o rótulo em
+    // português é só da tela.
+    expect(valores.family["falha interna de backend"]).toBe("backend_internal");
+    expect(Object.keys(valores.family)).toHaveLength(11);
+    expect(valores.kind).toEqual({
+      operacional: "operational",
+      contexto: "context",
+      "qualidade de dado": "data_quality",
+    });
+    expect(valores.confidence).toEqual({ alta: "high", média: "medium", baixa: "low" });
+  });
+
+  test("[TA-13] registra o veredito com chave de idempotência e sem campo vazio", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ feedback_id: 3, created: true, reviewer_verified: false }, { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const chave = "0b0f7c0e-5d1c-4c57-9d0a-0d6c2f0a9b11";
+
+    await expect(submitHypothesisFeedback("17", "partially_confirmed", chave)).resolves.toMatchObject({
+      feedback_id: 3,
+      reviewer_verified: false,
+    });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(String(url)).pathname).toBe("/api/v1/hypotheses/17/feedback");
+    expect(options.method).toBe("POST");
+    // Sem observação, o campo não vai: a rota valida `note` como texto, e um
+    // `note: ""` gravaria uma observação vazia junto do veredito.
+    expect(JSON.parse(options.body)).toEqual({
+      verdict: "partially_confirmed",
+      idempotency_key: chave,
+    });
   });
 
   test("permite buscar a próxima página sem perder o recorte", async () => {
@@ -136,5 +192,31 @@ describe("contrato HTTP da tela Hipóteses", () => {
     expect(JSON.parse(options.body)).toEqual({
       question: "Explique esta hipótese e as evidências que a sustentam.",
     });
+  });
+
+  test("agrupa ocorrências repetidas sem descartar nenhuma", () => {
+    const base = {
+      category: "QoE sem erro",
+      title: "Possível degradação de QoE sem erro explícito",
+      confidence: "média",
+      factors: [],
+      evidence: [],
+    } satisfies Partial<Hypothesis>;
+    const hipoteses: Hypothesis[] = [
+      { ...base, id: "3", score: 78, segment: "entity=globo-rib", timelineAnchor: "2026-08-04T02:00:00Z" },
+      { ...base, id: "9", score: 77, segment: "entity=globo-tap", timelineAnchor: "2026-08-04T01:00:00Z" },
+      { ...base, id: "5", score: 74, segment: "entity=globo-rib", timelineAnchor: "2026-08-04T06:00:00Z" },
+      { ...base, id: "1", score: 70, segment: "entity=globo-rib", timelineAnchor: "2026-08-03T22:00:00Z" },
+    ];
+
+    const grupos = groupHypotheses(hipoteses);
+
+    // Dois escopos, dois grupos, na ordem do melhor score de cada um.
+    expect(grupos.map((grupo) => grupo.lead.id)).toEqual(["3", "9"]);
+    // As três ocorrências continuam lá, da mais recente para a mais antiga.
+    expect(grupos[0].items.map((item) => item.id)).toEqual(["5", "3", "1"]);
+    expect(grupos[0].firstAt).not.toBe(grupos[0].lastAt);
+    expect(grupos[1].items).toHaveLength(1);
+    expect(grupos[1].firstAt).toBe(grupos[1].lastAt);
   });
 });

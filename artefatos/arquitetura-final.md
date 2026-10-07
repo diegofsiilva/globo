@@ -20,6 +20,20 @@ permanece no Amazon Elastic Container Service (ECS) Fargate. O Ollama é uma
 integração externa e opcional usada somente para refinar a explicação final de uma
 hipótese já publicada, sem participar da ingestão, do processamento ou da persistência.
 
+Esta é a topologia final **consolidada** da Sprint 4: o diagrama (Figura 1), a
+lista de componentes (seção 1.2) e as conexões descritas na seção 1.1 referem-se
+a uma única arquitetura, com correspondência entre desenho, componentes e
+ligações. Ela já incorpora a correção do caminho de leitura em relação à
+Sprint 3 — a remoção do Auto Scaling Group e do ALB próprio (seção 1.3) —, de
+modo que resta um único balanceador público: o ALB criado pelo Ingress do EKS,
+com a Lambda de leitura e o website S3 apenas como contingência manual
+(seção 3.2.3). Não há, nesta versão, um segundo desenho nem uma topologia
+alternativa com ALB interno ou Lambda de entrada. As datas citadas adiante
+(ensaios de 21/09 e 24/09) são marcos de evidência e validação, não versões do
+diagrama: a figura representa o estado pretendido, e as ressalvas de ensaio
+indicam onde a execução observada ainda difere dele — por exemplo, os nós
+criados nas sub-redes públicas (seção 1.2).
+
 ### 1.1 Escopo e leitura do diagrama
 
 O Argus usa uma arquitetura distribuída híbrida dentro de uma Amazon Virtual Private
@@ -267,6 +281,17 @@ criados por `kubectl apply`.
 | [`apps/fullstack/k8s/overlays/aws/ingress-patch.yaml`](../apps/fullstack/k8s/overlays/aws/ingress-patch.yaml) | Altera `Ingress argus`: ALB público (`internet-facing`), alvos por IP de pod, listener HTTP 80, health check `/health/live` a cada 15 s (2 sucessos para saudável, 3 falhas para não saudável) e `deregistration_delay` de 30 s. | Liga o ALB às duas aplicações sem expor seus Services diretamente. |
 | [`apps/fullstack/k8s/overlays/aws/kustomization.yaml`](../apps/fullstack/k8s/overlays/aws/kustomization.yaml) | Compõe a base, a classe de Ingress e o patch. As imagens ECR são injetadas pelo Makefile. Não gera o Secret. | Seleciona a implantação AWS do caminho síncrono. |
 
+O esquema do ALB aparece em dois arquivos deste overlay e os dois declaram o
+mesmo valor, `internet-facing` (ALB público), portanto **não há divergência**:
+`ingressclass.yaml` o define em `IngressClassParams.spec.scheme` e
+`ingress-patch.yaml` o repete na anotação `alb.ingress.kubernetes.io/scheme` do
+próprio `Ingress`. O controlador embutido do EKS Auto Mode resolve o esquema a
+partir desses dois pontos; eles são mantidos idênticos de propósito, de modo que
+a ordem de precedência entre eles é indiferente para o resultado e nenhum deles
+sobrepõe o outro com um valor diferente. Assim, o único balanceador público do
+caminho de leitura (seção 1.3) é sempre `internet-facing`, e esta arquitetura
+não configura ALB interno em nenhum dos dois arquivos.
+
 **Overlay kind**
 
 | Arquivo | Recurso e configuração principal | Relação com o diagrama |
@@ -391,7 +416,7 @@ reenviada pelo produtor e não está coberta pelo RPO do pipeline.
 | Todos os consumidores indisponíveis | Até 30 min para reativar o consumo | Drenagem depende do backlog | 0 somente para mensagens ainda retidas ou na DLQ e reconciliadas | Medir a idade da mensagem mais antiga no início da falha. |
 | Falha de instância ou zona do RDS | Até 15 min em produção | Failover depende do Multi-AZ | 0 no failover Multi-AZ | `db_multi_az = true`. O ambiente `dev` atual não tem essa configuração. |
 | Corrupção lógica do RDS | Até 4 h | Restauração e reconciliação dentro do RTO | Até 5 min como meta | Backup e logs disponíveis. Um restore completo ainda não foi ensaiado. |
-| Perda total da região ou conta | Até 24 h como meta | Recriação fora da região/conta | Até 24 h como meta | Cópia externa de backup e estado Terraform ainda não implementada. |
+| Perda total da região ou conta | Até 24 h como meta | Recriação fora da região/conta pelo procedimento da seção 3.3.5 | Até 24 h como meta | Cópia externa de backup e estado Terraform ainda não implementada; sem ela, o procedimento da seção 3.3.5 não é executável. |
 
 As filas principais retêm mensagens por quatro dias e as DLQs, por 14 dias.
 A janela que resta no início do incidente depende da idade das mensagens já
@@ -482,6 +507,20 @@ reprova quando o heartbeat tem mais de 120 s. Como o contêiner é `essential`,
 a task termina e o serviço ECS cria outra para voltar ao `desired_count`.
 
 #### 3.2.3 Fallback e rollback
+
+A condição vigente do caminho de leitura é **única**: ele é atendido pelo ALB
+público do Ingress no EKS, e **não há comutação automática de entrada**. Os
+destinos S3 (dashboard estático) e Lambda + API Gateway (API de leitura) existem
+como código e recursos declarados, mas formam uma contingência **preparada e
+manual**, ativada por operador. Esta seção separa, por isso, três planos
+distintos e não sobrepostos: (a) o comportamento **automático** já configurado
+(reposição de pod e task, reentrega de mensagem, circuit breaker do ECS); (b) o
+**rollback e o fallback executados pelo operador** (rollback Kubernetes e troca
+para S3/Lambda); e (c) os **pré-requisitos** que precisam estar satisfeitos
+antes de um incidente para que a troca seja viável. O caminho EC2 da Sprint 3
+(Auto Scaling Group + ALB próprio) foi removido e não participa de nenhum desses
+planos; a tabela abaixo descreve apenas a configuração atual, não um
+comportamento histórico.
 
 **Resposta automática por falha.** Estes mecanismos estão configurados, mas
 somente os ensaios identificados na seção 4 comprovam seu comportamento no
@@ -701,6 +740,75 @@ A recuperação somente pode ser declarada depois de todos os passos aplicáveis
 6. O registro do incidente guarda causa, versão afetada, horários de detecção
    e recuperação, RTO e RPO observados, volume reconciliado e ação preventiva.
 
+#### 3.3.5 Recuperar de perda total de região ou conta
+
+Este é o cenário mais severo da seção 3.1.1 (meta de RTO e RPO de 24 h) e
+depende de um pré-requisito que **ainda não existe** no ambiente atual: cópias
+externas de backup e do estado (state) do Terraform fora da região e da conta
+primárias (seção 3.5). Por isso, a sequência abaixo é um procedimento
+**planejado e condicionado**: enquanto essas cópias não forem implantadas e
+ensaiadas, o passo 0 é a própria ação de maior prioridade e a meta de 24 h
+permanece não atendível. O objetivo desta subseção é transformar o
+reconhecimento da dependência em um runbook executável, com localização das
+cópias, acesso ao destino, recuperação de imagens e segredos e ordem de
+reconstrução.
+
+**Pré-requisitos (precisam existir antes do incidente).**
+
+- **Localização das cópias.** Snapshots do RDS (ou export para S3) copiados para
+  uma região/conta secundária; o *backend* do estado Terraform replicado em um
+  bucket fora da conta primária, com a trava (`lock`) correspondente; as seis
+  imagens do ECR replicadas por *cross-region replication* para o registry
+  secundário ou, na ausência disso, reconstruíveis a partir do código versionado
+  (tags por SHA); os segredos (hashes de token, `USER_ID_HASH_SALT`, senhas do
+  RDS) guardados em um cofre externo à conta primária ou declaradamente
+  regeneráveis.
+- **Acesso ao destino.** Credenciais e perfil com permissão na conta/região
+  secundária (no Learner Lab isso é limitado; em produção, uma conta de
+  recuperação de desastres dedicada), região de destino definida e cotas de
+  serviço conferidas.
+
+**Ordem de reconstrução (executada pelo operador).**
+
+1. **Declarar e acessar.** Declarar a perda regional, registrar horário e última
+   cópia externa disponível de cada artefato e autenticar na conta/região de
+   destino. Confirmar perfil, região e cotas antes de provisionar.
+2. **Recriar a base de rede.** Fazer o *bootstrap* do backend de estado na
+   região de destino (bucket e trava limpos) e aplicar o Terraform para recriar
+   VPC, as duas sub-redes privadas e as duas públicas, Internet Gateway, NAT,
+   tabelas de rota e security groups, preservando a topologia em duas zonas.
+3. **Restaurar o RDS.** Restaurar a instância a partir do snapshot copiado para o
+   destino, em sub-redes privadas, com `--no-publicly-accessible`, o DB subnet
+   group e o parameter group equivalentes e, em produção, `--multi-az`. Conferir
+   endpoint, versão de schema, checksums e status das migrations antes de ligar
+   qualquer consumidor, como na seção 3.3.3.
+4. **Recuperar as imagens.** Se o ECR foi replicado, apontar os manifests e as
+   task definitions para o registry da região de destino. Caso contrário,
+   reconstruir e publicar as seis imagens a partir do código versionado,
+   mantendo as tags por SHA para preservar a rastreabilidade do deploy.
+5. **Recuperar os segredos.** Recriar os segredos no Secrets Manager da conta de
+   destino (hashes de token, `USER_ID_HASH_SALT` e as senhas do RDS restaurado)
+   e regenerar o Secret Kubernetes `argus-backend` com `make k8s-secret` a partir
+   dos novos outputs do Terraform. Se houver suspeita de comprometimento das
+   cópias, girar os tokens com `auth-rotate` após a troca, não durante.
+6. **Subir os workloads.** Reconstruir o caminho assíncrono (API Gateway, filas
+   SQS e serviços ECS Fargate) e o caminho síncrono (EKS Auto Mode). Enquanto o
+   EKS não estiver pronto, usar a contingência S3/Lambda da seção 3.2.3 como
+   entrada provisória de leitura. Aplicar migrations apenas se o schema
+   restaurado as exigir.
+7. **Religar a entrada.** Publicar a URL ou o DNS do novo ambiente e validar
+   autenticação, rotas do dashboard, `GET /api/v1/clock`, leitura e escrita de
+   verificação. Não há alternância de DNS automatizada: a troca é manual.
+8. **Reconciliar e encerrar.** Cruzar identificadores, filas e registros
+   persistidos (seção 3.3.4), medir RTO desde a perda até o serviço validado e
+   RPO a partir da última cópia externa confirmada, registrando a perda potencial
+   entre essa cópia e a falha. Reconciliar a nova infraestrutura com o estado
+   Terraform antes do próximo `apply`.
+
+A validação completa deste procedimento exige o ensaio dedicado da seção 3.4.
+Até que as cópias externas existam e o ensaio seja registrado na seção 4, a
+contingência regional permanece uma meta, não um tempo alcançado.
+
 ### 3.4 Testes e evidências de recuperação
 
 Os resultados já executados e suas fontes ficam concentrados na seção 4.
@@ -725,6 +833,7 @@ separadamente com as metas da seção 3.1.1.
 | Escala por CPU | Disponibilizar `metrics.k8s.io` e gerar carga separada no frontend e backend. | Registrar `ScalingActive=True`, CPU, réplicas, latência e erros em cada etapa. | Parcial. No kind, o HPA do backend subiu de 1 para 2 réplicas (`SuccessfulRescale`) durante o ensaio de deploy (abaixo). No EKS, em 24/09, o HPA registrou `ScalingActive True` e `cpu: 0%/60%`, mas a rodada de 100 VUs não elevou a CPU ao alvo e as réplicas ficaram em 2 ([registro](evidencias/carga-kubernetes-2026-09-24/hpa-e-cluster.txt)). Falta carga que provoque a subida no EKS. |
 | Entrada e contingência | Simular falha do Ingress e executar a troca S3/Lambda da seção 3.2.3. | Guardar outputs Terraform, autenticação, URLs antes/depois e tempos de troca e retorno. | Pendente. |
 | RDS e filas | Executar a seção 3.3.3 em instância isolada, trocar endpoint e Secret, retomar consumidores e redirigir uma amostra conhecida da DLQ. | Guardar ponto escolhido, backup, endpoint anterior e novo, plano Terraform, horários de restauração e troca, status das migrations, idade das mensagens e conciliação por identificador, incluindo duplicidades. | Pendente. |
+| Perda de região ou conta | Implantar o pré-requisito e executar o procedimento da seção 3.3.5 em uma região/conta secundária, a partir das cópias externas de backup, estado Terraform, imagens e segredos. | Guardar localização e idade de cada cópia, ordem de reconstrução, horários por etapa, endpoints novos, plano Terraform, status das migrations e reconciliação por identificador. | Pendente: exige o pré-requisito da seção 3.5 (cópias externas) ainda não implementado. |
 
 **Ensaios executados em 24/09 no kind local.** Carga com k6 a 5 VUs contra
 `/api/v1/clock` e `/api/v1/hypotheses` pelo Ingress durante toda a ação, com
@@ -763,7 +872,7 @@ seção 4.
 | RDS `dev` usa Single-AZ e backup de um dia. | Failover Multi-AZ e RPO de restauração não se aplicam ao ambiente atual. | Exigir Multi-AZ em produção, ampliar retenção e ensaiar restore completo. | Alta |
 | ECS repõe tasks somente com `desired_count > 0` e não tem auto scaling declarado. | Uma task única pode deixar consumo parado e ampliar a idade da fila. | Definir capacidade mínima e escala por idade da mensagem, respeitando exclusão dos consumidores. | Alta |
 | Reconciliação de alto volume e frescor da ETL incompletos. | Contagem agregada pode ocultar perda ou duplicidade. TI-05 não atingiu o prazo. | Reconciliar IDs e duplicidades, drenar ou recomputar backlog e repetir TI-05. | Alta |
-| Não há cópia de desastre entre regiões ou contas. | Meta regional da seção 3.1.1 ainda não é atendível. | Definir e implantar backup e estado Terraform externos, depois ensaiar a recuperação. | Alta |
+| Não há cópia de desastre entre regiões ou contas. | Meta regional da seção 3.1.1 ainda não é atendível e o procedimento da seção 3.3.5 não pode ser executado. | Implantar o pré-requisito da seção 3.3.5 (cópias externas de backup, estado Terraform, imagens e segredos), depois executar e ensaiar o procedimento de recuperação. | Alta |
 | Um NAT atende a infraestrutura AWS atual. | Falha do NAT afeta saída privada de ECS e outros serviços. | Planejar um NAT por zona e rotas independentes para produção. | Média |
 | Alertas e logs Kubernetes não têm captura operacional completa. | Diagnóstico, causa de reinícios e medição de RTO ficam frágeis. | Configurar coleta central, registrar eventos e logs anteriores. Confirmar `alarm_email` e a inscrição SNS. | Média |
 | Digests da implantação não constam de todas as capturas. As de 21/09 não têm revisão; as de 24/09 registram o commit `0ff97f4b0130`, mas no EKS sem os digests. | O vínculo entre execução e imagem é parcial. | Guardar revisão, digests, ambiente e horário em cada ensaio. | Média |

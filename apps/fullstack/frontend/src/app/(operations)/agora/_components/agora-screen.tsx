@@ -93,8 +93,12 @@ export function AgoraScreen() {
     item.sessions_impacted == null ? [] : [item.sessions_impacted],
   );
   const totalSessions = sessionCounts.reduce((sum, count) => sum + count, 0);
+  // `gold.feature_bucket` não tem `session_id`, então hoje nenhum sinal traz
+  // sessões atribuídas. Uma coluna inteira de "não disponível" só ocupa espaço:
+  // ela aparece quando ao menos um sinal tiver o número.
+  const hasSessions = sessionCounts.length > 0;
   const scopeSummary = signals.data
-    ? `${items.length} sinal(is) ativo(s)${
+    ? `${items.length} ${items.length === 1 ? "sinal ativo" : "sinais ativos"}${
         signals.data.truncated ? " (lista truncada)" : ""
       }${
         sessionCounts.length > 0
@@ -134,6 +138,9 @@ export function AgoraScreen() {
       filters={screenFilters}
       onFilterChange={(key, value) => updateFilter(key as FilterKey, value)}
       onClearFilters={clearFilters}
+      // Quantos filtros de fato restringem. Sem isto a moldura contava os quatro
+      // seletores, e a tela compacta dizia "4 filtros" com todos em "todos".
+      scopeFilterCount={Object.values(filters).filter((value) => value !== "all").length}
       scopeSummary={scopeSummary}
       operational={{
         state: signals.isLoading
@@ -179,25 +186,27 @@ export function AgoraScreen() {
                 <div className={styles.heroMetrics}>
                   <div>
                     <strong className={styles.dangerValue}>
-                      {activeDegradation.failureRate}
+                      {activeDegradation.currentValue}
                     </strong>
-                    <span>falha de play</span>
+                    <span>{activeDegradation.metric} agora</span>
                   </div>
-                  <div>
-                    <strong>{activeDegradation.impactedSessions}</strong>
-                    <span>sessões no recorte</span>
-                  </div>
+                  {activeDegradation.impactedSessions && (
+                    <div>
+                      <strong>{activeDegradation.impactedSessions}</strong>
+                      <span>sessões no recorte</span>
+                    </div>
+                  )}
                   <div>
                     <strong>{activeDegradation.baselineMultiplier}</strong>
                     <span>vs. baseline</span>
                   </div>
                   <div>
                     <strong>{activeDegradation.openFor}</strong>
-                    <span>sem reclamação aberta</span>
+                    <span>em desvio</span>
                   </div>
                 </div>
                 <Button asChild className={styles.primaryAction}>
-                  <Link href={hrefWithDemoState("/hipoteses")}>Ver hipóteses ranqueadas <span aria-hidden="true">→</span></Link>
+                  <Link href={hrefWithDemoState(activeDegradation.hypothesesPath)}>Ver hipóteses deste sinal <span aria-hidden="true">→</span></Link>
                 </Button>
               </>
             ) : (
@@ -218,7 +227,6 @@ export function AgoraScreen() {
             <header className={styles.sectionHeader}>
               <h2 id="signals-title">Sinais em desvio agora</h2>
               <p>ordenados por magnitude do desvio (z-score)</p>
-              <span>GET /api/v1/signals</span>
             </header>
 
             <div className={`${styles.tableScroller} hidden md:block`}>
@@ -231,7 +239,7 @@ export function AgoraScreen() {
                     <th scope="col">Baseline</th>
                     <th scope="col">Δ</th>
                     <th scope="col" className="!w-[11%]">Últimos 30 min</th>
-                    <th scope="col">Sessões</th>
+                    {hasSessions && <th scope="col">Sessões</th>}
                     <th scope="col" className="!w-[13%]">Ação</th>
                   </tr>
                 </thead>
@@ -260,7 +268,12 @@ export function AgoraScreen() {
                           {signal.current}
                         </td>
                         <td>{signal.baseline}</td>
-                        <td className={styles.deltaCell}>{signal.delta}</td>
+                        <td className={styles.deltaCell}>
+                          {signal.delta}
+                          <span className="block text-micro font-normal text-muted-foreground">
+                            z {signal.zScore}
+                          </span>
+                        </td>
                         <td>
                           <span
                             className={styles.sparkline}
@@ -279,7 +292,7 @@ export function AgoraScreen() {
                             ))}
                           </span>
                         </td>
-                        <td>{signal.sessions}</td>
+                        {hasSessions && <td>{signal.sessions}</td>}
                         <td>
                           <Button type="button" variant="ghost" size="sm" onClick={(event) => { detailTriggerRef.current = event.currentTarget; setSelectedSignal(signal); }}>
                             Ver detalhes
@@ -308,8 +321,10 @@ export function AgoraScreen() {
                   <dl className="grid grid-cols-2 gap-3 font-mono text-xs">
                     <div><dt className="text-muted-foreground">Recorte</dt><dd className="mt-1 break-words">{signal.scope}</dd></div>
                     <div><dt className="text-muted-foreground">Baseline</dt><dd className="mt-1">{signal.baseline}</dd></div>
-                    <div><dt className="text-muted-foreground">Variação</dt><dd className="mt-1 font-semibold">{signal.delta}</dd></div>
-                    <div><dt className="text-muted-foreground">Sessões</dt><dd className="mt-1">{signal.sessions}</dd></div>
+                    <div><dt className="text-muted-foreground">Variação</dt><dd className="mt-1 font-semibold">{signal.delta} · z {signal.zScore}</dd></div>
+                    {hasSessions && (
+                      <div><dt className="text-muted-foreground">Sessões</dt><dd className="mt-1">{signal.sessions}</dd></div>
+                    )}
                   </dl>
                   <Button type="button" variant="outline" onClick={(event) => { detailTriggerRef.current = event.currentTarget; setSelectedSignal(signal); }}>Ver detalhes</Button>
                 </article>
@@ -367,14 +382,20 @@ export function AgoraScreen() {
                 <SheetDescription className="break-all">{selectedSignal.source} · {selectedSignal.metric}</SheetDescription>
               </SheetHeader>
               <div className="grid gap-6 px-4 pb-8">
-                <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-panel border border-border bg-border text-sm">
+                <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-panel border border-border bg-border text-sm [&>div:last-child:nth-child(odd)]:col-span-2">
                   {[
                     ["Valor atual", selectedSignal.current],
                     ["Baseline", selectedSignal.baseline],
                     ["Limiar", selectedSignal.threshold],
-                    ["Período observado", `${selectedSignal.detectedAt} — ${selectedSignal.lastObservedAt}`],
+                    ["Desvio", `z ${selectedSignal.zScore ?? "—"}`],
+                    // A API ainda não separa o último ponto observado do instante
+                    // da detecção; "05:30 — 05:30" parecia um período de zero
+                    // segundos. Enquanto os dois forem iguais, mostra só um.
+                    selectedSignal.detectedAt === selectedSignal.lastObservedAt
+                      ? ["Detectado às", selectedSignal.detectedAt]
+                      : ["Período observado", `${selectedSignal.detectedAt} — ${selectedSignal.lastObservedAt}`],
                     ["Recorte", selectedSignal.scope],
-                    ["Sessões", selectedSignal.sessions],
+                    ...(hasSessions ? [["Sessões", selectedSignal.sessions]] : []),
                   ].map(([label, value]) => (
                     <div className="min-w-0 bg-background p-3" key={label}>
                       <dt className="font-mono text-xs text-muted-foreground">{label}</dt>
@@ -388,7 +409,10 @@ export function AgoraScreen() {
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button asChild><Link href={hrefWithDemoState(selectedSignal.relatedPaths.timeline)}>Abrir na Timeline</Link></Button>
-                  <Button asChild variant="outline"><Link href={hrefWithDemoState(selectedSignal.relatedPaths.cut)}>Ver no Recorte</Link></Button>
+                  {/* O Recorte é dispositivo × hora da fonte de player, e os sinais
+                      desta tela vêm das demais fontes: o link levava a uma
+                      grade vazia. O próximo passo útil é a hipótese. */}
+                  <Button asChild variant="outline"><Link href={hrefWithDemoState(selectedSignal.relatedPaths.hypotheses ?? "/hipoteses")}>Ver hipóteses</Link></Button>
                 </div>
               </div>
             </>
