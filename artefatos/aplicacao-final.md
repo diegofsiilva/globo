@@ -185,6 +185,42 @@ flowchart LR
 
 &emsp; Os ensaios de [rollout e rollback](./evidencias/resiliencia-kind-02-rollout-e-undo.txt) e de [perda do banco local](./evidencias/resiliencia-kind-03-perda-do-banco.txt) complementam as evidências de resiliência no ambiente local. As consultas ao ambiente AWS não incluíram injeção de falhas. Testes de perda de zona, restauração de RDS e aumento efetivo de escala no EKS exigem validações próprias; as limitações e os procedimentos estão registrados na seção 3 da [arquitetura final](./arquitetura-final.md).
 
+## 7. Demonstração funcional, segurança e operação
+
+### 7.1 Consulta de dados históricos na AWS
+
+&emsp; A execução integrada na AWS evidenciou a consulta autenticada à Timeline centrada na hipótese `2873`, em uma janela histórica de três horas. A interface apresentou sinais nas seis fontes: NPAW, Prometheus, New Relic, Apollo, Tsuru e ServiceNow, demonstrando a consulta de dados históricos pela aplicação.
+
+&emsp; O relógio virtual permaneceu pausado. As telas ancoradas nesse presente estavam sem resultados nos recortes consultados; a navegação para uma janela histórica exibiu dados existentes, sem nova carga ou alteração do relógio. A execução evidenciou a leitura integrada entre interface, API e persistência.
+
+### 7.2 Controles de segurança e observabilidade
+
+&emsp; As APIs exigem token Bearer, com exceção do endpoint público de liveness. O token do dashboard permanece na sessão do navegador e não integra a imagem estática. O backend utiliza um login de banco com acesso às views permitidas; o feedback de hipótese é executado por função controlada. Os pods possuem configuração para execução sem root, sistema de arquivos raiz somente para leitura e remoção de capabilities.
+
+&emsp; Os serviços ECS utilizam logs no CloudWatch; os serviços Python incluem registros estruturados e mecanismos de heartbeat. Os pods Kubernetes podem ser inspecionados com `kubectl`, enquanto Prometheus, Grafana e k6 dão apoio aos ensaios locais. A coleta centralizada do EKS não deve ser presumida como habilitada apenas pela existência desses recursos, conforme as limitações registradas na [arquitetura final](./arquitetura-final.md).
+
+### 7.3 Localização do código e reprodução
+
+&emsp; O [Makefile](../apps/fullstack/Makefile) concentra os comandos operacionais. O [runbook Kubernetes](../apps/fullstack/k8s/README.md) descreve a configuração de contexto, os overlays AWS e Kind, a preparação do banco e a aplicação dos manifestos. A infraestrutura está descrita no [Terraform](../apps/fullstack/infra/), e os [Dockerfiles](../apps/fullstack/) documentam os processos e suas dependências.
+
+```bash
+# Construção local da imagem do backend
+make -C apps/fullstack image-backend
+
+# Inspeção do contêiner de demonstração, se presente no ambiente local
+docker ps -a --filter name=argus-video-backend
+
+# Inspeção dos recursos no contexto Kubernetes previamente configurado
+make -C apps/fullstack k8s-status
+kubectl -n argus get deployments,pods,services
+kubectl -n argus get hpa,pdb
+
+# Validação dos manifestos sem aplicação no cluster
+make -C apps/fullstack k8s-validate
+```
+
+&emsp; Os comandos devem ser executados a partir da raiz do repositório, com as ferramentas e o contexto necessários. Credenciais, tokens, endpoints e identificadores de conta são configurados fora dos artefatos versionados. A consulta de estado não substitui os procedimentos de implantação; ações de carga, publicação ou mudança de infraestrutura seguem o runbook e dependem do cenário de operação.
+
 ## 8. Referências
 
 DOCKER. **Multi-stage builds**. [s.d.]. Disponível em: <https://docs.docker.com/build/building/multi-stage/>. Acesso em: 6 out. 2026.
