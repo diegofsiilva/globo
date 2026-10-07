@@ -164,9 +164,9 @@ flowchart LR
 
 ### 6.1 Proteções no processamento assíncrono
 
-&emsp; Os workers tratam reentregas com gravação idempotente. O merge worker registra o histórico e atualiza a tabela corrente na mesma transação, evitando divergência entre essas representações. Mensagens inválidas são encaminhadas à fila de rejeitados com o motivo; falhas transitórias podem resultar em novas tentativas. Essas decisões estão documentadas no [guia dos workers](../apps/fullstack/worker/AGENTS.md).
+&emsp; Os workers tratam reentregas com gravação idempotente. O merge worker registra o histórico e atualiza a tabela corrente na mesma transação, evitando divergência entre essas representações. Mensagens inválidas são encaminhadas à fila de rejeitados com o motivo; falhas transitórias podem resultar em novas tentativas.
 
-&emsp; O processamento incremental conserva checkpoints e utiliza mecanismos de claim, lease, heartbeat e fencing para coordenar ciclos e proteger a publicação concorrente de resultados. A retomada é orientada pelo estado persistido, conforme o [guia do processamento](../apps/fullstack/processing/AGENTS.md). Esses mecanismos reduzem o risco de duplicação ou de resultados inconsistentes, sem eliminar a necessidade de observar filas, transações e dependências externas.
+&emsp; O processamento incremental conserva checkpoints e utiliza mecanismos de claim, lease, heartbeat e fencing para coordenar ciclos e proteger a publicação concorrente de resultados. A retomada é orientada pelo estado persistido. Esses mecanismos reduzem o risco de duplicação ou de resultados inconsistentes, sem eliminar a necessidade de observar filas, transações e dependências externas.
 
 ### 6.2 Ensaio de reposição de pod
 
@@ -223,10 +223,10 @@ make -C apps/fullstack k8s-validate
 
 ## 8. Referências
 
-DOCKER. **Multi-stage builds**. [s.d.]. Disponível em: <https://docs.docker.com/build/building/multi-stage/>. Acesso em: 6 out. 2026.
+&emsp; DOCKER. Multi-stage builds. [s.d.]. Disponível em: <https://docs.docker.com/build/building/multi-stage/>. Acesso em: 6 out. 2026.
 
-KUBERNETES. **Deployments**. [s.d.]a. Disponível em: <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>. Acesso em: 6 out. 2026.
+&emsp; KUBERNETES. Deployments. [s.d.]a. Disponível em: <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>. Acesso em: 6 out. 2026.
 
-KUBERNETES. **Configure Liveness, Readiness and Startup Probes**. [s.d.]b. Disponível em: <https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/>. Acesso em: 6 out. 2026.
+&emsp; KUBERNETES. Configure Liveness, Readiness and Startup Probes. [s.d.]b. Disponível em: <https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/>. Acesso em: 6 out. 2026.
 
-KUBERNETES. **Disruptions**. [s.d.]c. Disponível em: <https://kubernetes.io/docs/concepts/workloads/pods/disruptions/>. Acesso em: 6 out. 2026.
+&emsp; KUBERNETES. Disruptions. [s.d.]c. Disponível em: <https://kubernetes.io/docs/concepts/workloads/pods/disruptions/>. Acesso em: 6 out. 2026.

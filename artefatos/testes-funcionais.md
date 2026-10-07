@@ -1,6 +1,6 @@
 # Testes funcionais, unitários e de carga
 
-&emsp; Este documento registra como os testes do Argus foram planejados, escritos e
+&emsp; Este documento registra como os testes do Linceu foram planejados, escritos e
 executados, e o que eles produziram. A seção de testes unitários cobre unidades
 de lógica de quatro serviços: backend, worker de ingestão, simulador e motor de
 processamento.
@@ -42,7 +42,7 @@ inválidas e valores nas fronteiras.
 
 #### O que é uma unidade nos scripts pytest
 
-&emsp; Neste documento, **unidade** é o menor elemento do código de produção exercitado
+&emsp; Neste documento, unidade é o menor elemento do código de produção exercitado
 isoladamente: uma função, um método ou uma classe. Vale distingui-la da estrutura
 que o pytest usa para organizar a suíte, porque as duas costumam ser confundidas
 na hora de contar o que foi testado.
@@ -55,7 +55,7 @@ na hora de contar o que foi testado.
 | Fake, stub ou `monkeypatch` | Recurso para substituir uma dependência e manter a unidade isolada |
 | `assert` ou `pytest.raises` | Verificação do resultado ou do erro esperado |
 
-Exemplo real simplificado de `test_normalization.py`:
+&emsp; Exemplo real simplificado de `test_normalization.py`:
 
 ```python
 class TestParseDatetime:  # agrupamento do pytest
@@ -86,7 +86,7 @@ casos entre válidos, de erro e de fronteira.
 | Simulador | [`test_emitter.py`](../apps/fullstack/simulator/tests/test_emitter.py) | `_blocos` | Função | 5 |
 | Simulador | [`test_faults.py`](../apps/fullstack/simulator/tests/test_faults.py) | `Falha.alcanca`, `Falha.aplicar`, `sortear`, `_params` | Métodos de instância e funções | 15 |
 | Processamento | [`test_detector_logic.py`](../apps/fullstack/processing/tests/test_detector_logic.py) | transformações, materialidade, direção, qualidade e scoring | Funções | 17 |
-| **Total** | **12 arquivos** | **conjunto de unidades isoladas** | **Funções, métodos e classe/modelo** | **133 casos** |
+| Total | 12 arquivos | conjunto de unidades isoladas | Funções, métodos e classe/modelo | 133 casos |
 
 &emsp; Os arquivos-fonte exercitados ficam nos diretórios `src/telemetry`,
 `src/argus_worker`, `src/argus_simulator` e `src/argus_processing` dos
@@ -382,7 +382,7 @@ uv run --extra dev pytest tests/unit/test_use_cases_logic.py::TestAuthHelpers::t
 | Worker | 33 | 33 | 0 | 0,23 s | Aprovado |
 | Simulador | 20 | 20 | 0 | 0,04 s | Aprovado |
 | Processamento | 17 | 17 | 0 | 0,02 s | Aprovado |
-| **Total** | **133** | **133** | **0** | **0,33 s somados** | **Aprovado** |
+| Total | 133 | 133 | 0 | 0,33 s somados | Aprovado |
 
 &emsp; As durações saem do próprio pytest, em execuções locais e separadas. A soma vale
 como registro desta rodada e nada afirma sobre desempenho, que é assunto dos
@@ -523,7 +523,7 @@ o comportamento diante de erro e de token ausente.
 | Contrato spec ↔ rotas, backend | `cd apps/fullstack/backend && uv run --extra dev pytest tests/test_openapi.py -v` | 12 aprovados, em 7,7 s |
 | Contratos do dashboard, frontend | `cd apps/fullstack/frontend && npx vitest run tests/contracts` | 25 aprovados, nos 6 arquivos |
 
-A saída dos dois comandos está em
+&emsp; A saída dos dois comandos está em
 [`evidencias/testes-suites-2026-09-24.txt`](evidencias/testes-suites-2026-09-24.txt).
 
 ### Componentes envolvidos e resultado esperado da interação
@@ -553,24 +553,24 @@ de um prazo que faça sentido para quem opera o sistema.
 &emsp; Alguns termos aparecem com frequência e não são óbvios para quem chega de fora
 do projeto.
 
-&emsp; **Fila de descarte, ou DLQ, de dead-letter queue**, é uma fila separada para onde
+&emsp; Fila de descarte, ou DLQ, de dead-letter queue, é uma fila separada para onde
 vai a mensagem que o consumidor não conseguiu processar. Ela existe para que um dado
 ruim saia de circulação de forma registrada, com o motivo da recusa anexado, em vez
 de ser reentregue indefinidamente ou descartado em silêncio.
 
-&emsp; **Entrega ao menos uma vez, ou at-least-once**, é a garantia que o SQS oferece: a
+&emsp; Entrega ao menos uma vez, ou at-least-once, é a garantia que o SQS oferece: a
 fila promete que a mensagem chega, mas não promete que chega uma única vez. Se a
 confirmação de processamento se perder no caminho, a mesma mensagem é entregue de
 novo. Cabe ao destino ser idempotente, ou seja, produzir o mesmo resultado
 processando duas vezes ou uma.
 
-&emsp; **Marcador de progresso, ou watermark**, é uma linha no banco que registra até onde
+&emsp; Marcador de progresso, ou watermark, é uma linha no banco que registra até onde
 uma etapa da ETL já processou. É o que torna o processamento incremental: cada
 execução lê apenas o que entrou depois do marcador e o avança ao terminar. Cada linha
 que entra na camada bronze recebe um número de ordem, o `lsn`, e é por ele que o
 marcador se orienta.
 
-&emsp; **Bronze, silver e gold** nomeiam os três estágios do armazenamento. A bronze
+&emsp; Bronze, silver e gold nomeiam os três estágios do armazenamento. A bronze
 guarda o dado bruto como ele chegou, a silver guarda o dado normalizado no esquema
 comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 
@@ -584,7 +584,7 @@ comum, e a gold guarda o dado agregado e pronto para as consultas do dashboard.
 | Ferramentas | pytest 8.4.2 no backend com Python 3.13; pytest 9.1.1 no worker com Python 3.12 e no processamento com Python 3.13; Playwright 1.62.1 com Chromium 151.0.7922.34 |
 | Dublês usados | Apenas o SQS, reproduzido em memória pelo `moto` versão 5 ou superior, no TI-03. Banco, API, navegador e site são reais em todos os testes |
 | Ambiente do TI-05 | Pilha publicada no AWS Academy Learner Lab, região `us-east-1`: API Gateway HTTP, Lambda authorizer, Lambda da API de leitura, SQS, ECS Fargate e RDS PostgreSQL. Nenhum componente dublado |
-| Caminho de leitura exercitado | A Lambda por trás do API Gateway. A pilha tem outras duas portas para a mesma API — o ALB do grupo de auto scaling e, desde a Sprint 4, o Ingress do cluster EKS — e nenhuma delas é exercitada pelo TI-05 (ver [Cobertura do caminho orquestrado por Kubernetes](#cobertura-do-caminho-orquestrado-por-kubernetes)) |
+| Caminho de leitura exercitado | A Lambda por trás do API Gateway. A pilha tem outras duas portas para a mesma API, o ALB do grupo de auto scaling e o Ingress do cluster EKS, e nenhuma delas é exercitada pelo TI-05 (ver [Cobertura do caminho orquestrado por Kubernetes](#cobertura-do-caminho-orquestrado-por-kubernetes)) |
 
 ### Onde está cada coisa no repositório
 
@@ -662,8 +662,8 @@ e falharia aqui.
 &emsp; Uma ressalva de alcance, que vale para os três casos. O site é construído aqui
 com `NEXT_PUBLIC_API_URL` apontando para o endereço absoluto do Flask, e o Playwright
 sobe o backend com `CORS_ORIGINS` declarado: são duas origens, `127.0.0.1:3100` e
-`127.0.0.1:5100`, conversando por CORS. Essa era a topologia da implantação até a
-Sprint 3, quando o dashboard vinha do S3 e a API do balanceador. No caminho
+`127.0.0.1:5100`, conversando por CORS. Essa era a topologia de uma implantação
+anterior, em que o dashboard vinha do S3 e a API do balanceador. No caminho
 orquestrado por Kubernetes ela deixou de existir: o Ingress serve `/` e `/api` no
 mesmo endereço, a imagem é construída com `NEXT_PUBLIC_API_URL=/` e a requisição sai
 relativa, sem verificação prévia. O contrato entre a tela e a API, nos dois
@@ -1168,22 +1168,22 @@ do HPA em vez do limite das duas réplicas iniciais.
 
 ## Testes do UC03 e análise de valor-limite
 
-O **UC03 - Produzir hipóteses de causa provável**, definido em [modelagem.md](modelagem.md#153-uc03---produzir-hipóteses-de-causa-provável), foi escolhido porque suas regras permitem observar como pequenas mudanças na entrada alteram uma decisão. Os testes começaram pelas fronteiras de classificação e confiança, pelas regras das famílias e pela persistência dos estados. Ao comparar as verificações com o caso de uso, percebemos que alguns resultados precisavam ser acompanhados por mais tempo, até a gravação da justificativa ou a publicação da hipótese. Esta seção apresenta os cenários da versão final e, ao final, mostra como eles evoluíram a partir da versão inicial.
+&emsp; O UC03 - Produzir hipóteses de causa provável, definido em [modelagem.md](modelagem.md#153-uc03---produzir-hipóteses-de-causa-provável), foi escolhido porque suas regras permitem observar como pequenas mudanças na entrada alteram uma decisão. Os testes começaram pelas fronteiras de classificação e confiança, pelas regras das famílias e pela persistência dos estados. Ao comparar as verificações com o caso de uso, percebemos que alguns resultados precisavam ser acompanhados por mais tempo, até a gravação da justificativa ou a publicação da hipótese. Esta seção apresenta os cenários da versão final e, ao final, mostra como eles evoluíram a partir da versão inicial.
 
 ### Escolha e funcionamento do UC03
 
-O UC03 recebe as anomalias encontradas pelo UC02 (*Processar telemetria e detectar*) e passa cada candidata pelas regras das famílias de hipótese. Durante esse caminho, o motor calcula força, coincidência temporal, corroboração, especificidade, impacto e qualidade, aplica as penalidades necessárias e chega ao `score`, à cobertura e à confiança.
+&emsp; O UC03 recebe as anomalias encontradas pelo UC02 (*Processar telemetria e detectar*) e passa cada candidata pelas regras das famílias de hipótese. Durante esse caminho, o motor calcula força, coincidência temporal, corroboração, especificidade, impacto e qualidade, aplica as penalidades necessárias e chega ao `score`, à cobertura e à confiança.
 
-O fluxo usado como referência pode ser resumido assim:
+&emsp; O fluxo usado como referência pode ser resumido assim:
 
 ```text
 anomalias do UC02 -> regras das famílias -> score e cobertura
                    -> classificação da candidata -> persistência do resultado
 ```
 
-No final, cada candidata fica como `generated`, `discarded` ou `insufficient_evidence`. Como essa decisão depende de valores numéricos, foi possível testar não só exemplos comuns, mas também o valor imediatamente abaixo, o valor exato e o valor imediatamente acima de cada fronteira.
+&emsp; No final, cada candidata fica como `generated`, `discarded` ou `insufficient_evidence`. Como essa decisão depende de valores numéricos, foi possível testar não só exemplos comuns, mas também o valor imediatamente abaixo, o valor exato e o valor imediatamente acima de cada fronteira.
 
-Em A1, os casos CT02–CT07 verificam quando a candidata recebe a classificação `generated`. A visibilidade e a publicação aparecem em um teste separado, o CT29, que acompanha a hipótese avaliada e persistida até a view e até o evento `published`. Pela regra das migrations 032 e 033, a hipótese gerada já aparece na view quando a execução conclui, e a promoção só grava o evento de auditoria. Esse teste chama `promote_manifest` diretamente. O CT13c complementa a verificação ao executar o comando real de promoção, com aprovação no limite de 500 candidatas e recusa quando o motor produz truncamento.
+&emsp; Em A1, os casos CT02–CT07 verificam quando a candidata recebe a classificação `generated`. A visibilidade e a publicação aparecem em um teste separado, o CT29, que acompanha a hipótese avaliada e persistida até a view e até o evento `published`. Pela regra das migrations 032 e 033, a hipótese gerada já aparece na view quando a execução conclui, e a promoção só grava o evento de auditoria. Esse teste chama `promote_manifest` diretamente. O CT13c complementa a verificação ao executar o comando real de promoção, com aprovação no limite de 500 candidatas e recusa quando o motor produz truncamento.
 
 #### Regras principais
 
@@ -1193,18 +1193,18 @@ Em A1, os casos CT02–CT07 verificam quando a candidata recebe a classificaçã
 | Atribuir confiança alta | `score >= 80,00`, `coverage >= 0,80`, `quality >= 0,70` e `contradiction < 0,50` |
 | Descartar por contradição determinante | `contradiction >= 0,80`, mesmo com score e cobertura suficientes |
 
-Além desses limiares, o motor aceita no máximo 10.000 candidatos no total, 2.000 por família e 500 hipóteses geradas. Esses valores também foram incluídos porque fazem parte do fluxo E2 e mudam o comportamento quando a quantidade permitida é ultrapassada.
+&emsp; Além desses limiares, o motor aceita no máximo 10.000 candidatos no total, 2.000 por família e 500 hipóteses geradas. Esses valores também foram incluídos porque fazem parte do fluxo E2 e mudam o comportamento quando a quantidade permitida é ultrapassada.
 
 #### Valores usados nos testes
 
-Para a geração da hipótese, foram usados os seguintes valores:
+&emsp; Para a geração da hipótese, foram usados os seguintes valores:
 
 | Variável | Imediatamente abaixo | No limite | Imediatamente acima |
 |---|---:|---:|---:|
 | Score | 39,99 | 40,00 | 40,01 |
 | Cobertura | 0,49 | 0,50 | 0,51 |
 
-Para a confiança alta, foram usados:
+&emsp; Para a confiança alta, foram usados:
 
 | Variável | Imediatamente abaixo | No limite | Imediatamente acima |
 |---|---:|---:|---:|
@@ -1213,9 +1213,9 @@ Para a confiança alta, foram usados:
 | Qualidade | 0,69 | 0,70 | 0,71 |
 | Contradição | 0,49 | 0,50 | 0,51 |
 
-Os mínimos de score, cobertura e qualidade são inclusivos, então atingir exatamente o valor já produz a classe superior quando as outras condições também são atendidas. A contradição é a exceção: a confiança alta exige valor estritamente menor que 0,50, portanto 0,50 já deve produzir confiança média.
+&emsp; Os mínimos de score, cobertura e qualidade são inclusivos, então atingir exatamente o valor já produz a classe superior quando as outras condições também são atendidas. A contradição é a exceção: a confiança alta exige valor estritamente menor que 0,50, portanto 0,50 já deve produzir confiança média.
 
-Para o descarte por contradição e os tetos de candidatos, a ampliação acrescentou os seguintes trios:
+&emsp; Para o descarte por contradição e os tetos de candidatos, a ampliação acrescentou os seguintes trios:
 
 | Condição | Imediatamente abaixo | No limite | Imediatamente acima | Casos |
 |---|---:|---:|---:|---|
@@ -1223,23 +1223,23 @@ Para o descarte por contradição e os tetos de candidatos, a ampliação acresc
 | Candidatos da mesma família | 1.999 | 2.000 | 2.001 | CT33–CT35 |
 | Candidatos no total | 9.999 | 10.000 | 10.001 | CT36–CT38 |
 
-Os valores de contradição variam de 0,01 em 0,01, como nos demais cenários decimais. Para quantidades inteiras, a diferença é de uma candidata. A contradição já provoca descarte ao atingir 0,80. Os tetos de quantidade aceitam o valor exato do limite e cortam apenas o excedente.
+&emsp; Os valores de contradição variam de 0,01 em 0,01, como nos demais cenários decimais. Para quantidades inteiras, a diferença é de uma candidata. A contradição já provoca descarte ao atingir 0,80. Os tetos de quantidade aceitam o valor exato do limite e cortam apenas o excedente.
 
 ### Organização dos testes
 
 #### Preparação dos cenários
 
-Nos testes que avaliam as regras, foram usados candidatos e anomalias sintéticas, um catálogo válido e uma fonte com qualidade conhecida. Dessa forma, somente o valor analisado varia e as outras condições não interferem no resultado.
+&emsp; Nos testes que avaliam as regras, foram usados candidatos e anomalias sintéticas, um catálogo válido e uma fonte com qualidade conhecida. Dessa forma, somente o valor analisado varia e as outras condições não interferem no resultado.
 
-Nos cenários de persistência, a preparação também inclui um PostgreSQL de teste com as migrations aplicadas, um checkpoint Gold e um manifesto registrado. O teste segue além da resposta da função, grava o resultado e consulta o banco novamente para conferir o que realmente ficou salvo.
+&emsp; Nos cenários de persistência, a preparação também inclui um PostgreSQL de teste com as migrations aplicadas, um checkpoint Gold e um manifesto registrado. O teste segue além da resposta da função, grava o resultado e consulta o banco novamente para conferir o que realmente ficou salvo.
 
 #### Fluxo de execução
 
-Cada caso parte de um cenário controlado em que apenas a condição observada é alterada. Em seguida, o teste automatizado compara o resultado esperado com o resultado obtido. Nos casos parametrizados, cada valor abaixo, no limite e acima é coletado separadamente pelo pytest, o que deixa claro qual fronteira apresentou problema caso alguma verificação falhe.
+&emsp; Cada caso parte de um cenário controlado em que apenas a condição observada é alterada. Em seguida, o teste automatizado compara o resultado esperado com o resultado obtido. Nos casos parametrizados, cada valor abaixo, no limite e acima é coletado separadamente pelo pytest, o que deixa claro qual fronteira apresentou problema caso alguma verificação falhe.
 
 #### Onde os testes estão
 
-Os testes ficam em [`apps/fullstack/processing/tests`](../apps/fullstack/processing/tests). A divisão entre os arquivos acompanha o fluxo do UC03:
+&emsp; Os testes ficam em [`apps/fullstack/processing/tests`](../apps/fullstack/processing/tests). A divisão entre os arquivos acompanha o fluxo do UC03:
 
 - [`test_uc03_valores_limite.py`](../apps/fullstack/processing/tests/test_uc03_valores_limite.py) concentra os valores-limite, os oito passos do fluxo principal até a persistência, o descarte com justificativa persistida, a publicação explícita, as exceções E1/E2/E4 e as pós-condições
 - [`test_familias.py`](../apps/fullstack/processing/tests/test_familias.py) traz os cenários positivos das famílias e os fluxos A4 e A5
@@ -1252,13 +1252,13 @@ Os testes ficam em [`apps/fullstack/processing/tests`](../apps/fullstack/process
 
 ### CT01b - cobertura dos oito passos do fluxo principal
 
-O CT01 continua verificando a família `backend_internal`. O **CT01b**, relacionado ao **UC03 / RF17 / RNF08**, complementa esse teste com um cenário integrado que percorre a formação das candidatas, a avaliação e a persistência. Seu código é `test_uc03_valores_limite.py::test_fluxo_principal_oito_passos_com_persistencia`.
+&emsp; O CT01 continua verificando a família `backend_internal`. O CT01b, relacionado ao UC03 / RF17 / RNF08, complementa esse teste com um cenário integrado que percorre a formação das candidatas, a avaliação e a persistência. Seu código é `test_uc03_valores_limite.py::test_fluxo_principal_oito_passos_com_persistencia`.
 
-**Pré-condições:** o teste exige o ambiente Python/uv do processamento, acesso ao PostgreSQL de teste e as migrations aplicadas. A fixture `db` limpa o banco, e `inserir_change`, definida em [`conftest.py`](../apps/fullstack/processing/tests/conftest.py), prepara seis mudanças sintéticas. Os ETLs reais transformam essas mudanças em oito fatos. Em seguida, o teste registra o catálogo versionado, captura a fotografia e inicia o trabalho protegido.
+&emsp; Pré-condições: o teste exige o ambiente Python/uv do processamento, acesso ao PostgreSQL de teste e as migrations aplicadas. A fixture `db` limpa o banco, e `inserir_change`, definida em [`conftest.py`](../apps/fullstack/processing/tests/conftest.py), prepara seis mudanças sintéticas. Os ETLs reais transformam essas mudanças em oito fatos. Em seguida, o teste registra o catálogo versionado, captura a fotografia e inicia o trabalho protegido.
 
-**Dados de entrada:** o cenário parte de um instante `t`, três horas antes do horário indicado pelo relógio do banco. Nesse instante, há um erro de `newrelic/playback` e um bucket RPaaS de playback com 50 requisições e cinco respostas 4xx. O sinal de `apollo/playback` aparece dois minutos antes, e o deploy de `playback-api`, cinco minutos antes. Dois controles não relacionados completam o cenário: `newrelic/billing` em `t` e `prometheus/playback` em `t−60 min`. As três anomalias recebidas do UC02 têm forças 0,90, 0,60 e 0,70. A qualidade das fontes é 1,00.
+&emsp; Dados de entrada: o cenário parte de um instante `t`, três horas antes do horário indicado pelo relógio do banco. Nesse instante, há um erro de `newrelic/playback` e um bucket RPaaS de playback com 50 requisições e cinco respostas 4xx. O sinal de `apollo/playback` aparece dois minutos antes, e o deploy de `playback-api`, cinco minutos antes. Dois controles não relacionados completam o cenário: `newrelic/billing` em `t` e `prometheus/playback` em `t−60 min`. As três anomalias recebidas do UC02 têm forças 0,90, 0,60 e 0,70. A qualidade das fontes é 1,00.
 
-**Procedimento:** ao executar o nó indicado, o teste chama as implementações reais de `build_candidates`, `evaluate_candidates` e `persist_result`, com o cálculo de score, o catálogo e o banco do processamento. As anomalias e os vereditos de qualidade são entradas controladas, pois o detector e o canário pertencem ao UC02. Os comentários `Passo 1` a `Passo 8` no código identificam as asserções correspondentes. O agrupamento é conferido tanto nas associações em memória quanto nos grupos salvos no banco.
+&emsp; Procedimento: ao executar o nó indicado, o teste chama as implementações reais de `build_candidates`, `evaluate_candidates` e `persist_result`, com o cálculo de score, o catálogo e o banco do processamento. As anomalias e os vereditos de qualidade são entradas controladas, pois o detector e o canário pertencem ao UC02. Os comentários `Passo 1` a `Passo 8` no código identificam as asserções correspondentes. O agrupamento é conferido tanto nas associações em memória quanto nos grupos salvos no banco.
 
 | Passo do fluxo básico em modelagem.md | Verificação automatizada do CT01b | Resultado esperado | Resultado obtido | Situação |
 |---|---|---|---|---|
@@ -1271,9 +1271,9 @@ O CT01 continua verificando a família `backend_internal`. O **CT01b**, relacion
 | 7. Classificar as candidatas | Conferir os estados das hipóteses de backend, deploy e autorização | Cinco `generated`, uma `discarded` por contradição e uma `insufficient_evidence` por volume insuficiente | Estados esperados no retorno e na estatística persistida | Aprovado |
 | 8. Ordenar e persistir resultados para publicação e análise humana | Conferir prioridade por força, repetir com candidatas invertidas e consultar hipóteses, fatores, evidências, grupos, estatística e execução | Sete hipóteses salvas sem perda de conteúdo e com ordem estável. A execução deve estar concluída e vinculada ao manifesto, sem confirmação humana automática | Ordem de origens `[0,0,2,2,2,1,1]` preservada, dados iguais aos avaliados, estatística 7/7/0, zero feedback, zero eventos de publicação e as cinco geradas, e só elas, visíveis em `gold.v_hypothesis` | Aprovado em 24/09, com a regra da migration 032 |
 
-A sequência de avaliação segue a prioridade do motor por força, impacto e desempate canônico. Como o banco não garante uma ordem implícita das linhas, as consultas de persistência comparam as identidades e o conteúdo dos resultados. Ao final do fluxo básico, as candidatas estão salvas, sem nenhum evento de publicação, e as cinco geradas já aparecem na view, conforme a regra das migrations 032 e 033; descartada e não avaliável ficam fora da leitura. Até 23/09 o teste esperava a view vazia nesse ponto, e a [reexecução com a regra de visibilidade](#regra-de-visibilidade-das-migrations-032-e-033) registra a mudança. A publicação de A1 continua coberta por CT29 e CT13c.
+&emsp; A sequência de avaliação segue a prioridade do motor por força, impacto e desempate canônico. Como o banco não garante uma ordem implícita das linhas, as consultas de persistência comparam as identidades e o conteúdo dos resultados. Ao final do fluxo básico, as candidatas estão salvas, sem nenhum evento de publicação, e as cinco geradas já aparecem na view, conforme a regra das migrations 032 e 033; descartada e não avaliável ficam fora da leitura. Até 23/09 o teste esperava a view vazia nesse ponto, e a [reexecução com a regra de visibilidade](#regra-de-visibilidade-das-migrations-032-e-033) registra a mudança. A publicação de A1 continua coberta por CT29 e CT13c.
 
-**Evidências:** o nó CT01b aparece como `PASSED` no [log da ampliação](evidencias/uc03-ampliacao-pytest.txt)[^basica] e no [relatório JUnit](evidencias/uc03-ampliacao-junit.xml), da regra anterior, e no [log da regra de visibilidade](evidencias/uc03-regra-032-pytest-2026-09-24.txt), da regra atual. Para reproduzir, a partir da raiz e com o banco de teste preparado:
+&emsp; Evidências: o nó CT01b aparece como `PASSED` no [log da ampliação](evidencias/uc03-ampliacao-pytest.txt)[^basica] e no [relatório JUnit](evidencias/uc03-ampliacao-junit.xml), da regra anterior, e no [log da regra de visibilidade](evidencias/uc03-regra-032-pytest-2026-09-24.txt), da regra atual. Para reproduzir, a partir da raiz e com o banco de teste preparado:
 
 ```bash
 PYTEST_ADDOPTS='-vv -p no:cacheprovider tests/test_uc03_valores_limite.py::test_fluxo_principal_oito_passos_com_persistencia' \
@@ -1282,55 +1282,55 @@ PYTEST_ADDOPTS='-vv -p no:cacheprovider tests/test_uc03_valores_limite.py::test_
 
 ### Testes nos valores-limite
 
-A análise começa pelos pontos em que uma diferença pequena muda a classificação. Nos casos CT02 a CT07, uma candidata válida é mantida enquanto somente `score` ou `coverage` varia. Nos casos CT16 a CT27, o mesmo princípio é aplicado às quatro condições da confiança alta, sempre com as outras variáveis em valores válidos.
+&emsp; A análise começa pelos pontos em que uma diferença pequena muda a classificação. Nos casos CT02 a CT07, uma candidata válida é mantida enquanto somente `score` ou `coverage` varia. Nos casos CT16 a CT27, o mesmo princípio é aplicado às quatro condições da confiança alta, sempre com as outras variáveis em valores válidos.
 
 | ID | Limite avaliado | Entrada usada | Esperado | Obtido | Situação |
 |---|---|---|---|---|---|
-| CT02 | Score abaixo da geração | score 39,99 e coverage 0,50 | `discarded` | `discarded` | **Aprovado** |
-| CT03 | Score no limite da geração | score 40,00 e coverage 0,50 | `generated` | `generated` | **Aprovado** |
-| CT04 | Score acima da geração | score 40,01 e coverage 0,50 | `generated` | `generated` | **Aprovado** |
-| CT05 | Cobertura abaixo da geração | score 40,00 e coverage 0,49 | `discarded` | `discarded` | **Aprovado** |
-| CT06 | Cobertura no limite da geração | score 40,00 e coverage 0,50 | `generated` | `generated` | **Aprovado** |
-| CT07 | Cobertura acima da geração | score 40,00 e coverage 0,51 | `generated` | `generated` | **Aprovado** |
-| CT16 | Score abaixo da confiança alta | score 79,99, coverage 1,00 e quality 0,70 | `medium` | `medium` | **Aprovado** |
-| CT17 | Score no limite da confiança alta | score 80,00, coverage 1,00, quality 0,70 e contradiction 0,00 | `high` | `high` | **Aprovado** |
-| CT18 | Score acima da confiança alta | score 80,01, coverage 1,00 e quality 0,70 | `high` | `high` | **Aprovado** |
-| CT19 | Cobertura abaixo da confiança alta | score 100,00, coverage 0,79 e quality 0,70 | `medium` | `medium` | **Aprovado** |
-| CT20 | Cobertura no limite da confiança alta | score 100,00, coverage 0,80, quality 0,70 e contradiction 0,00 | `high` | `high` | **Aprovado** |
-| CT21 | Cobertura acima da confiança alta | score 100,00, coverage 0,81 e quality 0,70 | `high` | `high` | **Aprovado** |
-| CT22 | Qualidade abaixo da confiança alta | score >= 80,00, coverage 1,00 e quality 0,69 | `medium` | `medium` | **Aprovado** |
-| CT23 | Qualidade no limite da confiança alta | score >= 80,00, coverage 1,00, quality 0,70 e contradiction 0,00 | `high` | `high` | **Aprovado** |
-| CT24 | Qualidade acima da confiança alta | score >= 80,00, coverage 1,00 e quality 0,71 | `high` | `high` | **Aprovado** |
-| CT25 | Contradição abaixo da fronteira da confiança alta | score acima de 80, coverage 1,00 e contradiction 0,49 | `high` | `high` | **Aprovado** |
-| CT26 | Contradição na fronteira da confiança alta | score acima de 80, coverage 1,00 e contradiction 0,50 | `medium` | `medium` | **Aprovado** |
-| CT27 | Contradição acima da fronteira da confiança alta | score acima de 80, coverage 1,00 e contradiction 0,51 | `medium` | `medium` | **Aprovado** |
-| CT30 | Contradição abaixo do descarte determinante | contradiction 0,79, com score e cobertura reais suficientes | `generated`, sem truncamento | `generated`, com penalidade −23,70 e truncamento zero | **Aprovado** |
-| CT31 | Contradição no limite do descarte determinante | contradiction 0,80, com score e cobertura reais suficientes | `discarded`, sem truncamento | `discarded`, com penalidade −24,00 e truncamento zero | **Aprovado** |
-| CT32 | Contradição acima do descarte determinante | contradiction 0,81, com score e cobertura reais suficientes | `discarded`, sem truncamento | `discarded`, com penalidade −24,30 e truncamento zero | **Aprovado** |
-| CT39 | Contradição no extremo 1,00, clamp inferior do score | todas as features 0,25 (base 25) e contradiction 1,00 | score 0,00 e `low` | score 0,00, penalidade −30,00 e `low` | **Aprovado** |
-| CT40 | Contradição no extremo 1,00, sem clamp | todas as features 1,00 (base 100) e contradiction 1,00 | score 70,00 e `low` | score 70,00, penalidade −30,00 e `low` | **Aprovado** |
-| CT41 | Contradição negativa, clamp superior do score | todas as features 1,00 e contradiction −0,01 | score 100,00 e `high` | score 100,00, penalidade +0,30 e `high` | **Aprovado** |
-| CT42 | Feature no máximo, 1,00 | todas as features 1,00 | normalizada 1,00 e score 100,00 | normalizada 1,00 e score 100,00 | **Aprovado** |
-| CT43 | Feature acima do máximo, 1,01 | todas as features 1,01 | normalizada 1,00 e score 100,00 | normalizada 1,00, contribuição igual ao peso e score 100,00 | **Aprovado** |
-| CT44 | Feature negativa, −0,01 | todas as features −0,01 | normalizada 0,00 e score 0,00 | normalizada 0,00, contribuição 0 e score 0,00 | **Aprovado** |
-| CT45 | Cobertura zero | todas as features `unavailable` | coverage 0,00, score 0,00 e `low` | coverage 0,00, score 0,00 e `low` | **Aprovado** |
-| CT46 | Nenhuma feature aplicável | todas as features `not_applicable` | coverage 1,00 por convenção, score 0,00 e `low` | coverage 1,00, score 0,00 e `low` | **Aprovado** |
-| CT47 | Qualidade negativa, −0,01 | quality −0,01 e demais features 1,00 | Q normalizado 0,00, score 95,00 e `medium` | Q 0,00, score 95,00 e `medium` | **Aprovado** |
-| CT48 | Qualidade acima do máximo, 1,01 | quality 1,01 e demais features 1,00 | Q normalizado 1,00, score 100,00 e `high` | Q 1,00, score 100,00 e `high` | **Aprovado** |
-| CT49 | Score no máximo, no classificador | score 100,00 e coverage 1,00 injetados | `generated` | `generated` | **Aprovado** |
-| CT50 | Score acima do máximo, no classificador | score 100,01 e coverage 1,00 injetados | `generated`, sem validação de faixa | `generated` | **Aprovado** |
-| CT51 | Score negativo, no classificador | score −0,01 e coverage 1,00 injetados | `discarded` | `discarded` | **Aprovado** |
-| CT52 | Cobertura zero, no classificador | score 40,00 e coverage 0,00 injetados | `discarded` | `discarded` | **Aprovado** |
-| CT53 | Cobertura negativa, no classificador | score 40,00 e coverage −0,01 injetados | `discarded` | `discarded` | **Aprovado** |
-| CT54 | Cobertura acima de 1, no classificador | score 40,00 e coverage 1,01 injetados | `generated`, sem validação de faixa | `generated` | **Aprovado** |
+| CT02 | Score abaixo da geração | score 39,99 e coverage 0,50 | `discarded` | `discarded` | Aprovado |
+| CT03 | Score no limite da geração | score 40,00 e coverage 0,50 | `generated` | `generated` | Aprovado |
+| CT04 | Score acima da geração | score 40,01 e coverage 0,50 | `generated` | `generated` | Aprovado |
+| CT05 | Cobertura abaixo da geração | score 40,00 e coverage 0,49 | `discarded` | `discarded` | Aprovado |
+| CT06 | Cobertura no limite da geração | score 40,00 e coverage 0,50 | `generated` | `generated` | Aprovado |
+| CT07 | Cobertura acima da geração | score 40,00 e coverage 0,51 | `generated` | `generated` | Aprovado |
+| CT16 | Score abaixo da confiança alta | score 79,99, coverage 1,00 e quality 0,70 | `medium` | `medium` | Aprovado |
+| CT17 | Score no limite da confiança alta | score 80,00, coverage 1,00, quality 0,70 e contradiction 0,00 | `high` | `high` | Aprovado |
+| CT18 | Score acima da confiança alta | score 80,01, coverage 1,00 e quality 0,70 | `high` | `high` | Aprovado |
+| CT19 | Cobertura abaixo da confiança alta | score 100,00, coverage 0,79 e quality 0,70 | `medium` | `medium` | Aprovado |
+| CT20 | Cobertura no limite da confiança alta | score 100,00, coverage 0,80, quality 0,70 e contradiction 0,00 | `high` | `high` | Aprovado |
+| CT21 | Cobertura acima da confiança alta | score 100,00, coverage 0,81 e quality 0,70 | `high` | `high` | Aprovado |
+| CT22 | Qualidade abaixo da confiança alta | score >= 80,00, coverage 1,00 e quality 0,69 | `medium` | `medium` | Aprovado |
+| CT23 | Qualidade no limite da confiança alta | score >= 80,00, coverage 1,00, quality 0,70 e contradiction 0,00 | `high` | `high` | Aprovado |
+| CT24 | Qualidade acima da confiança alta | score >= 80,00, coverage 1,00 e quality 0,71 | `high` | `high` | Aprovado |
+| CT25 | Contradição abaixo da fronteira da confiança alta | score acima de 80, coverage 1,00 e contradiction 0,49 | `high` | `high` | Aprovado |
+| CT26 | Contradição na fronteira da confiança alta | score acima de 80, coverage 1,00 e contradiction 0,50 | `medium` | `medium` | Aprovado |
+| CT27 | Contradição acima da fronteira da confiança alta | score acima de 80, coverage 1,00 e contradiction 0,51 | `medium` | `medium` | Aprovado |
+| CT30 | Contradição abaixo do descarte determinante | contradiction 0,79, com score e cobertura reais suficientes | `generated`, sem truncamento | `generated`, com penalidade −23,70 e truncamento zero | Aprovado |
+| CT31 | Contradição no limite do descarte determinante | contradiction 0,80, com score e cobertura reais suficientes | `discarded`, sem truncamento | `discarded`, com penalidade −24,00 e truncamento zero | Aprovado |
+| CT32 | Contradição acima do descarte determinante | contradiction 0,81, com score e cobertura reais suficientes | `discarded`, sem truncamento | `discarded`, com penalidade −24,30 e truncamento zero | Aprovado |
+| CT39 | Contradição no extremo 1,00, clamp inferior do score | todas as features 0,25 (base 25) e contradiction 1,00 | score 0,00 e `low` | score 0,00, penalidade −30,00 e `low` | Aprovado |
+| CT40 | Contradição no extremo 1,00, sem clamp | todas as features 1,00 (base 100) e contradiction 1,00 | score 70,00 e `low` | score 70,00, penalidade −30,00 e `low` | Aprovado |
+| CT41 | Contradição negativa, clamp superior do score | todas as features 1,00 e contradiction −0,01 | score 100,00 e `high` | score 100,00, penalidade +0,30 e `high` | Aprovado |
+| CT42 | Feature no máximo, 1,00 | todas as features 1,00 | normalizada 1,00 e score 100,00 | normalizada 1,00 e score 100,00 | Aprovado |
+| CT43 | Feature acima do máximo, 1,01 | todas as features 1,01 | normalizada 1,00 e score 100,00 | normalizada 1,00, contribuição igual ao peso e score 100,00 | Aprovado |
+| CT44 | Feature negativa, −0,01 | todas as features −0,01 | normalizada 0,00 e score 0,00 | normalizada 0,00, contribuição 0 e score 0,00 | Aprovado |
+| CT45 | Cobertura zero | todas as features `unavailable` | coverage 0,00, score 0,00 e `low` | coverage 0,00, score 0,00 e `low` | Aprovado |
+| CT46 | Nenhuma feature aplicável | todas as features `not_applicable` | coverage 1,00 por convenção, score 0,00 e `low` | coverage 1,00, score 0,00 e `low` | Aprovado |
+| CT47 | Qualidade negativa, −0,01 | quality −0,01 e demais features 1,00 | Q normalizado 0,00, score 95,00 e `medium` | Q 0,00, score 95,00 e `medium` | Aprovado |
+| CT48 | Qualidade acima do máximo, 1,01 | quality 1,01 e demais features 1,00 | Q normalizado 1,00, score 100,00 e `high` | Q 1,00, score 100,00 e `high` | Aprovado |
+| CT49 | Score no máximo, no classificador | score 100,00 e coverage 1,00 injetados | `generated` | `generated` | Aprovado |
+| CT50 | Score acima do máximo, no classificador | score 100,01 e coverage 1,00 injetados | `generated`, sem validação de faixa | `generated` | Aprovado |
+| CT51 | Score negativo, no classificador | score −0,01 e coverage 1,00 injetados | `discarded` | `discarded` | Aprovado |
+| CT52 | Cobertura zero, no classificador | score 40,00 e coverage 0,00 injetados | `discarded` | `discarded` | Aprovado |
+| CT53 | Cobertura negativa, no classificador | score 40,00 e coverage −0,01 injetados | `discarded` | `discarded` | Aprovado |
+| CT54 | Cobertura acima de 1, no classificador | score 40,00 e coverage 1,01 injetados | `generated`, sem validação de faixa | `generated` | Aprovado |
 
-Os casos CT02 a CT07 e CT16 a CT24 estão parametrizados em [`test_uc03_valores_limite.py`](../apps/fullstack/processing/tests/test_uc03_valores_limite.py), por isso cada valor aparece separadamente durante a execução. Os casos CT25 a CT27 são três verificações explícitas dentro do teste de contradição determinante.
+&emsp; Os casos CT02 a CT07 e CT16 a CT24 estão parametrizados em [`test_uc03_valores_limite.py`](../apps/fullstack/processing/tests/test_uc03_valores_limite.py), por isso cada valor aparece separadamente durante a execução. Os casos CT25 a CT27 são três verificações explícitas dentro do teste de contradição determinante.
 
-Nos casos CT02–CT07, o retorno do cálculo de score é controlado para observar apenas a classificação. Já os casos CT16–CT24 executam `score_features`. Para alcançar exatamente as coberturas de 0,79, 0,80 e 0,81, CT19–CT21 também controlam os pesos usados no cálculo. Dessa forma, é possível verificar a fronteira da decisão mesmo quando esses valores não surgem com os pesos padrão.
+&emsp; Nos casos CT02–CT07, o retorno do cálculo de score é controlado para observar apenas a classificação. Já os casos CT16–CT24 executam `score_features`. Para alcançar exatamente as coberturas de 0,79, 0,80 e 0,81, CT19–CT21 também controlam os pesos usados no cálculo. Dessa forma, é possível verificar a fronteira da decisão mesmo quando esses valores não surgem com os pesos padrão.
 
-CT30–CT32 executam o cálculo real, com candidata de `backend_internal`, fonte saudável e evidência contrária de força variável. As demais entradas são iguais. Além do estado, cada parâmetro verifica `score >= 40`, `coverage >= 0,50`, a penalidade `−30 × contradiction`, uma candidata avaliada e zero truncamentos. Isso distingue o descarte por contradição de um descarte causado por score, cobertura ou quantidade. O limite de 0,80 é diferente do limite de confiança de 0,50 coberto por CT25–CT27.
+&emsp; CT30–CT32 executam o cálculo real, com candidata de `backend_internal`, fonte saudável e evidência contrária de força variável. As demais entradas são iguais. Além do estado, cada parâmetro verifica `score >= 40`, `coverage >= 0,50`, a penalidade `−30 × contradiction`, uma candidata avaliada e zero truncamentos. Isso distingue o descarte por contradição de um descarte causado por score, cobertura ou quantidade. O limite de 0,80 é diferente do limite de confiança de 0,50 coberto por CT25–CT27.
 
-Os casos CT39–CT54, acrescentados em 24/09, saem dos trios (limite, −1, +1) e vão
+&emsp; Os casos CT39–CT54, acrescentados em 24/09, saem dos trios (limite, −1, +1) e vão
 até os extremos fora de faixa: os dois clamps de `score_features`, o de cada feature
 em 0..1 (linha 30 de `scoring.py`) e o do score final em 0..100 (linha 40), e o
 classificador de A1 recebendo valores que o scoring nunca produz. Três coisas ficaram
@@ -1338,54 +1338,54 @@ registradas. Contradição 1,00 só zera o score quando a base é menor que 30, 
 penalidade máxima é −30; sobre base 100 o resultado é 70 sem clamp. Uma contradição
 negativa é a única forma de acionar o clamp superior, já que a base nunca passa de
 100. E o classificador é um limiar puro, que aceita 100,01 e 1,01 e rejeita −0,01,
-de modo que a validação de faixa mora no scoring e não nas regras. A guarda de
+&emsp; de modo que a validação de faixa mora no scoring e não nas regras. A guarda de
 confiança lê a qualidade bruta, não a normalizada, e por isso −0,01 impede `high`
 mesmo com o Q da feature gravado como 0,00. Cada caso tem docstring com o valor e a
 razão, e todos rodam em memória (pré-condição P1).
 
 ### Fluxo principal, fluxos alternativos e exceções
 
-As tabelas mostram o que cada cenário conseguiu verificar. A situação **Aprovado** se refere às asserções daquele teste. As descrições de A1, E1 e E2 distinguem a classificação, a persistência, o registro do erro e a decisão de publicação para mostrar onde cada comportamento foi observado.
+&emsp; As tabelas mostram o que cada cenário conseguiu verificar. A situação Aprovado se refere às asserções daquele teste. As descrições de A1, E1 e E2 distinguem a classificação, a persistência, o registro do erro e a decisão de publicação para mostrar onde cada comportamento foi observado.
 
 | ID | Fluxo | Como foi testado | Esperado | Obtido | Situação |
 |---|---|---|---|---|---|
-| CT01 | Principal | Execução de `test_familias.py::test_backend_internal` com uma falha interna válida | Hipótese operacional `generated` com corroboração | Hipótese gerada com corroboração | **Aprovado** |
-| CT01b | Principal, oito passos | Formação, avaliação, ordenação e persistência de candidatas a partir de oito fatos capturados | Sete hipóteses com fatores, evidências, grupos, estados e estatísticas preservados | Cinco geradas, uma descartada e uma não avaliável; as cinco geradas visíveis na view sem publicação. A tabela específica detalha a verificação das oito etapas | **Aprovado** (24/09, regra da migration 032) |
-| CT02–CT07 | A1, classificação | Variação de score e coverage imediatamente abaixo, no limite e acima dos limiares de geração | `generated` quando score e coverage atingem os limites e `discarded` quando um deles fica abaixo | Os seis casos produziram as classificações esperadas. A publicação é verificada separadamente em CT29 | **Aprovado** |
-| CT08 | A2 | Avaliação com score máximo e evidência obrigatória ausente nos testes de limite e de regras | `insufficient_evidence` sem criar contradição | `insufficient_evidence` e contradição zero | **Aprovado** |
-| CT09a | A3, classificação | Score máximo injetado e contradiction 0,80 em `test_a3_contradicao_determinante_prevalece_sobre_score` | `discarded`, apesar do score 100 | `discarded`. A preservação no banco é verificada em CT09b | **Aprovado** |
-| CT09b | A3, justificativa | Avaliação real de candidata com contradição 0,80, seguida de `persist_result` e consulta ao banco | Descarte com força, polaridade e justificativa preservadas | `discarded`, força 0,80 e evidência `contrary` com o mesmo texto da entrada no banco | **Aprovado** |
-| CT10 | A4 | Execução de `test_familias.py::test_expected_live_peak` com pico esperado e com degradação real | Gerar contexto no primeiro cenário e descartar no segundo | Os dois cenários seguiram a regra esperada | **Aprovado** |
-| CT11 | A5 | Execução de `test_familias.py::test_source_data_delay` com fonte `prometheus` silenciosa e qualidade zero | Hipótese `generated` do tipo `data_quality` | Hipótese `generated` do tipo `data_quality` | **Aprovado** |
-| CT12a | E1, catálogo inválido | Inicialização real do serviço em subprocesso com JSON inválido em `sources.json` | Registrar a falha de configuração e encerrar sem iniciar workers ou publicar | Log JSON de nível `ERROR` com `processamento abortou` e `JSONDecodeError`, saída 1, stderr vazio e zero execuções, manifestos e eventos | **Aprovado** |
-| CT12b | E1, manifesto inválido | Um ciclo do worker com hash divergente do conteúdo canônico do manifesto | Registrar a rejeição antes de criar a execução ou publicar | Log de nível `ERROR` com `worker de analise: erro no ciclo` e `ValueError` explicando a divergência, com zero execuções, manifestos e eventos | **Aprovado** |
-| CT13a | E2, limite de geração | Avaliador recebe 499, 500 e 501 candidatas com score controlado | Quantidades geradas 499/500/500 e truncamentos 0/0/1 | Quantidades e contadores retornados conforme esperado, sem persistência nesse teste | **Aprovado** |
-| CT13b | E2, avaliação do portão | Inserção manual de execução concluída e estatística com `truncated=true`, seguida de chamada a `evaluate` | Identificar uma execução truncada e reprovar o critério | `truncated_runs == 1`, motivo `ha runs truncados` e zero eventos. O comando de promoção não foi executado | **Aprovado** |
-| CT13c | E2, motor até a decisão de publicação | Avaliação real de 500 e 501 candidatas, persistência do resultado e execução de `analysisctl evaluate-and-promote` | Publicar com 500 e impedir a promoção com 501 por causa do truncamento persistido; nos dois casos, as 500 geradas ficam visíveis para revisão e a recusa fica registrada | Com 500, saída 0, evento `published` e 500 hipóteses visíveis. Com 501, saída 2, único motivo `ha runs truncados`, zero eventos e as mesmas 500 hipóteses visíveis, com o truncamento em `gold.hypothesis_run_stats` | **Aprovado** (24/09, regra da migration 032) |
-| CT14a | E3, `deploy_regression` | Deploy de `billing` diante de efeito em `playback` | Não formar candidata de regressão por deploy | `candidatos == []` em `test_deploy_regression` | **Aprovado** |
-| CT14b | E3, `backend_internal` | Sinal de `apollo/billing` diante de anomalia em `newrelic/playback` | Não usar o sinal alheio como corroboração | `_feature(distante[0], "C").applicability == "unavailable"` para a hipótese formada | **Aprovado** |
-| CT15a | E4, transação protegida | Exceção após inserir uma anomalia em `commit_protegido` | Reverter anomalia e manter execução não concluída | Zero anomalias parciais e execução `running`. Uma nova tentativa conclui | **Aprovado** |
-| CT15b | E4, persistência completa | Falha SQL na estatística após gravar hipótese, fatores e evidências, com manifesto em sombra ou previamente publicado | Reverter os resultados, não expor a execução e não acrescentar publicação | Zero resultados parciais, execução `running`, views vazias para o run e eventos anteriores preservados | **Aprovado** |
-| CT28 | Pós-condições | Persistência dos três estados seguida da consulta de hipóteses, metadados, fatores, evidências e avaliações humanas | Estados e metadados preservados, um fator e uma evidência por hipótese, zero feedback | Três estados com score, cobertura, confiança e vínculos esperados. Contagens iguais a 1 e zero feedback | **Aprovado** |
-| CT29 | A1, visibilidade e publicação explícita | Avaliação e persistência reais, seguidas de chamada direta a `promote_manifest` | Hipótese visível assim que a execução conclui; a promoção grava o evento `published` sem mudar a leitura | Mesmo `hypothesis_id` na view antes e depois do evento `published` | **Aprovado** (24/09, regra da migration 032) |
+| CT01 | Principal | Execução de `test_familias.py::test_backend_internal` com uma falha interna válida | Hipótese operacional `generated` com corroboração | Hipótese gerada com corroboração | Aprovado |
+| CT01b | Principal, oito passos | Formação, avaliação, ordenação e persistência de candidatas a partir de oito fatos capturados | Sete hipóteses com fatores, evidências, grupos, estados e estatísticas preservados | Cinco geradas, uma descartada e uma não avaliável; as cinco geradas visíveis na view sem publicação. A tabela específica detalha a verificação das oito etapas | Aprovado (24/09, regra da migration 032) |
+| CT02–CT07 | A1, classificação | Variação de score e coverage imediatamente abaixo, no limite e acima dos limiares de geração | `generated` quando score e coverage atingem os limites e `discarded` quando um deles fica abaixo | Os seis casos produziram as classificações esperadas. A publicação é verificada separadamente em CT29 | Aprovado |
+| CT08 | A2 | Avaliação com score máximo e evidência obrigatória ausente nos testes de limite e de regras | `insufficient_evidence` sem criar contradição | `insufficient_evidence` e contradição zero | Aprovado |
+| CT09a | A3, classificação | Score máximo injetado e contradiction 0,80 em `test_a3_contradicao_determinante_prevalece_sobre_score` | `discarded`, apesar do score 100 | `discarded`. A preservação no banco é verificada em CT09b | Aprovado |
+| CT09b | A3, justificativa | Avaliação real de candidata com contradição 0,80, seguida de `persist_result` e consulta ao banco | Descarte com força, polaridade e justificativa preservadas | `discarded`, força 0,80 e evidência `contrary` com o mesmo texto da entrada no banco | Aprovado |
+| CT10 | A4 | Execução de `test_familias.py::test_expected_live_peak` com pico esperado e com degradação real | Gerar contexto no primeiro cenário e descartar no segundo | Os dois cenários seguiram a regra esperada | Aprovado |
+| CT11 | A5 | Execução de `test_familias.py::test_source_data_delay` com fonte `prometheus` silenciosa e qualidade zero | Hipótese `generated` do tipo `data_quality` | Hipótese `generated` do tipo `data_quality` | Aprovado |
+| CT12a | E1, catálogo inválido | Inicialização real do serviço em subprocesso com JSON inválido em `sources.json` | Registrar a falha de configuração e encerrar sem iniciar workers ou publicar | Log JSON de nível `ERROR` com `processamento abortou` e `JSONDecodeError`, saída 1, stderr vazio e zero execuções, manifestos e eventos | Aprovado |
+| CT12b | E1, manifesto inválido | Um ciclo do worker com hash divergente do conteúdo canônico do manifesto | Registrar a rejeição antes de criar a execução ou publicar | Log de nível `ERROR` com `worker de analise: erro no ciclo` e `ValueError` explicando a divergência, com zero execuções, manifestos e eventos | Aprovado |
+| CT13a | E2, limite de geração | Avaliador recebe 499, 500 e 501 candidatas com score controlado | Quantidades geradas 499/500/500 e truncamentos 0/0/1 | Quantidades e contadores retornados conforme esperado, sem persistência nesse teste | Aprovado |
+| CT13b | E2, avaliação do portão | Inserção manual de execução concluída e estatística com `truncated=true`, seguida de chamada a `evaluate` | Identificar uma execução truncada e reprovar o critério | `truncated_runs == 1`, motivo `ha runs truncados` e zero eventos. O comando de promoção não foi executado | Aprovado |
+| CT13c | E2, motor até a decisão de publicação | Avaliação real de 500 e 501 candidatas, persistência do resultado e execução de `analysisctl evaluate-and-promote` | Publicar com 500 e impedir a promoção com 501 por causa do truncamento persistido; nos dois casos, as 500 geradas ficam visíveis para revisão e a recusa fica registrada | Com 500, saída 0, evento `published` e 500 hipóteses visíveis. Com 501, saída 2, único motivo `ha runs truncados`, zero eventos e as mesmas 500 hipóteses visíveis, com o truncamento em `gold.hypothesis_run_stats` | Aprovado (24/09, regra da migration 032) |
+| CT14a | E3, `deploy_regression` | Deploy de `billing` diante de efeito em `playback` | Não formar candidata de regressão por deploy | `candidatos == []` em `test_deploy_regression` | Aprovado |
+| CT14b | E3, `backend_internal` | Sinal de `apollo/billing` diante de anomalia em `newrelic/playback` | Não usar o sinal alheio como corroboração | `_feature(distante[0], "C").applicability == "unavailable"` para a hipótese formada | Aprovado |
+| CT15a | E4, transação protegida | Exceção após inserir uma anomalia em `commit_protegido` | Reverter anomalia e manter execução não concluída | Zero anomalias parciais e execução `running`. Uma nova tentativa conclui | Aprovado |
+| CT15b | E4, persistência completa | Falha SQL na estatística após gravar hipótese, fatores e evidências, com manifesto em sombra ou previamente publicado | Reverter os resultados, não expor a execução e não acrescentar publicação | Zero resultados parciais, execução `running`, views vazias para o run e eventos anteriores preservados | Aprovado |
+| CT28 | Pós-condições | Persistência dos três estados seguida da consulta de hipóteses, metadados, fatores, evidências e avaliações humanas | Estados e metadados preservados, um fator e uma evidência por hipótese, zero feedback | Três estados com score, cobertura, confiança e vínculos esperados. Contagens iguais a 1 e zero feedback | Aprovado |
+| CT29 | A1, visibilidade e publicação explícita | Avaliação e persistência reais, seguidas de chamada direta a `promote_manifest` | Hipótese visível assim que a execução conclui; a promoção grava o evento `published` sem mudar a leitura | Mesmo `hypothesis_id` na view antes e depois do evento `published` | Aprovado (24/09, regra da migration 032) |
 
-O CT12a acompanha o tratamento do catálogo inválido no processo principal. O teste lê o log JSON emitido em `stdout` e confere a mensagem, o nível e a exceção registrada. Também verifica o código de saída e consulta o banco para confirmar que nenhum worker chegou a produzir uma execução ou publicação. A única substituição no subprocesso é o diretório de entrada do catálogo.
+&emsp; O CT12a acompanha o tratamento do catálogo inválido no processo principal. O teste lê o log JSON emitido em `stdout` e confere a mensagem, o nível e a exceção registrada. Também verifica o código de saída e consulta o banco para confirmar que nenhum worker chegou a produzir uma execução ou publicação. A única substituição no subprocesso é o diretório de entrada do catálogo.
 
-No CT12b, o conteúdo do catálogo permanece válido, mas o hash do manifesto é alterado para não corresponder ao conteúdo canônico. O worker executa um ciclo real de análise, e o `caplog` captura o registro de erro com sua justificativa. A duração do laço é controlada pelo teste. Os dois cenários comprovam o registro local do erro pelo serviço, sem avaliar o envio desses logs ao CloudWatch.
+&emsp; No CT12b, o conteúdo do catálogo permanece válido, mas o hash do manifesto é alterado para não corresponder ao conteúdo canônico. O worker executa um ciclo real de análise, e o `caplog` captura o registro de erro com sua justificativa. A duração do laço é controlada pelo teste. Os dois cenários comprovam o registro local do erro pelo serviço, sem avaliar o envio desses logs ao CloudWatch.
 
 ### Limites de quantidade
 
-Em CT13a, as entradas com 499, 500 e 501 candidatas válidas representam o valor imediatamente abaixo, o limite e o valor imediatamente acima. As duas primeiras são avaliadas sem truncamento. A terceira retorna 500 hipóteses `generated` e o contador `truncated` igual a 1.
+&emsp; Em CT13a, as entradas com 499, 500 e 501 candidatas válidas representam o valor imediatamente abaixo, o limite e o valor imediatamente acima. As duas primeiras são avaliadas sem truncamento. A terceira retorna 500 hipóteses `generated` e o contador `truncated` igual a 1.
 
-O CT13b parte de uma estatística inserida diretamente no banco e verifica que o avaliador do portão aponta o truncamento como motivo de reprovação. O CT13c acompanha o encadeamento que faltava: o motor avalia as candidatas, `persist_result` grava as hipóteses e as estatísticas, e o comando `analysisctl evaluate-and-promote` consulta esses mesmos dados para decidir a publicação.
+&emsp; O CT13b parte de uma estatística inserida diretamente no banco e verifica que o avaliador do portão aponta o truncamento como motivo de reprovação. O CT13c acompanha o encadeamento que faltava: o motor avalia as candidatas, `persist_result` grava as hipóteses e as estatísticas, e o comando `analysisctl evaluate-and-promote` consulta esses mesmos dados para decidir a publicação.
 
-No cenário com 500 candidatas, o comando termina com código 0 e registra `published`; as 500 hipóteses geradas já estão visíveis após a conclusão da execução. Com 501, o teste confirma 500 geradas, uma descartada pelo corte e `truncated=true` no banco. O comando termina com código 2 e apresenta apenas o motivo `ha runs truncados`. A tabela de eventos de publicação permanece vazia, mas as 500 hipóteses geradas continuam visíveis na view para revisão, conforme as migrations 032 e 033. A recusa impede a promoção e não oculta as hipóteses geradas.
+&emsp; No cenário com 500 candidatas, o comando termina com código 0 e registra `published`; as 500 hipóteses geradas já estão visíveis após a conclusão da execução. Com 501, o teste confirma 500 geradas, uma descartada pelo corte e `truncated=true` no banco. O comando termina com código 2 e apresenta apenas o motivo `ha runs truncados`. A tabela de eventos de publicação permanece vazia, mas as 500 hipóteses geradas continuam visíveis na view para revisão, conforme as migrations 032 e 033. A recusa impede a promoção e não oculta as hipóteses geradas.
 
-O CT13c usa candidatas sintéticas com escopos distintos e distribuídas entre as 11 famílias. A avaliação, o cálculo de score, a persistência e o comando de promoção são reais. A formação das candidatas por cada família é verificada em `test_familias.py`. Os valores de precisão, latência, SLA e confirmação da suíte são entradas controladas do comando, mantidas aprovadas para que somente o truncamento determine a diferença entre os dois resultados.
+&emsp; O CT13c usa candidatas sintéticas com escopos distintos e distribuídas entre as 11 famílias. A avaliação, o cálculo de score, a persistência e o comando de promoção são reais. A formação das candidatas por cada família é verificada em `test_familias.py`. Os valores de precisão, latência, SLA e confirmação da suíte são entradas controladas do comando, mantidas aprovadas para que somente o truncamento determine a diferença entre os dois resultados.
 
-CT33–CT38 usam os **limites padrão do motor** e o cálculo real de score. As candidatas têm escopos distintos, para evitar que sejam tratadas como duplicadas, e uma evidência obrigatória ausente. Por isso, recebem a classificação `insufficient_evidence`, o que impede que o teto de 500 geradas interfira no resultado. CT33–CT35 usam somente `backend_internal`. Já CT36–CT38 distribuem as entradas entre as 11 famílias, com no máximo 910 por família, abaixo do teto de 2.000.
+&emsp; CT33–CT38 usam os limites padrão do motor e o cálculo real de score. As candidatas têm escopos distintos, para evitar que sejam tratadas como duplicadas, e uma evidência obrigatória ausente. Por isso, recebem a classificação `insufficient_evidence`, o que impede que o teto de 500 geradas interfira no resultado. CT33–CT35 usam somente `backend_internal`. Já CT36–CT38 distribuem as entradas entre as 11 famílias, com no máximo 910 por família, abaixo do teto de 2.000.
 
-**Procedimento comum:** o teste cria as candidatas em memória e chama `evaluate_candidates` com os parâmetros padrão. Depois, confere os contadores de entrada, avaliação e truncamento, a quantidade de resultados, a unicidade das chaves e o estado de cada resultado. Todos os casos usam as pré-condições P1, e cada linha corresponde a um parâmetro separado do pytest. As colunas de resultado esperado e obtido apresentam `(recebidas, avaliadas, truncadas)`.
+&emsp; Procedimento comum: o teste cria as candidatas em memória e chama `evaluate_candidates` com os parâmetros padrão. Depois, confere os contadores de entrada, avaliação e truncamento, a quantidade de resultados, a unicidade das chaves e o estado de cada resultado. Todos os casos usam as pré-condições P1, e cada linha corresponde a um parâmetro separado do pytest. As colunas de resultado esperado e obtido apresentam `(recebidas, avaliadas, truncadas)`.
 
 | ID | Fluxo/condição e entrada | Esperado | Obtido | Situação |
 |---|---|---|---|---|
@@ -1396,7 +1396,7 @@ CT33–CT38 usam os **limites padrão do motor** e o cálculo real de score. As 
 | CT37 | E2: 10.000 candidatas no total, no teto | (10.000, 10.000, 0) | (10.000, 10.000, 0) | Aprovado |
 | CT38 | E2: 10.001 candidatas no total, acima do teto | (10.001, 10.000, 1) | (10.001, 10.000, 1) | Aprovado |
 
-As candidatas desses seis testes são preparadas diretamente como entradas sintéticas do avaliador. A formação pelas regras reais é verificada em CT01b e na suíte de famílias. A persistência e a recusa da promoção por truncamento continuam cobertas por CT13c. Os seis parâmetros aparecem no [log da ampliação](evidencias/uc03-ampliacao-pytest.txt) e no [JUnit](evidencias/uc03-ampliacao-junit.xml). A matriz abaixo indica os nós para reproduzir cada caso.
+&emsp; As candidatas desses seis testes são preparadas diretamente como entradas sintéticas do avaliador. A formação pelas regras reais é verificada em CT01b e na suíte de famílias. A persistência e a recusa da promoção por truncamento continuam cobertas por CT13c. Os seis parâmetros aparecem no [log da ampliação](evidencias/uc03-ampliacao-pytest.txt) e no [JUnit](evidencias/uc03-ampliacao-junit.xml). A matriz abaixo indica os nós para reproduzir cada caso.
 
 | Teste automatizado | O que ele confere |
 |---|---|
@@ -1412,34 +1412,34 @@ As candidatas desses seis testes são preparadas diretamente como entradas sint�
 
 ### Verificação depois do resultado
 
-A verificação não termina no retorno imediato da função. No CT28, o fluxo segue até o banco e depois consulta as informações persistidas, cobrindo os estados `generated`, `discarded` e `insufficient_evidence`, além de score, cobertura, confiança, `run_id`, `manifest_hash`, fatores e evidências.
+&emsp; A verificação não termina no retorno imediato da função. No CT28, o fluxo segue até o banco e depois consulta as informações persistidas, cobrindo os estados `generated`, `discarded` e `insufficient_evidence`, além de score, cobertura, confiança, `run_id`, `manifest_hash`, fatores e evidências.
 
-Na mesma consulta, `gold.hypothesis_feedback` deve continuar vazio, pois uma hipótese gerada ainda é somente uma candidata para análise humana e não pode aparecer automaticamente como causa confirmada.
+&emsp; Na mesma consulta, `gold.hypothesis_feedback` deve continuar vazio, pois uma hipótese gerada ainda é somente uma candidata para análise humana e não pode aparecer automaticamente como causa confirmada.
 
-No CT09b, uma candidata avaliada pelo motor é levada até o banco. A consulta confere o estado `discarded`, a força da contradição e o texto da justificativa preservada.
+&emsp; No CT09b, uma candidata avaliada pelo motor é levada até o banco. A consulta confere o estado `discarded`, a força da contradição e o texto da justificativa preservada.
 
-Os casos CT15a e CT15b observam o que acontece quando a persistência falha. O primeiro verifica a reversão da transação protegida. O segundo provoca uma falha SQL ao gravar a estatística, depois de inserir anomalia, hipótese, fatores e evidências. Ao consultar o banco novamente, o teste confirma que esses resultados foram desfeitos, que a execução continua `running` e que ela não aparece nas views.
+&emsp; Os casos CT15a e CT15b observam o que acontece quando a persistência falha. O primeiro verifica a reversão da transação protegida. O segundo provoca uma falha SQL ao gravar a estatística, depois de inserir anomalia, hipótese, fatores e evidências. Ao consultar o banco novamente, o teste confirma que esses resultados foram desfeitos, que a execução continua `running` e que ela não aparece nas views.
 
-Como os eventos de publicação pertencem ao manifesto, o CT15b considera duas situações. Quando o manifesto está em sombra, a falha mantém a contagem de eventos em zero. Quando ele já foi publicado, o evento anterior permanece e nenhum novo evento é criado. Nos dois casos, a execução que falhou fica sem exposição parcial.
+&emsp; Como os eventos de publicação pertencem ao manifesto, o CT15b considera duas situações. Quando o manifesto está em sombra, a falha mantém a contagem de eventos em zero. Quando ele já foi publicado, o evento anterior permanece e nenhum novo evento é criado. Nos dois casos, a execução que falhou fica sem exposição parcial.
 
-O CT29 acompanha separadamente a visibilidade e a publicação de uma hipótese concluída. O teste `test_analysis_pipeline.py::test_pipeline_captura_checkpoint_e_expõe_run_concluido_sem_gate` complementa essa verificação com a captura e a visibilidade da execução sem passar pelo portão, e `test_generated_visibility.py` cobre a exibição de todas as revisões geradas.
+&emsp; O CT29 acompanha separadamente a visibilidade e a publicação de uma hipótese concluída. O teste `test_analysis_pipeline.py::test_pipeline_captura_checkpoint_e_expõe_run_concluido_sem_gate` complementa essa verificação com a captura e a visibilidade da execução sem passar pelo portão, e `test_generated_visibility.py` cobre a exibição de todas as revisões geradas.
 
 ### Matriz de rastreabilidade e reprodução por caso
 
-Todos os casos se relacionam ao **UC03 / RF17 / RNF08**. O ID liga cada linha às entradas, ao resultado esperado, ao obtido e à situação nas tabelas anteriores. Os desdobramentos `a`, `b` e `c` distinguem cenários e etapas da verificação sem renumerar os demais CTs.
+&emsp; Todos os casos se relacionam ao UC03 / RF17 / RNF08. O ID liga cada linha às entradas, ao resultado esperado, ao obtido e à situação nas tabelas anteriores. Os desdobramentos `a`, `b` e `c` distinguem cenários e etapas da verificação sem renumerar os demais CTs.
 
-Pré-condições compartilhadas, referenciadas individualmente na matriz:
+&emsp; Pré-condições compartilhadas, referenciadas individualmente na matriz:
 
-- **P1:** ambiente Python/uv do processamento, catálogo válido e dados sintéticos definidos no nó. Esses testes rodam em memória.
-- **P2:** preparação de P1 com PostgreSQL 16 de teste e migrations aplicadas. A fixture `db` limpa os dados antes do caso e `checkpoint` prepara o checkpoint quando solicitado pelo nó.
-- **P3:** P2 e fixture `uc03_execution`, que insere um fato de `newrelic/playback`, executa os dois ETLs, registra o manifesto, captura o fato e inicia o trabalho.
-- **P4:** preparação de P2 com `sources.json` temporário contendo `{invalido`, substituindo o catálogo válido. O banco começa sem execuções ou publicações.
-- **P5:** preparação de P2 com checkpoint e catálogo válido, mas `manifest_hash` substituído por 64 zeros para provocar divergência em relação ao conteúdo canônico.
-- **P6:** P2 com as seis mudanças sintéticas de CT01b, oito fatos obtidos pelos ETLs, manifesto registrado e fotografia capturada. Anomalias e qualidade são entradas controladas do UC02, descritas na tabela dos oito passos.
+- P1: ambiente Python/uv do processamento, catálogo válido e dados sintéticos definidos no nó. Esses testes rodam em memória.
+- P2: preparação de P1 com PostgreSQL 16 de teste e migrations aplicadas. A fixture `db` limpa os dados antes do caso e `checkpoint` prepara o checkpoint quando solicitado pelo nó.
+- P3: P2 e fixture `uc03_execution`, que insere um fato de `newrelic/playback`, executa os dois ETLs, registra o manifesto, captura o fato e inicia o trabalho.
+- P4: preparação de P2 com `sources.json` temporário contendo `{invalido`, substituindo o catálogo válido. O banco começa sem execuções ou publicações.
+- P5: preparação de P2 com checkpoint e catálogo válido, mas `manifest_hash` substituído por 64 zeros para provocar divergência em relação ao conteúdo canônico.
+- P6: P2 com as seis mudanças sintéticas de CT01b, oito fatos obtidos pelos ETLs, manifesto registrado e fotografia capturada. Anomalias e qualidade são entradas controladas do UC02, descritas na tabela dos oito passos.
 
-Os prefixos dos nós abaixo são abreviações de arquivos em `apps/fullstack/processing/tests/`: **U** = [`test_uc03_valores_limite.py`](../apps/fullstack/processing/tests/test_uc03_valores_limite.py), **F** = [`test_familias.py`](../apps/fullstack/processing/tests/test_familias.py), **R** = [`test_rules.py`](../apps/fullstack/processing/tests/test_rules.py), **G** = [`test_analysisctl.py`](../apps/fullstack/processing/tests/test_analysisctl.py) e **T** = [`test_fencing.py`](../apps/fullstack/processing/tests/test_fencing.py).
+&emsp; Os prefixos dos nós abaixo são abreviações de arquivos em `apps/fullstack/processing/tests/`: U = [`test_uc03_valores_limite.py`](../apps/fullstack/processing/tests/test_uc03_valores_limite.py), F = [`test_familias.py`](../apps/fullstack/processing/tests/test_familias.py), R = [`test_rules.py`](../apps/fullstack/processing/tests/test_rules.py), G = [`test_analysisctl.py`](../apps/fullstack/processing/tests/test_analysisctl.py) e T = [`test_fencing.py`](../apps/fullstack/processing/tests/test_fencing.py).
 
-As verificações da matriz foram executadas na [ampliação de cobertura](#ampliação-de-cobertura-dos-oito-passos-e-dos-tetos-reais), incluindo os novos CT01b e CT30–CT38. Os extremos CT39–CT54 entraram em 24/09 e foram executados na reexecução registrada em [`evidencias/uc03-ampliacao-ambiente-2026-09-24.txt`](evidencias/uc03-ampliacao-ambiente-2026-09-24.txt). A última coluna resume a evidência observada em cada caso. Para reproduzir uma linha, substitua o prefixo pelo nome do arquivo, acrescente `tests/` e execute o nó indicado a partir da raiz do repositório:
+&emsp; As verificações da matriz foram executadas na [ampliação de cobertura](#ampliação-de-cobertura-dos-oito-passos-e-dos-tetos-reais), incluindo os novos CT01b e CT30–CT38. Os extremos CT39–CT54 entraram em 24/09 e foram executados na reexecução registrada em [`evidencias/uc03-ampliacao-ambiente-2026-09-24.txt`](evidencias/uc03-ampliacao-ambiente-2026-09-24.txt). A última coluna resume a evidência observada em cada caso. Para reproduzir uma linha, substitua o prefixo pelo nome do arquivo, acrescente `tests/` e execute o nó indicado a partir da raiz do repositório:
 
 ```bash
 # Exemplo: CT03. Troque NO pelo nó da linha que deseja reproduzir.
@@ -1447,7 +1447,7 @@ NO='tests/test_uc03_valores_limite.py::test_a1_limites_de_geracao[score-no-limit
 PYTEST_ADDOPTS="-vv -p no:cacheprovider $NO" make -C apps/fullstack test-processing
 ```
 
-P2–P6 exigem o banco local preparado pelo comando da próxima seção. Se a linha indicar dois nós, execute ambos. CT25–CT27 são asserções do mesmo nó e rodam juntas. CT13c e CT15b têm dois parâmetros cada, e a reprodução completa inclui ambos. O cenário é confirmado quando o nó aparece como `PASSED`, sem `SKIPPED`.
+&emsp; P2–P6 exigem o banco local preparado pelo comando da próxima seção. Se a linha indicar dois nós, execute ambos. CT25–CT27 são asserções do mesmo nó e rodam juntas. CT13c e CT15b têm dois parâmetros cada, e a reprodução completa inclui ambos. O cenário é confirmado quando o nó aparece como `PASSED`, sem `SKIPPED`.
 
 | ID | Fluxo e objetivo | Pré-condições | Procedimento / nó pytest | Verificação na versão final |
 |---|---|---|---|---|
@@ -1517,11 +1517,11 @@ P2–P6 exigem o banco local preparado pelo comando da próxima seção. Se a li
 
 #### Versão inicial dos testes
 
-A versão inicial reuniu 22 testes específicos do UC03, além dos cenários de famílias, regras e persistência presentes nos outros arquivos. A execução foi feita em WSL com Python 3.12.3, pytest 9.1.1 e PostgreSQL 16 local, com as migrations aplicadas no banco `argus_test`.
+&emsp; A versão inicial reuniu 22 testes específicos do UC03, além dos cenários de famílias, regras e persistência presentes nos outros arquivos. A execução foi feita em WSL com Python 3.12.3, pytest 9.1.1 e PostgreSQL 16 local, com as migrations aplicadas no banco `argus_test`.
 
-Os testes passaram nas condições avaliadas. Ao comparar suas asserções com o caso de uso, porém, percebemos que alguns resultados precisavam de verificações adicionais. O estado `discarded`, por exemplo, mostrava que a candidata havia sido descartada, mas ainda faltava conferir a justificativa salva no banco. A classificação `generated` também precisava ser acompanhada separadamente até a publicação.
+&emsp; Os testes passaram nas condições avaliadas. Ao comparar suas asserções com o caso de uso, porém, percebemos que alguns resultados precisavam de verificações adicionais. O estado `discarded`, por exemplo, mostrava que a candidata havia sido descartada, mas ainda faltava conferir a justificativa salva no banco. A classificação `generated` também precisava ser acompanhada separadamente até a publicação.
 
-Os comandos usados nessa versão foram:
+&emsp; Os comandos usados nessa versão foram:
 
 ```bash
 make -C apps/fullstack db-local
@@ -1544,35 +1544,53 @@ TEST_DATABASE_URL=postgresql://argus:argus@localhost:55432/argus_test \
 | Falhas, erros e testes ignorados exibidos | Nenhum |
 | Ruff, análise estática e formatação | Aprovado |
 
-As capturas abaixo registram essa primeira execução, desde a preparação do banco até os resultados do pytest. Os cenários acrescentados na versão final são apresentados na próxima parte.
+&emsp; As capturas abaixo registram essa primeira execução, desde a preparação do banco até os resultados do pytest. Os cenários acrescentados na versão final são apresentados na próxima parte.
+
+<div align="center">
+
+<sub>Figura 1 - Preparação do PostgreSQL e aplicação das migrations para a versão inicial.</sub>
 
 ![Preparação do PostgreSQL e aplicação das migrations](assets/uc03-terminal-banco.png)
 
-*Figura 1 - Preparação do PostgreSQL e aplicação das migrations para a versão inicial.*
+<sup>Fonte: autoria própria (2026).</sup>
+
+</div>
+
+<div align="center">
+
+<sub>Figura 2 - Ruff e suíte completa do processamento na versão inicial.</sub>
 
 ![Ruff e conjunto completo de testes do processamento](assets/uc03-terminal-suite-completa.png)
 
-*Figura 2 - Ruff e suíte completa do processamento na versão inicial.*
+<sup>Fonte: autoria própria (2026).</sup>
+
+</div>
+
+<div align="center">
+
+<sub>Figura 3 - Execução dos 22 testes específicos do UC03 na versão inicial.</sub>
 
 ![Execução nominal dos testes do UC03](assets/uc03-terminal-suite-uc03.png)
 
-*Figura 3 - Execução dos 22 testes específicos do UC03 na versão inicial.*
+<sup>Fonte: autoria própria (2026).</sup>
 
-Na execução completa, o modo `-q` mostrou 88 pontos de progresso e `[100%]`, sem uma frase com o total de aprovações. Por isso a tabela mantém esse formato de registro. Na execução específica do UC03, o pytest apresentou os casos individualmente e informou `22 passed in 20.65s`.
+</div>
+
+&emsp; Na execução completa, o modo `-q` mostrou 88 pontos de progresso e `[100%]`, sem uma frase com o total de aprovações. Por isso a tabela mantém esse formato de registro. Na execução específica do UC03, o pytest apresentou os casos individualmente e informou `22 passed in 20.65s`.
 
 #### Versão de 29 testes 
 
-Esta rodada foi realizada antes da inclusão de CT01b e CT30–CT38. As imagens a seguir preservam os resultados daquela execução. Os resultados da ampliação estão na próxima subseção, acompanhados da saída original do terminal e do relatório JUnit.
+&emsp; Esta rodada foi realizada antes da inclusão de CT01b e CT30–CT38. As imagens a seguir preservam os resultados daquela execução. Os resultados da ampliação estão na próxima subseção, acompanhados da saída original do terminal e do relatório JUnit.
 
-A versão final ampliou os 22 testes específicos para 29 casos executáveis, incluindo os parâmetros coletados pelo pytest. O CT09b passou a conferir a justificativa de descarte persistida. O CT29 acompanhou uma hipótese até o evento de publicação e sua exibição na view. O CT15b foi executado em duas condições, com o manifesto em sombra e com ele já publicado, para verificar a ausência de resultados parciais após uma falha SQL.
+&emsp; A versão final ampliou os 22 testes específicos para 29 casos executáveis, incluindo os parâmetros coletados pelo pytest. O CT09b passou a conferir a justificativa de descarte persistida. O CT29 acompanhou uma hipótese até o evento de publicação e sua exibição na view. O CT15b foi executado em duas condições, com o manifesto em sombra e com ele já publicado, para verificar a ausência de resultados parciais após uma falha SQL.
 
-O CT12 passou a observar o tratamento do erro no serviço, além da rejeição da entrada inválida. O cenário de catálogo foi refeito para verificar o log JSON e o encerramento, e um novo cenário conferiu o log do worker diante de um manifesto inconsistente.
+&emsp; O CT12 passou a observar o tratamento do erro no serviço, além da rejeição da entrada inválida. O cenário de catálogo foi refeito para verificar o log JSON e o encerramento, e um novo cenário conferiu o log do worker diante de um manifesto inconsistente.
 
-A primeira execução do teste de catálogo revelou uma falha no encerramento: o serviço tentava aguardar threads que ainda não tinham sido iniciadas e lançava uma segunda exceção. Para corrigir isso, foi adicionada a condição `if t.ident is not None` antes da chamada `t.join(timeout=30)` no bloco `finally` de [`__main__.py`](../apps/fullstack/processing/src/argus_processing/__main__.py). Essa condição verifica se a thread chegou a ser iniciada antes de aguardar seu término. Com o ajuste, o serviço registra o erro original, fecha a conexão com o banco e encerra com código 1, sem lançar a segunda exceção.
+&emsp; A primeira execução do teste de catálogo revelou uma falha no encerramento: o serviço tentava aguardar threads que ainda não tinham sido iniciadas e lançava uma segunda exceção. Para corrigir isso, foi adicionada a condição `if t.ident is not None` antes da chamada `t.join(timeout=30)` no bloco `finally` de [`__main__.py`](../apps/fullstack/processing/src/argus_processing/__main__.py). Essa condição verifica se a thread chegou a ser iniciada antes de aguardar seu término. Com o ajuste, o serviço registra o erro original, fecha a conexão com o banco e encerra com código 1, sem lançar a segunda exceção.
 
-O CT13 manteve separados o limite de geração e a avaliação isolada do portão. Também recebeu o CT13c, que leva o resultado do motor até o banco e executa o comando de promoção com 500 e 501 candidatas. Assim, a decisão de publicar ou recusar passou a ser observada no mesmo cenário que produz as estatísticas. O CT14 passou a identificar a família e a asserção de cada cenário. As entradas das tabelas de confiança foram alinhadas aos valores usados no código, e a matriz passou a reunir o objetivo, a preparação, o procedimento e a reprodução de cada caso.
+&emsp; O CT13 manteve separados o limite de geração e a avaliação isolada do portão. Também recebeu o CT13c, que leva o resultado do motor até o banco e executa o comando de promoção com 500 e 501 candidatas. Assim, a decisão de publicar ou recusar passou a ser observada no mesmo cenário que produz as estatísticas. O CT14 passou a identificar a família e a asserção de cada cenário. As entradas das tabelas de confiança foram alinhadas aos valores usados no código, e a matriz passou a reunir o objetivo, a preparação, o procedimento e a reprodução de cada caso.
 
-A execução final usou WSL/Linux, Python 3.12.3, pytest 9.1.1 e PostgreSQL 16. O banco de teste foi preparado no container `argus-uc03-review-pg`, na porta 55432, com as 29 migrations aplicadas. Os comandos abaixo partem da raiz do repositório:
+&emsp; A execução final usou WSL/Linux, Python 3.12.3, pytest 9.1.1 e PostgreSQL 16. O banco de teste foi preparado no container `argus-uc03-review-pg`, na porta 55432, com as 29 migrations aplicadas. Os comandos abaixo partem da raiz do repositório:
 
 ```bash
 make -C apps/fullstack db-local PG_CONTAINER=argus-uc03-review-pg
@@ -1595,27 +1613,45 @@ uv run ruff format --check --no-cache src tests
 | Ruff, análise estática | `All checks passed!` |
 | Ruff, formatação | `27 files already formatted` |
 
-Alguns CTs compartilham um teste com várias asserções, enquanto CT13c e CT15b aparecem duas vezes cada por causa dos parâmetros. A matriz permite localizar essas correspondências e reproduzir cada caso.
+&emsp; Alguns CTs compartilham um teste com várias asserções, enquanto CT13c e CT15b aparecem duas vezes cada por causa dos parâmetros. A matriz permite localizar essas correspondências e reproduzir cada caso.
 
-As imagens abaixo reproduzem a saída do terminal da execução apresentada nesta versão. O conteúdo foi organizado para facilitar a leitura, preservando os comandos, os resultados e os tempos registrados.
+&emsp; As imagens abaixo reproduzem a saída do terminal da execução apresentada nesta versão. O conteúdo foi organizado para facilitar a leitura, preservando os comandos, os resultados e os tempos registrados.
+
+<div align="center">
+
+<sub>Figura 4 - Preparação do banco utilizado na versão final dos testes.</sub>
 
 ![Preparação do PostgreSQL e aplicação das 29 migrations na versão final](assets/uc03-final-terminal-banco.png)
 
-*Figura 4 - Preparação do banco utilizado na versão final dos testes.*
+<sup>Fonte: autoria própria (2026).</sup>
+
+</div>
+
+<div align="center">
+
+<sub>Figura 5 - Execução dos 29 testes específicos do UC03, incluindo as novas verificações de persistência, publicação e tratamento de erros.</sub>
 
 ![Saída dos 29 testes específicos do UC03 aprovados na versão final](assets/uc03-final-terminal-suite-uc03.png)
 
-*Figura 5 - Execução dos 29 testes específicos do UC03, incluindo as novas verificações de persistência, publicação e tratamento de erros.*
+<sup>Fonte: autoria própria (2026).</sup>
+
+</div>
+
+<div align="center">
+
+<sub>Figura 6 - Suíte completa do processamento e verificações de análise estática e formatação aprovadas na versão final.</sub>
 
 ![Saída dos 95 testes do processamento aprovados e das verificações do Ruff](assets/uc03-final-terminal-suite-completa.png)
 
-*Figura 6 - Suíte completa do processamento e verificações de análise estática e formatação aprovadas na versão final.*
+<sup>Fonte: autoria própria (2026).</sup>
+
+</div>
 
 #### Ampliação de cobertura dos oito passos e dos tetos reais
 
-Nessa versão foram acrescentados dez casos executáveis: CT01b, que verifica os oito passos no mesmo cenário até a persistência, e os nove parâmetros de CT30–CT38. O arquivo específico do UC03 passou de 29 para **39 testes**, e a suíte completa de processamento passou de 95 para **105 testes**. A análise, os limites e as regras de produção foram preservados.
+&emsp; Nessa versão foram acrescentados dez casos executáveis: CT01b, que verifica os oito passos no mesmo cenário até a persistência, e os nove parâmetros de CT30–CT38. O arquivo específico do UC03 passou de 29 para 39 testes, e a suíte completa de processamento passou de 95 para 105 testes. A análise, os limites e as regras de produção foram preservados.
 
-Esta rodada usou WSL/Linux, Python 3.12.3, pytest 9.1.1 e PostgreSQL 16.15. O banco local `argus_test` já estava disponível na porta 55432. A fixture `_migrated` cuidou da verificação e aplicação das migrations necessárias, e `db` limpou os dados antes de cada caso. As evidências estão nos seguintes arquivos:
+&emsp; Esta rodada usou WSL/Linux, Python 3.12.3, pytest 9.1.1 e PostgreSQL 16.15. O banco local `argus_test` já estava disponível na porta 55432. A fixture `_migrated` cuidou da verificação e aplicação das migrations necessárias, e `db` limpou os dados antes de cada caso. As evidências estão nos seguintes arquivos:
 
 - [`evidencias/uc03-ampliacao-pytest.txt`](evidencias/uc03-ampliacao-pytest.txt)[^basica]: saída original da execução completa, com cada nó e sua situação.
 - [`evidencias/uc03-ampliacao-junit.xml`](evidencias/uc03-ampliacao-junit.xml): relatório produzido pelo pytest, com contagens e tempos por teste.
@@ -1630,7 +1666,7 @@ Esta rodada usou WSL/Linux, Python 3.12.3, pytest 9.1.1 e PostgreSQL 16.15. O ba
 | Ruff, análise estática | `All checks passed!` | Aprovado |
 | Ruff, formatação | `27 files already formatted` | Aprovado |
 
-Para reproduzir em Linux/WSL com `uv`, `make` e o banco de teste disponíveis, execute na raiz do repositório:
+&emsp; Para reproduzir em Linux/WSL com `uv`, `make` e o banco de teste disponíveis, execute na raiz do repositório:
 
 ```bash
 mkdir -p artefatos/evidencias
@@ -1644,18 +1680,18 @@ uv run ruff check --no-cache src tests
 uv run ruff format --check --no-cache src tests
 ```
 
-O caminho do JUnit é relativo ao diretório `processing`, pois o alvo do Makefile entra nessa pasta antes de chamar o pytest. Nesta rodada, foi reaproveitado o banco de teste existente.
+&emsp; O caminho do JUnit é relativo ao diretório `processing`, pois o alvo do Makefile entra nessa pasta antes de chamar o pytest. Nesta rodada, foi reaproveitado o banco de teste existente.
 
 #### Extremos fora de faixa e reexecução de 24/09, 55 testes
 
-Em 24/09 o arquivo ganhou os dezesseis casos CT39–CT54, que levam o cálculo aos
+&emsp; Em 24/09 o arquivo ganhou os dezesseis casos CT39–CT54, que levam o cálculo aos
 extremos fora de faixa descritos na seção de valores-limite: contradição 1,00 e −0,01,
 feature 1,01 e −0,01, cobertura 0,00 e 1,00 por convenção, qualidade −0,01 e 1,01, e o
 classificador com score 100,00, 100,01 e −0,01 e cobertura 0,00, −0,01 e 1,01. O
-arquivo passou de 39 para **55 testes**, e a suíte do processamento de 105 para
-**121**. Todos os novos casos rodam em memória.
+arquivo passou de 39 para 55 testes, e a suíte do processamento de 105 para
+121. Todos os novos casos rodam em memória.
 
-A suíte específica do UC03 foi reexecutada com e sem banco no commit `75a4889`, em
+&emsp; A suíte específica do UC03 foi reexecutada com e sem banco no commit `75a4889`, em
 macOS 15 (Darwin 25.6.0, Apple M2), Python 3.14.7, pytest 9.1.1 e PostgreSQL 16.15
 num container `postgres:16` descartável. As evidências desta rodada são:
 
@@ -1671,7 +1707,7 @@ num container `postgres:16` descartável. As evidências desta rodada são:
 | Ruff, análise estática | `All checks passed!` | Aprovado |
 | Ruff, formatação | `31 files already formatted` | Aprovado |
 
-Os três reprovados são CT01b (`test_fluxo_principal_oito_passos_com_persistencia`),
+&emsp; Os três reprovados são CT01b (`test_fluxo_principal_oito_passos_com_persistencia`),
 CT29 (`test_a1_hipotese_so_fica_visivel_apos_publicacao_do_manifesto`) e
 CT13c[acima] (`test_e2_motor_persiste_truncamento_e_cli_decide_promocao[acima]`).
 Os três afirmavam que uma hipótese gerada só aparece em `gold.v_hypothesis` depois da
@@ -1687,7 +1723,7 @@ o manifesto por truncamento; os demais passos dos três testes, incluindo a
 persistência e a recusa do portão, passavam. A rodada registrou as falhas sem
 alterar os testes, e a decisão de produto veio a seguir.
 
-Para reproduzir, a partir da raiz do repositório e com Docker disponível:
+&emsp; Para reproduzir, a partir da raiz do repositório e com Docker disponível:
 
 ```bash
 docker run -d --name argus-uc03-pg -e POSTGRES_USER=argus -e POSTGRES_PASSWORD=x \
@@ -1732,7 +1768,7 @@ testes executado é `BE3E0E538F0CCB6E21453EA152CA4B2E14CDBD32BD7479C69ED029EDC25
 | Ruff, análise estática | `All checks passed!` | Aprovado |
 | Ruff, formatação | `31 files already formatted` | Aprovado |
 
-Para reproduzir, a partir da raiz do repositório e com Docker disponível:
+&emsp; Para reproduzir, a partir da raiz do repositório e com Docker disponível:
 
 ```bash
 docker run -d --name argus-uc03-pg -e POSTGRES_USER=argus -e POSTGRES_PASSWORD=x \
@@ -1746,17 +1782,17 @@ docker rm -f argus-uc03-pg
 
 ### O que os resultados mostraram
 
-A versão inicial verificou as decisões do motor, os valores-limite e parte da persistência dos resultados. Para finalizar os testes do UC03, essa base foi ampliada com novas verificações que acompanham a justificativa do descarte, o tratamento de erros e a publicação das hipóteses.
+&emsp; A versão inicial verificou as decisões do motor, os valores-limite e parte da persistência dos resultados. Para finalizar os testes do UC03, essa base foi ampliada com novas verificações que acompanham a justificativa do descarte, o tratamento de erros e a publicação das hipóteses.
 
-Os novos casos confirmaram que a justificativa contrária permanece no banco depois do descarte e que uma hipótese gerada aparece na view assim que a execução conclui, com a publicação do manifesto registrada como auditoria, regra adotada pelas migrations 032 e 033 em 24/09. Também confirmaram a reversão dos resultados quando a gravação falha, inclusive quando o manifesto já estava publicado. Essas verificações deram evidência direta para comportamentos que antes eram sustentados apenas por partes separadas da suíte.
+&emsp; Os novos casos confirmaram que a justificativa contrária permanece no banco depois do descarte e que uma hipótese gerada aparece na view assim que a execução conclui, com a publicação do manifesto registrada como auditoria, regra adotada pelas migrations 032 e 033 em 24/09. Também confirmaram a reversão dos resultados quando a gravação falha, inclusive quando o manifesto já estava publicado. Essas verificações deram evidência direta para comportamentos que antes eram sustentados apenas por partes separadas da suíte.
 
-A separação de CT13 e CT14 ajudou a distinguir resultados que tinham sido reunidos na mesma descrição. No CT13, os testes isolados passaram a ser complementados por uma execução integrada, com a publicação no limite e a recusa acima dele. No CT14, ficou claro por que uma família deixa de formar a candidata enquanto outra mantém a hipótese com a corroboração indisponível.
+&emsp; A separação de CT13 e CT14 ajudou a distinguir resultados que tinham sido reunidos na mesma descrição. No CT13, os testes isolados passaram a ser complementados por uma execução integrada, com a publicação no limite e a recusa acima dele. No CT14, ficou claro por que uma família deixa de formar a candidata enquanto outra mantém a hipótese com a corroboração indisponível.
 
-Os testes de E1 mostraram por que observar o tratamento da falha faz diferença. A rejeição do catálogo já existia, mas acompanhar o processo até o encerramento revelou uma segunda exceção que o teste anterior não percebia. Na versão final, o catálogo inválido e o manifesto inconsistente deixam registros verificáveis e não produzem publicação.
+&emsp; Os testes de E1 mostraram por que observar o tratamento da falha faz diferença. A rejeição do catálogo já existia, mas acompanhar o processo até o encerramento revelou uma segunda exceção que o teste anterior não percebia. Na versão final, o catálogo inválido e o manifesto inconsistente deixam registros verificáveis e não produzem publicação.
 
-Com essas verificações, E1 passou a ter evidência do registro do erro e E2 passou a ter evidência do caminho entre o corte do motor e a recusa da promoção. O alcance dos cenários permanece explícito: os logs são conferidos localmente, as candidatas do CT13c são sintéticas e os indicadores externos fornecidos ao portão são controlados. A aprovação comprova os comportamentos descritos nas tabelas, sem substituir uma medição de precisão ou desempenho em produção.
+&emsp; Com essas verificações, E1 passou a ter evidência do registro do erro e E2 passou a ter evidência do caminho entre o corte do motor e a recusa da promoção. O alcance dos cenários permanece explícito: os logs são conferidos localmente, as candidatas do CT13c são sintéticas e os indicadores externos fornecidos ao portão são controlados. A aprovação comprova os comportamentos descritos nas tabelas, sem substituir uma medição de precisão ou desempenho em produção.
 
-A ampliação passou a verificar cada um dos oito passos do fluxo principal e os valores abaixo, no limite e acima dos tetos de 2.000 e 10.000 candidatas. Também distinguiu a fronteira de descarte por contradição em 0,80 da fronteira de confiança em 0,50. No cenário integrado, as entradas do UC02 são controladas, enquanto a formação, a avaliação, o agrupamento e a gravação do UC03 usam as implementações reais. Os testes de quantidade avaliam cada teto separadamente, evitando que o corte de 500 geradas interfira nos outros resultados.
+&emsp; A ampliação passou a verificar cada um dos oito passos do fluxo principal e os valores abaixo, no limite e acima dos tetos de 2.000 e 10.000 candidatas. Também distinguiu a fronteira de descarte por contradição em 0,80 da fronteira de confiança em 0,50. No cenário integrado, as entradas do UC02 são controladas, enquanto a formação, a avaliação, o agrupamento e a gravação do UC03 usam as implementações reais. Os testes de quantidade avaliam cada teto separadamente, evitando que o corte de 500 geradas interfira nos outros resultados.
 
 ## Testes de carga
 
@@ -1783,31 +1819,31 @@ falha, e o percentil 95 abaixo de 1 s mesmo com 100 usuários.
 
 ### Vocabulário usado nesta seção
 
-&emsp; **Usuário virtual, ou VU**, é a unidade de carga do k6: um laço que abre uma
+&emsp; Usuário virtual, ou VU, é a unidade de carga do k6: um laço que abre uma
 tela, espera um pouco e abre a próxima, como faria uma pessoa. Cem VUs são cem
 pessoas navegando ao mesmo tempo, não cem requisições por segundo.
 
-&emsp; **Tempo de pensar**, do inglês think time, é a pausa entre uma tela e a
+&emsp; Tempo de pensar, do inglês think time, é a pausa entre uma tela e a
 seguinte. Sem ela, cada VU seria um laço apertado contra a API e a medida deixaria de
 representar uso humano. Aqui são 2 s, e o valor está registrado porque muda o
 volume: quanto menor a pausa, mais requisições por usuário.
 
-&emsp; **p50, p95 e p99** são percentis do tempo de resposta. Um p95 de 802 ms
+&emsp; p50, p95 e p99 são percentis do tempo de resposta. Um p95 de 802 ms
 significa que 95% das requisições foram respondidas em até 802 ms; o p99 olha para o
 1% mais lento. O percentil diz mais do que a média, porque a média esconde a cauda
 que o usuário percebe.
 
-&emsp; **ALB**, de Application Load Balancer, é o balanceador da AWS que recebe a
+&emsp; ALB, de Application Load Balancer, é o balanceador da AWS que recebe a
 requisição do dashboard e a distribui entre as instâncias EC2 que rodam a API. O
-**grupo de auto scaling**, ou ASG, é o conjunto dessas instâncias, com uma política
-de **target tracking**: uma meta de requisições por instância por minuto, acima da
+grupo de auto scaling, ou ASG, é o conjunto dessas instâncias, com uma política
+de target tracking: uma meta de requisições por instância por minuto, acima da
 qual o grupo cresce e abaixo da qual encolhe.
 
-&emsp; **HTTP 502**, ou bad gateway, é a resposta que um intermediário dá quando não
+&emsp; HTTP 502, ou bad gateway, é a resposta que um intermediário dá quando não
 consegue uma resposta válida de quem está atrás dele. Quando quem emite o 502 é o
 próprio balanceador, e não a aplicação, o problema está na conversa entre os dois.
 
-&emsp; **Keep-alive** é a reutilização de uma conexão TCP para várias requisições
+&emsp; Keep-alive é a reutilização de uma conexão TCP para várias requisições
 seguidas. Balanceador e servidor precisam concordar sobre quanto tempo uma conexão
 ociosa fica aberta; se o servidor a fecha antes do balanceador, a próxima requisição
 que o balanceador tenta enviar por ela falha com 502.
@@ -1857,7 +1893,7 @@ operador: uma consulta em quatro que falha é uma tela quebrada, não 25% de suc
 a do ALB, e por isso o caminho testado é o do grupo de auto scaling, não o da Lambda
 descrita no TI-05. Os dois existem na pilha; o ALB é o preferido quando está no ar.
 
-&emsp; Desde a Sprint 4 existe um terceiro caminho para a mesma API, o Ingress do
+&emsp; Existe um terceiro caminho para a mesma API, o Ingress do
 cluster EKS, e ele não foi exercitado nesta rodada. A distinção não é formal, e é
 por isso que ela aparece aqui e não numa nota de rodapé: no grupo de auto scaling a
 escala é disparada por requisições por instância por minuto, medida que o ALB publica;
@@ -2109,7 +2145,7 @@ tela abaixo de 5 s e p95 da requisição abaixo de 3 s):
 | Recorte | 2.240 ms | 3.411 ms | 3.189 ms | 0% | Reprovado no p95 da requisição |
 | Hipóteses | 751 ms | 2.972 ms | 2.840 ms | 0% | Aprovado |
 
-Os valores por tela vêm de
+&emsp; Os valores por tela vêm de
 [`evidencias/carga-kubernetes/rodada-b-resultado.json`](evidencias/carga-kubernetes/rodada-b-resultado.json),
 em `niveis.nivel_1.telas`; os agregados da tabela anterior, do mesmo arquivo e de
 [`evidencias/carga-kubernetes.txt`](evidencias/carga-kubernetes.txt).
@@ -2142,7 +2178,7 @@ o banco, e é essa segunda medição que fica pendente.
 JSON, a saída de texto e o log de cada instância geradora. Para conferir quais
 critérios passaram, a saída de texto é a leitura confiável: ela marca cada linha com
 `✓` para limiar atendido e `✗` para limiar ultrapassado. Nos arquivos
-`*-summary-k6.json` a convenção é a oposta e engana quem lê depressa — ali o booleano
+`*-summary-k6.json` a convenção é a oposta e engana quem lê depressa, ali o booleano
 sob `thresholds` indica que o limiar *foi ultrapassado*, de modo que `true` significa
 reprovado. O diagnóstico do
 autoescalador está em
@@ -2301,7 +2337,7 @@ subir réplicas.
 &emsp; Assim, integração entre camadas, carga pelo ALB e carga pelo Ingress do EKS
 foram efetivamente executadas.
 
-[^basica]: As evidências capturadas até 23/09 (`testes-unitarios.txt`,
+&emsp; [^basica]: As evidências capturadas até 23/09 (`testes-unitarios.txt`,
     `testes-integracao.txt`, `k8s-validate.txt` e os arquivos `uc03-ampliacao-*` da
     primeira rodada) citam caminhos `apps/basica/...`. O app foi renomeado para
     `apps/fullstack/` em 24/09 (commit `602d3a3`, "refactor: renomeia app basica
@@ -2313,7 +2349,7 @@ foram efetivamente executadas.
 &emsp; Fontes consultadas na escrita deste artefato, agrupadas pelo assunto em que
 foram usadas.
 
-**Ferramentas de teste**
+&emsp; Ferramentas de teste
 
 1. PYTEST-DEV. *pytest documentation*. Disponível em: <https://docs.pytest.org/en/stable/>. Acesso em: 18 set. 2026.
 2. MICROSOFT. *Playwright: Installation and getting started*. Disponível em: <https://playwright.dev/docs/intro>. Acesso em: 18 set. 2026.
@@ -2322,7 +2358,7 @@ foram usadas.
 5. GRAFANA LABS. *k6 documentation: Thresholds*. Disponível em: <https://grafana.com/docs/k6/latest/using-k6/thresholds/>. Acesso em: 18 set. 2026.
 6. GRAFANA LABS. *k6 documentation: http.batch()*. Disponível em: <https://grafana.com/docs/k6/latest/javascript-api/k6-http/batch/>. Acesso em: 18 set. 2026.
 
-**Componentes da AWS exercitados pelos testes**
+&emsp; Componentes da AWS exercitados pelos testes
 
 7. AMAZON WEB SERVICES. *Amazon SQS standard queues* (entrega ao menos uma vez e ordenação de melhor esforço). Disponível em: <https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html>. Acesso em: 18 set. 2026.
 8. AMAZON WEB SERVICES. *Integrating HTTP APIs with AWS services* (integração direta do API Gateway com o SQS, usada no TI-05). Disponível em: <https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-aws-services.html>. Acesso em: 18 set. 2026.
@@ -2335,12 +2371,12 @@ foram usadas.
 15. AMAZON WEB SERVICES. *Amazon EC2 testing policy* (testes de estresse de rede a partir de recursos da própria conta). Disponível em: <https://aws.amazon.com/ec2/testing/>. Acesso em: 18 set. 2026.
 16. AMAZON WEB SERVICES. *Penetration testing* (política de eventos simulados, incluindo testes de carga). Disponível em: <https://aws.amazon.com/security/penetration-testing/>. Acesso em: 18 set. 2026.
 
-**Servidor de aplicação e banco**
+&emsp; Servidor de aplicação e banco
 
 17. GUNICORN. *Settings: keepalive* (padrão de 2 s e a recomendação de valor maior atrás de um balanceador). Disponível em: <https://gunicorn.org/reference/settings/>. Acesso em: 18 set. 2026.
 18. POSTGRESQL GLOBAL DEVELOPMENT GROUP. *PostgreSQL 16 Documentation: Indexes* (base da migration 030). Disponível em: <https://www.postgresql.org/docs/16/indexes.html>. Acesso em: 18 set. 2026.
 
-**Conceitos**
+&emsp; Conceitos
 
 19. DEAN, J.; BARROSO, L. A. The Tail at Scale. *Communications of the ACM*, v. 56, n. 2, p. 74–80, 2013. Disponível em: <https://doi.org/10.1145/2408776.2408794>. Acesso em: 18 set. 2026. Base para a escolha de percentis, e não médias, como medida de tempo de resposta.
 20. DATABRICKS. *Medallion architecture* (as camadas bronze, silver e gold). Disponível em: <https://www.databricks.com/glossary/medallion-architecture>. Acesso em: 18 set. 2026.

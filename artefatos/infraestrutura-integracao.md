@@ -1,6 +1,6 @@
 # Infraestrutura e integração
 
-&emsp; Este artefato documenta a infraestrutura em nuvem do Argus e a integração
+&emsp; Este artefato documenta a infraestrutura em nuvem do Linceu e a integração
 entre o dashboard e a API que o alimenta. Ele descreve a topologia implantada na
 Amazon Web Services: a rede que isola as cargas, os componentes que executam cada
 parte do sistema, a justificativa de cada escolha, o procedimento de implantação e
@@ -10,7 +10,7 @@ decisões e estão registradas na seção 8.
 
 ## 1. Contexto e escopo
 
-&emsp; O Argus é um sistema de telemetria e correlação de falhas para a cadeia de
+&emsp; O Linceu é um sistema de telemetria e correlação de falhas para a cadeia de
 entrega de streaming do Grupo Globo. Aplicações cliente enviam eventos a uma API de
 ingestão; o pipeline normaliza, persiste e expõe os dados a um dashboard que
 apresenta a linha do tempo do incidente e as hipóteses de causa provável. O desenho
@@ -55,9 +55,9 @@ a matriz de conexões de 3.7 é o checklist cruzado dessa correspondência.
 
 <div align="center">
 
-<sub>Figura 1 — Implantação do Argus na AWS, região `us-east-1`</sub>
+<sub>Figura 1 — Implantação do Linceu na AWS, região `us-east-1`</sub>
 
-![Diagrama de implantação do Argus](assets/arquitetura-implantacao-v4.png)
+![Diagrama de implantação do Linceu](assets/arquitetura-implantacao-v4.png)
 
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
@@ -423,8 +423,8 @@ substitui a instância, em vez de deixá-la em serviço servindo erro.
 &emsp; O token não entra na instância; o hash dele entra. Como um ALB não tem
 authorizer, a validação do token Bearer passou para dentro do Flask
 (`telemetry/interfaces/auth.py`). Mas a aplicação não fala com a AWS, porque a
-biblioteca `boto3` foi removida dela de propósito, decisão registrada em
-`backend/AGENTS.md`. Então quem consulta o Secrets Manager é o script de boot, que
+biblioteca `boto3` foi removida dela de propósito. Então quem consulta o
+Secrets Manager é o script de boot, que
 extrai o SHA-256 da audiência
 `dashboard` e o injeta como variável de ambiente do container. A consequência
 está assumida: rotacionar o token com `make auth-rotate` exige um

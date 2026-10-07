@@ -8,9 +8,9 @@
 
 ## G04 - Vale a Pena Ver de Novo
 
-**Sistema distribuído de telemetria para diagnóstico de degradação de streaming**
+Sistema distribuído de telemetria para diagnóstico de degradação de streaming
 
-Turma T15 · 2026-2A · Parceiro: **Grupo Globo**
+Turma T15 · 2026-2A · Parceiro: Grupo Globo
 
 ### Integrantes
 
@@ -27,15 +27,15 @@ Turma T15 · 2026-2A · Parceiro: **Grupo Globo**
 
 ## Descrição do projeto
 
-**Argus, sistema distribuído de telemetria para diagnóstico de degradação de streaming.** A cadeia de entrega do Globoplay (player, CDN, backend, identidade, catálogo) é monitorada em silos: cada área tem seu próprio painel e vocabulário de métricas, o que faz com que a triagem de um incidente consuma mais tempo para descobrir *quem* conserta do que para de fato consertar, e degradações que não geram erro (buffer alto, tempo de início ruim) sequer acendem os alertas atuais. A solução é um sistema distribuído de telemetria com API única de ingestão, normalização dos eventos sob vocabulário comum, pipeline assíncrono de alta escala e camada de consulta que devolve uma linha do tempo única do incidente com o recorte afetado explícito, permitindo identificar a causa provável em minutos e sem depender de um especialista por componente; o sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `video_view`, `vitals` e `error`) e ainda aceita tipos novos sem alteração de código, porque o parque de TVs atualiza devagar e um schema estrito viraria perda de dados em massa.
+Linceu, sistema distribuído de telemetria para diagnóstico de degradação de streaming. A cadeia de entrega do Globoplay (player, CDN, backend, identidade, catálogo) é monitorada em silos: cada área tem seu próprio painel e vocabulário de métricas, o que faz com que a triagem de um incidente consuma mais tempo para descobrir *quem* conserta do que para de fato consertar, e degradações que não geram erro (buffer alto, tempo de início ruim) sequer acendem os alertas atuais. A solução é um sistema distribuído de telemetria com API única de ingestão, normalização dos eventos sob vocabulário comum, pipeline assíncrono de alta escala e camada de consulta que devolve uma linha do tempo única do incidente com o recorte afetado explícito, permitindo identificar a causa provável em minutos e sem depender de um especialista por componente; o sistema ingere os seis eventos do MVP (`request`, `screen_view`, `session`, `video_view`, `vitals` e `error`) e ainda aceita tipos novos sem alteração de código, porque o parque de TVs atualiza devagar e um schema estrito viraria perda de dados em massa.
 
 ---
 
 ## Arquitetura
 
-A arquitetura possui **dois fluxos de ingestão** independentes que desembocam no mesmo banco, e um fluxo de leitura sobre ele, servido por um cluster Kubernetes.
+A arquitetura possui dois fluxos de ingestão independentes que desembocam no mesmo banco, e um fluxo de leitura sobre ele, servido por um cluster Kubernetes.
 
-O primeiro fluxo é o de **eventos de sessão**: o que o app de TV emite (`request`, `screen_view`, `session`, `video_view`, `vitals`, `error`). O segundo é o de **mudanças (CDC)**: as 33 tabelas de telemetria do parceiro não chegam como evento, chegam como *linha que mudou*, e é isso que o simulador reproduz.
+O primeiro fluxo é o de eventos de sessão: o que o app de TV emite (`request`, `screen_view`, `session`, `video_view`, `vitals`, `error`). O segundo é o de mudanças (CDC): as 33 tabelas de telemetria do parceiro não chegam como evento, chegam como *linha que mudou*, e é isso que o simulador reproduz.
 
 ```
 App de TV ──> API Gateway ──> SQS ──> ECS Fargate ─┐
@@ -63,7 +63,7 @@ Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
 | API de mudanças | Recebe os *change events* do simulador, mesma integração direta | API Gateway (HTTP API) |
 | Filas | Absorvem picos e garantem a entrega; payload inválido vai para a DLQ com o motivo | SQS + DLQ (duas filas) |
 | Event worker | Consome a fila de eventos, valida e grava em `bronze.event` | ECS Fargate (ARM64) |
-| Merge worker | Grava o change event em `bronze.change_log` e faz o MERGE na tabela corrente, na **mesma transação** | ECS Fargate (ARM64) |
+| Merge worker | Grava o change event em `bronze.change_log` e faz o MERGE na tabela corrente, na mesma transação | ECS Fargate (ARM64) |
 | Simulador | Anda um relógio virtual e reemite as mudanças das tabelas como se estivessem acontecendo agora | ECS Fargate (ARM64) |
 | Banco de dados | 33 tabelas de origem (68,7 M linhas), 6 delas particionadas por dia | RDS PostgreSQL 16 |
 | Carga inicial | Sobe as 33 tabelas a partir de Parquet, via `COPY FROM STDIN` | ECS Fargate (task one-shot) |
@@ -75,23 +75,23 @@ Dentro do banco o dado atravessa quatro camadas, cada uma com um trabalho só:
 
 ### O relógio virtual
 
-O dataset do parceiro é um **dump do passado**. Um dashboard "ao vivo" sobre ele mostraria uma tela vazia, porque nada tem a data de hoje. Por isso o sistema tem um presente próprio: `sim.now()`.
+O dataset do parceiro é um dump do passado. Um dashboard "ao vivo" sobre ele mostraria uma tela vazia, porque nada tem a data de hoje. Por isso o sistema tem um presente próprio: `sim.now()`.
 
-Toda linha carrega um `available_at`, que é o instante em que a informação *ficaria disponível na vida real*, contando a latência da fonte (a NPAW entrega com 28 h de atraso; o Prometheus, com 1 min). E **toda** view `v_*` filtra `available_at <= sim.now()`.
+Toda linha carrega um `available_at`, que é o instante em que a informação *ficaria disponível na vida real*, contando a latência da fonte (a NPAW entrega com 28 h de atraso; o Prometheus, com 1 min). E toda view `v_*` filtra `available_at <= sim.now()`.
 
-Isso não é um filtro de conveniência: é a barreira que impede vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas, então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
+Essa é a barreira que impede o vazamento de futuro. O usuário de leitura do banco (`argus_reader`) só tem `SELECT` nas views, nunca nas tabelas, então nem a API nem o detector conseguem enxergar um dado antes da hora em que ele existiria.
 
-Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura final](artefatos/arquitetura-final.md), na [arquitetura inicial do Argus v3](artefatos/arquitetura-inicial.md), no [plano da v3](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/fullstack/infra/README.md).
+Escolhas de projeto, modelo de dados, garantias de entrega, custo e pendências estão detalhados na [arquitetura final](artefatos/arquitetura-final.md), na [arquitetura inicial](artefatos/arquitetura-inicial.md), no [plano de arquitetura](artefatos/plano-argus-v3.md) e no [README de infraestrutura](apps/fullstack/infra/README.md).
 
-### Estado atual (Sprint 4): conteinerização e Kubernetes
+### Conteinerização e orquestração
 
-Na Sprint 4 o caminho síncrono passou a rodar num cluster **Amazon EKS Auto Mode**, criado pelo Terraform dentro da VPC do projeto (`create_eks = true`) e descrito pelos manifestos de [`apps/fullstack/k8s`](apps/fullstack/k8s). O namespace `argus` reúne dois Deployments (`argus-backend`, a API Flask + gunicorn, e `argus-frontend`, o nginx com o export estático do Next.js), cada um com Service, HorizontalPodAutoscaler e PodDisruptionBudget; um ConfigMap; um Ingress que provisiona o Application Load Balancer e encaminha `/` ao dashboard e `/api` e `/health` à API; e o Job `argus-db-migrate`, que usa a imagem `processing` para aplicar as migrations e criar o usuário de leitura antes de cada versão. O Auto Mode cria e remove os nós EC2 conforme os pods pendentes, e os overlays `aws` e `kind` executam o mesmo conjunto de manifestos na AWS e num cluster local.
+O caminho síncrono roda num cluster Amazon EKS Auto Mode, criado pelo Terraform dentro da VPC do projeto (`create_eks = true`) e descrito pelos manifestos de [`apps/fullstack/k8s`](apps/fullstack/k8s). O namespace `argus` reúne dois Deployments (`argus-backend`, a API Flask + gunicorn, e `argus-frontend`, o nginx com o export estático do Next.js), cada um com Service, HorizontalPodAutoscaler e PodDisruptionBudget; um ConfigMap; um Ingress que provisiona o Application Load Balancer e encaminha `/` ao dashboard e `/api` e `/health` à API; e o Job `argus-db-migrate`, que usa a imagem `processing` para aplicar as migrations e criar o usuário de leitura antes de cada versão. O Auto Mode cria e remove os nós EC2 conforme os pods pendentes, e os overlays `aws` e `kind` executam o mesmo conjunto de manifestos na AWS e num cluster local.
 
-A ingestão não mudou de plataforma: API Gateway → SQS → ECS Fargate (merge worker, event worker, simulador, processamento e a task de carga) continua gravando no RDS PostgreSQL 16, porque esses serviços precisam de IAM por task para falar com SQS e S3, e o Learner Lab bloqueia IRSA e Pod Identity no EKS. O caminho de leitura em EC2 da Sprint 3 (Auto Scaling Group com Application Load Balancer próprio) foi removido: a leitura pública vem do ALB criado pelo Ingress do EKS. A Lambda da API de leitura e o website S3 seguem provisionados apenas como recurso de compatibilidade. Diagrama, justificativas, plano de recuperação de falhas e evidências estão em [`artefatos/arquitetura-final.md`](artefatos/arquitetura-final.md); as decisões de conteinerização e orquestração, em [`artefatos/conteineres-final.md`](artefatos/conteineres-final.md).
+A ingestão roda em outra plataforma: API Gateway → SQS → ECS Fargate (merge worker, event worker, simulador, processamento e a task de carga) grava no RDS PostgreSQL 16, porque esses serviços precisam de IAM por task para falar com SQS e S3, e o Learner Lab bloqueia IRSA e Pod Identity no EKS. A leitura pública vem do ALB criado pelo Ingress do EKS, sem um caminho em EC2 com Auto Scaling Group e Application Load Balancer próprio. A Lambda da API de leitura e o website S3 seguem provisionados apenas como recurso de compatibilidade. Diagrama, justificativas, plano de recuperação de falhas e evidências estão em [`artefatos/arquitetura-final.md`](artefatos/arquitetura-final.md); as decisões de conteinerização e orquestração, em [`artefatos/conteineres-final.md`](artefatos/conteineres-final.md).
 
-### Histórico: arquitetura v4 da Sprint 3
+### Rede e infraestrutura de apoio
 
-A arquitetura v4, desenvolvida na Sprint 3, acrescentou a VPC dedicada com sub-redes públicas e privadas em duas zonas de disponibilidade, NAT Gateway, bastion host, Flow Logs, a opção de RDS Multi-AZ e uma API de leitura em instâncias EC2 sob Auto Scaling Group atrás de um Application Load Balancer, com CloudFront no desenho. A rede, o bastion e os Flow Logs permanecem; o caminho EC2 foi substituído pelo cluster na Sprint 4. O diagrama e a documentação dessa etapa estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md), que separa o desenho da Sprint 3 do que foi efetivamente provisionado na conta do Learner Lab. O estado das Sprints 1 e 2, com o modelo de dados e o relatório de testes iniciais, está em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
+A aplicação roda numa VPC dedicada, com sub-redes públicas e privadas em duas zonas de disponibilidade, NAT Gateway, bastion host, Flow Logs e a opção de RDS Multi-AZ. O detalhamento dessa camada e o que foi efetivamente provisionado na conta do Learner Lab estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md). O modelo de dados e o relatório de testes iniciais estão em [`artefatos/mvp-inicial.md`](artefatos/mvp-inicial.md).
 
 ---
 
@@ -119,15 +119,15 @@ g04/
 │       ├── tools/          # migrations, DDL, ETL do dump, replay e loadtest
 │       ├── worker/         # merge worker e event worker
 │       └── Makefile        # comandos do projeto
-├── artefatos/              # documentação e evidências das sprints
-├── slides/                 # apresentações das sprints
+├── artefatos/              # documentação e evidências do projeto
+├── slides/                 # apresentações do projeto
 └── assets/                 # logos do Inteli e do parceiro
 ```
 
 | Pasta / Arquivo | Conteúdo |
 |-----------------|----------|
 | `/apps` | Aplicações do projeto, organizadas em subpastas |
-| `/apps/fullstack` | Aplicação Argus completa: serviços, dashboard, infraestrutura e ferramentas |
+| `/apps/fullstack` | Aplicação Linceu completa: serviços, dashboard, infraestrutura e ferramentas |
 | `/apps/fullstack/authorizer` | Autorização das APIs por token Bearer |
 | `/apps/fullstack/db/migrations` | As 33 migrations que constroem o banco, aplicadas em ordem por `tools/migrate.py` |
 | `/apps/fullstack/backend` | API de leitura em Flask com arquitetura hexagonal, servida por contêiner no cluster Kubernetes |
@@ -143,13 +143,12 @@ g04/
 | `/apps/fullstack/notebooks` | Análise exploratória do dataset do parceiro |
 | `/apps/fullstack/observability` | Configuração local de Prometheus e Grafana para acompanhar os testes |
 | `/apps/fullstack/tests/carga` | Scripts K6 dos testes de carga (RNF01 a RNF03), escalabilidade e resiliência, com `executar_testes.sh` e README próprio |
-| `/apps/fullstack/AGENTS.md`, `CLAUDE.md` | Convenções do app para assistentes de código; algumas subpastas têm os seus |
-| `/artefatos` | Documentação das sprints: negócio, UX, requisitos, modelagem, arquitetura, hipóteses, testes, infraestrutura e conteinerização (índice na seção [Documentação](#documentação)) |
+| `/artefatos` | Documentação do projeto: negócio, UX, requisitos, modelagem, arquitetura, hipóteses, testes, infraestrutura e conteinerização (índice na seção [Documentação](#documentação)) |
 | `/artefatos/assets` | Imagens e diagramas usados nos artefatos |
 | `/artefatos/evidencias` | Saídas brutas dos testes unitários, de integração, de carga e do cluster citadas pelos artefatos |
 | `/artefatos/postman` | Coleção Postman de teste das duas APIs + evidências `evidencias/newman-*.json` |
 | `/assets` | Logos usados neste README |
-| `/slides` | Apresentações das sprints: Sprint 1 em PDF, Sprints 2 e 3 em PPTX |
+| `/slides` | Apresentações do projeto, em PDF e PPTX |
 | `/apps/fullstack/Makefile` | Comandos do projeto; `make -C apps/fullstack` lista os alvos |
 | `/apps/fullstack/.env.example` | Chaves de configuração; os valores ficam em `/apps/fullstack/.env`, fora do repositório |
 | `README.md` | Este arquivo |
@@ -173,13 +172,13 @@ deve responder). A execução local abaixo não depende de credenciais AWS.
 
 Quem prefere não instalar nada na máquina usa o devcontainer em
 [`apps/fullstack/.devcontainer`](apps/fullstack/.devcontainer), que já traz Python 3.12,
-uv, Node 20, Docker e make: no VS Code, **Dev Containers: Open Folder in Container…**
+uv, Node 20, Docker e make: no VS Code, Dev Containers: Open Folder in Container…
 apontando para a pasta `apps/fullstack`. Ele não pode ficar na raiz porque a raiz do
-repositório é fixa — e por isso o Codespaces, que só procura `.devcontainer` na raiz,
+repositório é fixa, e por isso o Codespaces, que só procura `.devcontainer` na raiz,
 não o encontra. Com `apps/fullstack` aberto como pasta do workspace,
 [`apps/fullstack/.vscode`](apps/fullstack/.vscode) traz a task padrão de build
-**Argus: subir tudo** (`make dev`) e as configurações **Run and Debug → Backend Flask**
-e **Dashboard (Next dev)**.
+Linceu: subir tudo (`make dev`) e as configurações Run and Debug → Backend Flask
+e Dashboard (Next dev).
 
 ### Passos
 
@@ -195,7 +194,7 @@ cd g04
 make -C apps/fullstack dev
 
 # 3. abrir http://localhost:3000 e colar, na tela de acesso, o token local de
-#    64 zeros — o próprio `make dev` imprime URL e token quando os dois respondem.
+#    64 zeros: o próprio `make dev` imprime URL e token quando os dois respondem.
 ```
 
 `make dev` instala o que falta (`uv` monta os ambientes Python na primeira execução;
@@ -206,18 +205,18 @@ final, a URL do dashboard e o token. As portas são variáveis:
 AirPlay Receiver escuta nela) e `WEB_PORT=3001` para o dashboard.
 
 No ambiente local a API sobe com `AUTH_REQUIRED=0` e ignora o token; a tela de acesso
-do dashboard só exige o **formato** de 64 caracteres hexadecimais, daí os 64 zeros:
+do dashboard só exige o formato de 64 caracteres hexadecimais, daí os 64 zeros:
 `0000000000000000000000000000000000000000000000000000000000000000`. Para usar a API
 publicada, gere o `.env` com `make -C apps/fullstack env` após a implantação na AWS e
 use o token de leitura desse ambiente.
 
-**O banco nasce vazio.** O dataset é do parceiro (4 GB, não redistribuível) e não vem
+O banco nasce vazio. O dataset é do parceiro (4 GB, não redistribuível) e não vem
 no clone; as telas abrem, mas sem dados. Quem tem o dump gera o Parquet uma vez
 (`make -C apps/fullstack parquet`) e carrega a amostra com
 `make -C apps/fullstack dev-seed`, que roda a carga local, reconstrói silver e gold e
 posiciona o relógio virtual no último evento. Sem a pasta `data/parquet`, `dev-seed`
 apenas avisa. `make replay` não substitui isso: ele reenvia os seis eventos de exemplo
-à API de **ingestão publicada** (API Gateway → SQS → worker), que não existe no
+à API de ingestão publicada (API Gateway → SQS → worker), que não existe no
 ambiente local.
 
 #### Passo a passo, um serviço por terminal
@@ -242,7 +241,7 @@ make -C apps/fullstack api DATABASE_URL=postgresql://argus:argus@localhost:55432
 make -C apps/fullstack frontend-dev ARGUS_API_URL=http://localhost:5000
 ```
 
-O `db-local` sobe o container `argus-pg` na porta **55432** (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations — sempre do zero. `make -C apps/fullstack db-ensure` é a versão idempotente que o `make dev` usa: reaproveita o container existente e só aplica o que falta. `make -C apps/fullstack db-stop` derruba, `make -C apps/fullstack db-psql` abre um `psql` dentro dele.
+O `db-local` sobe o container `argus-pg` na porta 55432 (e não 5432, para não colidir com um PostgreSQL já instalado na máquina), cria os bancos `argus` e `argus_test` e aplica as migrations, sempre do zero. `make -C apps/fullstack db-ensure` é a versão idempotente que o `make dev` usa: reaproveita o container existente e só aplica o que falta. `make -C apps/fullstack db-stop` derruba, `make -C apps/fullstack db-psql` abre um `psql` dentro dele.
 
 | Serviço | Porta local | Como subir |
 |---------|-------------|------------|
@@ -273,17 +272,17 @@ Os workers não são executados localmente contra a fila real: use `make -C apps
 
 ### Sem credenciais AWS
 
-Os testes usam um SQS falso (moto) mas um PostgreSQL **de verdade**, porque a parte difícil deste sistema é o SQL: o MERGE idempotente, o keyset de paginação, a barreira do `available_at`. Um dublê que respondesse "ok" a tudo isso testaria apenas o dublê.
+Os testes usam um SQS falso (moto) mas um PostgreSQL de verdade, porque a parte difícil deste sistema é o SQL: o MERGE idempotente, o keyset de paginação, a barreira do `available_at`. Um dublê que respondesse "ok" a tudo isso testaria apenas o dublê.
 
-Com `make -C apps/fullstack db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são **pulados** em vez de quebrarem. Os alvos que acessam a AWS ou as APIs publicadas (`deploy`, `smoke`, `postman`) precisam da configuração correspondente. `api` e `frontend-dev` aceitam os valores locais mostrados acima.
+Com `make -C apps/fullstack db-local` no ar, `test` e `lint` funcionam sem nenhuma configuração de nuvem; sem ele, os testes que precisam de banco são pulados em vez de quebrarem. Os alvos que acessam a AWS ou as APIs publicadas (`deploy`, `smoke`, `postman`) precisam da configuração correspondente. `api` e `frontend-dev` aceitam os valores locais mostrados acima.
 
-> **Nenhuma URL de API ou identificador de conta é versionado.** Os valores vêm do `terraform output` e ficam em `apps/fullstack/.env`, que está no `.gitignore`; o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). As três APIs exigem `Authorization: Bearer` (RNF09); os tokens saem de `make -C apps/fullstack auth-rotate` e nunca entram no repositório, nem no bundle do dashboard.
+> Nenhuma URL de API ou identificador de conta é versionado. Os valores vêm do `terraform output` e ficam em `apps/fullstack/.env`, que está no `.gitignore`; o mesmo vale para o environment do Postman (`artefatos/postman/environment.example.json`). As três APIs exigem `Authorization: Bearer` (RNF09); os tokens saem de `make -C apps/fullstack auth-rotate` e nunca entram no repositório, nem no bundle do dashboard.
 
 Outros alvos úteis, todos com o prefixo `make -C apps/fullstack`: `lint`, `check`, `smoke`, `dlq`, `pause` e `resume`.
 
 ### O sistema inteiro num cluster Kubernetes local
 
-O dashboard e a API também rodam num cluster de verdade na sua máquina, sem nenhuma credencial da AWS. É o mesmo conjunto de manifestos que vai para o EKS — muda só o banco (local em vez de RDS) e a classe do Ingress.
+O dashboard e a API também rodam num cluster de verdade na sua máquina, sem nenhuma credencial da AWS. É o mesmo conjunto de manifestos que vai para o EKS, muda só o banco (local em vez de RDS) e a classe do Ingress.
 
 ```bash
 # pré-requisitos adicionais: kubectl e kind (brew install kubectl kind)
@@ -299,7 +298,7 @@ curl -s http://localhost:8080/api/v1/clock
 
 `make -C apps/fullstack kind-down` destrói tudo. O runbook completo, incluindo o caminho na AWS, está em [`apps/fullstack/k8s/README.md`](apps/fullstack/k8s/README.md).
 
-> **Recursos.** Um nó rodando control plane, ingress-nginx, metrics-server, PostgreSQL e a aplicação pede folga de CPU. Com menos de 4 vCPU na VM do Docker, o próprio API server começa a responder `TLS handshake timeout` — o sintoma parece "o cluster caiu", e é só falta de CPU.
+> Recursos. Um nó rodando control plane, ingress-nginx, metrics-server, PostgreSQL e a aplicação pede folga de CPU. Com menos de 4 vCPU na VM do Docker, o próprio API server começa a responder `TLS handshake timeout`, o sintoma parece "o cluster caiu", e é só falta de CPU.
 
 ---
 
@@ -307,9 +306,9 @@ curl -s http://localhost:8080/api/v1/clock
 
 Toda a infraestrutura é provisionada por Terraform em [`apps/fullstack/infra`](apps/fullstack/infra), que documenta o passo a passo completo, as adaptações do AWS Academy Learner Lab e o custo estimado. O caminho síncrono é aplicado por `kubectl` e `kustomize` a partir de [`apps/fullstack/k8s`](apps/fullstack/k8s), cujo README é o runbook do cluster. Além do Terraform 1.x e da AWS CLI, esse caminho exige `kubectl` e Docker com `buildx`, porque as imagens do EKS são publicadas em duas arquiteturas (os nós do Auto Mode são amd64; as máquinas do time e o Fargate, arm64).
 
-A rede é gerenciada pelo projeto: as tarefas, os nós do cluster e o banco vivem em **sub-redes privadas**, sem endereço público, e alcançam os serviços da AWS por um **NAT Gateway**. O tráfego da VPC é registrado em Flow Logs. O desenho, as justificativas e as evidências de aplicação estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md) e em [`artefatos/arquitetura-final.md`](artefatos/arquitetura-final.md); `create_network = false` devolve o stack à VPC padrão da conta e dispensa o custo do NAT (e, com isso, o cluster, que exige a rede dedicada).
+A rede é gerenciada pelo projeto: as tarefas, os nós do cluster e o banco vivem em sub-redes privadas, sem endereço público, e alcançam os serviços da AWS por um NAT Gateway. O tráfego da VPC é registrado em Flow Logs. O desenho, as justificativas e as evidências de aplicação estão em [`artefatos/infraestrutura-integracao.md`](artefatos/infraestrutura-integracao.md) e em [`artefatos/arquitetura-final.md`](artefatos/arquitetura-final.md); `create_network = false` devolve o stack à VPC padrão da conta e dispensa o custo do NAT (e, com isso, o cluster, que exige a rede dedicada).
 
-O ambiente de entrega é o **AWS Academy Learner Lab**, que impõe concessões a um Terraform escrito para conta normal, todas resolvidas por variável no `terraform.tfvars` (que está no `.gitignore` porque carrega o id da conta e pode carregar a senha do banco): `iam:CreateRole` é negado, então os componentes usam a `LabRole` pronta (`create_iam_roles = false` e `existing_role_arn`); a senha do RDS pode vir do tfvars em vez do Secrets Manager; e a SCP da organização impede o provider de reler um bucket S3 recém-criado, por isso os buckets de logs são criados fora do Terraform e apenas referenciados por nome. O detalhe de cada uma, e o que muda numa conta normal, está em [`apps/fullstack/infra/README.md` § AWS Academy](apps/fullstack/infra/README.md#aws-academy--learner-lab).
+O ambiente de entrega é o AWS Academy Learner Lab, que impõe concessões a um Terraform escrito para conta normal, todas resolvidas por variável no `terraform.tfvars` (que está no `.gitignore` porque carrega o id da conta e pode carregar a senha do banco): `iam:CreateRole` é negado, então os componentes usam a `LabRole` pronta (`create_iam_roles = false` e `existing_role_arn`); a senha do RDS pode vir do tfvars em vez do Secrets Manager; e a SCP da organização impede o provider de reler um bucket S3 recém-criado, por isso os buckets de logs são criados fora do Terraform e apenas referenciados por nome. O detalhe de cada uma, e o que muda numa conta normal, está em [`apps/fullstack/infra/README.md` § AWS Academy](apps/fullstack/infra/README.md#aws-academy--learner-lab).
 
 | Recurso | Configuração |
 |---------|--------------|
@@ -330,10 +329,10 @@ O ambiente de entrega é o **AWS Academy Learner Lab**, que impõe concessões a
 ### Passos de implantação
 
 Credenciais primeiro: [`artefatos/mvp-inicial.md` §6.2](artefatos/mvp-inicial.md#62-conectar-o-terraform-ao-aws-academy-learner-lab)
-mostra como pegar as credenciais do AWS Academy Learner Lab em **AWS Details →
-AWS CLI**, gravá-las num profile e preencher o `terraform.tfvars`.
+mostra como pegar as credenciais do AWS Academy Learner Lab em AWS Details →
+AWS CLI, gravá-las num profile e preencher o `terraform.tfvars`.
 
-> **O id da conta do Learner Lab muda a cada sessão nova.** Antes do apply, confira com `aws sts get-caller-identity --profile g4 --query Account --output text` e atualize o `existing_role_arn` do `terraform.tfvars`. E **todo** comando `aws` deste projeto leva `--profile g4`: sem ele a CLI usa o profile default, que é outra conta. O Terraform não tem `--profile`: exporte `AWS_PROFILE=g4` e `AWS_REGION=us-east-1` antes de `plan` e `apply`.
+> O id da conta do Learner Lab muda a cada sessão nova. Antes do apply, confira com `aws sts get-caller-identity --profile g4 --query Account --output text` e atualize o `existing_role_arn` do `terraform.tfvars`. E todo comando `aws` deste projeto leva `--profile g4`: sem ele a CLI usa o profile default, que é outra conta. O Terraform não tem `--profile`: exporte `AWS_PROFILE=g4` e `AWS_REGION=us-east-1` antes de `plan` e `apply`.
 
 ```bash
 # 1. empacota a Lambda de compatibilidade: o Terraform precisa do zip já no plan
@@ -395,28 +394,28 @@ Para economizar crédito do lab, `pause` e `resume` desligam e religam os servi�
 
 ## Documentação
 
-Os artefatos em [`artefatos/`](artefatos) estão agrupados pela sprint em que foram entregues; vários foram revisados nas sprints seguintes.
+Os artefatos em [`artefatos/`](artefatos) documentam o projeto; vários foram revisados ao longo do desenvolvimento.
 
-| Sprint | Artefato | Descrição |
-|--------|----------|-----------|
-| 1 | [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
-| 1 | [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
-| 1 | [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
-| 1 | [MVP inicial](artefatos/mvp-inicial.md) | O que foi implantado no MVP, modelo de dados, conexão do Terraform ao Learner Lab e relatório de testes |
-| 2 | [Arquitetura inicial (Argus v3)](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
-| 2 | [Plano da v3](artefatos/plano-argus-v3.md) | Por que a arquitetura mudou para RDS + CDC + bronze/silver/gold, schemas, Terraform, carga inicial, serviços, ordem de execução, riscos e ETL incremental |
-| 2 | [Correlação de dados](artefatos/correlacao_dados.md) | Correlação de dados para geração de hipóteses: invariantes temporais, tipos de correlação, features explicáveis, score, cobertura e confiança, padrões por família |
-| 2 | [Geração de hipóteses](artefatos/hipoteses.md) | Arquitetura do motor de hipóteses: conceitos temporais, responsabilidade de cada camada, catálogo inicial, proteções contra falsos positivos, score explicável e persistência no PostgreSQL |
-| 2 | [Back-end](artefatos/backend.md) | Organização do código da API de leitura, endpoints e itens da especificação atendidos |
-| 2 | [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
-| 2 | [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
-| 3 | [Infraestrutura e integração](artefatos/infraestrutura-integracao.md) | Arquitetura v4, diagrama em nuvem, componentes, plano de deploy, alta disponibilidade e rollback, vídeos de infraestrutura e integração front-end/back-end e riscos conhecidos |
-| 3 | [Modelagem](artefatos/modelagem.md) | Diagrama de classes UML (unificado + quatro recortes) e descrição textual do modelo de domínio |
-| 3 | [Testes de carga iniciais](artefatos/testes-carga-inicial.md) | Requisitos não funcionais e planos de teste revisados, resultados de desempenho e resiliência e visualização dos indicadores de observabilidade |
-| 4 | [Arquitetura final](artefatos/arquitetura-final.md) | Diagrama de implantação com EKS Auto Mode e ECS Fargate, componentes e justificativas, inventário de contêineres, Docker e Kubernetes, plano de recuperação de falhas e evidências de validação |
-| 4 | [Conteinerização e orquestração](artefatos/conteineres-final.md) | Arquitetura distribuída, imagens Docker, por que o Kubernetes cobre só o caminho síncrono, tabela de decisões e mecanismos de resiliência |
-| 4 | [Testes funcionais](artefatos/testes-funcionais.md) | Testes unitários, de integração, do UC03 com análise de valor-limite e de carga, com cobertura de requisitos e evidências em `artefatos/evidencias` |
-| 4 | [Teste de hipótese por ingestão CDC](artefatos/teste-hipoteses-ingestao.md) | Roteiro que leva um lote de `POST /v1/changes` até `gold.hypothesis` (bronze → silver → checkpoint → detector), com a execução no lab de 23/09/2026 e a visualização no dashboard |
+| Artefato | Descrição |
+|----------|-----------|
+| [Entendimento do negócio](artefatos/entendimento_negocio.md) | Matriz de Oceano Azul, análise de riscos e oportunidades, Value Proposition Canvas, análise financeira e ODS |
+| [Entendimento de UX](artefatos/entendimento_ux.md) | Personas, user stories, wireframes, protótipo de alta fidelidade e avaliação heurística |
+| [Requisitos](artefatos/requisitos.md) | Requisitos funcionais e não funcionais (ISO 25010) com planos de teste |
+| [MVP inicial](artefatos/mvp-inicial.md) | O que foi implantado no MVP, modelo de dados, conexão do Terraform ao Learner Lab e relatório de testes |
+| [Arquitetura inicial](artefatos/arquitetura-inicial.md) | Diagrama de implantação, nós, justificativa de arquitetura, schemas do banco, ETL incremental e plano de deploy |
+| [Plano de arquitetura](artefatos/plano-argus-v3.md) | Por que a arquitetura adotou RDS + CDC + bronze/silver/gold, schemas, Terraform, carga inicial, serviços, ordem de execução, riscos e ETL incremental |
+| [Correlação de dados](artefatos/correlacao_dados.md) | Correlação de dados para geração de hipóteses: invariantes temporais, tipos de correlação, features explicáveis, score, cobertura e confiança, padrões por família |
+| [Geração de hipóteses](artefatos/hipoteses.md) | Arquitetura do motor de hipóteses: conceitos temporais, responsabilidade de cada camada, catálogo inicial, proteções contra falsos positivos, score explicável e persistência no PostgreSQL |
+| [Back-end](artefatos/backend.md) | Organização do código da API de leitura, endpoints e itens da especificação atendidos |
+| [Interface gráfica](artefatos/frontend.md) | Implementação do frontend, resultados dos testes de entradas e matrizes de rastreabilidade |
+| [Revisão estrutural do frontend](artefatos/revisao-estrutura-frontend.md) | Revisão Standards/Spec, organização Next.js e evidências da refatoração |
+| [Infraestrutura e integração](artefatos/infraestrutura-integracao.md) | Diagrama em nuvem, componentes, plano de deploy, alta disponibilidade e rollback, vídeos de infraestrutura e integração front-end/back-end e riscos conhecidos |
+| [Modelagem](artefatos/modelagem.md) | Diagrama de classes UML (unificado + quatro recortes) e descrição textual do modelo de domínio |
+| [Testes de carga iniciais](artefatos/testes-carga-inicial.md) | Requisitos não funcionais e planos de teste revisados, resultados de desempenho e resiliência e visualização dos indicadores de observabilidade |
+| [Arquitetura final](artefatos/arquitetura-final.md) | Diagrama de implantação com EKS Auto Mode e ECS Fargate, componentes e justificativas, inventário de contêineres, Docker e Kubernetes, plano de recuperação de falhas e evidências de validação |
+| [Conteinerização e orquestração](artefatos/conteineres-final.md) | Arquitetura distribuída, imagens Docker, por que o Kubernetes cobre só o caminho síncrono, tabela de decisões e mecanismos de resiliência |
+| [Testes funcionais](artefatos/testes-funcionais.md) | Testes unitários, de integração, do UC03 com análise de valor-limite e de carga, com cobertura de requisitos e evidências em `artefatos/evidencias` |
+| [Teste de hipótese por ingestão CDC](artefatos/teste-hipoteses-ingestao.md) | Roteiro que leva um lote de `POST /v1/changes` até `gold.hypothesis` (bronze → silver → checkpoint → detector), com a visualização no dashboard |
 
 Os READMEs de cada parte da aplicação complementam os artefatos:
 
@@ -434,11 +433,11 @@ A API também se documenta em tempo de execução: `GET /docs` serve a Swagger U
 
 ## Padrões de contribuição
 
-- **Fluxo de branches:** branch de tema → `develop` → `main`. Nunca commitar direto em `main`.
-- **Commits:** Conventional Commits em português, no imperativo, distribuídos ao longo da sprint.
-- **Documentação de código:** docstrings (PEP 257) em Python e JSDoc em JavaScript. Todo módulo tem cabeçalho descritivo e toda função documenta parâmetros, retorno e comportamento.
-- **Qualidade:** `make -C apps/fullstack check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
-- **Tags:** uma tag `SPRINTN` por entrega (`SPRINT4` para esta), sem hífen, criada na data de entrega da sprint, como pede o enunciado. As tags anteriores variaram na grafia (`SPRINT-1`, `SPRINT-2`, `Sprint-3`) e foram mantidas como estão.
+- Fluxo de branches: branch de tema → `develop` → `main`. Nunca commitar direto em `main`.
+- Commits: Conventional Commits em português, no imperativo, distribuídos ao longo do desenvolvimento.
+- Documentação de código: docstrings (PEP 257) em Python e JSDoc em JavaScript. Todo módulo tem cabeçalho descritivo e toda função documenta parâmetros, retorno e comportamento.
+- Qualidade: `make -C apps/fullstack check` roda o que a CI deveria rodar: `ruff`, `terraform fmt`/`validate` e as duas suítes de testes.
+- Tags: uma tag `SPRINTN` por entrega, sem hífen, criada na data de entrega, como pede o enunciado. As tags anteriores variaram na grafia (`SPRINT-1`, `SPRINT-2`, `Sprint-3`) e foram mantidas como estão.
 
 ---
 

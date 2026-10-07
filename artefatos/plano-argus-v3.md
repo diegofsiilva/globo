@@ -1,4 +1,4 @@
-# Plano — Argus v3: RDS PostgreSQL, CDC e camadas bronze/silver/gold
+# Plano — Linceu v3: RDS PostgreSQL, CDC e camadas bronze/silver/gold
 
 Plano de migração da arquitetura de dados: de DynamoDB single-table para RDS
 PostgreSQL com quatro camadas, ingestão por change events e simulador de produção
@@ -103,7 +103,7 @@ infraestrutura quase-real-time é Prometheus (1 min) e `rpaas_bucket` (15 min).
 └───────────────────────────────┘  └────────────────────────────────────┘
 ```
 
-![Diagrama da arquitetura Argus v3](assets/arquitetura-v3.png)
+![Diagrama da arquitetura Linceu v3](assets/arquitetura-v3.png)
 <sup>Fonte: material produzido pelos autores (2026).</sup>
 
 ---

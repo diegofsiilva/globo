@@ -3,7 +3,7 @@
 ## 1. Objetivo
 
 &emsp;Este documento descreve como identificar padrões de correlação entre as
-anomalias detectadas pelo Argus e os sinais de contexto disponíveis no projeto.
+anomalias detectadas pelo Linceu e os sinais de contexto disponíveis no projeto.
 O resultado da correlação é um conjunto de evidências que pode sustentar,
 enfraquecer ou impedir a avaliação de uma hipótese de causa provável.
 
@@ -28,7 +28,7 @@ existentes.
 
 &emsp;Fazem parte do escopo:
 
-- definir o que significa correlacionar dados no domínio do Argus;
+- definir o que significa correlacionar dados no domínio do Linceu;
 - descrever os tipos de correlação utilizados;
 - mapear as features que participam da análise;
 - relacionar fontes de dados a famílias de hipóteses;
