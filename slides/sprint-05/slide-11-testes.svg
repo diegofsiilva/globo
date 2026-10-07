@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#0A0A0A"/>
+  <circle cx="1690" cy="-22" r="215" fill="none" stroke="#7D120C" stroke-width="3"/>
+  <circle cx="1690" cy="-22" r="173" fill="none" stroke="#52100B"/>
+  <g font-family="Inter, Arial, sans-serif" dominant-baseline="text-before-edge">
+    <text x="96" y="58" font-size="20" fill="#FF1A0A">Testes / resultados</text>
+    <text x="1657" y="56" font-size="23" font-weight="800" fill="white">Globo</text>
+    <text x="1743" y="58" font-size="20" fill="#FF1A0A">×</text>
+    <text x="1771" y="56" font-size="23" fill="white">Inteli</text>
+    <text x="96" y="144" font-size="84" font-weight="800" letter-spacing="-2.5" fill="white">Testado para responder.</text>
+    <text x="96" y="234" font-size="84" font-weight="800" letter-spacing="-2.5" fill="white">Validado sob carga.</text>
+    <text x="96" y="350" font-size="28" fill="#BDB9B9">Funcionalidade, ingestão e leitura avaliadas em testes automatizados e ensaios de carga.</text>
+
+    <rect x="96" y="434" width="544" height="382" rx="14" fill="#131111" stroke="#332E2E"/>
+    <rect x="688" y="434" width="544" height="382" rx="14" fill="#131111" stroke="#332E2E"/>
+    <rect x="1280" y="434" width="544" height="382" rx="14" fill="#131111" stroke="#332E2E"/>
+
+    <text x="128" y="468" font-size="20" fill="#FF1A0A">01 / FUNCIONALIDADE</text>
+    <text x="128" y="516" font-size="112" font-weight="800" letter-spacing="-3" fill="white">217</text>
+    <text x="128" y="654" font-size="26" font-weight="600" fill="white">testes automatizados aprovados</text>
+    <text x="128" y="718" font-size="23" fill="#BDB9B9">92 de frontend + 125 de worker.</text>
+    <text x="128" y="751" font-size="23" fill="#BDB9B9">Worker testado com PostgreSQL real.</text>
+
+    <text x="720" y="468" font-size="20" fill="#FF1A0A">02 / INGESTÃO</text>
+    <text x="720" y="528" font-size="96" font-weight="800" letter-spacing="-3" fill="white">600 mil</text>
+    <text x="720" y="654" font-size="26" font-weight="600" fill="white">eventos no maior lote</text>
+    <text x="720" y="718" font-size="23" fill="#BDB9B9">Drenagem em 5 min 46 s.</text>
+    <text x="720" y="751" font-size="23" fill="#BDB9B9">DLQ zerada nos quatro lotes.</text>
+
+    <text x="1312" y="468" font-size="20" fill="#FF1A0A">03 / LEITURA NO EKS</text>
+    <text x="1312" y="516" font-size="112" font-weight="800" letter-spacing="-3" fill="white">100</text>
+    <text x="1312" y="654" font-size="26" font-weight="600" fill="white">usuários simultâneos</text>
+    <text x="1312" y="718" font-size="23" fill="#BDB9B9">p95 das requisições: 841 ms.</text>
+    <text x="1312" y="751" font-size="23" fill="#BDB9B9">0% de erros HTTP nessa rodada.</text>
+
+    <text x="96" y="885" font-size="31" font-weight="600" fill="white">Três frentes validadas: funcionalidades, processamento em lote e consulta sob carga.</text>
+    <path d="M96 970H1824" stroke="#332E2E"/>
+    <text x="96" y="994" font-size="18" fill="#8C8686">Evidências do projeto: upload (05/10), lotes (09/09) e EKS com k6 (24/09) • 2026.</text>
+  </g>
+</svg>
