@@ -1,0 +1,47 @@
+{
+  "capturado_em": "2026-10-06T17:43:36.435454-03:00",
+  "ecs": [
+    {
+      "servico": "argus-events-dev-event-worker",
+      "estado": "ACTIVE",
+      "desired": 1,
+      "running": 1,
+      "pending": 0
+    },
+    {
+      "servico": "argus-events-dev-merge-worker",
+      "estado": "ACTIVE",
+      "desired": 1,
+      "running": 1,
+      "pending": 0
+    },
+    {
+      "servico": "argus-events-dev-processing",
+      "estado": "ACTIVE",
+      "desired": 1,
+      "running": 1,
+      "pending": 0
+    },
+    {
+      "servico": "argus-events-dev-simulator",
+      "estado": "ACTIVE",
+      "desired": 0,
+      "running": 0,
+      "pending": 0
+    }
+  ],
+  "eks": {
+    "name": "argus-events-dev-eks",
+    "status": "ACTIVE",
+    "version": "1.33"
+  },
+  "docker": {
+    "comando": "docker run -d --name argus-video-backend -p 127.0.0.1:15000:5000 (...) argus-backend:dev",
+    "estado": "NAMES                 IMAGE               STATUS                    PORTS\nargus-video-backend   argus-backend:dev   Up 40 seconds (healthy)   127.0.0.1:15000->5000/tcp\n",
+    "health_live": {
+      "status": "ok"
+    },
+    "http_status": 200,
+    "escopo": "Processo da API em Docker local; sem banco e sem prova de integração local."
+  }
+}

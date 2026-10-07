@@ -1,0 +1,70 @@
+[
+  {
+    "servico": "argus-events-dev-event-worker",
+    "familia": "argus-events-dev-event-worker",
+    "revisao": 2,
+    "compatibilidade": [
+      "FARGATE"
+    ],
+    "containers": [
+      {
+        "nome": "event-worker",
+        "imagem": "argus-events-dev-worker:326769cbb9d9",
+        "comando": [
+          "event"
+        ],
+        "essencial": true
+      }
+    ]
+  },
+  {
+    "servico": "argus-events-dev-merge-worker",
+    "familia": "argus-events-dev-merge-worker",
+    "revisao": 2,
+    "compatibilidade": [
+      "FARGATE"
+    ],
+    "containers": [
+      {
+        "nome": "merge-worker",
+        "imagem": "argus-events-dev-worker:326769cbb9d9",
+        "comando": [
+          "merge"
+        ],
+        "essencial": true
+      }
+    ]
+  },
+  {
+    "servico": "argus-events-dev-processing",
+    "familia": "argus-events-dev-processing",
+    "revisao": 2,
+    "compatibilidade": [
+      "FARGATE"
+    ],
+    "containers": [
+      {
+        "nome": "processing",
+        "imagem": "argus-events-dev-processing:326769cbb9d9",
+        "comando": [],
+        "essencial": true
+      }
+    ]
+  },
+  {
+    "servico": "argus-events-dev-simulator",
+    "familia": "argus-events-dev-simulator",
+    "revisao": 2,
+    "compatibilidade": [
+      "FARGATE"
+    ],
+    "containers": [
+      {
+        "nome": "simulator",
+        "imagem": "argus-events-dev-simulator:326769cbb9d9",
+        "comando": [],
+        "essencial": true
+      }
+    ]
+  }
+]
