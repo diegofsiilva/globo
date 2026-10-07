@@ -4,7 +4,7 @@
 
 ## 1. Vídeo de apresentação da aplicação distribuída
 
-&emsp; Vídeo de apresentação: [ver vídeo](https://youtu.be/4U6GvE_Xhgw)
+**Vídeo de apresentação:** [ver vídeo](https://youtu.be/4U6GvE_Xhgw)
 
 &emsp; A apresentação audiovisual complementa a documentação técnica com uma demonstração detalhada da aplicação distribuída. Seu escopo abrange os fluxos entre os componentes, a execução da API em Docker, a orquestração do frontend e do backend no Kubernetes, os serviços assíncronos no ECS Fargate e os mecanismos de recuperação após a perda de uma réplica. A consulta de dados históricos pela Timeline exemplifica o funcionamento integrado da interface, da API e da persistência na AWS.
 
@@ -64,7 +64,7 @@ flowchart LR
     BACK -->|Consulta| DB
 ```
 
-<sup>Fonte: autoria própria (2026).</sup>
+<sup>Fonte: elaboração do grupo a partir do código e dos manifestos da aplicação (2026).</sup>
 
 </div>
 
